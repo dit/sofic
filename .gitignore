@@ -1,0 +1,42 @@
+# Python
+*.pyc
+*.pyo
+*.so
+__pycache__/
+*.egg-info/
+.eggs/
+build/
+dist/
+MANIFEST
+
+# Virtual environments
+.venv/
+
+# Packaging
+pensive.egg-info/
+
+# Test and coverage
+.coverage*
+coverage.xml
+coverage_html_report/
+.pytest_cache/
+.hypothesis/
+
+# Type checkers
+.mypy_cache/
+.ruff_cache/
+
+# IDEs and editors
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*.*~
+
+# Documentation
+docs/_build/
+
+# Misc
+.cache/
+.pypirc

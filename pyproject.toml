@@ -1,0 +1,195 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# ── Project metadata (PEP 621) ──────────────────────────────────────────
+
+[project]
+name = "pensive"
+dynamic = ["version"]
+description = "Python package for hidden Markov models, symbolic dynamics, finite state machines, and stochastic symbol generators."
+readme = "README.rst"
+license = "BSD-3-Clause"
+requires-python = ">=3.11"
+authors = [
+    { name = "chebee7i", email = "admin@dit.io" },
+    { name = "Ryan G. James", email = "dit@autoplectic.com" },
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "networkx>=2.6",
+    "numpy>=1.22",
+    "scipy>=1.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/dit/pensive"
+Repository = "https://github.com/dit/pensive"
+Documentation = "https://pensive.readthedocs.io"
+
+[project.optional-dependencies]
+test = [
+    "hypothesis>=6.0",
+    "hypothesis[numpy]",
+    "pytest>=9.0.3",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "pytest-sugar",
+    "pytest-xdist",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+dev = [
+    "pensive[test]",
+    "pensive[docs]",
+    "ruff",
+    "ty",
+]
+
+# ── Build configuration ─────────────────────────────────────────────────
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "pensive/",
+    "tests/",
+    "README.rst",
+    "LICENSE.txt",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pensive"]
+
+# ── Pytest ───────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=pensive",
+    "--cov-report=term-missing",
+    "--numprocesses=auto",
+    "--durations=25",
+    "--durations-min=1.0",
+    "--reruns=1",
+    "-m", "not slow and not very_slow",
+]
+markers = [
+    "slow: mark that the test may take several minutes to complete. Excluded by default.",
+    "very_slow: mark that the test is extremely slow. Excluded by default.",
+]
+filterwarnings = [
+    "ignore::pytest.PytestUnknownMarkWarning",
+]
+
+# ── Coverage ─────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+branch = true
+source = ["pensive"]
+omit = [
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+ignore_errors = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "@abstractmethod",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "@pytest.mark.skip",
+]
+
+[tool.coverage.html]
+directory = "coverage_html_report"
+
+# ── Ruff ─────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "C4",
+    "SIM",
+]
+ignore = [
+    "B019",
+    "C416",
+    "E501",
+    "E741",
+    "E731",
+    "E722",
+    "F403",
+    "F405",
+    "N802",
+    "N803",
+    "N806",
+    "N812",
+    "N816",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["N817", "S101"]
+"__init__.py" = ["F401", "F403"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pensive"]
+
+# ── ty (type checking) ──────────────────────────────────────────────────
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.rules]
+unresolved-import = "error"
+unresolved-attribute = "warn"
+call-non-callable = "warn"
+invalid-argument-type = "warn"
+not-subscriptable = "warn"
+invalid-method-override = "warn"
+missing-argument = "warn"
+invalid-assignment = "warn"
+unsupported-operator = "warn"
+not-iterable = "warn"
+unknown-argument = "warn"
+too-many-positional-arguments = "warn"
+no-matching-overload = "warn"
+possibly-unresolved-reference = "warn"
+
+[tool.ty.src]
+include = ["pensive/", "tests/"]
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+unresolved-attribute = "ignore"
+invalid-argument-type = "ignore"
+missing-argument = "ignore"
+not-iterable = "ignore"
