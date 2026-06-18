@@ -1,0 +1,26 @@
+.. icdfa.rst
+.. py:module:: pensive.automata.icdfa
+
+*****
+ICDFA
+*****
+
+Enumeration of initial-connected DFAs (ICDFAs) and accessible IDFAs for
+combinatorial studies of automata and topological ε-machines.
+
+API
+===
+
+.. autoclass:: ICDFAString
+
+.. autofunction:: iter_icdfa
+.. autofunction:: iter_icdfa_empty_strings
+.. autofunction:: icdfa_string_to_dfa
+.. autofunction:: dfa_to_icdfa_string
+.. autofunction:: count_icdfa
+.. autofunction:: count_icdfa_empty
+
+.. autofunction:: pensive.automata.idfa.iter_idfa_strings
+.. autofunction:: pensive.automata.idfa.rank_idfa_string
+.. autofunction:: pensive.automata.idfa.unrank_idfa_string
+.. autofunction:: pensive.automata.idfa.count_accessible_idfa

@@ -1,0 +1,18 @@
+.. nmachine.rst
+.. py:module:: pensive.generators.nmachine
+
+*********
+n-Machine
+*********
+
+An :class:`NMachine` is a quasiprobabilistic generator with signed transition
+weights used in computational mechanics beyond Shannon measures.
+
+API
+===
+
+.. autoclass:: NMachine
+   :members: from_epsilon_machine
+
+.. autofunction:: pensive.generators.nmachine_construction.build_nmachine_from_epsilon
+.. autofunction:: pensive.generators.nmachine_construction.coarse_grained_distribution

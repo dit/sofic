@@ -1,0 +1,21 @@
+Documentation:
+   https://pensive.readthedocs.io
+
+Repository:
+   https://github.com/dit/pensive
+
+Dependencies:
+   * Python 3.11+
+   * `networkx <https://networkx.github.io/>`_
+   * `numpy <http://www.numpy.org/>`_
+   * `scipy <https://www.scipy.org/>`_
+
+Optional Dependencies
+~~~~~~~~~~~~~~~~~~~~~
+
+* ``dit`` (``pensive[measures]``): entropy, complexity, crypticity, and information anatomy
+* ``graphviz`` (``pensive[viz]``): diagram rendering in terminals and Jupyter
+* ``pytest``, ``hypothesis`` (``pensive[test]``): test suite dependencies
+
+License:
+   BSD 3-Clause, see LICENSE.txt for details.

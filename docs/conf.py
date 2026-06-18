@@ -16,7 +16,22 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
+    "sphinxcontrib.bibtex",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "IPython.sphinxext.ipython_directive",
 ]
+
+bibtex_bibfiles = ["references.bib"]
+
+ipython_mplbackend = "agg"
+ipython_execlines = [
+    "import numpy as np",
+    "np.set_printoptions(legacy='1.25')",
+    "np.random.seed(0)",
+    "import pensive",
+]
+ipython_savefig_dir = "images/"
+ipython_warning_is_error = False
 
 templates_path = ["_templates"]
 source_suffix = ".rst"
@@ -33,14 +48,80 @@ pygments_style = "sphinx"
 modindex_common_prefix = ["pensive."]
 todo_include_todos = not on_rtd
 
+# -- Math macros (single source of truth for HTML and PDF) ---------------------
+
+_MACROS = {
+    "op": [r"\operatorname{#1}\left[#2\right]", 2],
+    "H": [r"\op{H}{#1}", 1],
+    "I": [r"\op{I}{#1}", 1],
+    "Cmu": [r"C_\mu", 0],
+    "Emu": [r"E", 0],
+    "chimu": [r"\chi", 0],
+    "Cpm": [r"C_\pm", 0],
+    "rhomu": [r"\rho_\mu", 0],
+    "bmu": [r"b_\mu", 0],
+    "rmu": [r"r_\mu", 0],
+    "hmu": [r"h_\mu", 0],
+    "ind": r"\mathrel{\large\text{$\perp\mkern-10mu\perp$}}",
+}
+
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax3_config = {"tex": {"macros": _MACROS}}
+
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+htmlhelp_basename = "pensivedoc"
+
+_LATEX_RENEW = {"H"}
+
+
+def _macros_to_latex(macros, renew):
+    lines = []
+    for name, defn in macros.items():
+        cmd = "renewcommand" if name in renew else "newcommand"
+        if isinstance(defn, list):
+            tex_def, nargs = defn
+            lines.append(rf"\{cmd}{{\{name}}}[{nargs}]{{{tex_def}}}")
+        else:
+            lines.append(rf"\{cmd}{{\{name}}}{{{defn}}}")
+    return "\n".join(lines)
+
+
+latex_elements = {
+    "preamble": "\n".join(
+        [
+            r"\usepackage{amsmath}",
+            r"\usepackage{amssymb}",
+            "",
+            _macros_to_latex(_MACROS, _LATEX_RENEW),
+        ]
+    ),
+}
+
+latex_documents = [
+    ("index", "pensive.tex", "pensive Documentation", "pensive Contributors", "manual"),
+]
+
+man_pages = [("index", "pensive", "pensive Documentation", ["pensive Contributors"], 1)]
+
+texinfo_documents = [
+    (
+        "index",
+        "pensive",
+        "pensive Documentation",
+        "pensive Contributors",
+        "pensive",
+        "Stochastic symbol generators in Python.",
+        "Science",
+    ),
+]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
+    "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "networkx": ("https://networkx.org/documentation/stable/", None),
+    "dit": ("https://dit.readthedocs.io/en/latest/", None),
 }
 
 napoleon_google_docstring = True

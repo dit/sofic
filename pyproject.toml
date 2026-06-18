@@ -41,6 +41,7 @@ Documentation = "https://pensive.readthedocs.io"
 test = [
     "hypothesis>=6.0",
     "hypothesis[numpy]",
+    "graphviz>=0.20",
     "pytest>=9.0.3",
     "pytest-cov",
     "pytest-rerunfailures",
@@ -50,13 +51,30 @@ test = [
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
+    "sphinxcontrib-bibtex",
+    "ipython",
+    "matplotlib",
 ]
 dev = [
-    "pensive[test]",
+    "pensive[test,measures,viz]",
     "pensive[docs]",
     "ruff",
     "ty",
 ]
+measures = [
+    "dit",
+]
+viz = [
+    "graphviz>=0.20",
+]
+
+# ── uv ──────────────────────────────────────────────────────────────────
+
+[tool.uv]
+override-dependencies = ["pycddlib; sys_platform == 'never'"]
+
+[tool.uv.sources]
+dit = { path = "../dit", editable = true }
 
 # ── Build configuration ─────────────────────────────────────────────────
 
@@ -84,11 +102,12 @@ addopts = [
     "--durations=25",
     "--durations-min=1.0",
     "--reruns=1",
-    "-m", "not slow and not very_slow",
+    "-m", "not slow and not very_slow and not measures",
 ]
 markers = [
     "slow: mark that the test may take several minutes to complete. Excluded by default.",
     "very_slow: mark that the test is extremely slow. Excluded by default.",
+    "measures: tests requiring the optional dit dependency.",
 ]
 filterwarnings = [
     "ignore::pytest.PytestUnknownMarkWarning",

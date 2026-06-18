@@ -1,0 +1,9 @@
+{# We extend page.html instead of layout.html because readthedocs uses its
+   own layout.html.  See https://github.com/rtfd/readthedocs.org/issues/152
+   for more details.
+#}
+{% extends "!page.html" %}
+{% block extrahead %}
+    <script type="text/javascript" src="{{ pathto('_static/copybutton.js', 1) }}"></script>
+{{ super() }}
+{% endblock %}

@@ -1,0 +1,96 @@
+
+.. _quickstart:
+
+Quickstart
+----------
+
+The basic workflow of ``pensive`` is to build or load a stochastic generator,
+validate it, and compute structural or information-theoretic properties.
+
+Golden mean ε-machine
+~~~~~~~~~~~~~~~~~~~~~
+
+Build the golden mean process (forbid-``11`` convention) and compute
+computational mechanics quantities :cite:`Ellison2009`:
+
+.. ipython::
+
+   In [1]: import pensive; from pensive.examples import golden_mean
+
+   In [2]: eps = golden_mean(0.5)
+
+   @doctest float
+   In [3]: eps.entropy_rate()
+   Out[3]: 0.6666666666666665
+
+   @doctest float
+   In [4]: eps.statistical_complexity()
+   Out[4]: 0.9182958340544896
+
+   @doctest
+   In [5]: eps.markov_order()
+   Out[5]: 1
+
+   @doctest
+   In [6]: eps.cryptic_order()
+   Out[6]: 1
+
+Bidirectional ε-machine
+~~~~~~~~~~~~~~~~~~~~~~~
+
+A bidirectional presentation pairs forward and reverse causal states. With
+``dit`` installed (``pip install pensive[measures]``):
+
+.. ipython::
+
+   In [1]: from pensive.examples import golden_mean_bidirectional; from pensive.dit_bridge import bidirectional_statistical_complexity, excess_entropy_bidirectional, crypticity
+
+   In [2]: bidir = golden_mean_bidirectional(0.5)
+
+   @doctest float
+   In [3]: bidirectional_statistical_complexity(bidir)
+   Out[3]: 1.584962500721156
+
+   @doctest float
+   In [4]: excess_entropy_bidirectional(bidir)
+   Out[4]: 0.25162916738782304
+
+   @doctest float
+   In [5]: crypticity(bidir)
+   Out[5]: 1.333333333333333
+
+Information anatomy
+~~~~~~~~~~~~~~~~~~~
+
+Bound and ephemeral information rates from a bidirectional ε-machine
+:cite:`James2013`:
+
+.. ipython::
+
+   In [1]: from pensive.examples import tent_map_misiurewicz_bidirectional; bidir = tent_map_misiurewicz_bidirectional()
+
+   @doctest float
+   In [2]: bidir.entropy_rate()
+   Out[2]: 0.8231724556945506
+
+   @doctest float
+   In [3]: bidir.bound_information()
+   Out[3]: 0.17491140867742372
+
+   @doctest float
+   In [4]: bidir.ephemeral_information()
+   Out[4]: 0.6482610470171268
+
+Edge machines
+~~~~~~~~~~~~~
+
+Convert a non-unifilar HMM into a Mealy generator whose states index labeled
+transitions:
+
+.. ipython::
+
+   In [1]: from pensive.generators.edge_machine import edge_machine_from_hmm; from pensive.examples import tent_map_misiurewicz_hmm; edge = edge_machine_from_hmm(tent_map_misiurewicz_hmm())
+
+   @doctest
+   In [2]: len(list(edge.states()))
+   Out[2]: 7

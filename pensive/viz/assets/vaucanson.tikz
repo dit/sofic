@@ -1,0 +1,71 @@
+\tikzstyle{vaucanson}=[
+  %node distance=1.25cm,
+  node distance=3cm,
+  bend angle=15,
+  auto,
+  % For some reason, the loop direction cannot be overwritten if we set the
+  % style for "every loop" to be "->".  Curiously, this doesn't seem to be
+  % an issue for "every edge".
+  every loop/.style={},
+  every edge/.style={->,draw=black,line width=1.2,>=latex,shorten <=1pt, shorten >=1pt},
+  every state/.style={draw=black,line width=2,font=\large},
+  loop right/.style={right,out=22,in=-22,loop},
+  loop above/.style={above,out=112,in=68,loop},
+  loop left/.style={left,out=202,in=158,loop},
+  loop below/.style={below,out=292,in=248,loop},
+  loop above right/.style={right,out=67,in=23,loop},
+  loop above left/.style={left,out=157,in=113,loop},
+  loop below left/.style={left,out=247,in=203,loop},
+  loop below right/.style={right,out=337,in=293,loop},
+  binode/.style={minimum size=1cm,inner sep=0pt},
+]
+
+\tikzset{
+  mystate/.style={circle,draw,fill=black}
+}
+
+%%% Command for bicausal nodes. This only supports relative positioning.
+%%% Use as: \binode[state][red,blue] (AC) [left=of someNode] {$\A:\:C$};
+\makeatletter
+\newcommand{\binode}[1][state]{%
+  \@ifnextchar[{\binode@i[{#1}]}{\binode@i[{#1}][{yellow},{gray!70}]}%
+}
+\def\binode@i[#1][#2,#3]{%
+  \@ifnextchar({\binode@ii[{#1}][{#2},{#3}]}{\binode@ii[{#1}][{#2},{#3}]({})}%
+}
+\def\binode@ii[#1][#2,#3](#4){%
+  \@ifnextchar[{\binode@iii[{#1}][{#2},{#3}]({#4})}{\binode@iii[{#1}][{#2},{#3}]({#4})[{}]}%
+}
+\def\binode@iii[#1][#2,#3](#4)[#5]#6{%
+
+  \node[#1,binode] (#4) [#5] {#6};
+  \node[yshift=-10pt] (#4SS) at (#4.270) {};
+  \node[xshift=-10pt] (#4WW) at (#4.180) {};
+  \node[xshift=-10pt] (#4NN) at (#4.180) {};
+  \node[xshift=-10pt,yshift=10pt] (#4NW) at (#4.135) {};
+  % forward shading
+  \begin{scope}
+    \path[clip] (#4.255) -- +(-.8cm,0cm) -- +(-.8cm,1cm) -- (#4.75) -- cycle;
+    \node[#1,fill=#2,binode] (#4f) [#5] {#6};
+  \end{scope}
+  % reverse shading
+  \begin{scope}
+    \path[clip] (#4.75) -- +(.8cm,0cm) -- +(.8cm,-1cm) -- (#4.255) -- cycle;
+%    ++(0cm,-.2cm) -- ++(.8cm,0cm)  -- ++(0cm,1cm) -- (#4.75) -- cycle;
+    \node[#1,fill=#3,binode] (#4r) [#5] {#6};
+  \end{scope}
+  \node {} % semicolon purposefully omitted. this is a dummy call
+}
+\makeatother
+
+\providecommand{\Symbol}[1]{\textcolor{blue}{#1}}
+\providecommand{\Edge}[2]{\Symbol{#1}\!:\!#2}
+\providecommand{\TEdge}[3]{\Symbol{#1}|\Symbol{#2}\!:\!#3}
+
+\definecolor{honeydew}{RGB}{240,255,240}
+\definecolor{mistyrose}{RGB}{255,228,225}
+\definecolor{FCSA}{RGB}{141,211,199}
+\definecolor{FCSB}{RGB}{255,255,179}
+\definecolor{RCSC}{RGB}{185,138,196}
+\definecolor{RCSD}{RGB}{231,143,111}
+\definecolor{RCSE}{RGB}{128,177,211}
