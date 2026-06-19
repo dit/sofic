@@ -34,10 +34,9 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
    In [6]: anatomy = bidir.information_anatomy()
 
-See :doc:`../dit_bridge` for the equivalent functions in :mod:`pensive.dit_bridge`.
-
 API
 ===
 
 Use :meth:`~pensive.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.information_anatomy`
-on bidirectional models, or the functions documented in :doc:`../dit_bridge`.
+on bidirectional models. :class:`~pensive.generators.epsilon_machine.EpsilonMachine`
+also exposes these quantities by building its bidirectional presentation.

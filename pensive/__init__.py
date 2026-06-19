@@ -11,18 +11,18 @@ except Exception:
     __version__ = "0.0.0"
 
 from pensive.automata import (
+    DFA,
+    NFA,
     Atomaton,
     AtomicAutomaton,
     AutomatonLanguage,
     BuchiAutomaton,
     CanonicalRFSA,
-    DFA,
     LabeledAutomaton,
     MaximizedPrimeAtomaton,
     MealyMachine,
     MinimizationAlgorithm,
     MooreMachine,
-    NFA,
     ObservationTable,
     RegularLanguage,
     ResidualFiniteStateAutomaton,
@@ -54,7 +54,6 @@ from pensive.generators import (
 from pensive.graph import EPSILON, TransitionGraph
 from pensive.indexing import StateIndex
 from pensive.operations import reverse
-from pensive import dit_bridge
 from pensive.shifts import (
     LeftFischerCover,
     LeftKriegerCover,
@@ -112,7 +111,6 @@ __all__ = [
     "VisiblyPushdownAutomaton",
     "complete",
     "determinize",
-    "dit_bridge",
     "equivalent",
     "minimize",
     "reverse",

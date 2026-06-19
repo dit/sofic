@@ -43,20 +43,20 @@ A bidirectional presentation pairs forward and reverse causal states. With
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean_bidirectional; from pensive.dit_bridge import bidirectional_statistical_complexity, excess_entropy_bidirectional, crypticity
+   In [1]: from pensive.examples import golden_mean_bidirectional
 
    In [2]: bidir = golden_mean_bidirectional(0.5)
 
    @doctest float
-   In [3]: bidirectional_statistical_complexity(bidir)
+   In [3]: bidir.statistical_complexity()
    Out[3]: 1.584962500721156
 
    @doctest float
-   In [4]: excess_entropy_bidirectional(bidir)
+   In [4]: bidir.excess_entropy()
    Out[4]: 0.25162916738782304
 
    @doctest float
-   In [5]: crypticity(bidir)
+   In [5]: bidir.crypticity()
    Out[5]: 1.333333333333333
 
 Information anatomy

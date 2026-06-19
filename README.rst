@@ -21,11 +21,6 @@ Build a bidirectional ε-machine for the golden mean process (Ellison et al.,
 arXiv:0905.3587, Fig.~4) and compute information measures with ``dit``::
 
    from pensive.examples import golden_mean, golden_mean_bidirectional
-   from pensive.dit_bridge import (
-       bidirectional_statistical_complexity,
-       excess_entropy_bidirectional,
-       crypticity,
-   )
 
    eps = golden_mean(0.5)
    dist = eps.state_distribution()
@@ -36,9 +31,9 @@ arXiv:0905.3587, Fig.~4) and compute information measures with ``dit``::
    # Or: BidirectionalEpsilonMachine.from_epsilon_machine(golden_mean_forward(0.5))
 
    print(bidir.draw())  # requires graphviz (``pip install pensive[viz]``)
-   print("C± =", bidirectional_statistical_complexity(bidir))
-   print("E  =", excess_entropy_bidirectional(bidir))
-   print("χ  =", crypticity(bidir))
+   print("C± =", bidir.statistical_complexity())
+   print("E  =", bidir.excess_entropy())
+   print("χ  =", bidir.crypticity())
 
 Topological synchronization orders (James et al., arXiv:1010.5545) depend only on
 ε-machine graph structure::
@@ -47,7 +42,7 @@ Topological synchronization orders (James et al., arXiv:1010.5545) depend only o
    print("kχ =", eps.cryptic_order())
 
 ``cryptic_order()`` is the integer cryptic order; ``crypticity()`` in
-``dit_bridge`` is the information measure χ = C± − E.
+``BidirectionalEpsilonMachine`` is the information measure χ = C± − E.
 
 For exact Fig.~4(c) state labels ``(A, C)``, ``(A, D)``, ``(B, C)``, use
 ``golden_mean_bidirectional`` or pass ``golden_mean_forward`` and

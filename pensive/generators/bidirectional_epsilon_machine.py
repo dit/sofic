@@ -9,6 +9,20 @@ from pensive.exceptions import PensiveValidationError
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.mealy import MealyHMM
 
+_STEP_S_PLUS_0 = 0
+_STEP_S_MINUS_0 = 1
+_STEP_X_0 = 2
+_STEP_S_PLUS_1 = 3
+_STEP_S_MINUS_1 = 4
+
+
+def _require_dit():
+    try:
+        import dit
+    except ImportError as exc:
+        raise ImportError("dit is required for entropy measures; install with `pip install pensive[measures]`") from exc
+    return dit
+
 
 class BidirectionalEpsilonMachine(MealyHMM):
     """Non-unifilar generator over joint causal states (S⁺, S⁻).
@@ -104,36 +118,75 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return bidirectional_step_distribution(self)
 
     def predicted_information(self) -> float:
-        from pensive.dit_bridge import predicted_information
-
-        return predicted_information(self)
+        """ρ_μ = I[X₀ : S⁺₀] — predicted information rate (James et al., 2013)."""
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(dit.shannon.mutual_information(dist, [_STEP_X_0], [_STEP_S_PLUS_0]))
 
     def bound_information(self) -> float:
-        from pensive.dit_bridge import bound_information
-
-        return bound_information(self)
+        """b_μ = H[X₀ | S⁺₀, S⁻₁] — bound information rate (James et al., 2013)."""
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_X_0],
+                [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
+            )
+        )
 
     def ephemeral_information(self) -> float:
-        from pensive.dit_bridge import ephemeral_information
-
-        return ephemeral_information(self)
+        """r_μ = I[X₀ : S⁻₁ | S⁺₀] — ephemeral information rate (James et al., 2013)."""
+        return float(self.entropy_rate() - self.bound_information())
 
     def excess_entropy(self) -> float:
-        from pensive.dit_bridge import excess_entropy_bidirectional
+        """Exact excess entropy E = I[S⁺; S⁻] from the bidirectional joint distribution."""
+        dit = _require_dit()
+        joint = self.joint_distribution()
+        if not joint:
+            return 0.0
 
-        return excess_entropy_bidirectional(self)
+        pi_plus: dict[Any, float] = {}
+        pi_minus: dict[Any, float] = {}
+        for (alpha, gamma), mass in joint.items():
+            pi_plus[alpha] = pi_plus.get(alpha, 0.0) + mass
+            pi_minus[gamma] = pi_minus.get(gamma, 0.0) + mass
+
+        plus_outcomes = list(pi_plus.keys())
+        minus_outcomes = list(pi_minus.keys())
+        plus_dist = dit.Distribution(plus_outcomes, [pi_plus[s] for s in plus_outcomes])
+        minus_dist = dit.Distribution(minus_outcomes, [pi_minus[s] for s in minus_outcomes])
+        joint_outcomes = list(joint.keys())
+        joint_dist = dit.Distribution(joint_outcomes, [joint[outcome] for outcome in joint_outcomes])
+        return float(
+            dit.shannon.entropy(plus_dist)
+            + dit.shannon.entropy(minus_dist)
+            - dit.shannon.entropy(joint_dist)
+        )
 
     def statistical_complexity(self) -> float:
-        from pensive.dit_bridge import bidirectional_statistical_complexity
-
-        return bidirectional_statistical_complexity(self)
+        """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""
+        dit = _require_dit()
+        joint = self.joint_distribution()
+        if not joint:
+            return 0.0
+        outcomes = list(joint.keys())
+        probs = [joint[outcome] for outcome in outcomes]
+        return float(dit.shannon.entropy(dit.Distribution(outcomes, probs)))
 
     def crypticity(self) -> float:
-        from pensive.dit_bridge import crypticity
-
-        return crypticity(self)
+        """χ = C± − E for a bidirectional presentation."""
+        return self.statistical_complexity() - self.excess_entropy()
 
     def information_anatomy(self) -> dict[str, float]:
-        from pensive.dit_bridge import information_anatomy
-
-        return information_anatomy(self)
+        """Return ρ_μ, b_μ, r_μ, h_μ, E, and χ for this bidirectional presentation."""
+        h_mu = self.entropy_rate()
+        b_mu = self.bound_information()
+        return {
+            "rho_mu": self.predicted_information(),
+            "bound_mu": b_mu,
+            "ephemeral_mu": h_mu - b_mu,
+            "entropy_rate": h_mu,
+            "excess_entropy": self.excess_entropy(),
+            "crypticity": self.crypticity(),
+        }

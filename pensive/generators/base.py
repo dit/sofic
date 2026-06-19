@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
 from collections.abc import Hashable, Mapping, Sequence
 from typing import Any, Self
 
@@ -10,7 +9,6 @@ import numpy as np
 
 from pensive.base import StateMachine
 from pensive.exceptions import QuasiStochasticValidationError, StochasticValidationError
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
 
 
 class StochasticModel(StateMachine):
@@ -108,6 +106,11 @@ class HiddenMarkovModel(StochasticModel):
 
         return entropy_rate_hmm(self)
 
+    def joint_block_distribution(self, history_length: int = 1) -> Any:
+        from pensive.generators.measures import joint_block_distribution
+
+        return joint_block_distribution(self, history_length=history_length)
+
     def reverse(self) -> Self:
         return super().reverse()
 
@@ -145,3 +148,13 @@ class QuasiStochasticModel(StateMachine):
         from pensive.generators.quasi_inference import transition_matrices
 
         return transition_matrices(self)
+
+    def collision_entropy(self) -> float:
+        from pensive.generators.measures import collision_entropy
+
+        return collision_entropy(self)
+
+    def process_negativity(self) -> float:
+        from pensive.generators.measures import process_negativity
+
+        return process_negativity(self)

@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 import pytest
 
-from pensive.dit_bridge import (
-    bidirectional_statistical_complexity,
-    excess_entropy_bidirectional,
-)
 from pensive.examples import (
     alternating_biased_coins,
     bernoulli,
@@ -115,8 +109,8 @@ def test_ellison_fig9_information_identities():
 
     c_plus = forward.statistical_complexity()
     c_minus = reverse.statistical_complexity()
-    excess = excess_entropy_bidirectional(bidir)
-    c_bidir = bidirectional_statistical_complexity(bidir)
+    excess = bidir.excess_entropy()
+    c_bidir = bidir.statistical_complexity()
 
     assert c_plus == pytest.approx(1.0, abs=1e-9)
     assert c_minus == pytest.approx(1.5, abs=1e-9)

@@ -6,11 +6,6 @@ import math
 
 import pytest
 
-from pensive.dit_bridge import (
-    bidirectional_statistical_complexity,
-    crypticity,
-    excess_entropy_bidirectional,
-)
 from pensive.examples import (
     ellison_fig9_forward,
     ellison_fig9_reverse,
@@ -41,7 +36,7 @@ def test_reversible_excess_entropy_near_zero():
     del dit
     coin = fair_coin()
     bidir = BidirectionalEpsilonMachine.from_epsilon_machines(coin, coin)
-    assert excess_entropy_bidirectional(bidir) == pytest.approx(0.0, abs=1e-9)
+    assert bidir.excess_entropy() == pytest.approx(0.0, abs=1e-9)
 
 
 def test_from_epsilon_machine_matches_reverse_pipeline():
@@ -73,9 +68,9 @@ def test_from_epsilon_machine_golden_mean_forward_three_states():
 
 
 def test_from_epsilon_machine_golden_mean_shift_three_states():
-    from pensive.examples import golden_mean
-
     import networkx as nx
+
+    from pensive.examples import golden_mean
 
     forward = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_epsilon_machine(forward)
@@ -144,8 +139,8 @@ def test_fig9_information_identities():
 
     c_plus = forward.statistical_complexity()
     c_minus = reverse.statistical_complexity()
-    excess = excess_entropy_bidirectional(bidir)
-    c_bidir = bidirectional_statistical_complexity(bidir)
+    excess = bidir.excess_entropy()
+    c_bidir = bidir.statistical_complexity()
 
     assert c_plus == pytest.approx(1.0, abs=1e-9)
     assert c_minus == pytest.approx(1.5, abs=1e-9)
@@ -182,9 +177,9 @@ def test_bidirectional_golden_mean_paper_invariants():
 
     c_plus = forward.statistical_complexity()
     c_minus = reverse.statistical_complexity()
-    excess = excess_entropy_bidirectional(bidir)
-    c_bidir = bidirectional_statistical_complexity(bidir)
-    chi = crypticity(bidir)
+    excess = bidir.excess_entropy()
+    c_bidir = bidir.statistical_complexity()
+    chi = bidir.crypticity()
 
     assert c_plus == pytest.approx(c_minus, abs=1e-9)
     assert c_plus == pytest.approx(math.log2(3) - 2 / 3, abs=1e-9)

@@ -2,18 +2,14 @@
 
 import pytest
 
-dit = pytest.importorskip("dit")
-
 from pensive.examples.epsilon_machines import (
     bernoulli,
     butterfly_process,
     fair_coin,
-    golden_mean,
     golden_mean_forward,
     golden_mean_reverse,
     golden_mean_shift_parry,
 )
-from pensive.dit_bridge import excess_entropy_bidirectional
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.moore import MooreHMM
@@ -21,6 +17,7 @@ from pensive.generators.nmachine import NMachine
 from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
 from pensive.shifts.tmc import TopologicalMarkovChain
 
+pytest.importorskip("dit")
 pytestmark = pytest.mark.measures
 
 
@@ -81,7 +78,7 @@ def test_golden_mean_forward_excess_entropy():
     forward = golden_mean_forward(0.5)
     reverse = golden_mean_reverse(0.5)
     bidir = BidirectionalEpsilonMachine.from_epsilon_machines(forward, reverse)
-    assert forward.excess_entropy() == pytest.approx(excess_entropy_bidirectional(bidir), abs=1e-9)
+    assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-9)
     assert forward.excess_entropy() == pytest.approx(0.25162916738782304, abs=1e-9)
 
 
@@ -113,8 +110,6 @@ def test_golden_mean_shift_parry_entropy_rate():
 
 
 def test_collision_entropy_nmachine():
-    from pensive.dit_bridge import collision_entropy
-
     nm = NMachine(
         initial_quasidistribution={"q0": 1.0},
         observation_alphabet=frozenset({"0", "1"}),
@@ -122,7 +117,7 @@ def test_collision_entropy_nmachine():
     nm.graph.add_state("q0")
     nm.graph.add_transition("q0", "q0", **{ATTR_QUASIPROB: 0.6, ATTR_EMISSION: "0"})
     nm.graph.add_transition("q0", "q0", **{ATTR_QUASIPROB: 0.4, ATTR_EMISSION: "1"})
-    assert collision_entropy(nm) >= 0.0
+    assert nm.collision_entropy() >= 0.0
 
 
 def test_bernoulli_state_distribution_single_outcome():

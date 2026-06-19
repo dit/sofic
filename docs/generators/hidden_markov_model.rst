@@ -32,5 +32,6 @@ API
 
 .. autoclass:: StochasticModel
 .. autoclass:: HiddenMarkovModel
+   :members: joint_block_distribution
 .. autoclass:: pensive.generators.mealy.MealyHMM
 .. autoclass:: pensive.generators.moore.MooreHMM

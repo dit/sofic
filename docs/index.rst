@@ -36,7 +36,6 @@ Contents:
    shifts/shifts
    viz
    examples
-   dit_bridge
    zreferences
 
 Indices and tables

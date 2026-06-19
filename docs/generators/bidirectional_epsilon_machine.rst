@@ -30,4 +30,4 @@ API
 ===
 
 .. autoclass:: BidirectionalEpsilonMachine
-   :members: from_epsilon_machine, from_epsilon_machines, joint_distribution, marginalize_forward, marginalize_reverse, entropy_rate, excess_entropy, crypticity, predicted_information, bound_information, ephemeral_information, information_anatomy
+   :members: from_epsilon_machine, from_epsilon_machines, joint_distribution, step_distribution, marginalize_forward, marginalize_reverse, entropy_rate, statistical_complexity, excess_entropy, crypticity, predicted_information, bound_information, ephemeral_information, information_anatomy

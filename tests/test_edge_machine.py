@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.dit_bridge import joint_block_distribution
 from pensive.examples import fair_coin, golden_mean
 from pensive.generators.edge_machine import edge_machine_from_hmm
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
@@ -40,14 +39,14 @@ def test_edge_machine_preserves_block_distribution(builder):
     hmm = builder()
     edge = edge_machine_from_hmm(hmm)
     symbols = sorted(hmm.observation_alphabet, key=repr)
-    dist_hmm0 = joint_block_distribution(hmm, history_length=0)
-    dist_edge0 = joint_block_distribution(edge, history_length=0)
+    dist_hmm0 = hmm.joint_block_distribution(history_length=0)
+    dist_edge0 = edge.joint_block_distribution(history_length=0)
     for symbol in symbols:
         outcome = (symbol,)
         assert dist_hmm0[outcome] == pytest.approx(dist_edge0[outcome], abs=1e-9)
 
-    dist_hmm1 = joint_block_distribution(hmm, history_length=1)
-    dist_edge1 = joint_block_distribution(edge, history_length=1)
+    dist_hmm1 = hmm.joint_block_distribution(history_length=1)
+    dist_edge1 = edge.joint_block_distribution(history_length=1)
     for past in symbols:
         for present in symbols:
             outcome = (past, present)

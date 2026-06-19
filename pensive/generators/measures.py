@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from pensive.generators.base import HiddenMarkovModel, StochasticModel
+from pensive.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
 from pensive.generators.markov import MarkovChain
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
@@ -32,6 +32,57 @@ def state_entropy(model: StochasticModel) -> float:
     """Shannon entropy of the stationary state distribution in bits."""
     dit = _require_dit()
     return float(dit.shannon.entropy(state_distribution(model)))
+
+
+def joint_block_distribution(
+    generator: HiddenMarkovModel,
+    history_length: int = 1,
+) -> Any:
+    """Build a ``dit.Distribution`` over observed emission blocks."""
+    dit = _require_dit()
+    idx = generator.reindex()
+    pi = np.array([generator.initial_distribution.get(s, 0.0) for s in idx.states], dtype=float)
+    if pi.sum() <= 0.0:
+        pi = generator.stationary_distribution()
+    joint: dict[Any, np.ndarray] = {}
+    for transition in generator.transitions():
+        emission = transition.data.get(ATTR_EMISSION)
+        if emission is None:
+            continue
+        matrix = joint.setdefault(emission, np.zeros((len(idx), len(idx)), dtype=float))
+        i = idx.index(transition.source)
+        j = idx.index(transition.target)
+        matrix[i, j] += float(transition.data.get(ATTR_PROB, 0.0))
+
+    symbol_list = sorted(generator.observation_alphabet, key=repr)
+    if history_length <= 0:
+        marginal = np.zeros(len(symbol_list), dtype=float)
+        for k, symbol in enumerate(symbol_list):
+            matrix = joint.get(symbol)
+            if matrix is not None:
+                marginal[k] = float(pi @ matrix @ np.ones(len(idx)))
+        outcomes = [(symbol,) for symbol in symbol_list]
+        return dit.Distribution(outcomes, marginal)
+
+    outcomes: list[tuple[Any, ...]] = []
+    probs: list[float] = []
+    for past_symbol in symbol_list:
+        past_matrix = joint.get(past_symbol)
+        if past_matrix is None:
+            continue
+        after_past = pi @ past_matrix
+        for present_symbol in symbol_list:
+            present_matrix = joint.get(present_symbol)
+            if present_matrix is None:
+                continue
+            prob = float(after_past @ present_matrix @ np.ones(len(idx)))
+            if prob > 0.0:
+                outcomes.append((past_symbol, present_symbol))
+                probs.append(prob)
+    total = sum(probs)
+    if total > 0.0:
+        probs = [p / total for p in probs]
+    return dit.Distribution(outcomes, probs)
 
 
 def _entropy_rate_from_transitions(
@@ -121,3 +172,33 @@ def entropy_rate_markov(chain: MarkovChain) -> float:
         conditional = dit.Distribution(targets, probs)
         rate += float(pi[i] * dit.shannon.entropy(conditional))
     return rate
+
+
+def excess_entropy(generator: HiddenMarkovModel, max_block: int = 4) -> float:
+    """Estimate excess entropy from finite observed block entropies."""
+    dit = _require_dit()
+    h = generator.entropy_rate()
+    estimates: list[float] = []
+    for n in range(1, max_block + 1):
+        dist = joint_block_distribution(generator, history_length=n)
+        estimates.append(float(dit.shannon.entropy(dist)) - n * h)
+    return float(np.mean(estimates)) if estimates else 0.0
+
+
+def collision_entropy(quasi_model: QuasiStochasticModel) -> float:
+    """Second Renyi entropy rate from quasi transition matrices."""
+    matrices = quasi_model.transition_matrices()
+    pi = quasi_model.stationary_quasidistribution()
+    total = 0.0
+    for matrix in matrices.values():
+        total += float(pi @ (matrix @ matrix) @ np.ones(len(pi)))
+    if total <= 0.0:
+        return 0.0
+    return float(-np.log(total))
+
+
+def process_negativity(quasi_model: QuasiStochasticModel) -> float:
+    """Negativity proxy from the stationary quasidistribution."""
+    pi = quasi_model.stationary_quasidistribution()
+    positive = np.maximum(pi, 0.0)
+    return float(np.sum(np.abs(pi - positive)))
