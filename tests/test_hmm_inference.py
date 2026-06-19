@@ -7,6 +7,8 @@ import pytest
 
 from pensive.examples import fair_coin
 from pensive.generators.hmm_inference import backward, forward, log_likelihood, sample, viterbi
+from pensive.generators.mealy import MealyHMM
+from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def test_forward_coin_initial_and_likelihood():
@@ -36,6 +38,28 @@ def test_viterbi_coin_constant_state():
     coin = fair_coin()
     path = viterbi(coin, ["0", "1", "0"])
     assert path == ["A", "A", "A"]
+
+
+def test_viterbi_impossible_observation_has_no_path():
+    coin = fair_coin()
+    assert log_likelihood(coin, ["2"]) == float("-inf")
+    assert viterbi(coin, ["2"]) == []
+
+
+def test_stationary_distribution_periodic_hmm_is_invariant():
+    hmm = MealyHMM(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    hmm.graph.add_state("A")
+    hmm.graph.add_state("B")
+    hmm.graph.add_transition("A", "B", **{ATTR_PROB: 1.0, ATTR_EMISSION: "0"})
+    hmm.graph.add_transition("B", "A", **{ATTR_PROB: 1.0, ATTR_EMISSION: "1"})
+
+    pi = hmm.stationary_distribution()
+    assert pi == pytest.approx([0.5, 0.5], abs=1e-12)
+    transition = np.array([[0.0, 1.0], [1.0, 0.0]])
+    assert pi @ transition == pytest.approx(pi, abs=1e-12)
 
 
 def test_sample_coin_length():

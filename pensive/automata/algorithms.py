@@ -147,10 +147,7 @@ def minimize_moore(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:
                     groups: dict[int, set[Hashable]] = {}
                     for state in piece:
                         successor = _dfa_successor(work, state, symbol)
-                        if successor is None:
-                            index = -1
-                        else:
-                            index = _block_index(partition, successor)
+                        index = -1 if successor is None else _block_index(partition, successor)
                         groups.setdefault(index, set()).add(state)
                     next_refined.extend(groups.values())
                 refined = next_refined
@@ -187,15 +184,15 @@ def minimize_hopcroft(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DF
             predecessors: set[Hashable] = set()
             for state in focus:
                 predecessors.update(pred[state][symbol])
-            for block_index, block in enumerate(list(partition)):
+            refined_partition: list[set[Hashable]] = []
+            for block in partition:
                 intersection = block & predecessors
                 difference = block - predecessors
                 if intersection and difference:
-                    partition[block_index] = intersection
-                    partition.append(difference)
-                    old_block = block
-                    if old_block in worklist:
-                        worklist.remove(old_block)
+                    refined_partition.append(intersection)
+                    refined_partition.append(difference)
+                    if block in worklist:
+                        worklist.remove(block)
                         worklist.append(intersection)
                         worklist.append(difference)
                     else:
@@ -203,7 +200,9 @@ def minimize_hopcroft(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DF
                             worklist.append(intersection)
                         else:
                             worklist.append(difference)
-                    break
+                else:
+                    refined_partition.append(block)
+            partition = refined_partition
 
     return _quotient_from_partition(work, partition, symbols)
 
@@ -334,7 +333,7 @@ def _quotient_from_partition(dfa: DFA, partition: list[set[Hashable]], symbols: 
         initial_states=frozenset({rep_for_block[initial_block]}),
         accepting_states=accepting_blocks,
     )
-    for index, rep in enumerate(representatives):
+    for index, _rep in enumerate(representatives):
         result.graph.add_state(rep_for_block[index])
 
     for index, rep in enumerate(representatives):

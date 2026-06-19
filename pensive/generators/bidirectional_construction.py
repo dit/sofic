@@ -102,12 +102,20 @@ def _graph_from_raw(
         if total <= 0.0:
             continue
         for (target, symbol), weight in aggregated.items():
+            prob = _clean_probability(weight / total)
             graph.add_transition(
                 source,
                 target,
-                **{ATTR_PROB: weight / total, ATTR_EMISSION: symbol},
+                **{ATTR_PROB: prob, ATTR_EMISSION: symbol},
             )
     return graph
+
+
+def _clean_probability(probability: float) -> float:
+    rounded = round(float(probability), 15)
+    if np.isclose(probability, rounded, rtol=0.0, atol=1e-15):
+        return rounded
+    return float(probability)
 
 
 def _reverse_tex_probability(

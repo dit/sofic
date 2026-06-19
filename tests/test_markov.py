@@ -26,3 +26,14 @@ def test_bad_row_sums():
     mc.graph.add_transition("q0", "q0", **{ATTR_PROB: 0.3})
     with pytest.raises(StochasticValidationError):
         mc.validate()
+
+
+def test_stationary_distribution_periodic_chain():
+    mc = MarkovChain(initial_distribution={"A": 1.0})
+    mc.graph.add_state("A")
+    mc.graph.add_state("B")
+    mc.graph.add_transition("A", "B", **{ATTR_PROB: 1.0})
+    mc.graph.add_transition("B", "A", **{ATTR_PROB: 1.0})
+
+    pi = mc.stationary_distribution()
+    assert pi == pytest.approx([0.5, 0.5], abs=1e-12)

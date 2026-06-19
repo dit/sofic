@@ -65,8 +65,12 @@ def _entropy_rate_from_transitions(
 
 
 def entropy_rate_hmm(hmm: HiddenMarkovModel) -> float:
-    """Shannon entropy rate of the emission process under the stationary distribution."""
+    """Shannon entropy rate for unifilar hidden Markov presentations."""
     from pensive.generators.hmm_inference import _emission_transition_tensors
+
+    is_unifilar = getattr(hmm, "is_unifilar", None)
+    if is_unifilar is None or not is_unifilar():
+        raise NotImplementedError("entropy_rate_hmm is only exact for unifilar HMM presentations")
 
     dit = _require_dit()
     idx = hmm.reindex()

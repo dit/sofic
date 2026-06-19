@@ -83,6 +83,29 @@ def _minimal_dfa() -> DFA:
     return dfa
 
 
+def _hopcroft_split_regression_dfa() -> DFA:
+    dfa = DFA(
+        input_alphabet=frozenset({"0", "1"}),
+        initial_states=frozenset({0}),
+        accepting_states=frozenset({1}),
+    )
+    for state in range(4):
+        dfa.graph.add_state(state)
+    transitions = {
+        (0, "1"): 3,
+        (0, "0"): 2,
+        (1, "1"): 2,
+        (1, "0"): 1,
+        (2, "1"): 3,
+        (2, "0"): 1,
+        (3, "1"): 0,
+        (3, "0"): 1,
+    }
+    for (source, symbol), target in transitions.items():
+        dfa.add_transition(source, target, symbol)
+    return dfa
+
+
 def _words(alphabet: frozenset[str], max_len: int) -> list[tuple[str, ...]]:
     from itertools import product
 
@@ -148,6 +171,17 @@ def test_hopcroft_moore_equivalent():
     moore = minimize(source, algorithm="moore")
     assert equivalent(hopcroft, moore, frozenset({"a", "b"}))
     assert len(list(hopcroft.states())) == len(list(moore.states()))
+
+
+def test_hopcroft_refines_all_split_blocks():
+    source = _hopcroft_split_regression_dfa()
+    hopcroft = minimize(source, algorithm="hopcroft")
+    moore = minimize(source, algorithm="moore")
+    alphabet = frozenset({"0", "1"})
+    assert equivalent(hopcroft, moore, alphabet)
+    assert len(list(hopcroft.states())) == len(list(moore.states()))
+    for word in _words(alphabet, 4):
+        assert source.recognizes(word) == hopcroft.recognizes(word)
 
 
 def test_brzozowski_matches_hopcroft_on_nfa():

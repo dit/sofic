@@ -57,3 +57,18 @@ def test_unifilarity_check():
     bad.graph.add_transition("q0", "q0", **{ATTR_PROB: 0.5, ATTR_EMISSION: "0"})
     with pytest.raises(UnifilarityError):
         bad.validate()
+
+
+def test_entropy_rate_requires_unifilar_presentation():
+    hmm = MealyHMM(
+        initial_distribution={"q0": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    hmm.graph.add_state("q0")
+    hmm.graph.add_state("q1")
+    hmm.graph.add_transition("q0", "q0", **{ATTR_PROB: 0.5, ATTR_EMISSION: "0"})
+    hmm.graph.add_transition("q0", "q1", **{ATTR_PROB: 0.5, ATTR_EMISSION: "0"})
+    hmm.graph.add_transition("q1", "q1", **{ATTR_PROB: 1.0, ATTR_EMISSION: "1"})
+
+    with pytest.raises(NotImplementedError, match="unifilar"):
+        hmm.entropy_rate()

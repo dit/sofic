@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
-from typing import Any, Self
+from collections.abc import Hashable
+from typing import Self
 
 import numpy as np
 
@@ -34,6 +34,8 @@ class MarkovChain(StochasticModel):
                     raise StochasticValidationError(f"negative transition probability on {transition}")
 
     def stationary_distribution(self) -> np.ndarray:
+        from pensive.generators.stationary import stationary_distribution_from_transition
+
         idx = self.reindex()
         n = len(idx)
         if n == 0:
@@ -46,18 +48,7 @@ class MarkovChain(StochasticModel):
                 j = idx.index(edge.target)
                 transition[i, j] += float(edge.data.get(ATTR_PROB, 0.0))
 
-        distribution = np.full(n, 1.0 / n, dtype=float)
-        for _ in range(10_000):
-            updated = distribution @ transition
-            if np.allclose(updated, distribution, rtol=1e-10, atol=1e-12):
-                distribution = updated
-                break
-            distribution = updated
-
-        total = distribution.sum()
-        if total <= 0.0:
-            raise StochasticValidationError("failed to compute a positive stationary distribution")
-        return distribution / total
+        return stationary_distribution_from_transition(transition)
 
     def entropy_rate(self) -> float:
         from pensive.generators.measures import entropy_rate_markov

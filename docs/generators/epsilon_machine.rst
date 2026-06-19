@@ -40,4 +40,4 @@ API
 ===
 
 .. autoclass:: EpsilonMachine
-   :members: from_generator, from_sequence, from_time_reversed, statistical_complexity, excess_entropy, crypticity, markov_order, cryptic_order, is_exactly_synchronizable
+   :members: from_generator, from_sequence, from_time_reversed, bidirectional_epsilon_machine, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable

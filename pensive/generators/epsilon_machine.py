@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.moore import MooreHMM
+
+if TYPE_CHECKING:
+    from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 
 class EpsilonMachine(MealyHMM):
@@ -22,6 +25,9 @@ class EpsilonMachine(MealyHMM):
     >>> eps.markov_order()
     1
     """
+
+    _bidirectional_machine: BidirectionalEpsilonMachine | None = None
+    _bidirectional_machine_fingerprint: tuple[Any, ...] | None = None
 
     def validate(self) -> None:
         super().validate()
@@ -64,17 +70,80 @@ class EpsilonMachine(MealyHMM):
             return subtree_merge(sequence, **kwargs)
         raise ValueError(f"unknown inference method {method!r}")
 
+    def copy(self) -> Self:
+        cloned = super().copy()
+        cloned._bidirectional_machine = None
+        cloned._bidirectional_machine_fingerprint = None
+        return cloned
+
+    def invalidate_bidirectional_cache(self) -> None:
+        """Clear the cached bidirectional presentation."""
+        self._bidirectional_machine = None
+        self._bidirectional_machine_fingerprint = None
+
+    def bidirectional_epsilon_machine(self) -> BidirectionalEpsilonMachine:
+        """Return the bidirectional presentation, building and caching on first use."""
+        fingerprint = self._bidirectional_cache_fingerprint()
+        if self._bidirectional_machine is None or self._bidirectional_machine_fingerprint != fingerprint:
+            from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+
+            self._bidirectional_machine = BidirectionalEpsilonMachine.from_epsilon_machine(self)
+            self._bidirectional_machine_fingerprint = fingerprint
+        return self._bidirectional_machine
+
+    def _bidirectional_cache_fingerprint(self) -> tuple[Any, ...]:
+        states = tuple(
+            (
+                repr(state),
+                tuple(sorted((repr(key), repr(value)) for key, value in self.graph.state_attrs(state).items())),
+            )
+            for state in sorted(self.states(), key=repr)
+        )
+        transitions = tuple(
+            sorted(
+                (
+                    repr(transition.source),
+                    repr(transition.target),
+                    tuple(sorted((repr(key), repr(value)) for key, value in transition.data.items())),
+                )
+                for transition in self.transitions()
+            )
+        )
+        initial = tuple(sorted((repr(state), float(mass)) for state, mass in self.initial_distribution.items()))
+        alphabet = tuple(sorted(repr(symbol) for symbol in self.observation_alphabet))
+        return (states, transitions, initial, alphabet)
+
     def statistical_complexity(self) -> float:
         """C_mu = H[causal state] under the stationary distribution."""
         return self.state_entropy()
 
+    def bidirectional_statistical_complexity(self) -> float:
+        """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""
+        return self.bidirectional_epsilon_machine().statistical_complexity()
+
     def excess_entropy(self) -> float:
         """Excess entropy E = I[S⁺; S⁻] via the bidirectional ε-machine."""
-        from pensive.dit_bridge import excess_entropy_bidirectional
-        from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+        return self.bidirectional_epsilon_machine().excess_entropy()
 
-        bidir = BidirectionalEpsilonMachine.from_epsilon_machine(self)
-        return excess_entropy_bidirectional(bidir)
+    def predicted_information(self) -> float:
+        """ρ_μ = I[X₀ : S⁺₀] — predicted information rate (James et al., 2013)."""
+        return self.bidirectional_epsilon_machine().predicted_information()
+
+    def bound_information(self) -> float:
+        """b_μ = H[X₀ | S⁺₀, S⁻₁] — bound information rate (James et al., 2013)."""
+        return self.bidirectional_epsilon_machine().bound_information()
+
+    def ephemeral_information(self) -> float:
+        """r_μ = I[X₀ : S⁻₁ | S⁺₀] — ephemeral information rate (James et al., 2013)."""
+        return self.bidirectional_epsilon_machine().ephemeral_information()
+
+    def information_anatomy(self) -> dict[str, float]:
+        """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
+        return self.bidirectional_epsilon_machine().information_anatomy()
+
+    def bidirectional_crypticity(self) -> float:
+        """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""
+        return self.bidirectional_epsilon_machine().crypticity()
 
     def crypticity(self) -> float:
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""

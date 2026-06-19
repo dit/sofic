@@ -91,22 +91,34 @@ def log_likelihood(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> float
     return float(np.log(total))
 
 
+def _log_probabilities(values: np.ndarray) -> np.ndarray:
+    log_values = np.full(values.shape, -np.inf, dtype=float)
+    positive = values > 0.0
+    log_values[positive] = np.log(values[positive])
+    return log_values
+
+
 def viterbi(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> list[Hashable]:
     idx = hmm.reindex()
     pi, joint = _emission_transition_tensors(hmm)
     n = len(idx)
     obs = list(observations)
+    if n == 0:
+        return []
     if not obs:
+        if not np.any(pi > 0.0):
+            return []
         return [idx.state(int(np.argmax(pi)))]
 
-    log_pi = np.log(np.maximum(pi, 1e-300))
+    log_pi = _log_probabilities(pi)
     viterbi_log = np.full((len(obs), n), -np.inf, dtype=float)
     backpointer = np.full((len(obs), n), -1, dtype=int)
 
     matrix0 = joint.get(obs[0])
     if matrix0 is not None:
+        log_matrix0 = _log_probabilities(matrix0)
         for j in range(n):
-            best = log_pi + np.log(np.maximum(matrix0[:, j], 1e-300))
+            best = log_pi + log_matrix0[:, j]
             viterbi_log[0, j] = np.max(best)
             backpointer[0, j] = int(np.argmax(best))
 
@@ -114,10 +126,14 @@ def viterbi(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> list[Hashabl
         matrix = joint.get(obs[t])
         if matrix is None:
             continue
+        log_matrix = _log_probabilities(matrix)
         for j in range(n):
-            scores = viterbi_log[t - 1] + np.log(np.maximum(matrix[:, j], 1e-300))
+            scores = viterbi_log[t - 1] + log_matrix[:, j]
             viterbi_log[t, j] = np.max(scores)
             backpointer[t, j] = int(np.argmax(scores))
+
+    if not np.any(np.isfinite(viterbi_log[-1])):
+        return []
 
     path = [0] * len(obs)
     path[-1] = int(np.argmax(viterbi_log[-1]))

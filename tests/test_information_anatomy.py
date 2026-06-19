@@ -138,3 +138,37 @@ def test_tent_forward_matches_generator_path():
     except Exception:
         pytest.skip("Fig. 6 HMM does not yet yield a valid ε-machine via from_generator")
     assert from_hmm.entropy_rate() == pytest.approx(forward.entropy_rate(), abs=1e-3)
+
+
+def test_epsilon_machine_anatomy_matches_bidirectional():
+    pytest.importorskip("dit")
+    forward = golden_mean_forward(0.5)
+    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(
+        forward,
+        golden_mean_reverse(0.5),
+    )
+
+    assert forward.predicted_information() == pytest.approx(bidir.predicted_information(), abs=1e-12)
+    assert forward.bound_information() == pytest.approx(bidir.bound_information(), abs=1e-12)
+    assert forward.ephemeral_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-12)
+    assert forward.information_anatomy() == pytest.approx(bidir.information_anatomy(), abs=1e-12)
+    assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-12)
+    assert forward.bidirectional_statistical_complexity() == pytest.approx(
+        bidir.statistical_complexity(), abs=1e-12
+    )
+    assert forward.bidirectional_crypticity() == pytest.approx(bidir.crypticity(), abs=1e-12)
+
+
+def test_epsilon_machine_bidirectional_cache():
+    pytest.importorskip("dit")
+    forward = golden_mean_forward(0.5)
+    first = forward.bidirectional_epsilon_machine()
+    second = forward.bidirectional_epsilon_machine()
+    assert first is second
+
+    state = next(iter(forward.states()))
+    forward.graph.nx.nodes[state]["cache_marker"] = "changed"
+    assert forward.bidirectional_epsilon_machine() is not first
+
+    cloned = forward.copy()
+    assert cloned.bidirectional_epsilon_machine() is not first

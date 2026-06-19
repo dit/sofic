@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from pensive.exceptions import StochasticValidationError
 from pensive.generators.base import HiddenMarkovModel
 from pensive.graph import ATTR_PROB
 
@@ -21,20 +22,62 @@ def stationary_distribution_hmm(hmm: HiddenMarkovModel) -> np.ndarray:
             j = idx.index(edge.target)
             transition[i, j] += float(edge.data.get(ATTR_PROB, 0.0))
 
-    distribution = np.zeros(n, dtype=float)
-    for state, mass in hmm.initial_distribution.items():
-        distribution[idx.index(state)] = float(mass)
-    if distribution.sum() <= 0.0:
-        distribution = np.full(n, 1.0 / n, dtype=float)
+    return stationary_distribution_from_transition(transition)
 
-    for _ in range(10_000):
-        updated = distribution @ transition
-        if np.allclose(updated, distribution, rtol=1e-10, atol=1e-12):
-            distribution = updated
-            break
-        distribution = updated
 
-    total = distribution.sum()
+def stationary_distribution_from_transition(transition: np.ndarray) -> np.ndarray:
+    """Return a normalized left eigenvector of ``transition`` for eigenvalue one."""
+    matrix = np.asarray(transition, dtype=float)
+    n = matrix.shape[0]
+    if matrix.shape != (n, n):
+        raise ValueError("transition matrix must be square")
+    if n == 0:
+        return np.array([], dtype=float)
+
+    eigenvalues, eigenvectors = np.linalg.eig(matrix.T)
+    candidates = sorted(range(n), key=lambda i: abs(eigenvalues[i] - 1.0))
+    for index in candidates:
+        if not np.isclose(eigenvalues[index], 1.0, rtol=1e-9, atol=1e-10):
+            continue
+        vector = np.real_if_close(eigenvectors[:, index], tol=1000)
+        if np.iscomplexobj(vector):
+            continue
+        pi = np.asarray(vector, dtype=float)
+        if pi.sum() < 0.0:
+            pi = -pi
+        pi[np.isclose(pi, 0.0, atol=1e-12)] = 0.0
+        if np.any(pi < -1e-10):
+            continue
+        pi = np.maximum(pi, 0.0)
+        total = float(pi.sum())
+        if total <= 0.0:
+            continue
+        pi = _clean_stationary_distribution(pi / total)
+        if np.allclose(pi @ matrix, pi, rtol=1e-8, atol=1e-10):
+            return pi
+
+    augmented = np.vstack([matrix.T - np.eye(n), np.ones(n)])
+    target = np.zeros(n + 1, dtype=float)
+    target[-1] = 1.0
+    solution, *_ = np.linalg.lstsq(augmented, target, rcond=None)
+    solution[np.isclose(solution, 0.0, atol=1e-12)] = 0.0
+    solution = np.maximum(solution, 0.0)
+    total = float(solution.sum())
     if total <= 0.0:
-        return np.full(n, 1.0 / n, dtype=float)
-    return distribution / total
+        raise StochasticValidationError("failed to compute a positive stationary distribution")
+    pi = _clean_stationary_distribution(solution / total)
+    if not np.allclose(pi @ matrix, pi, rtol=1e-8, atol=1e-10):
+        raise StochasticValidationError("failed to compute an invariant stationary distribution")
+    return pi
+
+
+def _clean_stationary_distribution(distribution: np.ndarray) -> np.ndarray:
+    n = len(distribution)
+    if n == 0:
+        return distribution
+    uniform = np.full(n, 1.0 / n, dtype=float)
+    if np.allclose(distribution, uniform, rtol=1e-12, atol=1e-12):
+        return uniform
+    cleaned = distribution.copy()
+    cleaned[np.isclose(cleaned, 0.0, atol=1e-15)] = 0.0
+    return cleaned / cleaned.sum()
