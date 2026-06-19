@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping, Sequence
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 
 from pensive.base import StateMachine
 from pensive.exceptions import QuasiStochasticValidationError, StochasticValidationError
+
+if TYPE_CHECKING:
+    from pensive.automata.dfa import DFA
+    from pensive.automata.nfa import NFA
+    from pensive.shifts.sofic import SoficShift
 
 
 class StochasticModel(StateMachine):
@@ -110,6 +115,24 @@ class HiddenMarkovModel(StochasticModel):
         from pensive.generators.measures import joint_block_distribution
 
         return joint_block_distribution(self, history_length=history_length)
+
+    def to_sofic_shift(self) -> SoficShift:
+        """Strip probabilities and return a sofic shift with the same support."""
+        from pensive.generators.conversions import hmm_to_sofic_shift
+
+        return hmm_to_sofic_shift(self)
+
+    def to_automata(self) -> NFA:
+        """Return an NFA for the support language of this HMM."""
+        from pensive.generators.conversions import hmm_to_automata
+
+        return hmm_to_automata(self)
+
+    def to_dfa(self) -> DFA:
+        """Return a determinized automaton for the support language of this HMM."""
+        from pensive.generators.conversions import hmm_to_dfa
+
+        return hmm_to_dfa(self)
 
     def reverse(self) -> Self:
         return super().reverse()

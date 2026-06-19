@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -9,13 +10,23 @@ import numpy as np
 if TYPE_CHECKING:
     from pensive.generators.synchronization import TopologicalUnifilarGraph
 
-from pensive.generators.base import QuasiStochasticModel
+from pensive.automata.dfa import DFA
+from pensive.automata.nfa import NFA
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
 from pensive.generators.pfa import ProbabilisticFiniteAutomaton
 from pensive.generators.quasi_realization import QuasiRealization
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB, TransitionGraph
+from pensive.graph import (
+    ATTR_EMISSION,
+    ATTR_EMISSION_DIST,
+    ATTR_PROB,
+    ATTR_QUASIPROB,
+    ATTR_SYMBOL,
+    EPSILON,
+    TransitionGraph,
+)
+from pensive.shifts.sofic import SoficShift
 from pensive.states import sequential_labels
 
 
@@ -51,6 +62,75 @@ def pfa_to_mealy_hmm(pfa: ProbabilisticFiniteAutomaton) -> MealyHMM:
         initial_distribution=pfa.initial_distribution,
         observation_alphabet=frozenset(pfa.output_alphabet),
     )
+
+
+def hmm_to_sofic_shift(hmm: MealyHMM | MooreHMM) -> SoficShift:
+    """Strip probabilities from an HMM and keep its labeled support."""
+    support = _mealy_support(hmm)
+    graph = _support_graph(support, edge_attr=ATTR_SYMBOL)
+    return SoficShift(graph=graph, symbol_alphabet=support.observation_alphabet)
+
+
+def hmm_to_automata(hmm: MealyHMM | MooreHMM) -> NFA:
+    """Build an NFA whose language is the finite-word support of an HMM."""
+    support = _mealy_support(hmm)
+    graph = _support_graph(support, edge_attr=ATTR_SYMBOL)
+    states = frozenset(support.states())
+    start = _fresh_start_state(states)
+    graph.add_state(start)
+    for state in states:
+        graph.add_transition(start, state, **{ATTR_SYMBOL: EPSILON})
+    return NFA(
+        graph=graph,
+        input_alphabet=support.observation_alphabet,
+        initial_states=frozenset({start}),
+        accepting_states=states,
+    )
+
+
+def hmm_to_dfa(hmm: MealyHMM | MooreHMM) -> DFA:
+    """Determinize the HMM support NFA from the all-states subset."""
+    support = _mealy_support(hmm)
+    states = frozenset(support.states())
+    nfa = hmm_to_automata(support)
+    nfa.initial_states = states
+
+    dfa = nfa.determinize(alphabet=support.observation_alphabet)
+    empty_subset = frozenset()
+    if dfa.graph.has_state(empty_subset):
+        dfa.graph.nx.remove_node(empty_subset)
+    dfa.accepting_states = dfa.graph.terminal_recurrent_states()
+    return dfa
+
+
+def _mealy_support(hmm: MealyHMM | MooreHMM) -> MealyHMM:
+    if isinstance(hmm, MooreHMM):
+        return hmm.to_mealy()
+    if isinstance(hmm, MealyHMM):
+        return hmm
+    raise TypeError("HMM support conversions require a MealyHMM or MooreHMM")
+
+
+def _support_graph(hmm: MealyHMM, *, edge_attr: str) -> TransitionGraph:
+    graph = TransitionGraph()
+    for state in hmm.states():
+        graph.add_state(state)
+    for transition in hmm.transitions():
+        prob = float(transition.data.get(ATTR_PROB, 0.0))
+        emission = transition.data.get(ATTR_EMISSION)
+        if prob <= 0.0 or emission is None:
+            continue
+        graph.add_transition(transition.source, transition.target, **{edge_attr: emission})
+    return graph
+
+
+def _fresh_start_state(states: frozenset[Hashable]) -> Hashable:
+    start: Hashable = ("__pensive_hmm_start__",)
+    suffix = 0
+    while start in states:
+        suffix += 1
+        start = ("__pensive_hmm_start__", suffix)
+    return start
 
 
 def quasi_realization_from_nmachine(nm: NMachine) -> QuasiRealization:
@@ -96,7 +176,7 @@ def edge_machine_from_hmm(hmm: MealyHMM | MooreHMM) -> MealyHMM:
     return _build(hmm)
 
 
-def epsilon_machine_to_unifilar_graph(eps: MealyHMM) -> "TopologicalUnifilarGraph":
+def epsilon_machine_to_unifilar_graph(eps: MealyHMM) -> TopologicalUnifilarGraph:
     """Strip emission-labeled transitions to a topological unifilar graph."""
     from pensive.generators.synchronization import graph_from_epsilon_machine
 

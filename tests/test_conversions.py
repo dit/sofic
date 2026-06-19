@@ -1,11 +1,26 @@
 """Tests for generator conversions."""
 
-import pytest
-
+from pensive.automata.dfa import DFA
+from pensive.automata.nfa import NFA
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.moore import MooreHMM
 from pensive.generators.pfa import ProbabilisticFiniteAutomaton
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB
+from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_SYMBOL
+from pensive.shifts.sofic import SoficShift
+
+
+def _golden_mean_support_hmm() -> MealyHMM:
+    hmm = MealyHMM(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({0, 1}),
+    )
+    for state in ("A", "B"):
+        hmm.graph.add_state(state)
+    hmm.graph.add_transition("A", "A", **{ATTR_PROB: 0.5, ATTR_EMISSION: 0})
+    hmm.graph.add_transition("A", "B", **{ATTR_PROB: 0.5, ATTR_EMISSION: 1})
+    hmm.graph.add_transition("B", "A", **{ATTR_PROB: 1.0, ATTR_EMISSION: 0})
+    hmm.graph.add_transition("B", "B", **{ATTR_PROB: 0.0, ATTR_EMISSION: 1})
+    return hmm
 
 
 def test_moore_to_mealy():
@@ -30,3 +45,76 @@ def test_pfa_to_mealy_hmm():
     pfa.graph.add_transition("q0", "q0", **{ATTR_PROB: 1.0, ATTR_EMISSION: "a"})
     hmm = pfa.to_mealy_hmm()
     hmm.validate()
+
+
+def test_hmm_to_sofic_shift_strips_probabilities():
+    hmm = _golden_mean_support_hmm()
+    shift = hmm.to_sofic_shift()
+
+    assert isinstance(shift, SoficShift)
+    assert set(shift.states()) == {"A", "B"}
+    assert shift.symbol_alphabet == frozenset({0, 1})
+    assert {
+        (transition.source, transition.target, transition.data[ATTR_SYMBOL])
+        for transition in shift.transitions()
+    } == {
+        ("A", "A", 0),
+        ("A", "B", 1),
+        ("B", "A", 0),
+    }
+    assert all(ATTR_PROB not in transition.data for transition in shift.transitions())
+    shift.validate()
+
+
+def test_hmm_to_automata_uses_fresh_epsilon_start():
+    hmm = _golden_mean_support_hmm()
+    nfa = hmm.to_automata()
+
+    assert isinstance(nfa, NFA)
+    assert nfa.input_alphabet == frozenset({0, 1})
+    assert nfa.accepting_states == frozenset({"A", "B"})
+
+    [start] = list(nfa.initial_states)
+    assert start not in {"A", "B"}
+    assert nfa.epsilon_closure({start}) == {start, "A", "B"}
+    assert nfa.recognizes(())
+    assert nfa.recognizes((1, 0, 1))
+    assert not nfa.recognizes((1, 1))
+    nfa.validate()
+
+
+def test_hmm_to_dfa_starts_from_all_states_and_accepts_recurrent_subsets():
+    hmm = _golden_mean_support_hmm()
+    dfa = hmm.to_dfa()
+
+    assert isinstance(dfa, DFA)
+    assert dfa.initial_states == frozenset({frozenset({"A", "B"})})
+    assert frozenset() not in set(dfa.states())
+    assert dfa.accepting_states == frozenset({frozenset({"A"}), frozenset({"B"})})
+    assert not dfa.recognizes(())
+    assert dfa.recognizes((0,))
+    assert dfa.recognizes((1,))
+    assert dfa.recognizes((1, 0, 1))
+    assert not dfa.recognizes((1, 1))
+    dfa.validate()
+
+
+def test_moore_hmm_support_conversions_delegate_to_mealy_support():
+    moore = MooreHMM(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    moore.graph.add_state("A", **{ATTR_EMISSION_DIST: {"0": 1.0}})
+    moore.graph.add_state("B", **{ATTR_EMISSION_DIST: {"1": 1.0}})
+    moore.graph.add_transition("A", "B", **{ATTR_PROB: 1.0})
+    moore.graph.add_transition("B", "A", **{ATTR_PROB: 1.0})
+
+    assert moore.to_automata().recognizes(("0", "1", "0"))
+    assert not moore.to_automata().recognizes(("1", "1"))
+    assert {
+        (transition.source, transition.target, transition.data[ATTR_SYMBOL])
+        for transition in moore.to_sofic_shift().transitions()
+    } == {
+        ("A", "B", "0"),
+        ("B", "A", "1"),
+    }
