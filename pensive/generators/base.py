@@ -13,6 +13,7 @@ from pensive.exceptions import QuasiStochasticValidationError, StochasticValidat
 if TYPE_CHECKING:
     from pensive.automata.dfa import DFA
     from pensive.automata.nfa import NFA
+    from pensive.generators.mealy import MealyHMM
     from pensive.shifts.sofic import SoficShift
 
 
@@ -105,6 +106,10 @@ class HiddenMarkovModel(StochasticModel):
         from pensive.generators.hmm_inference import viterbi
 
         return viterbi(self, observations)
+
+    def to_mealy(self) -> MealyHMM:
+        """Return an equivalent Mealy-style presentation."""
+        raise NotImplementedError(f"{type(self).__name__} must implement to_mealy()")
 
     def entropy_rate(self) -> float:
         from pensive.generators.measures import entropy_rate_hmm

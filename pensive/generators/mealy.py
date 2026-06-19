@@ -5,11 +5,10 @@ from __future__ import annotations
 from collections.abc import Hashable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
-from pensive.exceptions import StochasticValidationError, UnifilarityError
+from pensive.exceptions import UnifilarityError
 from pensive.generators.base import HiddenMarkovModel
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from pensive.generators.edge_emissions import validate_stochastic_edge_emissions
+from pensive.graph import ATTR_EMISSION
 
 if TYPE_CHECKING:
     from pensive.generators.mixed_state import MixedState, MixedStatePresentation
@@ -33,21 +32,17 @@ class MealyHMM(HiddenMarkovModel):
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()
-        for state in self.states():
-            outgoing = list(self.graph.out_transitions(state))
-            total = sum(t.data.get(ATTR_PROB, 0.0) for t in outgoing)
-            if outgoing and not np.isclose(total, 1.0):
-                raise StochasticValidationError(f"joint masses from {state!r} sum to {total}")
-            for transition in outgoing:
-                prob = transition.data.get(ATTR_PROB, 0.0)
-                if prob < 0:
-                    raise StochasticValidationError(f"negative joint probability on {transition}")
-                emission = transition.data.get(ATTR_EMISSION)
-                if emission is not None:
-                    self._require(
-                        emission in self.observation_alphabet,
-                        f"emission {emission!r} not in observation alphabet",
-                    )
+        validate_stochastic_edge_emissions(
+            self,
+            alphabet=self.observation_alphabet,
+            alphabet_name="observation",
+            row_mass_label="joint masses",
+            negative_probability_label="negative joint probability",
+        )
+
+    def to_mealy(self) -> MealyHMM:
+        """Return this already-Mealy presentation."""
+        return self
 
     def _check_unifilar(self) -> None:
         if self.is_unifilar():

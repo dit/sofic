@@ -23,6 +23,11 @@ def test_validate_joint_masses():
     _mealy_hmm().validate()
 
 
+def test_to_mealy_returns_self():
+    hmm = _mealy_hmm()
+    assert hmm.to_mealy() is hmm
+
+
 def test_mixed_state_presentation_on_mealy_hmm():
     from pensive.generators.mixed_state import MixedStatePresentation
 

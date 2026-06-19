@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from pensive.automata.dfa import DFA
 from pensive.automata.nfa import NFA
+from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
@@ -64,14 +65,14 @@ def pfa_to_mealy_hmm(pfa: ProbabilisticFiniteAutomaton) -> MealyHMM:
     )
 
 
-def hmm_to_sofic_shift(hmm: MealyHMM | MooreHMM) -> SoficShift:
+def hmm_to_sofic_shift(hmm: HiddenMarkovModel) -> SoficShift:
     """Strip probabilities from an HMM and keep its labeled support."""
     support = _mealy_support(hmm)
     graph = _support_graph(support, edge_attr=ATTR_SYMBOL)
     return SoficShift(graph=graph, symbol_alphabet=support.observation_alphabet)
 
 
-def hmm_to_automata(hmm: MealyHMM | MooreHMM) -> NFA:
+def hmm_to_automata(hmm: HiddenMarkovModel) -> NFA:
     """Build an NFA whose language is the finite-word support of an HMM."""
     support = _mealy_support(hmm)
     graph = _support_graph(support, edge_attr=ATTR_SYMBOL)
@@ -88,7 +89,7 @@ def hmm_to_automata(hmm: MealyHMM | MooreHMM) -> NFA:
     )
 
 
-def hmm_to_dfa(hmm: MealyHMM | MooreHMM) -> DFA:
+def hmm_to_dfa(hmm: HiddenMarkovModel) -> DFA:
     """Determinize the HMM support NFA from the all-states subset."""
     support = _mealy_support(hmm)
     states = frozenset(support.states())
@@ -103,12 +104,8 @@ def hmm_to_dfa(hmm: MealyHMM | MooreHMM) -> DFA:
     return dfa
 
 
-def _mealy_support(hmm: MealyHMM | MooreHMM) -> MealyHMM:
-    if isinstance(hmm, MooreHMM):
-        return hmm.to_mealy()
-    if isinstance(hmm, MealyHMM):
-        return hmm
-    raise TypeError("HMM support conversions require a MealyHMM or MooreHMM")
+def _mealy_support(hmm: HiddenMarkovModel) -> MealyHMM:
+    return hmm.to_mealy()
 
 
 def _support_graph(hmm: MealyHMM, *, edge_attr: str) -> TransitionGraph:

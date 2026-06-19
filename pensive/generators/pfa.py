@@ -7,8 +7,8 @@ from typing import Any
 
 import numpy as np
 
-from pensive.exceptions import StochasticValidationError
 from pensive.generators.base import StochasticModel
+from pensive.generators.edge_emissions import validate_stochastic_edge_emissions
 from pensive.generators.mealy import MealyHMM
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
@@ -24,18 +24,13 @@ class ProbabilisticFiniteAutomaton(StochasticModel):
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()
-        for state in self.states():
-            outgoing = list(self.graph.out_transitions(state))
-            total = sum(t.data.get(ATTR_PROB, 0.0) for t in outgoing)
-            if outgoing and not np.isclose(total, 1.0):
-                raise StochasticValidationError(f"outgoing masses from {state!r} sum to {total}")
-            for transition in outgoing:
-                prob = transition.data.get(ATTR_PROB, 0.0)
-                if prob < 0:
-                    raise StochasticValidationError(f"negative probability on {transition}")
-                emission = transition.data.get(ATTR_EMISSION)
-                if emission is not None:
-                    self._require(emission in self.output_alphabet, f"emission {emission!r} not in output alphabet")
+        validate_stochastic_edge_emissions(
+            self,
+            alphabet=self.output_alphabet,
+            alphabet_name="output",
+            row_mass_label="outgoing masses",
+            negative_probability_label="negative probability",
+        )
 
     def is_unifilar(self) -> bool:
         """Return whether each state emits at most one edge per symbol."""

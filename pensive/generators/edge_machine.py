@@ -9,15 +9,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Hashable
-from typing import Any, TypeAlias
+from typing import Any
 
-import numpy as np
-
+from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
 from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
-EdgeState: TypeAlias = tuple[Hashable, Any, Hashable]
+type EdgeState = tuple[Hashable, Any, Hashable]
 
 _ATTR_EDGE_SOURCE = "edge_source"
 _ATTR_EDGE_TARGET = "edge_target"
@@ -37,14 +35,13 @@ def parse_edge_state_label(label: str) -> EdgeState:
     return (eval(parts[0]), eval(parts[1]), eval(parts[2]))
 
 
-def edge_machine_from_hmm(hmm: MealyHMM | MooreHMM) -> MealyHMM:
+def edge_machine_from_hmm(hmm: HiddenMarkovModel) -> MealyHMM:
     """Build the edge machine whose states are the source HMM's transitions.
 
     Each edge state encodes ``(source, emission, target)``.  Leaving edge ``e₀``
     for edge ``e₁`` emits symbol ``e₁[1]`` with probability ``P(e₁ | e₀.target)``.
     """
-    if isinstance(hmm, MooreHMM):
-        hmm = hmm.to_mealy()
+    hmm = hmm.to_mealy()
 
     edge_probs: dict[EdgeState, float] = defaultdict(float)
     outgoing_by_source: dict[Hashable, list[EdgeState]] = defaultdict(list)
@@ -73,7 +70,7 @@ def edge_machine_from_hmm(hmm: MealyHMM | MooreHMM) -> MealyHMM:
             **{_ATTR_EDGE_SOURCE: edge[0], ATTR_EMISSION: edge[1], _ATTR_EDGE_TARGET: edge[2]},
         )
 
-    for source_state, edges in outgoing_by_source.items():
+    for _source_state, edges in outgoing_by_source.items():
         total = sum(edge_probs[edge] for edge in edges)
         if total <= 0.0:
             continue

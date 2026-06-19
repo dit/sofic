@@ -2,6 +2,7 @@
 
 from pensive.automata.dfa import DFA
 from pensive.automata.nfa import NFA
+from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.moore import MooreHMM
 from pensive.generators.pfa import ProbabilisticFiniteAutomaton
@@ -118,3 +119,20 @@ def test_moore_hmm_support_conversions_delegate_to_mealy_support():
         ("A", "B", "0"),
         ("B", "A", "1"),
     }
+
+
+def test_hmm_support_conversions_use_to_mealy_hook():
+    class WrappedHMM(HiddenMarkovModel):
+        def __init__(self, support: MealyHMM) -> None:
+            super().__init__(
+                initial_distribution=support.initial_distribution,
+                observation_alphabet=support.observation_alphabet,
+            )
+            self._support = support
+
+        def to_mealy(self) -> MealyHMM:
+            return self._support
+
+    wrapped = WrappedHMM(_golden_mean_support_hmm())
+    assert wrapped.to_automata().recognizes((1, 0, 1))
+    assert not wrapped.to_automata().recognizes((1, 1))

@@ -8,13 +8,16 @@ from typing import Any
 import numpy as np
 
 from pensive.generators.base import HiddenMarkovModel
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB
+from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 
-def _emission_transition_tensors(
-    hmm: HiddenMarkovModel,
+def _as_mealy_hmm(hmm: HiddenMarkovModel) -> Any:
+    """Return a Mealy-style representation through the HMM representation hook."""
+    return hmm.to_mealy()
+
+
+def _emission_transition_tensors_from_mealy(
+    hmm: Any,
 ) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
     """Return initial vector ``pi`` and symbol -> joint transition matrices."""
     idx = hmm.reindex()
@@ -26,29 +29,21 @@ def _emission_transition_tensors(
     symbols: set[Any] = set(hmm.observation_alphabet)
     joint: dict[Any, np.ndarray] = {symbol: np.zeros((n, n), dtype=float) for symbol in symbols}
 
-    if isinstance(hmm, MealyHMM):
-        for transition in hmm.transitions():
-            emission = transition.data.get(ATTR_EMISSION)
-            if emission is None:
-                continue
-            i = idx.index(transition.source)
-            j = idx.index(transition.target)
-            joint[emission][i, j] += float(transition.data.get(ATTR_PROB, 0.0))
-        return pi, joint
+    for transition in hmm.transitions():
+        emission = transition.data.get(ATTR_EMISSION)
+        if emission is None:
+            continue
+        i = idx.index(transition.source)
+        j = idx.index(transition.target)
+        joint[emission][i, j] += float(transition.data.get(ATTR_PROB, 0.0))
+    return pi, joint
 
-    if isinstance(hmm, MooreHMM):
-        for state in idx.states:
-            i = idx.index(state)
-            attrs = hmm.graph.state_attrs(state)
-            emission_dist = attrs.get(ATTR_EMISSION_DIST, {})
-            for transition in hmm.graph.out_transitions(state):
-                j = idx.index(transition.target)
-                trans_prob = float(transition.data.get(ATTR_PROB, 0.0))
-                for emission, emit_prob in emission_dist.items():
-                    joint[emission][i, j] += trans_prob * float(emit_prob)
-        return pi, joint
 
-    raise TypeError(f"unsupported HMM type {type(hmm)!r}")
+def _emission_transition_tensors(
+    hmm: HiddenMarkovModel,
+) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
+    """Return initial vector ``pi`` and symbol -> joint transition matrices."""
+    return _emission_transition_tensors_from_mealy(_as_mealy_hmm(hmm))
 
 
 def forward(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
@@ -70,7 +65,7 @@ def forward(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
 def backward(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
     """Return backward messages ``beta[t, s]`` for ``len(observations)+1`` rows."""
     _, joint = _emission_transition_tensors(hmm)
-    n = len(hmm.reindex())
+    n = next(iter(joint.values())).shape[0] if joint else len(_as_mealy_hmm(hmm).reindex())
     obs = list(observations)
     beta = np.zeros((len(obs) + 1, n), dtype=float)
     beta[len(obs)] = 1.0
@@ -99,8 +94,9 @@ def _log_probabilities(values: np.ndarray) -> np.ndarray:
 
 
 def viterbi(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> list[Hashable]:
-    idx = hmm.reindex()
-    pi, joint = _emission_transition_tensors(hmm)
+    mealy = _as_mealy_hmm(hmm)
+    idx = mealy.reindex()
+    pi, joint = _emission_transition_tensors_from_mealy(mealy)
     n = len(idx)
     obs = list(observations)
     if n == 0:
@@ -148,8 +144,9 @@ def sample(
     rng: np.random.Generator | None = None,
 ) -> tuple[list[Any], list[Hashable]]:
     generator = rng if rng is not None else np.random.default_rng()
-    idx = hmm.reindex()
-    pi, joint = _emission_transition_tensors(hmm)
+    mealy = _as_mealy_hmm(hmm)
+    idx = mealy.reindex()
+    pi, joint = _emission_transition_tensors_from_mealy(mealy)
     state = int(generator.choice(len(idx), p=pi / pi.sum()))
 
     observations: list[Any] = []

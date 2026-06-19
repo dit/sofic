@@ -62,6 +62,20 @@ def test_entropy_rate_moore():
     assert hmm.entropy_rate() == pytest.approx(1.0, abs=1e-6)
 
 
+def test_joint_block_distribution_respects_history_length_mealy():
+    eps = _epsilon()
+    dist = eps.joint_block_distribution(history_length=2)
+    assert all(len(outcome) == 3 for outcome in dist.outcomes)
+    assert dist[("0", "1", "0")] == pytest.approx(0.125, abs=1e-12)
+
+
+def test_joint_block_distribution_supports_moore_hmms():
+    hmm = _moore()
+    dist = hmm.joint_block_distribution(history_length=2)
+    assert all(len(outcome) == 3 for outcome in dist.outcomes)
+    assert dist[("0", "1", "0")] == pytest.approx(0.125, abs=1e-12)
+
+
 def test_state_entropy_and_statistical_complexity():
     eps = _epsilon()
     assert eps.state_entropy() == pytest.approx(0.0, abs=1e-6)

@@ -38,47 +38,31 @@ def joint_block_distribution(
     generator: HiddenMarkovModel,
     history_length: int = 1,
 ) -> Any:
-    """Build a ``dit.Distribution`` over observed emission blocks."""
+    """Build a ``dit.Distribution`` over observed emission blocks.
+
+    ``history_length`` counts symbols before the present symbol, so the emitted
+    block length is ``history_length + 1``.
+    """
+    from itertools import product
+
+    from pensive.generators.hmm_inference import _emission_transition_tensors
+
     dit = _require_dit()
-    idx = generator.reindex()
-    pi = np.array([generator.initial_distribution.get(s, 0.0) for s in idx.states], dtype=float)
+    pi, joint = _emission_transition_tensors(generator)
     if pi.sum() <= 0.0:
         pi = generator.stationary_distribution()
-    joint: dict[Any, np.ndarray] = {}
-    for transition in generator.transitions():
-        emission = transition.data.get(ATTR_EMISSION)
-        if emission is None:
-            continue
-        matrix = joint.setdefault(emission, np.zeros((len(idx), len(idx)), dtype=float))
-        i = idx.index(transition.source)
-        j = idx.index(transition.target)
-        matrix[i, j] += float(transition.data.get(ATTR_PROB, 0.0))
 
     symbol_list = sorted(generator.observation_alphabet, key=repr)
-    if history_length <= 0:
-        marginal = np.zeros(len(symbol_list), dtype=float)
-        for k, symbol in enumerate(symbol_list):
-            matrix = joint.get(symbol)
-            if matrix is not None:
-                marginal[k] = float(pi @ matrix @ np.ones(len(idx)))
-        outcomes = [(symbol,) for symbol in symbol_list]
-        return dit.Distribution(outcomes, marginal)
+    block_length = max(1, history_length + 1)
+    ones = np.ones(len(pi), dtype=float)
+    outcomes = list(product(symbol_list, repeat=block_length))
+    probs = []
+    for outcome in outcomes:
+        mass = pi.copy()
+        for symbol in outcome:
+            mass = mass @ joint.get(symbol, np.zeros((len(pi), len(pi)), dtype=float))
+        probs.append(float(mass @ ones))
 
-    outcomes: list[tuple[Any, ...]] = []
-    probs: list[float] = []
-    for past_symbol in symbol_list:
-        past_matrix = joint.get(past_symbol)
-        if past_matrix is None:
-            continue
-        after_past = pi @ past_matrix
-        for present_symbol in symbol_list:
-            present_matrix = joint.get(present_symbol)
-            if present_matrix is None:
-                continue
-            prob = float(after_past @ present_matrix @ np.ones(len(idx)))
-            if prob > 0.0:
-                outcomes.append((past_symbol, present_symbol))
-                probs.append(prob)
     total = sum(probs)
     if total > 0.0:
         probs = [p / total for p in probs]
@@ -180,7 +164,7 @@ def excess_entropy(generator: HiddenMarkovModel, max_block: int = 4) -> float:
     h = generator.entropy_rate()
     estimates: list[float] = []
     for n in range(1, max_block + 1):
-        dist = joint_block_distribution(generator, history_length=n)
+        dist = joint_block_distribution(generator, history_length=n - 1)
         estimates.append(float(dit.shannon.entropy(dist)) - n * h)
     return float(np.mean(estimates)) if estimates else 0.0
 

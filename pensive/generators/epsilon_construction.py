@@ -15,19 +15,18 @@ from typing import Any
 import numpy as np
 
 from pensive.exceptions import StochasticValidationError
+from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.mixed_state import MixedStatePresentation
-from pensive.generators.moore import MooreHMM
 from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 from pensive.states import sequential_labels
 
 TransitionSignature = tuple[tuple[Any, int, float], ...]
 
 
-def build_epsilon_machine(hmm: MealyHMM | MooreHMM) -> EpsilonMachine:
-    if isinstance(hmm, MooreHMM):
-        hmm = hmm.to_mealy()
+def build_epsilon_machine(hmm: HiddenMarkovModel) -> EpsilonMachine:
+    hmm = hmm.to_mealy()
     presentation = _unifilar_presentation(hmm)
     stationary = presentation.stationary_distribution()
     if stationary.sum() <= 0.0:
