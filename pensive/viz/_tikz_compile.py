@@ -100,9 +100,7 @@ def compile_tikz_fragment(fragment: str, *, format: str = "png") -> bytes:
         pdf_path = workdir / "pensive_tikz.pdf"
         if result.returncode != 0 or not pdf_path.is_file():
             log_tail = (workdir / "pensive_tikz.log").read_text(encoding="utf-8", errors="replace")
-            raise TikzCompileError(
-                "pdflatex failed to compile TikZ figure.\n" + log_tail[-4000:]
-            )
+            raise TikzCompileError("pdflatex failed to compile TikZ figure.\n" + log_tail[-4000:])
 
         if normalized == "pdf":
             return pdf_path.read_bytes()
@@ -171,6 +169,4 @@ def _pdf_to_svg(pdf_path: Path, svg_path: Path) -> bytes:
         if svg_path.is_file():
             return svg_path.read_bytes()
 
-    raise TikzCompileError(
-        "compiled PDF but could not convert to SVG; install poppler (pdftocairo) or pdf2svg"
-    )
+    raise TikzCompileError("compiled PDF but could not convert to SVG; install poppler (pdftocairo) or pdf2svg")

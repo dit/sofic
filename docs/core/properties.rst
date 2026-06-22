@@ -5,7 +5,10 @@
 Properties
 **********
 
-Structural predicates for validating and classifying state machines.
+Structural predicates for validating and classifying state machines. The
+determinism, unifilarity, and right-resolving checks mirror terminology from
+finite automata, symbolic dynamics, and computational mechanics
+:cite:`RabinScott1959,LindMarcus1995,Crutchfield1994`.
 
 .. ipython::
 

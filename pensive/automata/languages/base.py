@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
 from pensive.automata.base import LabeledAutomaton
@@ -10,9 +10,9 @@ from pensive.automata.base import LabeledAutomaton
 
 @runtime_checkable
 class RegularLanguage(Protocol):
-  """Membership oracle for a regular (or finitely specified) language."""
+    """Membership oracle for a regular (or finitely specified) language."""
 
-  def __contains__(self, word: Sequence[Any]) -> bool: ...
+    def __contains__(self, word: Sequence[Any]) -> bool: ...
 
 
 class ExplicitLanguage:
@@ -34,9 +34,7 @@ class ExplicitLanguage:
         key = tuple(word)
         if key in self._negative:
             return False
-        if key in self._positive:
-            return True
-        return False
+        return key in self._positive
 
     @property
     def alphabet(self) -> frozenset[Any]:

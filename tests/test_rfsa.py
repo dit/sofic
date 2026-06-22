@@ -1,8 +1,6 @@
 """Tests for residual and canonical RFSA skeletons."""
 
-import pytest
-
-from pensive.automata.languages.base import ExplicitLanguage
+from pensive.automata.dfa import DFA
 from pensive.automata.observation import ObservationTable
 from pensive.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 
@@ -15,11 +13,6 @@ def test_rfsa_validate():
     )
     rfsa.graph.add_state("q0")
     rfsa.validate()
-
-
-from pensive.automata.dfa import DFA
-from pensive.automata.languages.base import AutomatonLanguage
-from pensive.graph import ATTR_SYMBOL
 
 
 def _lang_dfa() -> DFA:

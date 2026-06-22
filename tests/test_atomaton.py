@@ -1,11 +1,8 @@
 """Tests for átomaton skeletons."""
 
-import pytest
-
 from pensive.automata.atomaton import Atomaton, MaximizedPrimeAtomaton
+from pensive.automata.dfa import DFA
 from pensive.automata.rfsa import CanonicalRFSA
-from pensive.automata.languages.base import ExplicitLanguage
-from pensive.automata.observation import ObservationTable
 
 
 def test_atomaton_validate():
@@ -16,9 +13,6 @@ def test_atomaton_validate():
     )
     auto.graph.add_state("q0")
     auto.validate()
-
-
-from pensive.automata.dfa import DFA
 
 
 def _lang_dfa() -> DFA:

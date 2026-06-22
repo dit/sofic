@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import Any
-
-import numpy as np
 
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.nmachine import NMachine
@@ -16,7 +13,6 @@ def build_nmachine_from_epsilon(
     eps: EpsilonMachine,
     splits: Mapping[Hashable, int] | None = None,
 ) -> NMachine:
-    alphabet = tuple(sorted(eps.observation_alphabet, key=repr))
     split_counts = dict(splits or {})
     for state in eps.states():
         split_counts.setdefault(state, 1)
@@ -65,7 +61,7 @@ def build_nmachine_from_epsilon(
 def coarse_grained_distribution(nm: NMachine, eps_states: tuple[Hashable, ...]) -> dict[Hashable, float]:
     pi = nm.stationary_quasidistribution()
     idx = nm.reindex()
-    coarse: dict[Hashable, float] = {state: 0.0 for state in eps_states}
+    coarse: dict[Hashable, float] = dict.fromkeys(eps_states, 0.0)
     for substate, mass in zip(idx.states, pi, strict=False):
         if isinstance(substate, tuple) and len(substate) == 2:
             coarse[substate[0]] = coarse.get(substate[0], 0.0) + float(mass)

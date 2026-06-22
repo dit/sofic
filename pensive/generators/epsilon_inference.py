@@ -7,7 +7,7 @@ follows Crutchfield & Young (PRL 1989; PRE 1994).
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Hashable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -40,10 +40,7 @@ class SuffixCounts:
         seq = tuple(sequence)
         if not seq:
             raise ValueError("sequence must be non-empty")
-        if alphabet is None:
-            alphabet = tuple(sorted(set(seq), key=repr))
-        else:
-            alphabet = tuple(alphabet)
+        alphabet = tuple(sorted(set(seq), key=repr)) if alphabet is None else tuple(alphabet)
         unknown = set(seq) - set(alphabet)
         if unknown:
             raise ValueError(f"symbols {unknown!r} not in alphabet")
@@ -64,11 +61,9 @@ class SuffixCounts:
         total = sum(counts.values())
         if total == 0:
             uniform = 1.0 / len(self.alphabet)
-            return {symbol: uniform for symbol in self.alphabet}
+            return dict.fromkeys(self.alphabet, uniform)
         denom = total + smoothing * len(self.alphabet)
-        return {
-            symbol: (counts.get(symbol, 0) + smoothing) / denom for symbol in self.alphabet
-        }
+        return {symbol: (counts.get(symbol, 0) + smoothing) / denom for symbol in self.alphabet}
 
     def state_morph(self, histories: set[History], *, smoothing: float = 0.0) -> dict[Any, float]:
         """Weighted average of history morphs with weights from occurrence counts."""
@@ -76,7 +71,7 @@ class SuffixCounts:
         total_weight = sum(weights.values())
         if total_weight <= 0.0:
             return self.morph((), smoothing=smoothing)
-        result = {symbol: 0.0 for symbol in self.alphabet}
+        result = dict.fromkeys(self.alphabet, 0.0)
         for history, weight in weights.items():
             morph = self.morph(history, smoothing=smoothing)
             for symbol in self.alphabet:
@@ -85,14 +80,13 @@ class SuffixCounts:
 
     def marginal_morph(self) -> dict[Any, float]:
         """Global next-symbol distribution (IID morph at L=0)."""
-        total = sum(self.history_counts.values())
         counts = Counter()
-        for history, counter in self.next_counts.items():
+        for _history, counter in self.next_counts.items():
             counts.update(counter)
         grand = sum(counts.values())
         if grand == 0:
             uniform = 1.0 / len(self.alphabet)
-            return {symbol: uniform for symbol in self.alphabet}
+            return dict.fromkeys(self.alphabet, uniform)
         return {symbol: counts.get(symbol, 0) / grand for symbol in self.alphabet}
 
 
@@ -113,11 +107,7 @@ def _contingency_rows(
 ) -> np.ndarray | None:
     left_obs = _observed_counts_for_morph(counts, left_histories)
     right_obs = _observed_counts_for_morph(counts, right_histories)
-    active = [
-        symbol
-        for symbol in counts.alphabet
-        if left_obs.get(symbol, 0) + right_obs.get(symbol, 0) > 0
-    ]
+    active = [symbol for symbol in counts.alphabet if left_obs.get(symbol, 0) + right_obs.get(symbol, 0) > 0]
     if not active:
         return None
     table = np.array(
@@ -163,9 +153,7 @@ def morphs_differ(
     if test == "g":
         try:
             with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p_value, _dof, expected = stats.chi2_contingency(
-                    table, lambda_="log-likelihood"
-                )
+                statistic, _p_value, _dof, expected = stats.chi2_contingency(table, lambda_="log-likelihood")
         except ValueError:
             return False
         if not np.isfinite(statistic) or np.any(expected == 0):
@@ -464,9 +452,7 @@ def _counts_to_mealy(
             if prob <= 0.0:
                 continue
             emitting = [
-                history
-                for history in histories
-                if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
+                history for history in histories if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
             ]
             if not emitting:
                 continue
@@ -476,18 +462,12 @@ def _counts_to_mealy(
             if not targets:
                 continue
             if len(targets) > 1:
-                raise StochasticValidationError(
-                    f"non-unifilar inferred transition from {label!r} on {symbol!r}"
-                )
+                raise StochasticValidationError(f"non-unifilar inferred transition from {label!r} on {symbol!r}")
             target_label = state_labels[next(iter(targets))]
             graph.add_transition(label, target_label, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
 
     total_visits = float(sum(visits.values()))
-    initial = {
-        state_labels[state_id]: visits[state_id] / total_visits
-        for state_id in states
-        if visits[state_id] > 0
-    }
+    initial = {state_labels[state_id]: visits[state_id] / total_visits for state_id in states if visits[state_id] > 0}
     if not initial:
         initial = {state_labels[next(iter(states))]: 1.0}
 
@@ -513,10 +493,7 @@ def cssr(
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
-    if alphabet is None:
-        alphabet_size = len(set(seq))
-    else:
-        alphabet_size = len(tuple(alphabet))
+    alphabet_size = len(set(seq)) if alphabet is None else len(tuple(alphabet))
     max_length = Lmax if Lmax is not None else _default_lmax(len(seq), alphabet_size, min_count)
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
 
@@ -529,11 +506,7 @@ def cssr(
     states = _cssr_determinize(states, history_to_state, counts, length=max_length)
     states = _merge_similar_states(states, history_to_state, counts, alpha=alpha, test=test)
     states = _drop_transient_states(states, history_to_state, counts, length=max_length)
-    history_to_state = {
-        history: state_id
-        for state_id, histories in states.items()
-        for history in histories
-    }
+    history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
     return _counts_to_mealy(states, counts, history_to_state, seq, length=max_length)
 
 
@@ -560,10 +533,7 @@ def _morphs_equivalent(
     right_morph = counts.morph(right)
     if delta > 0.0:
         return _morph_distance(counts, left, right, delta=delta) <= delta
-    return all(
-        np.isclose(left_morph[symbol], right_morph[symbol], rtol=0.0, atol=1e-3)
-        for symbol in counts.alphabet
-    )
+    return all(np.isclose(left_morph[symbol], right_morph[symbol], rtol=0.0, atol=1e-3) for symbol in counts.alphabet)
 
 
 def _cluster_histories_by_morph(
@@ -622,21 +592,15 @@ def subtree_merge(
     histories.add(())
 
     states = _cluster_histories_by_morph(counts, histories, delta=delta)
-    history_to_state = {
-        history: state_id for state_id, members in states.items() for history in members
-    }
+    history_to_state = {history: state_id for state_id, members in states.items() for history in members}
 
     states = _cssr_determinize(states, history_to_state, counts, length=L)
     history_to_state = {
-        history: state_id
-        for state_id, histories_in_state in states.items()
-        for history in histories_in_state
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
     states = _merge_similar_states(states, history_to_state, counts, alpha=0.05, test="tv")
     states = _drop_transient_states(states, history_to_state, counts, length=L)
     history_to_state = {
-        history: state_id
-        for state_id, histories_in_state in states.items()
-        for history in histories_in_state
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
     return _counts_to_mealy(states, counts, history_to_state, seq, length=L)

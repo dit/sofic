@@ -12,13 +12,12 @@ from collections.abc import Iterator, Sequence
 import numpy as np
 
 from pensive.automata.idfa import (
-    MISSING_TRANSITION,
+    _delta_table,
     idfa_string_to_topological_graph,
     iter_idfa_strings,
     reroot_idfa_string,
     transition_count,
     validate_idfa_string,
-    _delta_table,
 )
 from pensive.exceptions import PensiveValidationError
 from pensive.generators.epsilon_machine import EpsilonMachine
@@ -132,10 +131,7 @@ def _reachable_states(transitions: Sequence[int], *, n: int, k: int, start: int)
 
 def is_strongly_connected_idfa(transitions: Sequence[int], *, n: int, k: int) -> bool:
     """Return whether every state can reach every other state."""
-    for source in range(n):
-        if len(_reachable_states(transitions, n=n, k=k, start=source)) != n:
-            return False
-    return True
+    return all(len(_reachable_states(transitions, n=n, k=k, start=source)) == n for source in range(n))
 
 
 def is_minimal_idfa(transitions: Sequence[int], *, n: int, k: int) -> bool:
@@ -161,9 +157,7 @@ def is_minimal_idfa(transitions: Sequence[int], *, n: int, k: int) -> bool:
             groups: dict[tuple[object, ...], set[int]] = {}
             for state in block:
                 signature = tuple(
-                    None
-                    if table[state][symbol] is None
-                    else block_index(table[state][symbol], partition)
+                    None if table[state][symbol] is None else block_index(table[state][symbol], partition)
                     for symbol in range(k)
                 )
                 groups.setdefault(signature, set()).add(state)
@@ -190,9 +184,7 @@ def is_topological_epsilon_string(
         return False
     if not is_strongly_connected_idfa(transitions, n=n, k=k):
         return False
-    if check_minimal and not is_minimal_idfa(transitions, n=n, k=k):
-        return False
-    return True
+    return not (check_minimal and not is_minimal_idfa(transitions, n=n, k=k))
 
 
 def is_canonical_topological_epsilon(transitions: Sequence[int], *, n: int, k: int) -> bool:

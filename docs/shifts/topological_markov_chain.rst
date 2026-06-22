@@ -6,7 +6,8 @@ Topological Markov Chain
 ************************
 
 A :class:`TopologicalMarkovChain` is a shift of finite type presented by an
-adjacency matrix. Its Parry measure is the maximum-entropy stochastic generator.
+adjacency matrix. Its Parry measure is the maximum-entropy stochastic generator
+:cite:`Parry1964,LindMarcus1995`.
 
 .. ipython::
 

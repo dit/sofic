@@ -121,6 +121,12 @@ class HiddenMarkovModel(StochasticModel):
 
         return joint_block_distribution(self, history_length=history_length)
 
+    def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
+        """Return observed words of ``length`` and their probabilities."""
+        from pensive.generators.words import hmm_words_of_length
+
+        return hmm_words_of_length(self, length)
+
     def to_sofic_shift(self) -> SoficShift:
         """Strip probabilities and return a sofic shift with the same support."""
         from pensive.generators.conversions import hmm_to_sofic_shift
@@ -176,6 +182,12 @@ class QuasiStochasticModel(StateMachine):
         from pensive.generators.quasi_inference import transition_matrices
 
         return transition_matrices(self)
+
+    def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
+        """Return words of ``length`` and their signed quasiprobabilities."""
+        from pensive.generators.words import quasi_words_of_length
+
+        return quasi_words_of_length(self, length)
 
     def collision_entropy(self) -> float:
         from pensive.generators.measures import collision_entropy

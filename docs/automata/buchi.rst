@@ -5,7 +5,8 @@
 Büchi Automata
 *****************
 
-:class:`BuchiAutomaton` recognizes ω-languages over infinite words.
+:class:`BuchiAutomaton` recognizes ω-languages over infinite words
+:cite:`Buchi1962`.
 
 API
 ===

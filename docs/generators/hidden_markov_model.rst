@@ -7,7 +7,9 @@ Hidden Markov Model
 
 :class:`~pensive.generators.base.StochasticModel` is the base for row-stochastic
 generators. :class:`~pensive.generators.base.HiddenMarkovModel` adds an
-observation alphabet and emission semantics.
+observation alphabet and emission semantics. The HMM conventions and standard
+inference problems follow Baum and Petrie and Rabiner's tutorial
+:cite:`BaumPetrie1966,Rabiner1989`.
 
 Mealy vs Moore
 ==============
@@ -16,6 +18,7 @@ Mealy vs Moore
   :math:`P(q', o \mid q)` on edges.
 * :class:`~pensive.generators.moore.MooreHMM` — emission distribution
   :math:`P(o \mid q)` on states; convert with :func:`~pensive.generators.conversions.moore_to_mealy`.
+  The naming follows Mealy and Moore machine conventions :cite:`Mealy1955,Moore1956`.
 
 .. ipython::
 

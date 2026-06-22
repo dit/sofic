@@ -76,9 +76,7 @@ def test_markov_chain_time_reverse():
             j = idx.index(target)
             forward = float(edge.data.get(ATTR_PROB, 0.0))
             reverse_prob = next(
-                t.data.get(ATTR_PROB, 0.0)
-                for t in rev.graph.out_transitions(target)
-                if t.target == source
+                t.data.get(ATTR_PROB, 0.0) for t in rev.graph.out_transitions(target) if t.target == source
             )
             assert np.isclose(pi[i] * forward, pi_rev[j] * reverse_prob, rtol=1e-8, atol=1e-10)
 

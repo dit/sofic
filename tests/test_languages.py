@@ -1,16 +1,15 @@
 """Tests for regular-language wrappers and quotients."""
 
-import pytest
-
 from pensive.automata.dfa import DFA
 from pensive.automata.languages.base import AutomatonLanguage, ExplicitLanguage, as_language
 from pensive.automata.languages.quotients import left_quotient, right_quotient
 from pensive.automata.languages.residuals import is_composed_residual
-from pensive.graph import ATTR_SYMBOL
 
 
 def _simple_dfa() -> DFA:
-    dfa = DFA(input_alphabet=frozenset({"a", "b"}), initial_states=frozenset({"q0"}), accepting_states=frozenset({"q1"}))
+    dfa = DFA(
+        input_alphabet=frozenset({"a", "b"}), initial_states=frozenset({"q0"}), accepting_states=frozenset({"q1"})
+    )
     dfa.graph.add_state("q0")
     dfa.graph.add_state("q1")
     dfa.add_transition("q0", "q1", "a")
@@ -72,4 +71,3 @@ def test_atoms_from_dfa():
     dfa = _simple_dfa()
     result = atoms(AutomatonLanguage(dfa))
     assert len(result) >= 1
-

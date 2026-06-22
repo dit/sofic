@@ -7,10 +7,10 @@ import pytest
 from pensive.automata.dfa import DFA
 from pensive.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
 from pensive.generators.markov import MarkovChain
+from pensive.graph import ATTR_PROB
 from pensive.viz._context import viz_context
 from pensive.viz._format import format_belief, format_distribution, format_prob_rational
 from pensive.viz.graphviz import model_to_graphviz
-from pensive.graph import ATTR_PROB
 
 graphviz = pytest.importorskip("graphviz")
 

@@ -124,7 +124,9 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> float:
             probs.append(row_mass)
 
     if not probs:
-        return entropy_rate_markov(hmm) if isinstance(hmm, MarkovChain) else _entropy_rate_from_transitions(hmm, pi, idx)
+        return (
+            entropy_rate_markov(hmm) if isinstance(hmm, MarkovChain) else _entropy_rate_from_transitions(hmm, pi, idx)
+        )
 
     total = sum(probs)
     joint_dist = dit.Distribution(outcomes, [p / total for p in probs])

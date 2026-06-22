@@ -6,7 +6,8 @@ MarkovChain
 ***********
 
 A :class:`MarkovChain` is a visible-state Markov process: emissions coincide
-with states.
+with states. Finite-state Markov-chain terminology follows standard treatments
+:cite:`KemenySnell1976`.
 
 .. ipython::
 

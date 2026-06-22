@@ -18,7 +18,7 @@ _TRAP = object()
 L = TypeVar("L", bound=LabeledAutomaton)
 
 
-def trim(aut: L) -> L:
+def trim(aut: L) -> L:  # noqa: UP047 - keep Python 3.11 compatibility.
     """Remove states not reachable from initials or not coaccessible to acceptors."""
     reachable = _forward_reachable(aut)
     coaccessible = _backward_coaccessible(aut)

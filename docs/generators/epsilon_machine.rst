@@ -6,7 +6,7 @@
 ***********
 
 An :class:`EpsilonMachine` is a unifilar Mealy HMM — the minimal causal
-presentation of a stationary process :cite:`Crutchfield1994`.
+presentation of a stationary process :cite:`Crutchfield1994,Loomis2019`.
 
 .. math::
 
@@ -33,6 +33,19 @@ Build from an HMM via partition refinement:
    In [5]: eps.markov_order()
    Out[5]: 1
 
+Block entropy diagrams follow the entropy-convergence view of Markov order,
+cryptic order, and crypticity :cite:`Mahoney2011`:
+
+.. ipython::
+
+   In [6]: diagram = eps.block_entropy_diagram(max_length=4)
+
+   @doctest
+   In [7]: diagram.markov_order
+   Out[7]: 1
+
+   In [8]: ax = eps.plot_block_entropy_diagram(max_length=4)
+
 See also :doc:`bidirectional_epsilon_machine`, :doc:`information_anatomy`, and
 :doc:`epsilon_inference` (sample-based reconstruction).
 
@@ -40,4 +53,7 @@ API
 ===
 
 .. autoclass:: EpsilonMachine
-   :members: from_generator, from_sequence, from_time_reversed, bidirectional_epsilon_machine, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable
+   :members: from_generator, from_sequence, from_time_reversed, bidirectional_epsilon_machine, block_entropy_diagram, plot_block_entropy_diagram, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable
+
+.. autoclass:: pensive.generators.block_entropy.BlockEntropyDiagram
+   :members: plot

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Hashable, Iterable
 
 
 def sequential_labels(count: int, *, start: int = 0) -> tuple[str, ...]:

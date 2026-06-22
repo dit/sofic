@@ -6,7 +6,8 @@ DFA
 ***
 
 A :class:`DFA` is a deterministic finite automaton with a single initial state
-and no ε-transitions.
+and no ε-transitions, following the standard finite-automata model
+:cite:`RabinScott1959,HopcroftUllman1979`.
 
 .. ipython::
 
@@ -38,4 +39,4 @@ API
 ===
 
 .. autoclass:: DFA
-   :members: add_transition, recognizes, minimize, from_nfa
+   :members: add_transition, recognizes, union, intersection, intersect, complement, difference, concat, concatenate, kleene_star, star, minimize, from_nfa

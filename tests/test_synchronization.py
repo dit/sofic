@@ -59,7 +59,6 @@ def test_nemo_infinite_orders():
 
 
 def test_orders_invariant_under_probability_rescaling():
-    import numpy as np
 
     eps = golden_mean(0.5)
     graph = graph_from_epsilon_machine(eps)

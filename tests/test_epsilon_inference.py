@@ -60,10 +60,7 @@ def _mapping_preserves_structure(
         right_state = mapping[left_state]
         mapped = tuple(
             sorted(
-                (
-                    (emission, mapping.get(target, target), round(prob, 6))
-                    for emission, target, prob in edges
-                ),
+                ((emission, mapping.get(target, target), round(prob, 6)) for emission, target, prob in edges),
                 key=lambda item: (repr(item[0]), repr(item[1])),
             )
         )

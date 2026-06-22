@@ -5,7 +5,8 @@
 Sofic Shift
 ***********
 
-A :class:`SoficShift` is a sofic subshift presented by a labeled graph.
+A :class:`SoficShift` is a sofic subshift presented by a labeled graph
+:cite:`Fischer1975,LindMarcus1995,Weiss1973`.
 
 API
 ===

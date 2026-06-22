@@ -40,10 +40,7 @@ def _build_left_fischer(shift: SoficShift) -> LeftFischerCover:
 
     graph = TransitionGraph()
     class_for_vertex = {vertex: language for vertex, language in followers.items()}
-    state_ids = {
-        language: sequential_labels(len(classes))[index]
-        for index, language in enumerate(classes)
-    }
+    state_ids = {language: sequential_labels(len(classes))[index] for index, language in enumerate(classes)}
     for _language, state_id in state_ids.items():
         graph.add_state(state_id)
 
@@ -72,12 +69,8 @@ def right_fischer_from_sofic(shift: SoficShift) -> RightFischerCover:
 
 
 def left_krieger_from_sofic(shift: SoficShift) -> LeftKriegerCover:
-    raise NotImplementedError(
-        "Left Krieger cover construction is not yet implemented; use left_fischer_from_sofic"
-    )
+    raise NotImplementedError("Left Krieger cover construction is not yet implemented; use left_fischer_from_sofic")
 
 
 def right_krieger_from_sofic(shift: SoficShift) -> RightKriegerCover:
-    raise NotImplementedError(
-        "Right Krieger cover construction is not yet implemented; use right_fischer_from_sofic"
-    )
+    raise NotImplementedError("Right Krieger cover construction is not yet implemented; use right_fischer_from_sofic")

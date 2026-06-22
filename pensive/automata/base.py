@@ -10,6 +10,7 @@ from pensive.base import StateMachine
 from pensive.graph import ATTR_SYMBOL, EPSILON
 
 if TYPE_CHECKING:
+    from pensive.automata.dfa import DFA
     from pensive.automata.nfa import NFA
 
 
@@ -43,6 +44,76 @@ class LabeledAutomaton(StateMachine):
     @abstractmethod
     def recognizes(self, word: Sequence[Any]) -> bool:
         """Return whether ``word`` is accepted."""
+
+    def words_of_length(self, length: int) -> Iterator[tuple[Any, ...]]:
+        """Yield accepted words of exactly ``length`` symbols."""
+        from pensive.automata.enumeration import words_of_length
+
+        yield from words_of_length(self, length)
+
+    def iter_language(self, max_length: int | None = None) -> Iterator[tuple[Any, ...]]:
+        """Yield accepted words in nondecreasing length order.
+
+        If ``max_length`` is omitted, the iterator is unbounded and may not
+        terminate for finite languages after yielding their last word.
+        """
+        from pensive.automata.enumeration import iter_language
+
+        yield from iter_language(self, max_length=max_length)
+
+    def to_regex(self) -> str:
+        """Return a regular expression for the accepted language."""
+        from pensive.automata.regex import automaton_to_regex
+
+        return automaton_to_regex(self)
+
+    def union(self, other: LabeledAutomaton) -> NFA:
+        """Return an NFA recognizing the union of this language and ``other``."""
+        from pensive.automata.languages.automaton_ops import union_nfa
+
+        return union_nfa(self, other)
+
+    def intersection(self, other: LabeledAutomaton) -> DFA:
+        """Return a DFA recognizing the intersection with ``other``."""
+        from pensive.automata.languages.automaton_ops import intersection_dfa
+
+        return intersection_dfa(self, other)
+
+    def intersect(self, other: LabeledAutomaton) -> DFA:
+        """Alias for :meth:`intersection`."""
+        return self.intersection(other)
+
+    def complement(self, alphabet: frozenset[Any] | None = None) -> DFA:
+        """Return a complete DFA recognizing the complement over ``alphabet``."""
+        from pensive.automata.languages.automaton_ops import complement_dfa
+
+        return complement_dfa(self, self.input_alphabet if alphabet is None else alphabet)
+
+    def difference(self, other: LabeledAutomaton, alphabet: frozenset[Any] | None = None) -> DFA:
+        """Return a DFA recognizing this language minus ``other``."""
+        from pensive.automata.languages.automaton_ops import difference_dfa
+
+        return difference_dfa(self, other, alphabet=alphabet)
+
+    def concat(self, other: LabeledAutomaton) -> NFA:
+        """Return an NFA recognizing concatenation with ``other``."""
+        from pensive.automata.languages.automaton_ops import concat_nfa
+
+        return concat_nfa(self, other)
+
+    def concatenate(self, other: LabeledAutomaton) -> NFA:
+        """Alias for :meth:`concat`."""
+        return self.concat(other)
+
+    def kleene_star(self) -> NFA:
+        """Return an NFA recognizing the Kleene star of this language."""
+        from pensive.automata.languages.automaton_ops import kleene_star_nfa
+
+        return kleene_star_nfa(self)
+
+    def star(self) -> NFA:
+        """Alias for :meth:`kleene_star`."""
+        return self.kleene_star()
 
     def is_deterministic(self) -> bool:
         """Return whether this automaton is DFA-deterministic."""

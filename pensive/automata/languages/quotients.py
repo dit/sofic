@@ -5,20 +5,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from pensive.automata.languages._quotient_utils import (
+    _prefixes_if_suffix,
+    _residual_from_state,
+    _suffixes_if_prefix,
+    _words_up_to,
+)
 from pensive.automata.languages.automaton_ops import (
     left_quotient_automaton,
     minimal_dfa_from_language,
     right_quotient_automaton,
 )
 from pensive.automata.languages.base import AutomatonLanguage, ExplicitLanguage, RegularLanguage, as_language
-from pensive.automata.languages._quotient_utils import (
-    _alphabet_of,
-    _languages_equal,
-    _prefixes_if_suffix,
-    _residual_from_state,
-    _suffixes_if_prefix,
-    _words_up_to,
-)
 
 
 def left_quotient(u: Sequence[Any], language: RegularLanguage) -> RegularLanguage:

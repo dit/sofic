@@ -8,16 +8,18 @@ import numpy as np
 
 if TYPE_CHECKING:
     from pensive.generators.mealy import MealyHMM
+from pensive.graph import ATTR_MULTIPLICITY
 from pensive.shifts.base import SymbolicModel
 from pensive.shifts.sofic import SoficShift
-from pensive.graph import ATTR_MULTIPLICITY
 
 
 class TopologicalMarkovChain(SymbolicModel):
     """Adjacency-matrix presentation with edge multiplicities."""
 
     @classmethod
-    def from_adjacency(cls, matrix: np.ndarray, symbol_alphabet: frozenset[Any] | None = None, **kwargs: Any) -> TopologicalMarkovChain:
+    def from_adjacency(
+        cls, matrix: np.ndarray, symbol_alphabet: frozenset[Any] | None = None, **kwargs: Any
+    ) -> TopologicalMarkovChain:
         from pensive.shifts.tmc_construction import from_adjacency
 
         return from_adjacency(matrix, symbol_alphabet)

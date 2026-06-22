@@ -24,6 +24,7 @@ ATTR_QUASIPROB = "quasiprob"
 ATTR_EMISSION_EDGE = "emission"
 ATTR_KIND = "kind"
 ATTR_STACK_SYMBOL = "stack_symbol"
+ATTR_HIER_STATE = "hier_state"
 ATTR_MULTIPLICITY = "multiplicity"
 
 # VPA edge kinds.

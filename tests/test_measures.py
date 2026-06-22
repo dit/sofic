@@ -98,9 +98,7 @@ def test_golden_mean_forward_excess_entropy():
 
 def test_golden_mean_forward_crypticity():
     forward = golden_mean_forward(0.5)
-    assert forward.crypticity() == pytest.approx(
-        forward.statistical_complexity() - forward.excess_entropy(), abs=1e-12
-    )
+    assert forward.crypticity() == pytest.approx(forward.statistical_complexity() - forward.excess_entropy(), abs=1e-12)
     assert forward.crypticity() == pytest.approx(2.0 / 3.0, abs=1e-9)
 
 

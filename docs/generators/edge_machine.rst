@@ -6,11 +6,14 @@ Edge Machine
 *************
 
 An **edge machine** (generator presentation) converts a non-unifilar HMM into a
-Mealy generator whose states index labeled transitions :math:`(q, o)`.
+Mealy generator whose states index labeled transitions :math:`(q, o)`. This is a
+presentation-level construction for hidden Markov generators and computational
+mechanics :cite:`Rabiner1989,Crutchfield1994`.
 
 .. ipython::
 
    In [1]: from pensive.generators.edge_machine import edge_machine_from_hmm
+
    In [2]: from pensive.examples import tent_map_misiurewicz_hmm
 
    In [3]: edge = edge_machine_from_hmm(tent_map_misiurewicz_hmm())

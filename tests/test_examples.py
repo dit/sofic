@@ -52,10 +52,7 @@ def test_bernoulli_parameter():
 
 def test_golden_mean_topology():
     gm = golden_mean(0.5)
-    edges = {
-        (t.source, t.data["emission"], t.target): t.data["prob"]
-        for t in gm.transitions()
-    }
+    edges = {(t.source, t.data["emission"], t.target): t.data["prob"] for t in gm.transitions()}
     assert ("A", 0, "A") in edges
     assert ("A", 1, "B") in edges
     assert ("B", 0, "A") in edges

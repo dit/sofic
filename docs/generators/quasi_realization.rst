@@ -6,7 +6,9 @@ Quasi-Realization
 *****************
 
 A :class:`QuasiRealization` is a matrix presentation :math:`(\pi, D_o, \tau)` of
-a quasistochastic generator.
+a quasistochastic generator. The representation follows the linear
+observable-operator/quasi-realization view of finite-alphabet stochastic
+processes :cite:`Jaeger2000`.
 
 API
 ===

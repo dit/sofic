@@ -68,9 +68,9 @@ class DFA(LabeledAutomaton):
     @classmethod
     def from_nfa(cls, nfa: NFA, **kwargs: Any) -> DFA:
         from pensive.automata.algorithms import determinize
-        from pensive.automata.nfa import NFA as NFAClass
+        from pensive.automata.nfa import NFA as _NFA
 
-        if not isinstance(nfa, NFAClass):
+        if not isinstance(nfa, _NFA):
             raise TypeError("from_nfa requires an NFA")
         return determinize(nfa)
 

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any, TypeVar
 
-import numpy as np
-
 from pensive.base import StateMachine
 from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, TransitionGraph
 
@@ -26,7 +24,7 @@ def is_markov_like(model: StateMachine) -> bool:
     return True
 
 
-def time_reverse_stochastic(model: S) -> S:
+def time_reverse_stochastic(model: S) -> S:  # noqa: UP047 - keep Python 3.11 compatibility.
     """Build the time-reversed chain using the forward stationary distribution."""
     pi = model.stationary_distribution()
     idx = model.reindex()

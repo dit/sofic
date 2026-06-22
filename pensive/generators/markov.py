@@ -55,6 +55,12 @@ class MarkovChain(StochasticModel):
 
         return entropy_rate_markov(self)
 
+    def words_of_length(self, length: int) -> dict[tuple[Hashable, ...], float]:
+        """Return visible state paths of ``length`` and their probabilities."""
+        from pensive.generators.words import markov_words_of_length
+
+        return markov_words_of_length(self, length)
+
     def reverse(self) -> Self:
         from pensive.generators.reversal import time_reverse_stochastic
 

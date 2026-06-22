@@ -1,7 +1,5 @@
 """Tests for TransitionGraph and Transition."""
 
-import networkx as nx
-
 from pensive.graph import (
     ATTR_PROB,
     ATTR_SYMBOL,

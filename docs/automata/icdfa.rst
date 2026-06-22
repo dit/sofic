@@ -6,7 +6,10 @@ ICDFA
 *****
 
 Enumeration of initial-connected DFAs (ICDFAs) and accessible IDFAs for
-combinatorial studies of automata and topological ε-machines.
+combinatorial studies of automata and topological ε-machines. The complete
+ICDFA string representation follows Almeida, Moreira, and Reis; the incomplete
+accessible-DFA ranking/enumeration is used in topological ε-machine enumeration
+:cite:`Almeida2007,Johnson2010`.
 
 API
 ===

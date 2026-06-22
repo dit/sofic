@@ -52,10 +52,7 @@ def layout_circle(
 
     count = len(states)
     for index, state in enumerate(states):
-        if angles is not None and state in angles:
-            angle = angles[state]
-        else:
-            angle = 90.0 - index * (360.0 / count)
+        angle = angles[state] if angles is not None and state in angles else 90.0 - index * (360.0 / count)
         coords[state] = f"at ({angle:.4g}:{radius_value}{radius_unit})"
     return coords
 

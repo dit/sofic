@@ -6,7 +6,10 @@ Algorithms
 **********
 
 Standard automata operations on :class:`~pensive.automata.base.LabeledAutomaton`
-instances.
+instances. The implementations cover subset construction, DFA equivalence and
+minimization, Brzozowski double reversal, Moore refinement, Hopcroft refinement,
+and state-elimination conversion to regular expressions
+:cite:`RabinScott1959,Brzozowski1962,Moore1956,Hopcroft1971,Kleene1956`.
 
 .. ipython::
 
@@ -36,4 +39,5 @@ API
 .. autofunction:: determinize
 .. autofunction:: minimize
 .. autofunction:: equivalent
+.. autofunction:: pensive.automata.regex.automaton_to_regex
 .. autoclass:: MinimizationAlgorithm

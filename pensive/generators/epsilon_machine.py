@@ -10,6 +10,7 @@ from pensive.generators.moore import MooreHMM
 
 if TYPE_CHECKING:
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+    from pensive.generators.block_entropy import BlockEntropyDiagram
 
 
 class EpsilonMachine(MealyHMM):
@@ -140,6 +141,18 @@ class EpsilonMachine(MealyHMM):
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
         return self.bidirectional_epsilon_machine().information_anatomy()
+
+    def block_entropy_diagram(self, max_length: int) -> BlockEntropyDiagram:
+        """Compute finite-block entropy convergence curves up to ``max_length``."""
+        from pensive.generators.block_entropy import block_entropy_diagram
+
+        return block_entropy_diagram(self, max_length)
+
+    def plot_block_entropy_diagram(self, max_length: int, ax: Any | None = None, **kwargs: Any) -> Any:
+        """Compute and plot finite-block entropy convergence curves."""
+        from pensive.generators.block_entropy import plot_block_entropy_diagram
+
+        return plot_block_entropy_diagram(self, max_length, ax=ax, **kwargs)
 
     def bidirectional_crypticity(self) -> float:
         """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""

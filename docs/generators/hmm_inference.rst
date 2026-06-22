@@ -5,7 +5,8 @@
 HMM Inference
 *************
 
-Forward-backward, Viterbi decoding, and sampling for hidden Markov models.
+Forward-backward, Viterbi decoding, and sampling for hidden Markov models
+:cite:`BaumPetrie1966,Rabiner1989,Viterbi1967`.
 
 .. ipython::
 

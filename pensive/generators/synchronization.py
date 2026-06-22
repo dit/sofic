@@ -86,7 +86,7 @@ def _bellman_ford_longest_transient_path(pa: PowerAutomaton) -> float:
         nodes.update(targets.values())
     nodes.add(pa.start)
 
-    dist: dict[frozenset[Hashable], float] = {node: math.inf for node in nodes}
+    dist: dict[frozenset[Hashable], float] = dict.fromkeys(nodes, math.inf)
     dist[pa.start] = 0.0
 
     edges: list[tuple[frozenset[Hashable], frozenset[Hashable], int]] = []
@@ -249,11 +249,10 @@ def _retrodiction_depth(graph: TopologicalUnifilarGraph, word: tuple[Any, ...], 
     beliefs[-1] = frozenset({final_state})
     for index in range(len(word) - 1, -1, -1):
         symbol = word[index]
-        beliefs[index] = frozenset(
-            state
-            for state in graph.states
-            if graph.delta(state, symbol) in beliefs[index + 1]
-        ) & forward[index]
+        beliefs[index] = (
+            frozenset(state for state in graph.states if graph.delta(state, symbol) in beliefs[index + 1])
+            & forward[index]
+        )
 
     for index in range(1, len(beliefs)):
         if len(beliefs[index]) == 1:
@@ -301,10 +300,7 @@ def _has_nontrivial_transient_cycle(pa: PowerAutomaton, min_length: int = 3) -> 
                 graph.add_edge(source, target)
     if graph.number_of_nodes() == 0:
         return False
-    for cycle in nx.simple_cycles(graph):
-        if len(cycle) >= min_length:
-            return True
-    return False
+    return any(len(cycle) >= min_length for cycle in nx.simple_cycles(graph))
 
 
 def _cryptic_order_from_refined_pa(graph: TopologicalUnifilarGraph, pa: PowerAutomaton) -> int | float:
@@ -348,9 +344,7 @@ def graph_from_epsilon_machine(eps: Any) -> TopologicalUnifilarGraph:
             for other in eps.graph.out_transitions(transition.source):
                 other_emission = other.data.get(ATTR_EMISSION)
                 if other_emission == emission and other.target != transition.target:
-                    raise UnifilarityError(
-                        f"non-unifilar duplicate emission {emission!r} from {transition.source!r}"
-                    )
+                    raise UnifilarityError(f"non-unifilar duplicate emission {emission!r} from {transition.source!r}")
 
     transitions: dict[tuple[Hashable, Any], Hashable] = {}
     alphabet: set[Any] = set()

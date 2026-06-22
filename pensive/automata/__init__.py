@@ -42,49 +42,79 @@ from pensive.automata.idfa import (
 )
 from pensive.automata.languages import AutomatonLanguage, RegularLanguage
 from pensive.automata.nfa import NFA
+from pensive.automata.nwa import NestedWord, NestedWordAutomaton
 from pensive.automata.observation import ObservationTable
+from pensive.automata.regex import automaton_to_regex
 from pensive.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from pensive.automata.transducers import MealyMachine, MooreMachine, Transducer
 from pensive.automata.unifilar import UnifilarAutomaton
-from pensive.automata.vpa import VisiblyPushdownAutomaton
+from pensive.automata.vpa import (
+    CallDrivenAutomaton,
+    CanonicalVisiblyPushdownAutomaton,
+    CompositeVisiblyPushdownAutomaton,
+    DeterministicVisiblyPushdownAutomaton,
+    MultipleEntryVisiblyPushdownAutomaton,
+    SingleEntryVisiblyPushdownAutomaton,
+    VisiblyPushdownAutomaton,
+    complement_vpa,
+    concat_vpa,
+    difference_vpa,
+    intersection_vpa,
+    kleene_star_vpa,
+    union_vpa,
+)
 
 __all__ = [
     "Atomaton",
     "AtomicAutomaton",
     "AutomatonLanguage",
     "BuchiAutomaton",
+    "CallDrivenAutomaton",
+    "CanonicalVisiblyPushdownAutomaton",
     "CanonicalRFSA",
+    "CompositeVisiblyPushdownAutomaton",
     "DFA",
+    "DeterministicVisiblyPushdownAutomaton",
     "ICDFAString",
     "LabeledAutomaton",
     "MaximizedPrimeAtomaton",
     "MealyMachine",
     "MinimizationAlgorithm",
     "MooreMachine",
+    "MultipleEntryVisiblyPushdownAutomaton",
     "NFA",
+    "NestedWord",
+    "NestedWordAutomaton",
     "ObservationTable",
     "RegularLanguage",
     "ResidualFiniteStateAutomaton",
+    "SingleEntryVisiblyPushdownAutomaton",
     "Transducer",
     "UnifilarAutomaton",
     "VisiblyPushdownAutomaton",
+    "automaton_to_regex",
+    "complement_vpa",
+    "concat_vpa",
     "complete",
     "count_accessible_idfa",
     "count_flag_sequences",
     "count_icdfa",
     "count_icdfa_empty",
     "determinize",
+    "difference_vpa",
     "dfa_to_icdfa_string",
     "equivalent",
     "first_icdfa_empty_string",
     "first_idfa_string",
     "flags_from_string",
     "icdfa_string_to_dfa",
+    "intersection_vpa",
     "iter_icdfa",
     "iter_icdfa_empty_strings",
     "iter_idfa_strings",
     "last_icdfa_empty_string",
     "MISSING_TRANSITION",
+    "kleene_star_vpa",
     "minimize",
     "next_flags",
     "next_icdfa_empty_string",
@@ -93,6 +123,7 @@ __all__ = [
     "string_from_flags",
     "trim",
     "unrank_idfa_string",
+    "union_vpa",
     "validate_idfa_string",
     "validate_icdfa_empty_string",
 ]

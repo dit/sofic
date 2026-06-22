@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from pensive.base import StateMachine
-from pensive.graph import ATTR_EMISSION, ATTR_PROB, ATTR_SYMBOL, EPSILON, TransitionGraph
+from pensive.graph import ATTR_EMISSION, ATTR_PROB, ATTR_SYMBOL, EPSILON
 
 
 def is_unifilar_labeled(

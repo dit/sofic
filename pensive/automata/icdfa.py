@@ -72,9 +72,7 @@ def validate_icdfa_empty_string(
     for state in range(2, n):
         first_index = next(i for i, value in enumerate(transitions) if value == state)
         if not any(transitions[j] == state - 1 for j in range(first_index)):
-            raise ICDFAEnumerationError(
-                f"state {state} at index {first_index} appears before state {state - 1}"
-            )
+            raise ICDFAEnumerationError(f"state {state} at index {first_index} appears before state {state - 1}")
 
     for state in range(1, n):
         if state not in transitions[: k * state]:
@@ -103,9 +101,7 @@ def _validate_flags(flags: Sequence[int], *, n: int, k: int) -> None:
         lower = flags[index - 1]
         upper = k * (index + 1) - 1
         if not lower < flags[index] <= upper:
-            raise ICDFAEnumerationError(
-                f"flag f_{index + 1}={flags[index]} not in ({lower}, {upper}]"
-            )
+            raise ICDFAEnumerationError(f"flag f_{index + 1}={flags[index]} not in ({lower}, {upper}]")
 
 
 def string_from_flags(

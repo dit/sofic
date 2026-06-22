@@ -32,7 +32,7 @@ Other literature processes
 
 * :func:`even_process` — even parity process
 * :func:`butterfly_process`, :func:`nemo_process`
-* :func:`ellison_fig9_forward`, :func:`ellison_fig9_reverse` — Ellison et al. :cite:`Ellison2009`
+* :func:`ellison_fig9_forward`, :func:`ellison_fig9_reverse` — Ellison et al. :cite:`Ellison2011`
 * :func:`ellison_fig15_bidirectional` — bidirectional presentation
 
 Tent map (Misiurewicz point)

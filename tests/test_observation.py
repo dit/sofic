@@ -1,7 +1,5 @@
 """Tests for observation tables."""
 
-import pytest
-
 from pensive.automata.languages.base import AutomatonLanguage
 from pensive.automata.observation import ObservationTable
 

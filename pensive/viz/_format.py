@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from typing import Any, Sequence
+from typing import Any
 
 from pensive.graph import EPSILON
 

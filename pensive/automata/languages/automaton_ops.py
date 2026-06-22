@@ -5,13 +5,19 @@ from __future__ import annotations
 from collections.abc import Hashable, Sequence
 from typing import Any
 
+from pensive.automata.algorithms import complete, determinize, minimize, trim
+from pensive.automata.base import LabeledAutomaton
 from pensive.automata.dfa import DFA
 from pensive.automata.nfa import NFA
-from pensive.automata.algorithms import complete, determinize, minimize, trim
 from pensive.graph import ATTR_SYMBOL, EPSILON, TransitionGraph
 
+_LEFT = object()
+_RIGHT = object()
+_START = object()
+_STAR_START = object()
 
-def _to_nfa(aut: NFA | DFA) -> NFA:
+
+def _to_nfa(aut: LabeledAutomaton) -> NFA:
     if isinstance(aut, NFA):
         return trim(aut)
     nfa = NFA(
@@ -23,38 +29,40 @@ def _to_nfa(aut: NFA | DFA) -> NFA:
     return trim(nfa)
 
 
-def _to_dfa(aut: NFA | DFA, alphabet: frozenset[Any] | None = None) -> DFA:
+def _to_dfa(aut: LabeledAutomaton, alphabet: frozenset[Any] | None = None) -> DFA:
     if isinstance(aut, DFA):
         return trim(aut)
     return trim(determinize(_to_nfa(aut), alphabet=alphabet))
 
 
-def union_nfa(left: NFA | DFA, right: NFA | DFA) -> NFA:
+def union_nfa(left: LabeledAutomaton, right: LabeledAutomaton) -> NFA:
     left_nfa = _to_nfa(left)
     right_nfa = _to_nfa(right)
     alphabet = left_nfa.input_alphabet | right_nfa.input_alphabet
     graph = TransitionGraph()
-    start = ("__start__",)
+    start = (_START,)
     graph.add_state(start)
     for state in left_nfa.states():
-        graph.add_state(("L", state))
+        graph.add_state((_LEFT, state))
     for state in right_nfa.states():
-        graph.add_state(("R", state))
-    graph.add_transition(start, ("L", next(iter(left_nfa.initial_states))), **{ATTR_SYMBOL: EPSILON})
-    graph.add_transition(start, ("R", next(iter(right_nfa.initial_states))), **{ATTR_SYMBOL: EPSILON})
+        graph.add_state((_RIGHT, state))
+    for initial in left_nfa.initial_states:
+        graph.add_transition(start, (_LEFT, initial), **{ATTR_SYMBOL: EPSILON})
+    for initial in right_nfa.initial_states:
+        graph.add_transition(start, (_RIGHT, initial), **{ATTR_SYMBOL: EPSILON})
     for transition in left_nfa.transitions():
         graph.add_transition(
-            ("L", transition.source),
-            ("L", transition.target),
+            (_LEFT, transition.source),
+            (_LEFT, transition.target),
             **transition.data,
         )
     for transition in right_nfa.transitions():
         graph.add_transition(
-            ("R", transition.source),
-            ("R", transition.target),
+            (_RIGHT, transition.source),
+            (_RIGHT, transition.target),
             **transition.data,
         )
-    accepting = {("L", s) for s in left_nfa.accepting_states} | {("R", s) for s in right_nfa.accepting_states}
+    accepting = {(_LEFT, s) for s in left_nfa.accepting_states} | {(_RIGHT, s) for s in right_nfa.accepting_states}
     return NFA(
         input_alphabet=alphabet,
         initial_states=frozenset({start}),
@@ -63,7 +71,7 @@ def union_nfa(left: NFA | DFA, right: NFA | DFA) -> NFA:
     )
 
 
-def intersection_dfa(left: NFA | DFA, right: NFA | DFA) -> DFA:
+def intersection_dfa(left: LabeledAutomaton, right: LabeledAutomaton) -> DFA:
     left_dfa = _to_dfa(left)
     right_dfa = _to_dfa(right)
     alphabet = left_dfa.input_alphabet | right_dfa.input_alphabet
@@ -86,9 +94,7 @@ def intersection_dfa(left: NFA | DFA, right: NFA | DFA) -> DFA:
                 queue.append(target)
             graph.add_transition(pair, target, **{ATTR_SYMBOL: symbol})
     accepting = {
-        pair
-        for pair in seen
-        if pair[0] in left_dfa.accepting_states and pair[1] in right_dfa.accepting_states
+        pair for pair in seen if pair[0] in left_dfa.accepting_states and pair[1] in right_dfa.accepting_states
     }
     return DFA(
         input_alphabet=alphabet,
@@ -98,8 +104,9 @@ def intersection_dfa(left: NFA | DFA, right: NFA | DFA) -> DFA:
     )
 
 
-def complement_dfa(dfa: NFA | DFA, alphabet: frozenset[Any]) -> DFA:
-    complete_dfa = complete(_to_dfa(dfa, alphabet=alphabet), alphabet=alphabet)
+def complement_dfa(dfa: LabeledAutomaton, alphabet: frozenset[Any] | None = None) -> DFA:
+    symbols = _effective_alphabet(dfa) if alphabet is None else alphabet
+    complete_dfa = complete(_to_dfa(dfa, alphabet=symbols), alphabet=symbols)
     all_states = set(complete_dfa.states())
     accepting = all_states - set(complete_dfa.accepting_states)
     result = complete_dfa.copy()
@@ -107,25 +114,60 @@ def complement_dfa(dfa: NFA | DFA, alphabet: frozenset[Any]) -> DFA:
     return result
 
 
-def concat_nfa(left: NFA | DFA, right: NFA | DFA) -> NFA:
+def difference_dfa(
+    left: LabeledAutomaton,
+    right: LabeledAutomaton,
+    alphabet: frozenset[Any] | None = None,
+) -> DFA:
+    """Return a DFA recognizing ``left`` minus ``right`` over ``alphabet``."""
+    symbols = alphabet if alphabet is not None else _effective_alphabet(left) | _effective_alphabet(right)
+    left_dfa = complete(_to_dfa(left, alphabet=symbols), alphabet=symbols)
+    right_dfa = complete(_to_dfa(right, alphabet=symbols), alphabet=symbols)
+    graph = TransitionGraph()
+    initial = (next(iter(left_dfa.initial_states)), next(iter(right_dfa.initial_states)))
+    graph.add_state(initial)
+    queue = [initial]
+    seen = {initial}
+    while queue:
+        pair = queue.pop(0)
+        for symbol in symbols:
+            target = (
+                next(iter(left_dfa.delta(pair[0], symbol))),
+                next(iter(right_dfa.delta(pair[1], symbol))),
+            )
+            if target not in seen:
+                seen.add(target)
+                graph.add_state(target)
+                queue.append(target)
+            graph.add_transition(pair, target, **{ATTR_SYMBOL: symbol})
+    accepting = {
+        pair for pair in seen if pair[0] in left_dfa.accepting_states and pair[1] not in right_dfa.accepting_states
+    }
+    return DFA(
+        input_alphabet=symbols,
+        initial_states=frozenset({initial}),
+        accepting_states=frozenset(accepting),
+        graph=graph,
+    )
+
+
+def concat_nfa(left: LabeledAutomaton, right: LabeledAutomaton) -> NFA:
     left_nfa = _to_nfa(left)
     right_nfa = _to_nfa(right)
     alphabet = left_nfa.input_alphabet | right_nfa.input_alphabet
     graph = left_nfa.graph.copy()
-    right_states = {("__R", s) for s in right_nfa.states()}
     for state in right_nfa.states():
-        graph.add_state(("__R", state))
+        graph.add_state((_RIGHT, state))
     for transition in right_nfa.transitions():
         graph.add_transition(
-            ("__R", transition.source),
-            ("__R", transition.target),
+            (_RIGHT, transition.source),
+            (_RIGHT, transition.target),
             **transition.data,
         )
     for accept in left_nfa.accepting_states:
         for initial in right_nfa.initial_states:
-            graph.add_transition(accept, ("__R", initial), **{ATTR_SYMBOL: EPSILON})
-    accepting = {("__R", s) for s in right_nfa.accepting_states}
-  # keep left acceptors that are also reachable? Standard: only right acceptors after concat
+            graph.add_transition(accept, (_RIGHT, initial), **{ATTR_SYMBOL: EPSILON})
+    accepting = {(_RIGHT, s) for s in right_nfa.accepting_states}
     return NFA(
         input_alphabet=alphabet,
         initial_states=left_nfa.initial_states,
@@ -134,15 +176,16 @@ def concat_nfa(left: NFA | DFA, right: NFA | DFA) -> NFA:
     )
 
 
-def kleene_star_nfa(aut: NFA | DFA) -> NFA:
+def kleene_star_nfa(aut: LabeledAutomaton) -> NFA:
     nfa = _to_nfa(aut)
     graph = nfa.graph.copy()
-    start = "__star__"
+    start = (_STAR_START,)
     graph.add_state(start)
-    graph.add_transition(start, next(iter(nfa.initial_states)), **{ATTR_SYMBOL: EPSILON})
+    for initial in nfa.initial_states:
+        graph.add_transition(start, initial, **{ATTR_SYMBOL: EPSILON})
     for accept in nfa.accepting_states:
-        graph.add_transition(accept, next(iter(nfa.initial_states)), **{ATTR_SYMBOL: EPSILON})
-        graph.add_transition(start, accept, **{ATTR_SYMBOL: EPSILON})
+        for initial in nfa.initial_states:
+            graph.add_transition(accept, initial, **{ATTR_SYMBOL: EPSILON})
     accepting = set(nfa.accepting_states) | {start}
     return NFA(
         input_alphabet=nfa.input_alphabet,
@@ -152,7 +195,7 @@ def kleene_star_nfa(aut: NFA | DFA) -> NFA:
     )
 
 
-def left_quotient_automaton(u: Sequence[Any], aut: NFA | DFA) -> NFA:
+def left_quotient_automaton(u: Sequence[Any], aut: LabeledAutomaton) -> NFA:
     nfa = _to_nfa(aut)
     current = nfa.epsilon_closure(set(nfa.initial_states))
     for symbol in u:
@@ -168,13 +211,13 @@ def left_quotient_automaton(u: Sequence[Any], aut: NFA | DFA) -> NFA:
     )
 
 
-def right_quotient_automaton(aut: NFA | DFA, u: Sequence[Any]) -> NFA:
+def right_quotient_automaton(aut: LabeledAutomaton, u: Sequence[Any]) -> NFA:
     reversed_u = tuple(reversed(u))
     rev = _to_nfa(aut).reverse()
     return left_quotient_automaton(reversed_u, rev).reverse()
 
 
-def minimal_dfa_from_language(aut: NFA | DFA) -> DFA:
+def minimal_dfa_from_language(aut: LabeledAutomaton) -> DFA:
     return minimize(_to_dfa(aut))
 
 
@@ -182,9 +225,6 @@ def state_residual_languages(dfa: DFA) -> dict[Hashable, DFA]:
     """Map each state to the DFA for its left-quotient (right-language) residual."""
     residuals: dict[Hashable, DFA] = {}
     for state in dfa.states():
-        residual = left_quotient_automaton((), dfa)
-        # Re-root: states reachable from `state` become initials
-        reachable = _forward_from(dfa, state)
         sub = dfa.copy()
         sub.initial_states = frozenset({state})
         sub.accepting_states = dfa.accepting_states
@@ -204,3 +244,14 @@ def _forward_from(dfa: DFA, start: Hashable) -> set[Hashable]:
                     seen.add(target)
                     queue.append(target)
     return seen
+
+
+def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
+    if aut.input_alphabet:
+        return frozenset(aut.input_alphabet)
+    symbols: set[Any] = set()
+    for transition in aut.transitions():
+        symbol = transition.data.get(ATTR_SYMBOL)
+        if symbol is not None and symbol is not EPSILON:
+            symbols.add(symbol)
+    return frozenset(symbols)

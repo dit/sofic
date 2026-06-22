@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any
 
 from pensive.automata.languages.automaton_ops import (
     complement_dfa,
     concat_nfa,
+    difference_dfa,
     intersection_dfa,
     kleene_star_nfa,
     union_nfa,
@@ -36,6 +36,16 @@ def complement(language: RegularLanguage, alphabet: frozenset[Any]) -> RegularLa
     if isinstance(lang, AutomatonLanguage):
         return AutomatonLanguage(complement_dfa(lang.automaton, alphabet))
     raise TypeError("complement requires automaton-backed languages")
+
+
+def difference(
+    left: RegularLanguage, right: RegularLanguage, alphabet: frozenset[Any] | None = None
+) -> RegularLanguage:
+    left_lang = as_language(left)  # type: ignore[arg-type]
+    right_lang = as_language(right)  # type: ignore[arg-type]
+    if isinstance(left_lang, AutomatonLanguage) and isinstance(right_lang, AutomatonLanguage):
+        return AutomatonLanguage(difference_dfa(left_lang.automaton, right_lang.automaton, alphabet=alphabet))
+    raise TypeError("difference requires automaton-backed languages")
 
 
 def reverse(language: RegularLanguage) -> RegularLanguage:

@@ -9,15 +9,11 @@ generation and rank function ``B¹_{n,k}`` used by Johnson et al. (2010),
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from functools import lru_cache
+from functools import cache
 
 from pensive.automata.icdfa import (
-    ICDFAEnumerationError,
-    _nearest_flag,
     _upper_bound_at,
     _validate_flags,
-    count_flag_sequences,
-    flags_from_string,
     next_flags,
 )
 from pensive.exceptions import PensiveValidationError
@@ -68,9 +64,7 @@ def validate_idfa_string(
         if value == MISSING_TRANSITION or value <= 1:
             continue
         if not any(transitions[j] == value - 1 for j in range(index) if transitions[j] != MISSING_TRANSITION):
-            raise IDFAEnumerationError(
-                f"state {value} at index {index} appears before state {value - 1}"
-            )
+            raise IDFAEnumerationError(f"state {value} at index {index} appears before state {value - 1}")
 
     for state in range(1, n):
         if state not in transitions[: k * state]:
@@ -228,7 +222,7 @@ def count_accessible_idfa(k: int, n: int) -> int:
     return total
 
 
-@lru_cache(maxsize=None)
+@cache
 def _n1_value(m: int, j: int, n: int, k: int) -> int:
     if m == n - 1:
         if n - 2 <= j <= (n - 1) * k - 1:
@@ -284,7 +278,7 @@ def _rank_nr(transitions: Sequence[int], flags: Sequence[int], *, n: int, k: int
     return total
 
 
-@lru_cache(maxsize=None)
+@cache
 def _enumeration_index(k: int, n: int) -> dict[tuple[int, ...], int]:
     return {candidate: rank for rank, candidate in enumerate(_iter_idfa_strings_impl(k, n))}
 

@@ -124,11 +124,7 @@ def _recurrence_fill_sets(
     if isinstance(model, (EpsilonMachine, BidirectionalEpsilonMachine)):
         recurrent = model.graph.terminal_recurrent_states()
         if isinstance(model, BidirectionalEpsilonMachine):
-            starts = {
-                state
-                for state, mass in model.joint_distribution().items()
-                if float(mass) > _RECURRENCE_ATOL
-            }
+            starts = {state for state, mass in model.joint_distribution().items() if float(mass) > _RECURRENCE_ATOL}
             if not starts:
                 starts = set(model.states())
         elif initial_states:
@@ -156,9 +152,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     from pensive.shifts.base import SymbolicModel
     from pensive.shifts.tmc import TopologicalMarkovChain
 
-    paper_style = style == "paper" or (
-        style == "auto" and isinstance(model, BidirectionalEpsilonMachine)
-    )
+    paper_style = style == "paper" or (style == "auto" and isinstance(model, BidirectionalEpsilonMachine))
     epsilon_paper = style == "paper"
     is_msp = isinstance(model, MixedStatePresentation)
     stationary_hmm = isinstance(model, (EpsilonMachine, MealyHMM, MooreHMM)) and not is_msp

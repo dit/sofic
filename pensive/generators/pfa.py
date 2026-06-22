@@ -62,6 +62,12 @@ class ProbabilisticFiniteAutomaton(StochasticModel):
             mass = updated
         return float(mass.sum())
 
+    def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
+        """Return output words of ``length`` and their probabilities."""
+        from pensive.generators.words import pfa_words_of_length
+
+        return pfa_words_of_length(self, length)
+
     def sample(self, n: int, rng: np.random.Generator | None = None) -> list[Any]:
         generator = rng if rng is not None else np.random.default_rng()
         idx = self.reindex()

@@ -29,6 +29,10 @@ class SymbolicModel(StateMachine):
 
         yield from factor_language(self, length)
 
+    def words_of_length(self, length: int) -> Iterator[tuple[Any, ...]]:
+        """Yield distinct factor words of exactly ``length`` symbols."""
+        yield from self.factor_language(length)
+
     def is_unifilar(self) -> bool:
         """Return whether this presentation is right-resolving (unifilar)."""
         from pensive.properties import is_unifilar_symbols

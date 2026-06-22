@@ -1,7 +1,6 @@
 """Tests for NFA and epsilon closure."""
 
 from pensive.automata.nfa import NFA
-from pensive.graph import EPSILON
 
 
 def _nfa_with_epsilon() -> NFA:
@@ -39,3 +38,31 @@ def test_validate_and_round_trip():
         accepting_states=nfa.accepting_states,
     )
     assert restored.recognizes(())
+
+
+def test_words_of_length_and_iter_language_with_epsilon():
+    nfa = _nfa_with_epsilon()
+    assert list(nfa.words_of_length(0)) == [()]
+    assert list(nfa.words_of_length(1)) == []
+    assert list(nfa.iter_language(max_length=1)) == [()]
+
+
+def test_operations_respect_multiple_initial_states():
+    nfa = NFA(
+        input_alphabet=frozenset({"a", "b"}),
+        initial_states=frozenset({"qa", "qb"}),
+        accepting_states=frozenset({"fa", "fb"}),
+    )
+    for state in ("qa", "qb", "fa", "fb"):
+        nfa.graph.add_state(state)
+    nfa.add_transition("qa", "fa", "a")
+    nfa.add_transition("qb", "fb", "b")
+
+    union = nfa.union(_nfa_with_epsilon())
+    star = nfa.kleene_star()
+
+    assert union.recognizes(("a",))
+    assert union.recognizes(("b",))
+    assert star.recognizes(())
+    assert star.recognizes(("a", "b"))
+    assert star.recognizes(("b", "a"))

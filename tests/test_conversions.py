@@ -56,8 +56,7 @@ def test_hmm_to_sofic_shift_strips_probabilities():
     assert set(shift.states()) == {"A", "B"}
     assert shift.symbol_alphabet == frozenset({0, 1})
     assert {
-        (transition.source, transition.target, transition.data[ATTR_SYMBOL])
-        for transition in shift.transitions()
+        (transition.source, transition.target, transition.data[ATTR_SYMBOL]) for transition in shift.transitions()
     } == {
         ("A", "A", 0),
         ("A", "B", 1),

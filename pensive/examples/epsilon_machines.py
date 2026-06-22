@@ -68,7 +68,9 @@ def from_symbol_matrices(
         if matrix.shape != (len(state_list), len(state_list)):
             raise ValueError(f"matrix for symbol {symbol!r} has shape {matrix.shape}")
 
-    pi = dict(initial_distribution) if initial_distribution is not None else _stationary_distribution(state_list, arrays)
+    pi = (
+        dict(initial_distribution) if initial_distribution is not None else _stationary_distribution(state_list, arrays)
+    )
     eps = EpsilonMachine(
         initial_distribution=pi,
         observation_alphabet=frozenset(symbol_list),
@@ -370,7 +372,7 @@ def butterfly_process() -> EpsilonMachine:
         7: "E",
     }
     eps = EpsilonMachine(
-        initial_distribution={state: 0.2 for state in states},
+        initial_distribution=dict.fromkeys(states, 0.2),
         observation_alphabet=frozenset(range(8)),
     )
     for state in states:
@@ -449,7 +451,6 @@ def tent_map_misiurewicz_hmm(a: float | None = None) -> MealyHMM:
 
     if a is None:
         a = tent_map_misiurewicz_a()
-    p = a / (2 * (a + 1))
     # State B emits 0 or 1; state D emits only 1.  Row masses are joint P(target, symbol | state).
     p_b0 = (a + 2) / (2 * a + 2)
     p_b1 = a / (2 * a + 2)
@@ -607,21 +608,14 @@ def _fit_tent_map_misiurewicz_fig8_edge_probabilities(a: float) -> tuple[float, 
     def _objective(logits: Sequence[float]) -> float:
         probabilities = _probabilities_from_logits(logits)
         joint_states = sorted(
-            {
-                _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
-                for row in name
-            }
+            {_tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel) for row in name}
         )
         state_index = {state: index for index, state in enumerate(joint_states)}
         transition = np.zeros((len(joint_states), len(joint_states)), dtype=float)
         symbol_out: dict[tuple[str, str], list[tuple[int, float, tuple[str, str]]]] = {}
         for index, (row, target, symbol) in enumerate(edge_tpl):
-            source = _tent_map_misiurewicz_fig8_joint_state(
-                name[row][0], name[row][1], relabel=relabel
-            )
-            dest = _tent_map_misiurewicz_fig8_joint_state(
-                name[target][0], name[target][1], relabel=relabel
-            )
+            source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
+            dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
             prob = float(probabilities[index])
             transition[state_index[source], state_index[dest]] += prob
             symbol_out.setdefault(source, []).append((symbol, prob, dest))
@@ -645,9 +639,7 @@ def _fit_tent_map_misiurewicz_fig8_edge_probabilities(a: float) -> tuple[float, 
         try:
             import dit
         except ImportError as exc:
-            raise ImportError(
-                "dit is required to fit tent-map Fig.~8 edge probabilities"
-            ) from exc
+            raise ImportError("dit is required to fit tent-map Fig.~8 edge probabilities") from exc
 
         distribution = dit.Distribution(outcomes, weights_array)
         entropy = float(dit.shannon.entropy(distribution.marginal([2])))
@@ -694,12 +686,8 @@ def _tent_map_misiurewicz_fig8_edges(
     probabilities = _tent_map_misiurewicz_fig8_edge_probabilities(a)
     edges: list[tuple[tuple[str, str], tuple[str, str], int, float]] = []
     for index, (row, target, symbol) in enumerate(edge_tpl):
-        source = _tent_map_misiurewicz_fig8_joint_state(
-            name[row][0], name[row][1], relabel=relabel
-        )
-        dest = _tent_map_misiurewicz_fig8_joint_state(
-            name[target][0], name[target][1], relabel=relabel
-        )
+        source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
+        dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
         edges.append((source, dest, symbol, probabilities[index]))
     return edges
 

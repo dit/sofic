@@ -5,7 +5,10 @@
 Topological ε-Machine Enumeration
 ****************************************
 
-Enumerate canonical topological ε-machines via IDFA strings (research utilities).
+Enumerate canonical topological ε-machines via IDFA strings (research
+utilities). The implementation follows the accessible-DFA enumeration used by
+Johnson, Crutchfield, Ellison, and McTague, building on the ICDFA string
+representation :cite:`Johnson2010,Almeida2007`.
 
 API
 ===

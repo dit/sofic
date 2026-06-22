@@ -10,11 +10,11 @@ from pensive.automata.idfa import (
     first_idfa_string,
     iter_idfa_strings,
     rank_idfa_string,
-    reroot_idfa_string,
     unrank_idfa_string,
     validate_idfa_string,
 )
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.synchronization import graph_from_epsilon_machine
 from pensive.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     idfa_string_to_epsilon_machine,
@@ -23,7 +23,6 @@ from pensive.generators.topological_epsilon_enumeration import (
     iter_topological_epsilon_machines,
     iter_topological_epsilon_strings,
 )
-from pensive.generators.synchronization import graph_from_epsilon_machine
 
 E2 = [3, 7, 78, 1388, 35186, 1132613, 43997426, 1993473480]
 
@@ -40,7 +39,6 @@ def test_even_process_string() -> None:
 
 
 def test_even_process_graph() -> None:
-    transitions = (0, 1, MISSING_TRANSITION, 0)
     machines = list(iter_topological_epsilon_machines(2, 2, alphabet=("0", "1")))
     assert all(isinstance(eps, EpsilonMachine) for eps in machines)
     assert any(

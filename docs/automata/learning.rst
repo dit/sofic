@@ -5,7 +5,9 @@
 Learning
 ********
 
-Active learning of maximized prime átomatons via NL* with a membership teacher.
+Active learning of maximized prime átomatons via NL* with a membership teacher,
+following Angluin-style learning and its nondeterministic extension
+:cite:`Angluin1987,Bollig2009`.
 
 API
 ===

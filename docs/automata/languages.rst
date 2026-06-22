@@ -6,7 +6,9 @@ Regular Languages
 *****************
 
 The :mod:`pensive.automata.languages` subpackage provides regular-language
-algebra via the :class:`RegularLanguage` protocol.
+algebra via the :class:`RegularLanguage` protocol. Quotients, residuals, and
+atoms use the standard regular-language viewpoint
+:cite:`Kleene1956,Nerode1958,BrzozowskiTamm2011`.
 
 .. ipython::
 

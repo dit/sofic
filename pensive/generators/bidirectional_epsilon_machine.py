@@ -59,9 +59,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         super().validate_stochastic()
         for state in self.states():
             if not isinstance(state, tuple) or len(state) != 2:
-                raise PensiveValidationError(
-                    f"bidirectional state must be (forward, reverse) pair, got {state!r}"
-                )
+                raise PensiveValidationError(f"bidirectional state must be (forward, reverse) pair, got {state!r}")
 
     def is_unifilar(self) -> bool:
         """Return whether joint emissions are row-unifilar (usually ``False``)."""
@@ -158,11 +156,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         minus_dist = dit.Distribution(minus_outcomes, [pi_minus[s] for s in minus_outcomes])
         joint_outcomes = list(joint.keys())
         joint_dist = dit.Distribution(joint_outcomes, [joint[outcome] for outcome in joint_outcomes])
-        return float(
-            dit.shannon.entropy(plus_dist)
-            + dit.shannon.entropy(minus_dist)
-            - dit.shannon.entropy(joint_dist)
-        )
+        return float(dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist))
 
     def statistical_complexity(self) -> float:
         """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""

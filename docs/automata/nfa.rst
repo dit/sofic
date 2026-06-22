@@ -5,7 +5,9 @@
 NFA
 ***
 
-A :class:`NFA` supports multiple initial states and ε-transitions.
+A :class:`NFA` supports multiple initial states and ε-transitions. The
+deterministic and nondeterministic presentations recognize the same regular
+languages :cite:`RabinScott1959,HopcroftUllman1979`.
 
 .. ipython::
 
@@ -29,4 +31,4 @@ API
 ===
 
 .. autoclass:: NFA
-   :members: add_transition, recognizes, determinize, minimize
+   :members: add_transition, recognizes, union, intersection, intersect, complement, difference, concat, concatenate, kleene_star, star, determinize, minimize

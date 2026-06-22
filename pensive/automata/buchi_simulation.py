@@ -33,9 +33,7 @@ def accepts_omega_buchi(ba: BuchiAutomaton, word: Sequence[Any]) -> bool:
         and not isinstance(word[1], (str, bytes))
     ):
         return accepts_lasso_buchi(ba, word[0], word[1])
-    raise NotImplementedError(
-        "BuchiAutomaton.accepts_omega supports ultimately periodic inputs as (prefix, loop) only"
-    )
+    raise NotImplementedError("BuchiAutomaton.accepts_omega supports ultimately periodic inputs as (prefix, loop) only")
 
 
 def _reachable_on_word(ba: BuchiAutomaton, start: set[Hashable], symbols: Sequence[Any]) -> set[Hashable]:

@@ -6,7 +6,7 @@ Shift of Finite Type
 *********************
 
 A :class:`ShiftOfFiniteType` is defined by forbidden words over a finite
-alphabet.
+alphabet, following standard symbolic-dynamics terminology :cite:`LindMarcus1995`.
 
 .. ipython::
 

@@ -3,7 +3,6 @@
 from pensive.automata.dfa import DFA
 from pensive.automata.languages.base import AutomatonLanguage
 from pensive.automata.learning import learn_maximized_prime_atomaton
-from pensive.graph import ATTR_SYMBOL
 
 
 def _teacher_dfa() -> AutomatonLanguage:

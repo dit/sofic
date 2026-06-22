@@ -6,7 +6,9 @@ Mixed-State Presentation
 *************************
 
 A :class:`MixedStatePresentation` tracks belief-state dynamics: states are
-probability simplices over hidden states of an HMM.
+probability simplices over hidden states of an HMM. The construction is the
+mixed-state presentation used for nonunifilar hidden processes and
+time-symmetric computational mechanics :cite:`Ellison2009`.
 
 .. ipython::
 

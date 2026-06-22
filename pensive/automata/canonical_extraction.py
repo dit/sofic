@@ -2,23 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections.abc import Hashable
 from typing import Any
 
 from pensive.automata.atomaton import Atomaton, MaximizedPrimeAtomaton
 from pensive.automata.dfa import DFA
 from pensive.automata.languages.automaton_ops import (
-    _to_dfa,
-    _to_nfa,
-    left_quotient_automaton,
     minimal_dfa_from_language,
 )
 from pensive.automata.languages.base import AutomatonLanguage, RegularLanguage, as_language
-from pensive.automata.languages.quotients import left_quotients
 from pensive.automata.nfa import NFA
 from pensive.automata.observation import ObservationTable
 from pensive.automata.rfsa import CanonicalRFSA
-from pensive.graph import ATTR_SYMBOL
 
 
 def _language_automaton(language: RegularLanguage | NFA | DFA) -> NFA | DFA:
@@ -39,7 +34,6 @@ def canonical_rfsa_from_language(language: RegularLanguage | NFA | DFA) -> Canon
     residuals = prime_residuals(AutomatonLanguage(dfa))
     residual_list = sorted(residuals, key=lambda r: id(r))
 
-    graph = dfa.graph.copy()
     state_map: dict[int, Hashable] = {}
     for index, residual in enumerate(residual_list):
         if isinstance(residual, AutomatonLanguage):

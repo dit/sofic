@@ -5,7 +5,8 @@
 Covers
 ******
 
-Fischer and Krieger covers convert a Sofic shift into unifilar presentations.
+Fischer and Krieger covers convert a Sofic shift into unifilar presentations
+:cite:`Fischer1975,Krieger1984,LindMarcus1995`.
 
 * :class:`LeftFischerCover`, :class:`RightFischerCover` — implemented.
 * :class:`LeftKriegerCover`, :class:`RightKriegerCover` — construction raises

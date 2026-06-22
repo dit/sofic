@@ -40,9 +40,7 @@ def test_golden_mean_anatomy_identities():
     assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
     h_x0 = dit.shannon.entropy(bidir.step_distribution().marginal([2]))
     assert h_mu + rho == pytest.approx(h_x0, abs=1e-9)
-    assert bidir.crypticity() == pytest.approx(
-        bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9
-    )
+    assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
 
     anatomy = bidir.information_anatomy()
     assert anatomy["rho_mu"] == pytest.approx(rho, abs=1e-12)
@@ -71,9 +69,7 @@ def test_tent_map_misiurewicz_closed_form():
     assert expected["entropy_rate"] == pytest.approx(0.823172, abs=1e-4)
     assert expected["ephemeral_mu"] == pytest.approx(0.648258, abs=1e-4)
     assert expected["bound_mu"] == pytest.approx(0.174915, abs=1e-4)
-    assert expected["bound_mu"] + expected["ephemeral_mu"] == pytest.approx(
-        expected["entropy_rate"], abs=1e-9
-    )
+    assert expected["bound_mu"] + expected["ephemeral_mu"] == pytest.approx(expected["entropy_rate"], abs=1e-9)
 
 
 def test_tent_map_misiurewicz_entropy_rate():
@@ -118,9 +114,7 @@ def test_tent_map_misiurewicz_bidirectional_regression():
     assert r_mu == pytest.approx(expected["ephemeral_mu"], abs=1e-4)
     assert b_mu == pytest.approx(expected["bound_mu"], abs=1e-4)
     assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
-    assert bidir.crypticity() == pytest.approx(
-        bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9
-    )
+    assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
 
 
 def test_tent_forward_matches_generator_path():
@@ -151,9 +145,7 @@ def test_epsilon_machine_anatomy_matches_bidirectional():
     assert forward.ephemeral_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-12)
     assert forward.information_anatomy() == pytest.approx(bidir.information_anatomy(), abs=1e-12)
     assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-12)
-    assert forward.bidirectional_statistical_complexity() == pytest.approx(
-        bidir.statistical_complexity(), abs=1e-12
-    )
+    assert forward.bidirectional_statistical_complexity() == pytest.approx(bidir.statistical_complexity(), abs=1e-12)
     assert forward.bidirectional_crypticity() == pytest.approx(bidir.crypticity(), abs=1e-12)
 
 

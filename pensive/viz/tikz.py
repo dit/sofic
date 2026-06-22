@@ -2,26 +2,25 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
-from collections.abc import Hashable, Mapping
 import os
 import shutil
 import tempfile
+from collections import defaultdict
+from collections.abc import Hashable, Mapping
 from pathlib import Path
 from typing import Any
 
 from pensive.base import StateMachine
 from pensive.graph import (
     ATTR_EMISSION,
+    ATTR_KIND,
     ATTR_MULTIPLICITY,
     ATTR_OUTPUT,
     ATTR_PROB,
     ATTR_QUASIPROB,
+    ATTR_STACK_SYMBOL,
     ATTR_SYMBOL,
     EPSILON,
-    KIND_CALL,
-    KIND_INTERNAL,
-    KIND_RETURN,
     Transition,
 )
 from pensive.viz._context import VizContext, viz_context
@@ -207,9 +206,11 @@ def model_to_tikz(
         placement = coords[state]
         node_label = _tikz_state_label(context, state)
         state_opts = ["state"]
-        if isinstance(model, BidirectionalEpsilonMachine):
-            state_opts.append(r"font=\footnotesize")
-        elif isinstance(state, MixedState) and pure_state_index(state) is None:
+        if (
+            isinstance(model, BidirectionalEpsilonMachine)
+            or isinstance(state, MixedState)
+            and pure_state_index(state) is None
+        ):
             state_opts.append(r"font=\footnotesize")
         if state in context.accepting_states:
             state_opts.append("accepting")

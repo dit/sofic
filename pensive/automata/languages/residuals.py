@@ -22,7 +22,4 @@ def is_composed_residual(residual: RegularLanguage, all_residuals: frozenset[Reg
         return _is_union_of_others(residual, others)
     others = [r for r in all_residuals if r is not residual]
     alphabet = _alphabet_of(residual)
-    for other in others:
-        if _languages_equal(residual, other, alphabet):
-            return True
-    return False
+    return any(_languages_equal(residual, other, alphabet) for other in others)

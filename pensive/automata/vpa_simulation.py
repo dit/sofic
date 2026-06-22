@@ -16,7 +16,8 @@ def recognizes_vpa(vpa: VisiblyPushdownAutomaton, word: Sequence[Any]) -> bool:
     if vpa.initial_state is None:
         return False
 
-    current: set[tuple[Hashable, tuple[Any, ...]]] = {(vpa.initial_state, (_BOTTOM,))}
+    bottom = _BOTTOM if vpa.bottom_stack_symbol is None else vpa.bottom_stack_symbol
+    current: set[tuple[Hashable, tuple[Any, ...]]] = {(vpa.initial_state, (bottom,))}
 
     for symbol in word:
         next_configs: set[tuple[Hashable, tuple[Any, ...]]] = set()
@@ -32,7 +33,15 @@ def recognizes_vpa(vpa: VisiblyPushdownAutomaton, word: Sequence[Any]) -> bool:
                         continue
                     next_configs.add((transition.target, stack + (stack_sym,)))
                 elif kind == KIND_RETURN:
+                    stack_sym = data.get(ATTR_STACK_SYMBOL)
                     if len(stack) <= 1:
+                        if vpa.bottom_stack_symbol is None:
+                            continue
+                        if stack_sym is not None and stack_sym != stack[-1]:
+                            continue
+                        next_configs.add((transition.target, stack))
+                        continue
+                    if stack_sym is not None and stack_sym != stack[-1]:
                         continue
                     next_configs.add((transition.target, stack[:-1]))
                 elif kind == KIND_INTERNAL:

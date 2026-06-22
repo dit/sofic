@@ -146,7 +146,9 @@ def quasi_realization_from_nmachine(nm: NMachine) -> QuasiRealization:
     return QuasiRealization(pi=pi, tau=tau, symbol_maps=symbol_maps)
 
 
-def nmachine_from_quasi_realization(qr: QuasiRealization, observation_alphabet: frozenset[Any] | None = None) -> NMachine:
+def nmachine_from_quasi_realization(
+    qr: QuasiRealization, observation_alphabet: frozenset[Any] | None = None
+) -> NMachine:
     states = sequential_labels(len(qr.pi))
     graph = TransitionGraph()
     for state in states:

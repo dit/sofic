@@ -6,7 +6,7 @@ Bidirectional ε-Machine
 ***************************
 
 A :class:`BidirectionalEpsilonMachine` is a non-unifilar generator over joint
-causal states :math:`(S^+, S^-)` :cite:`Ellison2009`.
+causal states :math:`(S^+, S^-)` :cite:`Ellison2011`.
 
 .. math::
 

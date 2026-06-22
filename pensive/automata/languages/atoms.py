@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pensive.automata.languages._quotient_utils import _alphabet_of, _languages_equal, _residual_from_state
 from pensive.automata.languages.automaton_ops import minimal_dfa_from_language
-from pensive.automata.languages.base import AutomatonLanguage, ExplicitLanguage, RegularLanguage, as_language
+from pensive.automata.languages.base import AutomatonLanguage, RegularLanguage, as_language
 from pensive.automata.languages.quotients import left_quotients
 
 
@@ -28,7 +28,4 @@ def is_prime_atom(atom: RegularLanguage, all_atoms: frozenset[RegularLanguage]) 
     if not others:
         return True
     alphabet = _alphabet_of(atom)
-    for other in others:
-        if _languages_equal(atom, other, alphabet):
-            return False
-    return True
+    return all(not _languages_equal(atom, other, alphabet) for other in others)

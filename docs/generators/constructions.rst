@@ -4,7 +4,10 @@
 Constructions
 *************
 
-High-level builders for causal and bidirectional presentations.
+High-level builders for causal and bidirectional presentations. The ε-machine
+builder combines mixed-state unifilarization with causal-state minimization,
+and the bidirectional builder follows the forward/reverse construction
+:cite:`Ellison2009,Loomis2019,Ellison2011`.
 
 ε-Machine construction
 ======================

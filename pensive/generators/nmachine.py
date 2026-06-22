@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -11,6 +11,9 @@ from pensive.exceptions import QuasiStochasticValidationError
 from pensive.generators.base import QuasiStochasticModel
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.graph import ATTR_EMISSION, ATTR_QUASIPROB
+
+if TYPE_CHECKING:
+    from pensive.generators.quasi_realization import QuasiRealization
 
 
 class NMachine(QuasiStochasticModel):
@@ -63,9 +66,7 @@ class NMachine(QuasiStochasticModel):
         from pensive.generators.nmachine_construction import coarse_grained_distribution
 
         eps_states = tuple(
-            substate[0]
-            for substate in self.states()
-            if isinstance(substate, tuple) and len(substate) == 2
+            substate[0] for substate in self.states() if isinstance(substate, tuple) and len(substate) == 2
         )
         if not eps_states:
             eps_states = tuple(self.states())

@@ -6,7 +6,9 @@ Generators
 
 The :mod:`pensive.generators` package provides stochastic and quasiprobabilistic
 symbol generators: hidden Markov models, ε-machines, mixed-state presentations,
-and related constructions.
+and related constructions. The stochastic-generator foundations are hidden
+Markov models, computational mechanics, and symbolic process presentations
+:cite:`Rabiner1989,Crutchfield1994`.
 
 Stochastic models
 =================

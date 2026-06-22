@@ -53,9 +53,7 @@ def _build_eq15_graph(
 ) -> TransitionGraph:
     """Build the provisional Eq. (15) graph before pruning transient joint states."""
     reverse_states = sorted(rev_time.states(), key=repr)
-    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, float]]] = (
-        defaultdict(list)
-    )
+    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, float]]] = defaultdict(list)
 
     for alpha in sorted(forward.states(), key=repr):
         for gamma in reverse_states:
@@ -213,8 +211,7 @@ def _compatible_pairs(
 
 def _forward_emits(forward: EpsilonMachine, state: Hashable, symbol: Any) -> bool:
     return any(
-        transition.data.get(ATTR_EMISSION) == symbol
-        and float(transition.data.get(ATTR_PROB, 0.0)) > 0.0
+        transition.data.get(ATTR_EMISSION) == symbol and float(transition.data.get(ATTR_PROB, 0.0)) > 0.0
         for transition in forward.graph.out_transitions(state)
     )
 
@@ -502,11 +499,7 @@ def _recurrent_support(graph: TransitionGraph, *, tol: float = 1e-12) -> set[tup
         changed = False
         next_keep: set[tuple[Hashable, Hashable]] = set()
         for state in keep:
-            outgoing = [
-                transition
-                for transition in graph.out_transitions(state)
-                if transition.target in keep
-            ]
+            outgoing = [transition for transition in graph.out_transitions(state) if transition.target in keep]
             if not outgoing:
                 changed = True
                 continue
@@ -634,9 +627,7 @@ def _marginalize_to_epsilon(
         if prob <= 0.0:
             continue
         existing = [
-            t
-            for t in graph.out_transitions(source)
-            if t.data.get(ATTR_EMISSION) == symbol and t.target == target
+            t for t in graph.out_transitions(source) if t.data.get(ATTR_EMISSION) == symbol and t.target == target
         ]
         if existing:
             continue

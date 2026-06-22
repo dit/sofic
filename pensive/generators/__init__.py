@@ -2,8 +2,9 @@
 
 from pensive.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.block_entropy import BlockEntropyDiagram
 from pensive.generators.epsilon_inference import cssr, subtree_merge
+from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.mixed_state import MixedState, MixedStatePresentation
@@ -24,6 +25,7 @@ from pensive.generators.topological_epsilon_enumeration import (
 
 __all__ = [
     "BidirectionalEpsilonMachine",
+    "BlockEntropyDiagram",
     "EpsilonMachine",
     "cssr",
     "subtree_merge",
