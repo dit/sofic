@@ -17,6 +17,7 @@ Stochastic models
    :maxdepth: 1
 
    hidden_markov_model
+   hidden_markov_stack_model
    markov_chain
    probabilistic_finite_automaton
 

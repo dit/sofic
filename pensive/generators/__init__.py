@@ -12,6 +12,7 @@ from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
 from pensive.generators.pfa import ProbabilisticFiniteAutomaton
 from pensive.generators.quasi_realization import QuasiRealization
+from pensive.generators.stack_hmm import HiddenMarkovStackModel
 from pensive.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     idfa_string_to_epsilon_machine,
@@ -30,6 +31,7 @@ __all__ = [
     "cssr",
     "subtree_merge",
     "HiddenMarkovModel",
+    "HiddenMarkovStackModel",
     "MarkovChain",
     "MealyHMM",
     "MixedState",
