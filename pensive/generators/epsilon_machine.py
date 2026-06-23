@@ -11,6 +11,7 @@ from pensive.generators.moore import MooreHMM
 if TYPE_CHECKING:
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from pensive.generators.block_entropy import BlockEntropyDiagram
+    from pensive.generators.minimal_generative_model import MinimalGenerativeModel
 
 
 class EpsilonMachine(MealyHMM):
@@ -188,6 +189,14 @@ class EpsilonMachine(MealyHMM):
     def bidirectional_crypticity(self) -> float:
         """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""
         return self.to_bidirectional().crypticity()
+
+    def minimal_generative_model(self, **kwargs: Any) -> MinimalGenerativeModel:
+        """Construct the minimal-state-entropy generative presentation."""
+        return self.to_bidirectional().minimal_generative_model(**kwargs)
+
+    def generative_complexity(self, **kwargs: Any) -> float:
+        """C_g = H[G] for the minimal generative model."""
+        return self.to_bidirectional().generative_complexity(**kwargs)
 
     def crypticity(self) -> float:
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""

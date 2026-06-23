@@ -26,8 +26,23 @@ causal states :math:`(S^+, S^-)` :cite:`Ellison2011`.
    In [4]: bidir.excess_entropy()
    Out[4]: 0.25162916738782304
 
+Minimal Generative Models
+=========================
+
+The bidirectional machine can be reduced to a non-unifilar minimal
+generative model by optimizing the exact common information between the
+forward and reverse causal states. This requires the optional
+``pensive[measures]`` dependencies.
+
+.. ipython::
+
+   In [5]: mgm = bidir.minimal_generative_model()
+
+   In [6]: mgm.state_entropy() > 0
+   Out[6]: True
+
 API
 ===
 
 .. autoclass:: BidirectionalEpsilonMachine
-   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, predicted_information, bound_information, ephemeral_information, information_anatomy
+   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, information_anatomy

@@ -53,6 +53,7 @@ from pensive.generators import (
     HiddenMarkovStackModel,
     MarkovChain,
     MealyHMM,
+    MinimalGenerativeModel,
     MixedState,
     MixedStatePresentation,
     MooreHMM,
@@ -61,6 +62,7 @@ from pensive.generators import (
     QuasiRealization,
     QuasiStochasticModel,
     StochasticModel,
+    minimal_generative_model,
 )
 from pensive.operations import reverse
 from pensive.serialization import from_yaml, model_from_yaml, model_to_yaml, read_yaml
@@ -98,6 +100,7 @@ __all__ = [
     "MarkovChain",
     "MaximizedPrimeAtomaton",
     "MealyHMM",
+    "MinimalGenerativeModel",
     "MealyMachine",
     "MinimizationAlgorithm",
     "MixedState",
@@ -141,6 +144,7 @@ __all__ = [
     "from_yaml",
     "model_from_yaml",
     "model_to_yaml",
+    "minimal_generative_model",
     "read_yaml",
     "reverse",
     "transduce_generator",

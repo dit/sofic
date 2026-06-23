@@ -7,6 +7,7 @@ from pensive.generators.epsilon_inference import cssr, subtree_merge
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
 from pensive.generators.mealy import MealyHMM
+from pensive.generators.minimal_generative_model import MinimalGenerativeModel, minimal_generative_model
 from pensive.generators.mixed_state import MixedState, MixedStatePresentation
 from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
@@ -36,6 +37,7 @@ __all__ = [
     "HiddenMarkovStackModel",
     "MarkovChain",
     "MealyHMM",
+    "MinimalGenerativeModel",
     "MixedState",
     "MixedStatePresentation",
     "MooreHMM",
@@ -53,4 +55,5 @@ __all__ = [
     "is_topological_epsilon_string",
     "iter_topological_epsilon_machines",
     "iter_topological_epsilon_strings",
+    "minimal_generative_model",
 ]

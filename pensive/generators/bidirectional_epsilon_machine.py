@@ -172,6 +172,16 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """χ = C± − E for a bidirectional presentation."""
         return self.statistical_complexity() - self.excess_entropy()
 
+    def minimal_generative_model(self, **kwargs: Any) -> Any:
+        """Construct the minimal-state-entropy generative presentation."""
+        from pensive.generators.minimal_generative_model import minimal_generative_model
+
+        return minimal_generative_model(self, **kwargs)
+
+    def generative_complexity(self, **kwargs: Any) -> float:
+        """C_g = H[G] for the minimal generative model."""
+        return self.minimal_generative_model(**kwargs).generative_complexity()
+
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and χ for this bidirectional presentation."""
         h_mu = self.entropy_rate()
