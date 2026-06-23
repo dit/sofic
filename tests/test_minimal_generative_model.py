@@ -8,7 +8,7 @@ from itertools import product
 import numpy as np
 import pytest
 
-from pensive.examples.epsilon_machines import bernoulli, from_symbol_matrices
+from pensive.examples.epsilon_machines import bernoulli, from_symbol_matrices, golden_mean_bidirectional
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
@@ -93,6 +93,17 @@ def _mgm(process: EpsilonMachine):
     )
 
 
+def _wgm(process: EpsilonMachine):
+    return process.wyner_generative_model(
+        bound=2,
+        niter=8,
+        maxiter=400,
+        polish=1e-8,
+        cutoff=1e-8,
+        rng=np.random.default_rng(4321),
+    )
+
+
 @pytest.mark.parametrize(
     ("p", "q"),
     [
@@ -165,3 +176,59 @@ def test_bidirectional_and_epsilon_machine_apis_agree():
         cutoff=1e-8,
         rng=np.random.default_rng(9),
     ) == pytest.approx(from_bidir.generative_complexity(), abs=1e-9)
+
+
+def test_golden_mean_wyner_generative_model_matches_triangle_value():
+    bidir = golden_mean_bidirectional(0.5)
+    wgm = bidir.wyner_generative_model(
+        bound=2,
+        niter=12,
+        maxiter=500,
+        polish=1e-8,
+        cutoff=1e-8,
+        rng=np.random.default_rng(2468),
+    )
+
+    _assert_same_words(bidir.forward_machine, wgm)
+    assert wgm.wyner_common_information == pytest.approx(2.0 / 3.0, abs=2e-3)
+    assert wgm.wyner_common_information <= wgm.generative_complexity() + 1e-8
+
+
+@pytest.mark.parametrize(("p", "q"), [(0.25, 0.75), (0.45, 0.55), (0.0, 0.5), (0.5, 0.0)])
+def test_binary_markov_wyner_iid_and_constant_boundaries_collapse_to_one_state(p: float, q: float):
+    process = _binary_markov(p, q)
+    wgm = process.wyner_generative_model(cutoff=1e-10, rng=np.random.default_rng(8765))
+
+    _assert_same_words(process, wgm)
+    assert wgm.wyner_common_information == pytest.approx(0.0, abs=1e-9)
+    assert wgm.generative_complexity() == pytest.approx(0.0, abs=1e-9)
+    assert len(list(wgm.states())) == 1
+
+
+def test_binary_markov_wyner_period_two_boundary_uses_matching_support():
+    process = _binary_markov(1.0, 1.0)
+    wgm = process.wyner_generative_model()
+
+    _assert_same_words(process, wgm)
+    assert wgm.wyner_common_information == pytest.approx(1.0, abs=1e-12)
+    assert wgm.generative_complexity() == pytest.approx(1.0, abs=1e-12)
+    assert len(list(wgm.states())) == 2
+
+
+def test_wyner_bidirectional_and_epsilon_machine_apis_agree():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    bidir = process.to_bidirectional()
+
+    from_forward = _wgm(process)
+    from_bidir = bidir.wyner_generative_model(
+        bound=2,
+        niter=8,
+        maxiter=400,
+        polish=1e-8,
+        cutoff=1e-8,
+        rng=np.random.default_rng(4321),
+    )
+
+    _assert_same_words(process, from_forward)
+    _assert_same_words(process, from_bidir)
+    assert from_forward.wyner_common_information == pytest.approx(from_bidir.wyner_common_information, abs=1e-9)

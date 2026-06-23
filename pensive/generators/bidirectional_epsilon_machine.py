@@ -178,6 +178,12 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return minimal_generative_model(self, **kwargs)
 
+    def wyner_generative_model(self, **kwargs: Any) -> Any:
+        """Construct the Wyner-common-information generative presentation."""
+        from pensive.generators.minimal_generative_model import wyner_generative_model
+
+        return wyner_generative_model(self, **kwargs)
+
     def generative_complexity(self, **kwargs: Any) -> float:
         """C_g = H[G] for the minimal generative model."""
         return self.minimal_generative_model(**kwargs).generative_complexity()

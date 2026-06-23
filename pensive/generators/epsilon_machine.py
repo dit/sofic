@@ -11,7 +11,7 @@ from pensive.generators.moore import MooreHMM
 if TYPE_CHECKING:
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from pensive.generators.block_entropy import BlockEntropyDiagram
-    from pensive.generators.minimal_generative_model import MinimalGenerativeModel
+    from pensive.generators.minimal_generative_model import MinimalGenerativeModel, WynerGenerativeModel
 
 
 class EpsilonMachine(MealyHMM):
@@ -193,6 +193,10 @@ class EpsilonMachine(MealyHMM):
     def minimal_generative_model(self, **kwargs: Any) -> MinimalGenerativeModel:
         """Construct the minimal-state-entropy generative presentation."""
         return self.to_bidirectional().minimal_generative_model(**kwargs)
+
+    def wyner_generative_model(self, **kwargs: Any) -> WynerGenerativeModel:
+        """Construct the Wyner-common-information generative presentation."""
+        return self.to_bidirectional().wyner_generative_model(**kwargs)
 
     def generative_complexity(self, **kwargs: Any) -> float:
         """C_g = H[G] for the minimal generative model."""

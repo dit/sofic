@@ -7,7 +7,12 @@ from pensive.generators.epsilon_inference import cssr, subtree_merge
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
 from pensive.generators.mealy import MealyHMM
-from pensive.generators.minimal_generative_model import MinimalGenerativeModel, minimal_generative_model
+from pensive.generators.minimal_generative_model import (
+    MinimalGenerativeModel,
+    WynerGenerativeModel,
+    minimal_generative_model,
+    wyner_generative_model,
+)
 from pensive.generators.mixed_state import MixedState, MixedStatePresentation
 from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
@@ -46,6 +51,7 @@ __all__ = [
     "QuasiRealization",
     "QuasiStochasticModel",
     "StochasticModel",
+    "WynerGenerativeModel",
     "count_topological_epsilon_machines",
     "epsilon_machine_to_idfa_string",
     "idfa_string_to_epsilon_machine",
@@ -56,4 +62,5 @@ __all__ = [
     "iter_topological_epsilon_machines",
     "iter_topological_epsilon_strings",
     "minimal_generative_model",
+    "wyner_generative_model",
 ]

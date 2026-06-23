@@ -62,7 +62,9 @@ from pensive.generators import (
     QuasiRealization,
     QuasiStochasticModel,
     StochasticModel,
+    WynerGenerativeModel,
     minimal_generative_model,
+    wyner_generative_model,
 )
 from pensive.operations import reverse
 from pensive.serialization import from_yaml, model_from_yaml, model_to_yaml, read_yaml
@@ -132,6 +134,7 @@ __all__ = [
     "TransitionGraph",
     "UnifilarAutomaton",
     "VisiblyPushdownAutomaton",
+    "WynerGenerativeModel",
     "automaton_to_regex",
     "cartesian_product_gg",
     "cartesian_product_tt",
@@ -149,5 +152,6 @@ __all__ = [
     "reverse",
     "transduce_generator",
     "trim",
+    "wyner_generative_model",
     "__version__",
 ]
