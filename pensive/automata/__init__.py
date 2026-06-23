@@ -46,6 +46,15 @@ from pensive.automata.nwa import NestedWord, NestedWordAutomaton
 from pensive.automata.observation import ObservationTable
 from pensive.automata.regex import automaton_to_regex
 from pensive.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+from pensive.automata.transducer_operations import (
+    ERROR_STATE,
+    ERROR_SYMBOL,
+    cartesian_product_gg,
+    cartesian_product_tt,
+    compose_tg,
+    compose_tt,
+    transduce_generator,
+)
 from pensive.automata.transducers import MealyMachine, MooreMachine, Transducer
 from pensive.automata.unifilar import UnifilarAutomaton
 from pensive.automata.vpa import (
@@ -75,6 +84,8 @@ __all__ = [
     "CompositeVisiblyPushdownAutomaton",
     "DFA",
     "DeterministicVisiblyPushdownAutomaton",
+    "ERROR_STATE",
+    "ERROR_SYMBOL",
     "ICDFAString",
     "LabeledAutomaton",
     "MaximizedPrimeAtomaton",
@@ -93,7 +104,11 @@ __all__ = [
     "UnifilarAutomaton",
     "VisiblyPushdownAutomaton",
     "automaton_to_regex",
+    "cartesian_product_gg",
+    "cartesian_product_tt",
     "complement_vpa",
+    "compose_tg",
+    "compose_tt",
     "concat_vpa",
     "complete",
     "count_accessible_idfa",
@@ -122,6 +137,7 @@ __all__ = [
     "reroot_idfa_string",
     "string_from_flags",
     "trim",
+    "transduce_generator",
     "unrank_idfa_string",
     "union_vpa",
     "validate_idfa_string",

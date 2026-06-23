@@ -7,6 +7,7 @@ import pytest
 import pensive.examples.processes as processes
 from pensive.automata.transducers import MealyMachine
 from pensive.generators.base import HiddenMarkovModel
+from pensive.graph import EPSILON
 
 
 def test_cmpy_process_constructor_names_are_exported():
@@ -96,6 +97,26 @@ def test_all_transducer_constructors_return_mealy_machine():
         machine.validate()
 
 
+def test_all_transducer_constructors_have_cmpy_style_alphabets_and_rows():
+    for name in processes.transducers:
+        machine = getattr(processes, name)()
+        inputs, outputs = machine.alphabets()
+
+        assert EPSILON not in inputs
+        assert EPSILON not in outputs
+        assert inputs <= machine.input_alphabet
+        assert outputs <= machine.output_alphabet
+        machine.validate_stochastic()
+
+
 def test_delay_transducer_delays_symbols():
     delay = processes.Delay(length=2, symbols=["0", "1"])
     assert delay.transduce(("1", "0")) == {("0", "0")}
+
+
+def test_cmpy_style_instance_composition_and_generator_transduction():
+    transducer = processes.BitFlip().compose(processes.BitFlip())
+    assert transducer.transduce(("0", "1")) == {("0", "1")}
+
+    output = processes.BinaryChannel(p=0.25, q=0.5).transduce_generator(processes.FairCoin())
+    assert output.word_probability(("1",)) == pytest.approx(0.375)

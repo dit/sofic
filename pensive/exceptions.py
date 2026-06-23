@@ -23,3 +23,7 @@ class UnifilarityError(PensiveValidationError):
 
 class QuasiStochasticValidationError(PensiveValidationError):
     """Raised when quasi-stochastic invariants are violated."""
+
+
+class InfiniteTransductionError(PensiveError):
+    """Raised when a finite input has infinitely many transducer outputs."""
