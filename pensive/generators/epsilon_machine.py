@@ -123,8 +123,10 @@ class EpsilonMachine(MealyHMM):
         return self.to_bidirectional().statistical_complexity()
 
     def excess_entropy(self) -> float:
-        """Excess entropy E = I[S⁺; S⁻] via the bidirectional ε-machine."""
-        return self.to_bidirectional().excess_entropy()
+        """Excess entropy ``E`` from the bidirectional machine when available."""
+        from pensive.generators.block_entropy import _excess_entropy
+
+        return _excess_entropy(self)
 
     def predicted_information(self) -> float:
         """ρ_μ = I[X₀ : S⁺₀] — predicted information rate (James et al., 2013)."""

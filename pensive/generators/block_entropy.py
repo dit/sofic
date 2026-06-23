@@ -223,7 +223,7 @@ def block_entropy_diagram(machine: EpsilonMachine, max_length: int) -> BlockEntr
 
     entropy_rate = _entropy_rate(pi, symbol_matrices)
     statistical_complexity = _entropy(pi)
-    excess_entropy = _excess_entropy(machine)
+    excess_entropy = _excess_entropy(machine, entropy_rate=entropy_rate, block_entropy=block_entropy)
     crypticity = statistical_complexity - excess_entropy
     entropy_asymptote = excess_entropy + entropy_rate * lengths
     crypticity_estimate = state_block_entropy - block_state_entropy
@@ -254,9 +254,13 @@ def block_entropy_estimates(
     max_length: int,
     *,
     entropy_rate: float | None = None,
-    use_exact: bool = False,
+    use_exact: bool = True,
 ) -> BlockEntropyEstimates:
-    """Approximate information quantities from finite block entropies."""
+    """Approximate information quantities from finite block entropies.
+
+    Exact excess entropy is used when available; ``use_exact`` is retained for
+    API compatibility.
+    """
     if max_length < 0:
         raise ValueError("max_length must be nonnegative")
     if entropy_rate is None and max_length < 1:
@@ -391,27 +395,60 @@ def _entropy_rate(pi: np.ndarray, symbol_matrices: dict[Any, np.ndarray]) -> flo
     return rate
 
 
-def _excess_entropy(machine: EpsilonMachine) -> float:
-    bidirectional = machine.to_bidirectional()
-    joint = bidirectional.joint_distribution()
-    if not joint:
-        return 0.0
+def _excess_entropy(
+    machine: EpsilonMachine,
+    *,
+    entropy_rate: float | None = None,
+    block_entropy: np.ndarray | None = None,
+) -> float:
+    try:
+        return float(machine.to_bidirectional().excess_entropy())
+    except Exception:
+        return _block_entropy_excess_entropy(machine, entropy_rate=entropy_rate, block_entropy=block_entropy)
 
-    plus: dict[Any, float] = {}
-    minus: dict[Any, float] = {}
-    for (plus_state, minus_state), mass in joint.items():
-        plus[plus_state] = plus.get(plus_state, 0.0) + float(mass)
-        minus[minus_state] = minus.get(minus_state, 0.0) + float(mass)
 
-    return _entropy(plus.values()) + _entropy(minus.values()) - _entropy(joint.values())
+def _block_entropy_excess_entropy(
+    machine: EpsilonMachine,
+    *,
+    entropy_rate: float | None = None,
+    block_entropy: np.ndarray | None = None,
+) -> float:
+    order = machine.markov_order()
+    if _is_finite_order(order):
+        markov_order = int(order)
+        h_mu = entropy_rate
+        if h_mu is None:
+            curves = _block_entropy_curves(machine, markov_order)
+            _block_entropy = curves[1]
+            pi = curves[4]
+            symbol_matrices = curves[5]
+            h_mu = _entropy_rate(pi, symbol_matrices)
+            block_entropy = _block_entropy
+        if block_entropy is not None and markov_order < len(block_entropy):
+            H_R = float(block_entropy[markov_order])
+        else:
+            curves = _block_entropy_curves(machine, markov_order)
+            H_R = float(curves[1][markov_order])
+        return float(H_R - markov_order * h_mu)
+
+    if block_entropy is None or len(block_entropy) == 0:
+        raise RuntimeError("cannot estimate excess entropy without finite block entropies")
+    h_mu = entropy_rate
+    if h_mu is None:
+        _lengths, _block_entropy, _state_block_entropy, _block_state_entropy, pi, symbol_matrices = (
+            _block_entropy_curves(machine, len(block_entropy) - 1)
+        )
+        h_mu = _entropy_rate(pi, symbol_matrices)
+        block_entropy = _block_entropy
+    length = len(block_entropy) - 1
+    return float(block_entropy[-1] - length * h_mu)
 
 
 def _estimated_excess_entropy(machine: EpsilonMachine, estimate: np.ndarray, *, use_exact: bool) -> float:
-    if use_exact:
-        try:
-            return float(machine.excess_entropy())
-        except Exception:
-            pass
+    try:
+        return float(machine.excess_entropy())
+    except Exception:
+        pass
     return float(estimate[-1]) if estimate.size else 0.0
 
 

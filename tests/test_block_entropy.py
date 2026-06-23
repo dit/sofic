@@ -9,6 +9,7 @@ import pytest
 
 from pensive.examples import fair_coin, golden_mean
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
 
 
 def test_fair_coin_block_entropy_diagram_is_linear():
@@ -145,3 +146,21 @@ def test_block_entropy_estimates_fallback_when_exact_excess_entropy_fails():
 
     assert np.isfinite(estimates.excess_entropy)
     assert estimates.excess_entropy == pytest.approx(0.25162916738782304, abs=1e-12)
+
+
+def test_block_entropy_diagram_uses_exact_excess_entropy_when_available():
+    machine = idfa_string_to_epsilon_machine((0, 1, -1, 2, 0, 2), n=3, k=2, alphabet=("0", "1"))
+
+    exact = machine.to_bidirectional().excess_entropy()
+    diagram = machine.block_entropy_diagram(2)
+    finite_order_estimate = diagram.block_entropy[2] - 2 * diagram.entropy_rate
+
+    assert diagram.excess_entropy == pytest.approx(exact, abs=1e-9)
+    assert finite_order_estimate != pytest.approx(exact, abs=1e-9)
+
+
+def test_block_entropy_diagram_fallback_when_exact_excess_entropy_fails():
+    with patch.object(EpsilonMachine, "to_bidirectional", side_effect=RuntimeError("no bidirectional")):
+        diagram = golden_mean(0.5).block_entropy_diagram(1)
+
+    assert diagram.excess_entropy == pytest.approx(0.25162916738782304, abs=1e-12)

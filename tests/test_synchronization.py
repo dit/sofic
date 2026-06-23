@@ -3,6 +3,7 @@
 import math
 
 import pytest
+from hypothesis import given, settings
 
 from pensive.examples.epsilon_machines import (
     bernoulli,
@@ -15,6 +16,7 @@ from pensive.examples.epsilon_machines import (
 )
 from pensive.generators.synchronization import graph_from_epsilon_machine, markov_order_from_graph
 from pensive.serialization import model_from_yaml
+from pensive.testing.strategies import epsilon_machines
 
 INFINITE_ORDER_EPSILON_MACHINE_YAML = """
 schema: pensive.model
@@ -127,13 +129,13 @@ def test_restricted_golden_mean_cryptic_order(k: int):
 
 def test_phase_slip_backtrack_markov_order():
     eps = phase_slip_backtrack()
-    assert eps.markov_order() == 3
+    assert eps.markov_order() == math.inf
 
 
-def test_butterfly_infinite_markov_finite_cryptic():
+def test_butterfly_infinite_orders():
     eps = butterfly_process()
     assert eps.markov_order() == math.inf
-    assert eps.cryptic_order() == 3
+    assert eps.cryptic_order() == math.inf
     assert not eps.is_exactly_synchronizable()
 
 
@@ -167,3 +169,9 @@ def test_cryptic_order_bounded_by_markov_order_when_finite():
     k = eps.cryptic_order()
     assert r != math.inf and k != math.inf
     assert k <= r
+
+
+@given(machine=epsilon_machines(max_states=3))
+@settings(max_examples=25)
+def test_cryptic_order_never_exceeds_markov_order(machine):
+    assert machine.markov_order() >= machine.cryptic_order()
