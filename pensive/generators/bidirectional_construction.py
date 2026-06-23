@@ -152,16 +152,9 @@ def _prune_to_stationary_support(
         trimmed = _restrict_graph(trimmed, positive_hmm)
         keep = _recurrent_support(trimmed) or positive_hmm
         trimmed = _restrict_graph(trimmed, keep)
-    initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
-    if not initial:
-        initial = _joint_pi_from_marginals(trimmed, forward, reverse, tol=tol)
+    trimmed, initial = _stationary_distribution(trimmed, forward, reverse, tol=tol)
     if initial:
         trimmed = _restrict_graph(trimmed, set(initial))
-        keep = _recurrent_support(trimmed) or set(initial)
-        trimmed = _restrict_graph(trimmed, keep)
-        initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol) or initial
-        initial = {state: mass for state, mass in initial.items() if state in keep}
-    if not initial:
         trimmed, initial = _stationary_distribution(trimmed, forward, reverse, tol=tol)
     return trimmed, initial
 

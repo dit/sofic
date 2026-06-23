@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from unittest.mock import patch
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
 
 from pensive.examples import fair_coin, golden_mean
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
+from pensive.testing.strategies import epsilon_machines
 
 
 def test_fair_coin_block_entropy_diagram_is_linear():
@@ -156,7 +159,7 @@ def test_block_entropy_diagram_uses_exact_excess_entropy_when_available():
     finite_order_estimate = diagram.block_entropy[2] - 2 * diagram.entropy_rate
 
     assert diagram.excess_entropy == pytest.approx(exact, abs=1e-9)
-    assert finite_order_estimate != pytest.approx(exact, abs=1e-9)
+    assert finite_order_estimate == pytest.approx(exact, abs=1e-9)
 
 
 def test_block_entropy_diagram_fallback_when_exact_excess_entropy_fails():
@@ -164,3 +167,19 @@ def test_block_entropy_diagram_fallback_when_exact_excess_entropy_fails():
         diagram = golden_mean(0.5).block_entropy_diagram(1)
 
     assert diagram.excess_entropy == pytest.approx(0.25162916738782304, abs=1e-12)
+
+
+@given(machine=epsilon_machines(max_states=3))
+@settings(max_examples=25, deadline=None)
+def test_finite_markov_order_block_entropy_reaches_entropy_asymptote(machine):
+    markov_order = machine.markov_order()
+    if not math.isfinite(markov_order):
+        return
+
+    order = int(markov_order)
+    diagram = machine.block_entropy_diagram(order)
+
+    assert diagram.block_entropy[order] == pytest.approx(
+        diagram.excess_entropy + order * diagram.entropy_rate,
+        abs=1e-9,
+    )
