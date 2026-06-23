@@ -39,6 +39,17 @@ def test_dfa_tikz_symbol_only():
     assert r"\Edge{" not in tikz
 
 
+def test_sofic_dyck_tikz_marks_matched_edges():
+    from pensive.examples import sofic_dyck_nondeterminizable_shift
+
+    tikz = model_to_tikz(sofic_dyck_nondeterminizable_shift())
+
+    assert r"\Symbol{a}\mid \mathrm{call}\mid m_{1}" in tikz
+    assert r"\Symbol{b}\mid \mathrm{return}\mid m_{1}" in tikz
+    assert r"$\Symbol{b}\mid \mathrm{return}$" in tikz
+    assert tikz.count("m_{1}") == 2
+
+
 def test_bidirectional_tikz_uses_edge_labels():
     tikz = model_to_tikz(golden_mean_bidirectional(0.5), style="paper")
     assert r"\Edge{" in tikz
@@ -63,10 +74,14 @@ def test_loop_avoids_outgoing_corridor():
 
 def test_msp_self_loop_avoids_reciprocal_edge():
     from pensive.examples.epsilon_machines import golden_mean
+    from pensive.viz._tikz_layout import state_node_name
     from pensive.viz.tikz import model_to_tikz
 
-    tikz = model_to_tikz(golden_mean(0.5).mixed_state_presentation(), style="paper")
-    a_loop_lines = [line for line in tikz.splitlines() if "s_1_0)" in line and "loop" in line]
+    msp = golden_mean(0.5).mixed_state_presentation()
+    a_state = next(state for state in msp.states() if msp.causal_state(state) == "A")
+    a_node = state_node_name(a_state)
+    tikz = model_to_tikz(msp, style="paper")
+    a_loop_lines = [line for line in tikz.splitlines() if f"({a_node})" in line and "loop" in line]
     assert len(a_loop_lines) == 1
     assert "loop above" not in a_loop_lines[0]
 

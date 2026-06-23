@@ -70,6 +70,19 @@ def test_model_to_graphviz_contains_states_and_edges():
     assert "__start__" in source
 
 
+def test_sofic_dyck_graphviz_marks_matched_edges():
+    from pensive.examples import sofic_dyck_nondeterminizable_shift
+
+    source = model_to_graphviz(sofic_dyck_nondeterminizable_shift()).source
+
+    assert 'label="a | call | m1"' in source
+    assert 'label="b | return | m1"' in source
+    assert 'label="b | return"' in source
+    assert source.count("m1") == 2
+    assert "color=seagreen" in source
+    assert "color=firebrick" in source
+
+
 def test_epsilon_machine_renders():
     eps = golden_mean()
     dot = model_to_graphviz(eps)

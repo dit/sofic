@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -114,6 +114,25 @@ def _join_edge(parts: list[str]) -> str:
     return " | ".join(parts) if parts else ""
 
 
+def _dyck_match_tags(matched_edges: Iterable[tuple[Any, Any]]) -> dict[Any, tuple[str, ...]]:
+    tags: dict[Any, list[str]] = {}
+    for index, (call_ref, return_ref) in enumerate(sorted(matched_edges, key=repr), start=1):
+        tag = f"m{index}"
+        tags.setdefault(call_ref, []).append(tag)
+        tags.setdefault(return_ref, []).append(tag)
+    return {ref: tuple(ref_tags) for ref, ref_tags in tags.items()}
+
+
+def _dyck_edge_color(kind: Any) -> str | None:
+    if kind == KIND_CALL:
+        return "seagreen"
+    if kind == KIND_RETURN:
+        return "firebrick"
+    if kind == KIND_INTERNAL:
+        return "steelblue"
+    return None
+
+
 _TRANSIENT_FILL = "mistyrose"
 _RECURRENT_FILL = "honeydew"
 _RECURRENCE_ATOL = 1e-12
@@ -161,6 +180,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     from pensive.generators.moore import MooreHMM
     from pensive.generators.nmachine import NMachine
     from pensive.shifts.base import SymbolicModel
+    from pensive.shifts.sofic_dyck import SoficDyckShift, transition_ref
     from pensive.shifts.tmc import TopologicalMarkovChain
 
     paper_style = style == "paper" or (style == "auto" and isinstance(model, BidirectionalEpsilonMachine))
@@ -223,14 +243,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
             return _join_edge(parts)
 
         def edge_color(transition: Transition) -> str | None:
-            kind = transition.data.get(ATTR_KIND)
-            if kind == KIND_CALL:
-                return "seagreen"
-            if kind == KIND_RETURN:
-                return "firebrick"
-            if kind == KIND_INTERNAL:
-                return "steelblue"
-            return None
+            return _dyck_edge_color(transition.data.get(ATTR_KIND))
 
         edge_style = lambda _t: None
     elif isinstance(model, NMachine):
@@ -286,6 +299,21 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
             return _join_edge([*_edge_parts_emission(transition), *_edge_parts_quasiprob(transition)])
 
         edge_color = lambda _t: None
+        edge_style = lambda _t: None
+    elif isinstance(model, SoficDyckShift):
+        match_tags = _dyck_match_tags(model.matched_edges)
+
+        def edge_label(transition: Transition) -> str:
+            parts = _edge_parts_symbol(transition)
+            kind = transition.data.get(ATTR_KIND)
+            if kind is not None:
+                parts.append(str(kind))
+            parts.extend(match_tags.get(transition_ref(transition), ()))
+            return _join_edge(parts)
+
+        def edge_color(transition: Transition) -> str | None:
+            return _dyck_edge_color(transition.data.get(ATTR_KIND))
+
         edge_style = lambda _t: None
     elif isinstance(model, TopologicalMarkovChain):
 

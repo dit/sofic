@@ -23,7 +23,7 @@ from pensive.graph import (
     EPSILON,
     Transition,
 )
-from pensive.viz._context import VizContext, viz_context
+from pensive.viz._context import VizContext, _dyck_match_tags, viz_context
 from pensive.viz._tikz_format import (
     format_belief_tikz_node,
     format_edge_latex,
@@ -59,6 +59,12 @@ def _tikz_state_label(context: VizContext, state: Hashable) -> str:
     return format_state_tikz_node(state)
 
 
+def _format_dyck_match_tag_latex(tag: str) -> str:
+    if tag.startswith("m") and tag[1:].isdigit():
+        return rf"m_{{{tag[1:]}}}"
+    return latex_escape(tag)
+
+
 def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
     from pensive.automata.base import LabeledAutomaton
     from pensive.automata.transducers import MooreMachine, Transducer
@@ -69,6 +75,7 @@ def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
     from pensive.generators.moore import MooreHMM
     from pensive.generators.nmachine import NMachine
     from pensive.shifts.base import SymbolicModel
+    from pensive.shifts.sofic_dyck import SoficDyckShift, transition_ref
     from pensive.shifts.tmc import TopologicalMarkovChain
 
     data = transition.data
@@ -120,6 +127,19 @@ def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
         if emission is None or quasiprob is None:
             return ""
         return format_edge_latex(emission, float(quasiprob))
+
+    if isinstance(model, SoficDyckShift):
+        parts: list[str] = []
+        if symbol is not None:
+            parts.append(rf"\Symbol{{{format_symbol_latex(symbol)}}}")
+        kind = data.get(ATTR_KIND)
+        if kind is not None:
+            parts.append(rf"\mathrm{{{latex_escape(str(kind))}}}")
+        match_tags = _dyck_match_tags(model.matched_edges)
+        parts.extend(_format_dyck_match_tag_latex(tag) for tag in match_tags.get(transition_ref(transition), ()))
+        if not parts:
+            return ""
+        return "$" + r"\mid ".join(parts) + "$"
 
     if isinstance(model, TopologicalMarkovChain):
         parts = [format_symbol_latex(symbol)] if symbol is not None else []
