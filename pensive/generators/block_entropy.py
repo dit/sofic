@@ -147,39 +147,73 @@ class BlockEntropyDiagram:
         ax.axvline(float(order), linestyle="--", color=color, alpha=0.75, label=label)
 
 
+@dataclass(frozen=True)
+class BlockEntropyEstimates:
+    """Finite-block estimates for computational-mechanics quantities."""
+
+    lengths: np.ndarray
+    block_entropy: np.ndarray
+    state_block_entropy: np.ndarray
+    block_state_entropy: np.ndarray
+    entropy_asymptote: np.ndarray
+    entropy_rate_estimate: np.ndarray
+    residual_entropy: np.ndarray
+    residual_entropy_rate_estimate: np.ndarray
+    excess_entropy_lower: np.ndarray
+    excess_entropy_upper: np.ndarray
+    excess_entropy_estimate: np.ndarray
+    crypticity_estimate: np.ndarray
+    synchronization_estimate: np.ndarray
+    reverse_synchronization_estimate: np.ndarray
+    transient_information_estimate: np.ndarray
+    predictability_gain_estimate: np.ndarray
+    oracular_information_estimate: np.ndarray
+    gauge_information_estimate: np.ndarray
+    entropy_rate: float
+    excess_entropy: float
+    statistical_complexity: float
+    crypticity: float
+    predicted_information: float
+    bound_information: float
+    ephemeral_information: float
+
+    @property
+    def h_mu(self) -> float:
+        return self.entropy_rate
+
+    @property
+    def E(self) -> float:
+        return self.excess_entropy
+
+    @property
+    def r_mu(self) -> float:
+        return self.ephemeral_information
+
+    @property
+    def b_mu(self) -> float:
+        return self.bound_information
+
+    def information_anatomy(self) -> dict[str, float]:
+        """Return finite-block estimates using the exact anatomy key names."""
+        return {
+            "rho_mu": self.predicted_information,
+            "bound_mu": self.bound_information,
+            "ephemeral_mu": self.ephemeral_information,
+            "entropy_rate": self.entropy_rate,
+            "excess_entropy": self.excess_entropy,
+            "crypticity": self.crypticity,
+        }
+
+
 def block_entropy_diagram(machine: EpsilonMachine, max_length: int) -> BlockEntropyDiagram:
     """Compute finite-block entropy convergence curves for an epsilon-machine."""
     if max_length < 0:
         raise ValueError("max_length must be nonnegative")
 
-    pi, symbol_matrices = _stationary_symbol_matrices(machine)
-    lengths = np.arange(max_length + 1, dtype=int)
-    block_entropy = np.zeros(max_length + 1, dtype=float)
-    state_block_entropy = np.zeros(max_length + 1, dtype=float)
-    block_state_entropy = np.zeros(max_length + 1, dtype=float)
-
-    word_matrices = [np.eye(len(pi), dtype=float)]
-    terminal = np.ones(len(pi), dtype=float)
-    alphabet = tuple(sorted(symbol_matrices, key=repr))
-
-    for length in range(max_length + 1):
-        block_probs: list[float] = []
-        state_block_probs: list[float] = []
-        block_state_probs: list[float] = []
-
-        for matrix in word_matrices:
-            end_mass = pi @ matrix
-            start_conditioned = matrix @ terminal
-            block_probs.append(float(end_mass.sum()))
-            state_block_probs.extend(float(prob) for prob in pi * start_conditioned)
-            block_state_probs.extend(float(prob) for prob in end_mass)
-
-        block_entropy[length] = _entropy(block_probs)
-        state_block_entropy[length] = _entropy(state_block_probs)
-        block_state_entropy[length] = _entropy(block_state_probs)
-
-        if length < max_length:
-            word_matrices = [matrix @ symbol_matrices[symbol] for matrix in word_matrices for symbol in alphabet]
+    lengths, block_entropy, state_block_entropy, block_state_entropy, pi, symbol_matrices = _block_entropy_curves(
+        machine,
+        max_length,
+    )
 
     entropy_rate = _entropy_rate(pi, symbol_matrices)
     statistical_complexity = _entropy(pi)
@@ -209,6 +243,79 @@ def block_entropy_diagram(machine: EpsilonMachine, max_length: int) -> BlockEntr
     )
 
 
+def block_entropy_estimates(
+    machine: EpsilonMachine,
+    max_length: int,
+    *,
+    entropy_rate: float | None = None,
+    use_exact: bool = False,
+) -> BlockEntropyEstimates:
+    """Approximate information quantities from finite block entropies."""
+    if max_length < 0:
+        raise ValueError("max_length must be nonnegative")
+    if entropy_rate is None and max_length < 1:
+        raise ValueError("max_length must be positive when entropy_rate is not supplied")
+
+    lengths, block_entropy, state_block_entropy, block_state_entropy, pi, _symbol_matrices = _block_entropy_curves(
+        machine,
+        max_length,
+    )
+
+    entropy_rate_estimate = _entropy_rate_estimates(block_entropy)
+    h_mu = float(entropy_rate if entropy_rate is not None else entropy_rate_estimate[-1])
+    statistical_complexity = _entropy(pi)
+
+    h_mu_l = h_mu * lengths
+    excess_entropy_lower = block_entropy - h_mu_l
+    excess_entropy_upper = block_state_entropy - h_mu_l
+    excess_entropy_estimate = 0.5 * (excess_entropy_lower + excess_entropy_upper)
+    excess_entropy = _estimated_excess_entropy(machine, excess_entropy_estimate, use_exact=use_exact)
+
+    entropy_asymptote = excess_entropy + h_mu_l
+    crypticity_estimate = state_block_entropy - block_state_entropy
+    crypticity = float(crypticity_estimate[-1]) if crypticity_estimate.size else 0.0
+    synchronization = block_state_entropy - block_entropy
+    reverse_synchronization = state_block_entropy - block_entropy
+    transient_information = np.cumsum(entropy_asymptote - block_entropy)
+    predictability_gain = _predictability_gain(block_entropy)
+    oracular_information = statistical_complexity + h_mu_l - state_block_entropy
+    gauge_information = statistical_complexity - excess_entropy - crypticity_estimate - oracular_information
+
+    residual_entropy = _residual_entropy_curve(machine, max_length)
+    residual_entropy_rate_estimate = _entropy_rate_estimates(residual_entropy)
+    r_mu = float(residual_entropy_rate_estimate[-1]) if max_length > 0 else math.nan
+    b_mu = h_mu - r_mu
+    rho_mu = float(block_entropy[1] - h_mu) if max_length >= 1 else math.nan
+
+    return BlockEntropyEstimates(
+        lengths=lengths,
+        block_entropy=block_entropy,
+        state_block_entropy=state_block_entropy,
+        block_state_entropy=block_state_entropy,
+        entropy_asymptote=entropy_asymptote,
+        entropy_rate_estimate=entropy_rate_estimate,
+        residual_entropy=residual_entropy,
+        residual_entropy_rate_estimate=residual_entropy_rate_estimate,
+        excess_entropy_lower=excess_entropy_lower,
+        excess_entropy_upper=excess_entropy_upper,
+        excess_entropy_estimate=excess_entropy_estimate,
+        crypticity_estimate=crypticity_estimate,
+        synchronization_estimate=synchronization,
+        reverse_synchronization_estimate=reverse_synchronization,
+        transient_information_estimate=transient_information,
+        predictability_gain_estimate=predictability_gain,
+        oracular_information_estimate=oracular_information,
+        gauge_information_estimate=gauge_information,
+        entropy_rate=h_mu,
+        excess_entropy=excess_entropy,
+        statistical_complexity=statistical_complexity,
+        crypticity=crypticity,
+        predicted_information=rho_mu,
+        bound_information=b_mu,
+        ephemeral_information=r_mu,
+    )
+
+
 def plot_block_entropy_diagram(
     machine: EpsilonMachine,
     max_length: int,
@@ -217,6 +324,42 @@ def plot_block_entropy_diagram(
 ) -> Any:
     """Compute and plot a block entropy diagram for ``machine``."""
     return block_entropy_diagram(machine, max_length).plot(ax=ax, **kwargs)
+
+
+def _block_entropy_curves(
+    machine: EpsilonMachine,
+    max_length: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[Any, np.ndarray]]:
+    pi, symbol_matrices = _stationary_symbol_matrices(machine)
+    lengths = np.arange(max_length + 1, dtype=int)
+    block_entropy = np.zeros(max_length + 1, dtype=float)
+    state_block_entropy = np.zeros(max_length + 1, dtype=float)
+    block_state_entropy = np.zeros(max_length + 1, dtype=float)
+
+    word_matrices = [np.eye(len(pi), dtype=float)]
+    terminal = np.ones(len(pi), dtype=float)
+    alphabet = tuple(sorted(symbol_matrices, key=repr))
+
+    for length in range(max_length + 1):
+        block_probs: list[float] = []
+        state_block_probs: list[float] = []
+        block_state_probs: list[float] = []
+
+        for matrix in word_matrices:
+            end_mass = pi @ matrix
+            start_conditioned = matrix @ terminal
+            block_probs.append(float(end_mass.sum()))
+            state_block_probs.extend(float(prob) for prob in pi * start_conditioned)
+            block_state_probs.extend(float(prob) for prob in end_mass)
+
+        block_entropy[length] = _entropy(block_probs)
+        state_block_entropy[length] = _entropy(state_block_probs)
+        block_state_entropy[length] = _entropy(block_state_probs)
+
+        if length < max_length:
+            word_matrices = [matrix @ symbol_matrices[symbol] for matrix in word_matrices for symbol in alphabet]
+
+    return lengths, block_entropy, state_block_entropy, block_state_entropy, pi, symbol_matrices
 
 
 def _stationary_symbol_matrices(machine: EpsilonMachine) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
@@ -255,6 +398,62 @@ def _excess_entropy(machine: EpsilonMachine) -> float:
         minus[minus_state] = minus.get(minus_state, 0.0) + float(mass)
 
     return _entropy(plus.values()) + _entropy(minus.values()) - _entropy(joint.values())
+
+
+def _estimated_excess_entropy(machine: EpsilonMachine, estimate: np.ndarray, *, use_exact: bool) -> float:
+    if use_exact:
+        try:
+            return float(machine.excess_entropy())
+        except Exception:
+            pass
+    return float(estimate[-1]) if estimate.size else 0.0
+
+
+def _entropy_rate_estimates(entropies: np.ndarray) -> np.ndarray:
+    estimates = np.empty(len(entropies), dtype=float)
+    estimates[0] = math.nan
+    if len(entropies) > 1:
+        estimates[1:] = np.diff(entropies)
+    return estimates
+
+
+def _predictability_gain(block_entropy: np.ndarray) -> np.ndarray:
+    gain = np.full(len(block_entropy), math.nan, dtype=float)
+    if len(block_entropy) > 2:
+        gain[2:] = np.diff(block_entropy, n=2)
+    return gain
+
+
+def _residual_entropy_curve(machine: EpsilonMachine, max_length: int) -> np.ndarray:
+    residual = np.zeros(max_length + 1, dtype=float)
+    for length in range(1, max_length + 1):
+        residual[length] = _residual_entropy(machine.word_probabilities(length))
+    return residual
+
+
+def _residual_entropy(distribution: dict[tuple[Any, ...], float]) -> float:
+    if not distribution:
+        return 0.0
+    first = next(iter(distribution))
+    length = len(first)
+    if length == 0:
+        return 0.0
+
+    total = sum(float(prob) for prob in distribution.values())
+    if total <= _TOL:
+        return 0.0
+    normalized = {word: float(prob) / total for word, prob in distribution.items() if prob > _TOL}
+    joint_entropy = _entropy(normalized.values())
+
+    marginal_entropies = 0.0
+    for index in range(length):
+        marginal: dict[tuple[Any, ...], float] = {}
+        for word, prob in normalized.items():
+            reduced = word[:index] + word[index + 1 :]
+            marginal[reduced] = marginal.get(reduced, 0.0) + prob
+        marginal_entropies += _entropy(marginal.values())
+
+    return max(0.0, float(length * joint_entropy - marginal_entropies))
 
 
 def _entropy(probabilities: Iterable[float]) -> float:

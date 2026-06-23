@@ -148,6 +148,35 @@ class EpsilonMachine(MealyHMM):
 
         return block_entropy_diagram(self, max_length)
 
+    def block_entropy_estimates(
+        self,
+        max_length: int,
+        *,
+        entropy_rate: float | None = None,
+        use_exact: bool = False,
+    ) -> Any:
+        """Approximate information quantities from finite block entropies."""
+        from pensive.generators.block_entropy import block_entropy_estimates
+
+        return block_entropy_estimates(self, max_length, entropy_rate=entropy_rate, use_exact=use_exact)
+
+    def approximate_entropy_rate(self, max_length: int) -> float:
+        """Approximate ``h_mu`` as the last finite-block entropy difference."""
+        return self.block_entropy_estimates(max_length).entropy_rate
+
+    def approximate_excess_entropy(self, max_length: int, *, entropy_rate: float | None = None) -> float:
+        """Approximate ``E`` from finite-block entropy lower/upper estimates."""
+        return self.block_entropy_estimates(max_length, entropy_rate=entropy_rate).excess_entropy
+
+    def approximate_information_anatomy(
+        self,
+        max_length: int,
+        *,
+        entropy_rate: float | None = None,
+    ) -> dict[str, float]:
+        """Approximate anatomy rates without constructing a bidirectional machine."""
+        return self.block_entropy_estimates(max_length, entropy_rate=entropy_rate).information_anatomy()
+
     def plot_block_entropy_diagram(self, max_length: int, ax: Any | None = None, **kwargs: Any) -> Any:
         """Compute and plot finite-block entropy convergence curves."""
         from pensive.generators.block_entropy import plot_block_entropy_diagram
@@ -171,6 +200,13 @@ class EpsilonMachine(MealyHMM):
         from pensive.generators.synchronization import graph_from_epsilon_machine, markov_order_from_graph
 
         return markov_order_from_graph(graph_from_epsilon_machine(self))
+
+    def is_markov(self) -> bool:
+        """Return whether the process has finite Markov order."""
+        import math
+
+        order = self.markov_order()
+        return not isinstance(order, float) or math.isfinite(order)
 
     def cryptic_order(self) -> int | float:
         """Cryptic order ``k_chi``: retrodiction depth after synchronization.

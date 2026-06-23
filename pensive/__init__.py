@@ -42,6 +42,7 @@ from pensive.core import EPSILON, StateIndex, StateMachine, Transition, Transiti
 from pensive.generators import (
     BidirectionalEpsilonMachine,
     BlockEntropyDiagram,
+    BlockEntropyEstimates,
     EpsilonMachine,
     HiddenMarkovModel,
     HiddenMarkovStackModel,
@@ -77,6 +78,7 @@ __all__ = [
     "BuchiAutomaton",
     "BidirectionalEpsilonMachine",
     "BlockEntropyDiagram",
+    "BlockEntropyEstimates",
     "CanonicalRFSA",
     "DFA",
     "EPSILON",

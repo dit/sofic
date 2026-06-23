@@ -46,6 +46,20 @@ cryptic order, and crypticity :cite:`Mahoney2011`:
 
    In [8]: ax = eps.plot_block_entropy_diagram(max_length=4)
 
+When a bidirectional ε-machine is unavailable or intentionally avoided, finite
+block entropies also provide explicit estimates for ``h_mu``, ``E``, ``r_mu``,
+``b_mu``, synchronization, crypticity, and related convergence curves:
+
+.. ipython::
+
+   In [9]: estimates = eps.block_entropy_estimates(max_length=4)
+
+   @doctest float
+   In [10]: estimates.h_mu
+   Out[10]: 0.6666666666666665
+
+   In [11]: estimates.information_anatomy()
+
 See also :doc:`bidirectional_epsilon_machine`, :doc:`information_anatomy`, and
 :doc:`epsilon_inference` (sample-based reconstruction).
 
@@ -53,7 +67,9 @@ API
 ===
 
 .. autoclass:: EpsilonMachine
-   :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, plot_block_entropy_diagram, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable
+   :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, block_entropy_estimates, plot_block_entropy_diagram, approximate_entropy_rate, approximate_excess_entropy, approximate_information_anatomy, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, is_markov, cryptic_order, is_exactly_synchronizable
 
 .. autoclass:: pensive.generators.block_entropy.BlockEntropyDiagram
    :members: plot
+.. autoclass:: pensive.generators.block_entropy.BlockEntropyEstimates
+   :members: information_anatomy

@@ -127,6 +127,66 @@ class HiddenMarkovModel(StochasticModel):
 
         return hmm_words_of_length(self, length)
 
+    def word_probability(
+        self,
+        word: Sequence[Any],
+        *,
+        start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+    ) -> float:
+        """Return the probability of an observed finite word."""
+        from pensive.generators.words import hmm_word_probability
+
+        return hmm_word_probability(self, word, start=start)
+
+    def log_word_probability(
+        self,
+        word: Sequence[Any],
+        *,
+        start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+    ) -> float:
+        """Return ``log2`` of an observed finite-word probability."""
+        from pensive.generators.words import hmm_log_word_probability
+
+        return hmm_log_word_probability(self, word, start=start)
+
+    def word_probabilities(
+        self,
+        lengths: int | Sequence[int],
+        *,
+        start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+        sparse: bool = True,
+    ) -> dict[tuple[Any, ...], float]:
+        """Return observed-word probabilities for one or more lengths."""
+        from pensive.generators.words import hmm_word_probabilities
+
+        return hmm_word_probabilities(self, lengths, start=start, sparse=sparse)
+
+    def conditional_word_probability(
+        self,
+        word: Sequence[Any],
+        condition: Sequence[Any],
+        *,
+        start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+    ) -> float:
+        """Return ``P(word | condition)``."""
+        from pensive.generators.words import hmm_conditional_word_probability
+
+        return hmm_conditional_word_probability(self, word, condition, start=start)
+
+    def is_equal_process(
+        self,
+        other: HiddenMarkovModel,
+        *,
+        start1: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+        start2: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
+        rtol: float | None = None,
+        atol: float | None = None,
+    ) -> bool:
+        """Return whether two HMMs generate the same finite-word process."""
+        from pensive.generators.process_equivalence import is_equal_process
+
+        return is_equal_process(self, other, start1=start1, start2=start2, rtol=rtol, atol=atol)
+
     def to_sofic_shift(self) -> SoficShift:
         """Strip probabilities and return a sofic shift with the same support."""
         from pensive.generators.conversions import hmm_to_sofic_shift

@@ -71,6 +71,48 @@ class MealyHMM(HiddenMarkovModel):
 
         return is_unifilar_emissions(self)
 
+    def is_counifilar(self) -> bool:
+        """Return whether each ``(target, emission)`` identifies a unique source."""
+        from pensive.properties import is_counifilar_emissions
+
+        return is_counifilar_emissions(self)
+
+    def is_irreducible(self) -> bool:
+        """Return whether the internal state graph is strongly connected."""
+        from pensive.properties import is_irreducible
+
+        return is_irreducible(self)
+
+    def is_ergodic(self, *, weak: bool = True) -> bool:
+        """Return weak/strong ergodicity of the internal finite-state dynamics."""
+        from pensive.properties import is_ergodic
+
+        return is_ergodic(self, weak=weak)
+
+    def is_stationary(self, *, rtol: float = 1e-8, atol: float = 1e-10) -> bool:
+        """Return whether the initial distribution is internally stationary."""
+        from pensive.properties import is_stationary
+
+        return is_stationary(self, rtol=rtol, atol=atol)
+
+    def is_detailed_balance(self, *, rtol: float = 1e-8, atol: float = 1e-10) -> bool:
+        """Return whether stationary labeled flows satisfy detailed balance."""
+        from pensive.properties import is_detailed_balance
+
+        return is_detailed_balance(self, rtol=rtol, atol=atol)
+
+    def is_periodic(self) -> bool:
+        """Return whether terminal internal components have graph period greater than one."""
+        from pensive.properties import is_periodic
+
+        return is_periodic(self)
+
+    def is_strictly_sofic(self) -> bool:
+        """Return whether this generator's support is strictly sofic."""
+        from pensive.properties import is_strictly_sofic
+
+        return is_strictly_sofic(self)
+
     def mixed_state_presentation(
         self,
         *,

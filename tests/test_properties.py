@@ -8,7 +8,7 @@ from pensive.automata.dfa import DFA
 from pensive.automata.nfa import NFA
 from pensive.automata.transducers import MealyMachine
 from pensive.automata.unifilar import UnifilarAutomaton
-from pensive.examples.epsilon_machines import ellison_fig15_bidirectional, golden_mean
+from pensive.examples.epsilon_machines import ellison_fig15_bidirectional, even_process, golden_mean
 from pensive.exceptions import NonDeterministicError, UnifilarityError
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
@@ -204,3 +204,33 @@ def test_bidirectional_epsilon_machine_not_unifilar():
 
 def test_golden_mean_epsilon_machine_is_unifilar():
     assert golden_mean(0.5).is_unifilar()
+
+
+def test_mealy_structural_predicates_on_one_state_process():
+    hmm = _mealy_hmm()
+    assert hmm.is_counifilar()
+    assert hmm.is_irreducible()
+    assert hmm.is_ergodic()
+    assert hmm.is_ergodic(weak=False)
+    assert hmm.is_stationary()
+    assert hmm.is_detailed_balance()
+    assert not hmm.is_periodic()
+
+
+def test_mealy_not_counifilar_when_target_symbol_has_multiple_sources():
+    hmm = MealyHMM(
+        initial_distribution={"q0": 1.0},
+        observation_alphabet=frozenset({"0"}),
+    )
+    for state in ("q0", "q1", "q2"):
+        hmm.graph.add_state(state)
+    hmm.graph.add_transition("q0", "q1", **{ATTR_PROB: 1.0, ATTR_EMISSION: "0"})
+    hmm.graph.add_transition("q2", "q1", **{ATTR_PROB: 1.0, ATTR_EMISSION: "0"})
+    assert not hmm.is_counifilar()
+
+
+def test_epsilon_machine_markov_and_strictly_sofic_predicates():
+    assert golden_mean(0.5).is_markov()
+    assert not golden_mean(0.5).is_strictly_sofic()
+    assert not even_process(0.5).is_markov()
+    assert even_process(0.5).is_strictly_sofic()

@@ -2,6 +2,7 @@
 
 import pytest
 
+from pensive.examples import bernoulli, fair_coin, golden_mean
 from pensive.generators.markov import MarkovChain
 from pensive.generators.moore import MooreHMM
 from pensive.generators.nmachine import NMachine
@@ -50,6 +51,25 @@ def test_moore_words_of_length_include_probabilities():
     }
 
 
+def test_hmm_word_probability_helpers():
+    import numpy as np
+
+    hmm = _mealy_like_pfa().to_mealy()
+    assert hmm.word_probability(("1", "0")) == pytest.approx(0.1875)
+    assert hmm.log_word_probability(("1", "0")) == pytest.approx(np.log2(0.1875))
+    assert hmm.conditional_word_probability(("1",), ("0",)) == pytest.approx(0.75)
+    assert hmm.word_probabilities([0, 1], sparse=False) == {
+        (): pytest.approx(1.0),
+        ("0",): pytest.approx(0.25),
+        ("1",): pytest.approx(0.75),
+    }
+
+
+def test_hmm_word_probability_rejects_zero_condition():
+    with pytest.raises(ZeroDivisionError):
+        _mealy_like_pfa().to_mealy().conditional_word_probability(("0",), ("missing",))
+
+
 def test_pfa_words_of_length_include_probabilities():
     assert _mealy_like_pfa().words_of_length(1) == {
         ("0",): pytest.approx(0.25),
@@ -87,3 +107,9 @@ def test_markov_words_of_length_are_visible_paths():
     chain.graph.add_transition("A", "B", **{ATTR_PROB: 0.75})
     chain.graph.add_transition("B", "B", **{ATTR_PROB: 1.0})
     assert chain.words_of_length(2) == {("A", "A"): pytest.approx(0.25), ("A", "B"): pytest.approx(0.75)}
+
+
+def test_process_equivalence_detects_same_and_different_processes():
+    assert fair_coin().is_equal_process(bernoulli(0.5))
+    assert _mealy_like_pfa().to_mealy().is_equal_process(_moore())
+    assert not bernoulli(0.5, symbols=(0, 1)).is_equal_process(golden_mean(0.5))
