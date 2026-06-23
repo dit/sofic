@@ -17,8 +17,10 @@ from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.synchronization import graph_from_epsilon_machine
 from pensive.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
+    epsilon_machine_to_idfa_string,
     idfa_string_to_epsilon_machine,
     is_canonical_topological_epsilon,
+    is_minimal_idfa,
     is_strongly_connected_idfa,
     iter_topological_epsilon_machines,
     iter_topological_epsilon_strings,
@@ -36,6 +38,15 @@ def test_even_process_string() -> None:
     transitions = (0, 1, MISSING_TRANSITION, 0)
     validate_idfa_string(transitions, n=2, k=2)
     assert is_canonical_topological_epsilon(transitions, n=2, k=2)
+
+
+def test_nonminimal_string_is_rejected_by_default() -> None:
+    transitions = (1, MISSING_TRANSITION, 0, MISSING_TRANSITION)
+
+    assert not is_minimal_idfa(transitions, n=2, k=2)
+    assert not is_canonical_topological_epsilon(transitions, n=2, k=2)
+    assert transitions not in set(iter_topological_epsilon_strings(2, 2))
+    assert transitions in set(iter_topological_epsilon_strings(2, 2, check_minimal=False))
 
 
 def test_even_process_graph() -> None:
@@ -60,6 +71,20 @@ def test_even_process_epsilon_machine() -> None:
     assert graph.delta(1, "0") is None
 
 
+def test_epsilon_machine_to_idfa_string_even_process() -> None:
+    transitions = (0, 1, MISSING_TRANSITION, 0)
+    eps = idfa_string_to_epsilon_machine(transitions, n=2, k=2, alphabet=("0", "1"))
+
+    assert epsilon_machine_to_idfa_string(eps, symbol_order=("0", "1")) == transitions
+
+
+def test_epsilon_machine_to_idfa_string_round_trip_binary_n2() -> None:
+    for transitions in iter_topological_epsilon_strings(2, 2):
+        eps = idfa_string_to_epsilon_machine(transitions, n=2, k=2)
+
+        assert epsilon_machine_to_idfa_string(eps, symbol_order=(0, 1)) == transitions
+
+
 def test_rank_round_trip_small() -> None:
     for k, n in ((2, 2), (2, 3)):
         for rank, transitions in enumerate(iter_idfa_strings(k, n)):
@@ -76,18 +101,15 @@ def test_count_topological_binary() -> None:
     assert count_topological_epsilon_machines(2, 1) == 3
 
 
-@pytest.mark.xfail(reason="E_{n,2} totals pending alignment of B¹_{n,2} with Johnson et al. (2010)")
 def test_count_topological_binary_n2_oeis() -> None:
     assert count_topological_epsilon_machines(2, 2) == E2[1]
 
 
-@pytest.mark.xfail(reason="E_{n,2} totals pending alignment of B¹_{n,2} with Johnson et al. (2010)")
 @pytest.mark.slow
 def test_count_topological_n3_oeis() -> None:
     assert count_topological_epsilon_machines(2, 3) == E2[2]
 
 
-@pytest.mark.xfail(reason="E_{n,2} totals pending alignment of B¹_{n,2} with Johnson et al. (2010)")
 @pytest.mark.slow
 def test_enumerate_n4_binary() -> None:
     assert len(list(iter_topological_epsilon_strings(2, 4))) == 1388

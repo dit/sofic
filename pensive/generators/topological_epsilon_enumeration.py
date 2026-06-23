@@ -7,14 +7,17 @@ accessible DFA strings to strongly connected, minimal, canonical representatives
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Hashable, Iterator, Mapping, Sequence
 
 import numpy as np
 
 from pensive.automata.idfa import (
+    MISSING_TRANSITION,
+    IDFAEnumerationError,
     _delta_table,
     idfa_string_to_topological_graph,
     iter_idfa_strings,
+    rank_idfa_string,
     reroot_idfa_string,
     transition_count,
     validate_idfa_string,
@@ -26,6 +29,7 @@ from pensive.graph import ATTR_EMISSION, ATTR_PROB
 __all__ = [
     "TopologicalEpsilonEnumerationError",
     "count_topological_epsilon_machines",
+    "epsilon_machine_to_idfa_string",
     "idfa_string_to_epsilon_machine",
     "idfa_string_to_topological_graph",
     "is_canonical_topological_epsilon",
@@ -115,6 +119,103 @@ def idfa_string_to_epsilon_machine(
     return eps
 
 
+def epsilon_machine_to_idfa_string(
+    eps: EpsilonMachine,
+    *,
+    symbol_order: Sequence[object] | None = None,
+    canonical: bool = True,
+) -> tuple[int, ...]:
+    """Encode an ε-machine as an incomplete accessible DFA transition string.
+
+    Probabilities are ignored.  Missing symbol transitions are encoded with
+    :data:`pensive.automata.idfa.MISSING_TRANSITION`.  If ``canonical`` is true,
+    all states are tried as roots and the rank-minimal IDFA string is returned.
+    Otherwise, the first state in deterministic label order is used as the root.
+    """
+    from pensive.generators.synchronization import graph_from_epsilon_machine
+
+    graph = graph_from_epsilon_machine(eps)
+    states = tuple(graph.states)
+    if not states:
+        raise TopologicalEpsilonEnumerationError("epsilon machine must have at least one state")
+
+    symbols = _validated_symbol_order(graph.alphabet, symbol_order)
+    if not symbols:
+        raise TopologicalEpsilonEnumerationError("alphabet must be non-empty")
+
+    if not canonical:
+        root = _sorted_by_repr(states)[0]
+        return _encode_topological_graph_from_root(graph.states, graph.transitions, symbols, root)
+
+    candidates: list[tuple[int, tuple[int, ...]]] = []
+    for root in states:
+        transitions = _encode_topological_graph_from_root(graph.states, graph.transitions, symbols, root)
+        try:
+            rank = rank_idfa_string(transitions, n=len(states), k=len(symbols))
+        except IDFAEnumerationError:
+            continue
+        candidates.append((rank, transitions))
+    if not candidates:
+        raise TopologicalEpsilonEnumerationError("encoded graph is not an accessible IDFA string")
+    return min(candidates, key=lambda candidate: (candidate[0], candidate[1]))[1]
+
+
+def _validated_symbol_order(
+    alphabet: frozenset[object],
+    symbol_order: Sequence[object] | None,
+) -> tuple[object, ...]:
+    if symbol_order is None:
+        return tuple(_sorted_by_repr(alphabet))
+
+    symbols = tuple(symbol_order)
+    if len(frozenset(symbols)) != len(symbols):
+        raise TopologicalEpsilonEnumerationError("symbol_order must contain unique symbols")
+    if frozenset(symbols) != alphabet:
+        raise TopologicalEpsilonEnumerationError("symbol_order must match the epsilon machine alphabet")
+    return symbols
+
+
+def _sorted_by_repr(values: Sequence[object] | frozenset[object]) -> tuple[object, ...]:
+    return tuple(sorted(values, key=lambda value: (type(value).__module__, type(value).__qualname__, repr(value))))
+
+
+def _encode_topological_graph_from_root(
+    states: frozenset[Hashable],
+    edges: Mapping[tuple[Hashable, object], Hashable],
+    symbols: Sequence[object],
+    root: Hashable,
+) -> tuple[int, ...]:
+    edge_map = dict(edges)
+    if root not in states:
+        raise TopologicalEpsilonEnumerationError(f"unknown root state {root!r}")
+
+    state_to_index: dict[Hashable, int] = {root: 0}
+    index_to_state: list[Hashable] = [root]
+    transitions: list[int] = []
+    state_index = 0
+
+    while state_index < len(index_to_state):
+        state = index_to_state[state_index]
+        for symbol in symbols:
+            target = edge_map.get((state, symbol))
+            if target is None:
+                transitions.append(MISSING_TRANSITION)
+                continue
+            if target not in states:
+                raise TopologicalEpsilonEnumerationError(f"transition target {target!r} is not a graph state")
+            if target not in state_to_index:
+                state_to_index[target] = len(index_to_state)
+                index_to_state.append(target)
+            transitions.append(state_to_index[target])
+        state_index += 1
+
+    if len(index_to_state) != len(states):
+        raise TopologicalEpsilonEnumerationError("epsilon machine graph must be initially connected from the selected root")
+
+    validate_idfa_string(transitions, n=len(states), k=len(symbols))
+    return tuple(transitions)
+
+
 def _reachable_states(transitions: Sequence[int], *, n: int, k: int, start: int) -> set[int]:
     table = _delta_table(transitions, n=n, k=k)
     seen = {start}
@@ -141,23 +242,18 @@ def is_minimal_idfa(transitions: Sequence[int], *, n: int, k: int) -> bool:
         return True
 
     table = _delta_table(transitions, n=n, k=k)
-    partition: list[set[int]] = [{state} for state in range(n)]
-
-    def block_index(state: int, blocks: list[set[int]]) -> int:
-        for index, block in enumerate(blocks):
-            if state in block:
-                return index
-        raise TopologicalEpsilonEnumerationError(f"state {state} missing from partition")
+    partition: list[set[int]] = [set(range(n))]
 
     changed = True
     while changed:
         changed = False
+        block_index = {state: index for index, block in enumerate(partition) for state in block}
         new_partition: list[set[int]] = []
         for block in partition:
             groups: dict[tuple[object, ...], set[int]] = {}
             for state in block:
                 signature = tuple(
-                    None if table[state][symbol] is None else block_index(table[state][symbol], partition)
+                    None if table[state][symbol] is None else block_index[table[state][symbol]]
                     for symbol in range(k)
                 )
                 groups.setdefault(signature, set()).add(state)
@@ -187,13 +283,18 @@ def is_topological_epsilon_string(
     return not (check_minimal and not is_minimal_idfa(transitions, n=n, k=k))
 
 
-def is_canonical_topological_epsilon(transitions: Sequence[int], *, n: int, k: int) -> bool:
+def is_canonical_topological_epsilon(
+    transitions: Sequence[int],
+    *,
+    n: int,
+    k: int,
+    check_minimal: bool = True,
+) -> bool:
     """Return whether ``transitions`` is a canonical topological ε-machine (Algorithm 2)."""
-    if not is_topological_epsilon_string(transitions, n=n, k=k):
+    if not is_topological_epsilon_string(transitions, n=n, k=k, check_minimal=check_minimal):
         return False
     if n == 1:
         return True
-    from pensive.automata.idfa import IDFAEnumerationError, rank_idfa_string
 
     try:
         rank = rank_idfa_string(transitions, n=n, k=k)
@@ -214,10 +315,19 @@ def is_canonical_topological_epsilon(transitions: Sequence[int], *, n: int, k: i
     return True
 
 
-def iter_topological_epsilon_strings(k: int, n: int) -> Iterator[tuple[int, ...]]:
-    """Yield canonical topological ε-machine transition strings."""
+def iter_topological_epsilon_strings(
+    k: int,
+    n: int,
+    *,
+    check_minimal: bool = True,
+) -> Iterator[tuple[int, ...]]:
+    """Yield canonical topological ε-machine transition strings.
+
+    By default, strings whose states are not minimal causal states are filtered
+    out.  Pass ``check_minimal=False`` to enumerate the broader structural class.
+    """
     for transitions in iter_idfa_strings(k, n):
-        if is_canonical_topological_epsilon(transitions, n=n, k=k):
+        if is_canonical_topological_epsilon(transitions, n=n, k=k, check_minimal=check_minimal):
             yield transitions
 
 
@@ -226,9 +336,10 @@ def iter_topological_epsilon_machines(
     n: int,
     *,
     alphabet: Sequence[object] | None = None,
+    check_minimal: bool = True,
 ) -> Iterator[EpsilonMachine]:
     """Yield uniform-probability :class:`~pensive.generators.epsilon_machine.EpsilonMachine` objects."""
-    for transitions in iter_topological_epsilon_strings(k, n):
+    for transitions in iter_topological_epsilon_strings(k, n, check_minimal=check_minimal):
         yield idfa_string_to_epsilon_machine(transitions, n=n, k=k, alphabet=alphabet)
 
 

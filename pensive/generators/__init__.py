@@ -15,6 +15,7 @@ from pensive.generators.quasi_realization import QuasiRealization
 from pensive.generators.stack_hmm import HiddenMarkovStackModel
 from pensive.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
+    epsilon_machine_to_idfa_string,
     idfa_string_to_epsilon_machine,
     is_canonical_topological_epsilon,
     is_minimal_idfa,
@@ -44,6 +45,7 @@ __all__ = [
     "QuasiStochasticModel",
     "StochasticModel",
     "count_topological_epsilon_machines",
+    "epsilon_machine_to_idfa_string",
     "idfa_string_to_epsilon_machine",
     "is_canonical_topological_epsilon",
     "is_minimal_idfa",

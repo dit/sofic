@@ -16,5 +16,6 @@ API
 .. autofunction:: iter_topological_epsilon_machines
 .. autofunction:: iter_topological_epsilon_strings
 .. autofunction:: count_topological_epsilon_machines
+.. autofunction:: epsilon_machine_to_idfa_string
 .. autofunction:: is_topological_epsilon_string
 .. autofunction:: is_canonical_topological_epsilon
