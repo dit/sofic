@@ -66,9 +66,9 @@ class StochasticModel(StateMachine):
 
                 if isinstance(self, EpsilonMachine):
                     return EpsilonMachine.from_time_reversed(self)
-                return EpsilonMachine.from_generator(time_reverse_stochastic(self))
+                return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
             raise NotImplementedError(
-                "time-reversed generators with edge emissions require EpsilonMachine.from_generator"
+                "time-reversed generators with edge emissions require EpsilonMachine.from_hmm"
             )
         return time_reverse_stochastic(self)
 
@@ -133,17 +133,17 @@ class HiddenMarkovModel(StochasticModel):
 
         return hmm_to_sofic_shift(self)
 
-    def to_automata(self) -> NFA:
+    def to_support_nfa(self) -> NFA:
         """Return an NFA for the support language of this HMM."""
-        from pensive.generators.conversions import hmm_to_automata
+        from pensive.generators.conversions import hmm_to_support_nfa
 
-        return hmm_to_automata(self)
+        return hmm_to_support_nfa(self)
 
-    def to_dfa(self) -> DFA:
+    def to_support_dfa(self) -> DFA:
         """Return a determinized automaton for the support language of this HMM."""
-        from pensive.generators.conversions import hmm_to_dfa
+        from pensive.generators.conversions import hmm_to_support_dfa
 
-        return hmm_to_dfa(self)
+        return hmm_to_support_dfa(self)
 
     def reverse(self) -> Self:
         return super().reverse()

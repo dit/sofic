@@ -35,7 +35,7 @@ class EpsilonMachine(MealyHMM):
         self._check_unifilar()
 
     @classmethod
-    def from_generator(cls, hmm: MealyHMM | MooreHMM, **kwargs: Any) -> EpsilonMachine:
+    def from_hmm(cls, hmm: MealyHMM | MooreHMM, **kwargs: Any) -> EpsilonMachine:
         from pensive.generators.epsilon_construction import build_epsilon_machine
 
         return build_epsilon_machine(hmm)
@@ -82,13 +82,13 @@ class EpsilonMachine(MealyHMM):
         self._bidirectional_machine = None
         self._bidirectional_machine_fingerprint = None
 
-    def bidirectional_epsilon_machine(self) -> BidirectionalEpsilonMachine:
+    def to_bidirectional(self) -> BidirectionalEpsilonMachine:
         """Return the bidirectional presentation, building and caching on first use."""
         fingerprint = self._bidirectional_cache_fingerprint()
         if self._bidirectional_machine is None or self._bidirectional_machine_fingerprint != fingerprint:
             from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
-            self._bidirectional_machine = BidirectionalEpsilonMachine.from_epsilon_machine(self)
+            self._bidirectional_machine = BidirectionalEpsilonMachine.from_forward(self)
             self._bidirectional_machine_fingerprint = fingerprint
         return self._bidirectional_machine
 
@@ -120,27 +120,27 @@ class EpsilonMachine(MealyHMM):
 
     def bidirectional_statistical_complexity(self) -> float:
         """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""
-        return self.bidirectional_epsilon_machine().statistical_complexity()
+        return self.to_bidirectional().statistical_complexity()
 
     def excess_entropy(self) -> float:
         """Excess entropy E = I[S⁺; S⁻] via the bidirectional ε-machine."""
-        return self.bidirectional_epsilon_machine().excess_entropy()
+        return self.to_bidirectional().excess_entropy()
 
     def predicted_information(self) -> float:
         """ρ_μ = I[X₀ : S⁺₀] — predicted information rate (James et al., 2013)."""
-        return self.bidirectional_epsilon_machine().predicted_information()
+        return self.to_bidirectional().predicted_information()
 
     def bound_information(self) -> float:
         """b_μ = H[X₀ | S⁺₀, S⁻₁] — bound information rate (James et al., 2013)."""
-        return self.bidirectional_epsilon_machine().bound_information()
+        return self.to_bidirectional().bound_information()
 
     def ephemeral_information(self) -> float:
         """r_μ = I[X₀ : S⁻₁ | S⁺₀] — ephemeral information rate (James et al., 2013)."""
-        return self.bidirectional_epsilon_machine().ephemeral_information()
+        return self.to_bidirectional().ephemeral_information()
 
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
-        return self.bidirectional_epsilon_machine().information_anatomy()
+        return self.to_bidirectional().information_anatomy()
 
     def block_entropy_diagram(self, max_length: int) -> BlockEntropyDiagram:
         """Compute finite-block entropy convergence curves up to ``max_length``."""
@@ -156,7 +156,7 @@ class EpsilonMachine(MealyHMM):
 
     def bidirectional_crypticity(self) -> float:
         """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""
-        return self.bidirectional_epsilon_machine().crypticity()
+        return self.to_bidirectional().crypticity()
 
     def crypticity(self) -> float:
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""
@@ -197,7 +197,7 @@ class EpsilonMachine(MealyHMM):
 
         rev_hmm = time_reverse_stochastic(forward)
         try:
-            return cls.from_generator(rev_hmm)
+            return cls.from_hmm(rev_hmm)
         except (StochasticValidationError, UnifilarityError):
             return _row_normalized_presentation(rev_hmm)
 

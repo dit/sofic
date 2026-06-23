@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable, Mapping
+from typing import Any
+
 import numpy as np
 
 from pensive.exceptions import StochasticValidationError
@@ -12,6 +15,14 @@ from pensive.graph import ATTR_EMISSION_DIST, ATTR_PROB
 
 class MooreHMM(HiddenMarkovModel):
     """HMM with P(o | q) on states and P(q' | q) on edges."""
+
+    def set_emission_distribution(self, state: Hashable, distribution: Mapping[Any, float]) -> None:
+        """Set the state emission law ``P(observation | state)``."""
+        self.graph.nx.nodes[state][ATTR_EMISSION_DIST] = dict(distribution)
+
+    def add_transition(self, source: Hashable, target: Hashable, prob: float, **attrs: Any) -> int:
+        """Add an edge carrying transition probability ``P(target | source)``."""
+        return self.graph.add_transition(source, target, **{ATTR_PROB: float(prob), **attrs})
 
     def is_unifilar(self) -> bool:
         """Return whether the Mealy conversion is row-unifilar."""

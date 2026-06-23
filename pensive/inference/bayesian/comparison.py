@@ -54,10 +54,10 @@ class ModelComparisonMC:
         norm = logsumexp(values)
         return {order: float(np.exp(value - norm)) for order, value in zip(orders, values, strict=True)}
 
-    def get_most_probable_model_MealyHMM(self) -> MealyHMM:
+    def most_probable_model(self) -> MealyHMM:
         probs = self.model_probabilities()
         order = max(probs, key=probs.get)
-        return self.mc_dict[order].generate_MealyHMM(method="PME")
+        return self.mc_dict[order].generate_mealy_hmm(method="PME")
 
 
 class ModelComparisonMC2(ModelComparisonMC):

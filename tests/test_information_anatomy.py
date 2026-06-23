@@ -20,7 +20,7 @@ pytestmark = pytest.mark.measures
 def test_fair_coin_predicted_information_near_zero():
     pytest.importorskip("dit")
     coin = fair_coin()
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(coin, coin)
+    bidir = BidirectionalEpsilonMachine.from_pair(coin, coin)
     assert bidir.predicted_information() == pytest.approx(0.0, abs=1e-9)
 
 
@@ -30,7 +30,7 @@ def test_golden_mean_anatomy_identities():
 
     forward = golden_mean_forward(0.5)
     reverse = golden_mean_reverse(0.5)
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(forward, reverse)
+    bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
 
     h_mu = bidir.entropy_rate()
     rho = bidir.predicted_information()
@@ -51,7 +51,7 @@ def test_golden_mean_anatomy_identities():
 
 def test_golden_mean_anatomy_matches_component_methods():
     pytest.importorskip("dit")
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(
+    bidir = BidirectionalEpsilonMachine.from_pair(
         golden_mean_forward(0.5),
         golden_mean_reverse(0.5),
     )
@@ -81,12 +81,12 @@ def test_tent_map_misiurewicz_entropy_rate():
 
 
 @pytest.mark.measures
-def test_tent_map_misiurewicz_marginalize_forward_matches_fig7():
+def test_tent_map_misiurewicz_forward_epsilon_machine_matches_fig7():
     """Marginalizing supplement Fig.~8 recovers the Fig.~7 forward ε-machine."""
     pytest.importorskip("dit")
     bidir = tent_map_misiurewicz_bidirectional()
     forward = tent_map_misiurewicz_forward()
-    recovered = bidir.marginalize_forward()
+    recovered = bidir.forward_epsilon_machine()
     assert recovered.entropy_rate() == pytest.approx(forward.entropy_rate(), abs=1e-4)
     for state in forward.states():
         expected = sorted(
@@ -124,18 +124,18 @@ def test_tent_forward_matches_generator_path():
 
     forward = tent_map_misiurewicz_forward()
     try:
-        from_hmm = EpsilonMachine.from_generator(tent_map_misiurewicz_hmm())
+        from_hmm = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())
     except Exception:
-        pytest.skip("Fig. 6 HMM does not yet yield a valid ε-machine via from_generator")
+        pytest.skip("Fig. 6 HMM does not yet yield a valid ε-machine via from_hmm")
     if from_hmm.entropy_rate() != pytest.approx(forward.entropy_rate(), abs=1e-3):
-        pytest.xfail("Fig. 6 HMM does not yet yield a valid ε-machine via from_generator")
+        pytest.xfail("Fig. 6 HMM does not yet yield a valid ε-machine via from_hmm")
     assert from_hmm.entropy_rate() == pytest.approx(forward.entropy_rate(), abs=1e-3)
 
 
 def test_epsilon_machine_anatomy_matches_bidirectional():
     pytest.importorskip("dit")
     forward = golden_mean_forward(0.5)
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(
+    bidir = BidirectionalEpsilonMachine.from_pair(
         forward,
         golden_mean_reverse(0.5),
     )
@@ -152,13 +152,13 @@ def test_epsilon_machine_anatomy_matches_bidirectional():
 def test_epsilon_machine_bidirectional_cache():
     pytest.importorskip("dit")
     forward = golden_mean_forward(0.5)
-    first = forward.bidirectional_epsilon_machine()
-    second = forward.bidirectional_epsilon_machine()
+    first = forward.to_bidirectional()
+    second = forward.to_bidirectional()
     assert first is second
 
     state = next(iter(forward.states()))
     forward.graph.nx.nodes[state]["cache_marker"] = "changed"
-    assert forward.bidirectional_epsilon_machine() is not first
+    assert forward.to_bidirectional() is not first
 
     cloned = forward.copy()
-    assert cloned.bidirectional_epsilon_machine() is not first
+    assert cloned.to_bidirectional() is not first

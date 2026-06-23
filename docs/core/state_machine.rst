@@ -1,5 +1,5 @@
 .. state_machine.rst
-.. py:module:: pensive.base
+.. py:module:: pensive.core
 
 *************
 StateMachine

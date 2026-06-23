@@ -26,8 +26,8 @@ Bidirectional ε-machine
 .. autofunction:: pensive.generators.bidirectional_construction.build_bidirectional_epsilon_machine
 .. autofunction:: pensive.generators.bidirectional_construction.infer_reverse_epsilon_machine
 .. autofunction:: pensive.generators.bidirectional_construction.joint_distribution
-.. autofunction:: pensive.generators.bidirectional_construction.marginalize_forward
-.. autofunction:: pensive.generators.bidirectional_construction.marginalize_reverse
+.. autofunction:: pensive.generators.bidirectional_construction.forward_epsilon_machine
+.. autofunction:: pensive.generators.bidirectional_construction.reverse_epsilon_machine
 
 n-Machine construction
 ======================

@@ -13,7 +13,7 @@ def _pfa() -> ProbabilisticFiniteAutomaton:
         output_alphabet=frozenset({"x"}),
     )
     pfa.graph.add_state("q0")
-    pfa.graph.add_transition("q0", "q0", **{ATTR_PROB: 1.0, ATTR_EMISSION: "x"})
+    pfa.add_transition("q0", "q0", "x", 1.0)
     return pfa
 
 
@@ -21,8 +21,14 @@ def test_validate():
     _pfa().validate()
 
 
+def test_add_transition_sets_symbol_and_probability():
+    edge = next(_pfa().transitions())
+    assert edge.data[ATTR_EMISSION] == "x"
+    assert edge.data[ATTR_PROB] == pytest.approx(1.0)
+
+
 def test_negative_probability():
     pfa = _pfa()
-    pfa.graph.add_transition("q0", "q0", **{ATTR_PROB: -0.1, ATTR_EMISSION: "x"})
+    pfa.add_transition("q0", "q0", "x", -0.1)
     with pytest.raises(StochasticValidationError):
         pfa.validate()

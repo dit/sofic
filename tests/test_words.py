@@ -32,7 +32,7 @@ def _moore() -> MooreHMM:
 
 
 def test_hmm_words_of_length_include_probabilities():
-    hmm = _mealy_like_pfa().to_mealy_hmm()
+    hmm = _mealy_like_pfa().to_mealy()
     assert hmm.words_of_length(2) == {
         ("0", "0"): pytest.approx(0.0625),
         ("0", "1"): pytest.approx(0.1875),

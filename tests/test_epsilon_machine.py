@@ -29,29 +29,29 @@ def test_epsilon_machine_validate():
     eps.validate()
 
 
-def test_from_generator():
-    eps = EpsilonMachine.from_generator(_unifilar_mealy())
+def test_from_hmm():
+    eps = EpsilonMachine.from_hmm(_unifilar_mealy())
     eps.validate()
     assert len(list(eps.states())) >= 1
 
 
 def test_reverse_via_time_reversed_generator():
-    rev = EpsilonMachine.from_generator(_unifilar_mealy().reverse())
+    rev = EpsilonMachine.from_hmm(_unifilar_mealy().reverse())
     rev.validate()
 
 
-def test_from_generator_merges_golden_mean_msp_to_two_states():
+def test_from_hmm_merges_golden_mean_msp_to_two_states():
     msp = golden_mean(0.5).mixed_state_presentation()
-    eps = EpsilonMachine.from_generator(msp)
+    eps = EpsilonMachine.from_hmm(msp)
     eps.validate()
     assert len(list(eps.states())) == 2
 
 
-def test_from_generator_via_msp_on_nonunifilar_reverse():
+def test_from_hmm_via_msp_on_nonunifilar_reverse():
     forward = ellison_fig9_forward()
     rev_hmm = time_reverse_stochastic(forward)
-    direct = EpsilonMachine.from_generator(rev_hmm)
-    via_msp = EpsilonMachine.from_generator(rev_hmm.mixed_state_presentation())
+    direct = EpsilonMachine.from_hmm(rev_hmm)
+    via_msp = EpsilonMachine.from_hmm(rev_hmm.mixed_state_presentation())
     direct.validate()
     via_msp.validate()
     assert len(list(direct.states())) == len(list(via_msp.states())) == 3
@@ -67,7 +67,7 @@ def test_row_normalized_presentation_fallback():
 
     forward = golden_mean_forward(0.5)
     rev_hmm = time_reverse_stochastic(forward)
-    with patch.object(EpsilonMachine, "from_generator", side_effect=UnifilarityError("non-unifilar")):
+    with patch.object(EpsilonMachine, "from_hmm", side_effect=UnifilarityError("non-unifilar")):
         eps = EpsilonMachine.from_time_reversed(forward)
     eps.validate_stochastic()
     direct = _row_normalized_presentation(rev_hmm)

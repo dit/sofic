@@ -17,7 +17,7 @@ def test_golden_mean_bidirectional_always_three_states(p: float):
     pytest.importorskip("dit")
     forward = golden_mean_forward(p)
     reverse = golden_mean_reverse(p)
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(forward, reverse)
+    bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     assert len(list(bidir.states())) == 3
     joint = bidir.joint_distribution()
     assert len(joint) == 3

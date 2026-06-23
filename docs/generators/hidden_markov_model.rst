@@ -35,6 +35,8 @@ API
 
 .. autoclass:: StochasticModel
 .. autoclass:: HiddenMarkovModel
-   :members: joint_block_distribution
+   :members: joint_block_distribution, to_sofic_shift, to_support_nfa, to_support_dfa
 .. autoclass:: pensive.generators.mealy.MealyHMM
+   :members: add_transition, to_edge_machine
 .. autoclass:: pensive.generators.moore.MooreHMM
+   :members: add_transition, set_emission_distribution, to_mealy

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pensive.examples import fair_coin, golden_mean
-from pensive.generators.edge_machine import edge_machine_from_hmm
+from pensive.generators.edge_machine import hmm_to_edge_machine
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 
@@ -27,7 +27,7 @@ def _count_labeled_transitions(hmm) -> int:
 def test_edge_machine_preserves_entropy_rate(builder):
     pytest.importorskip("dit")
     hmm = builder()
-    edge = edge_machine_from_hmm(hmm)
+    edge = hmm.to_edge_machine()
     edge.validate()
     assert edge.entropy_rate() == pytest.approx(hmm.entropy_rate(), abs=1e-9)
 
@@ -37,7 +37,7 @@ def test_edge_machine_preserves_entropy_rate(builder):
 def test_edge_machine_preserves_block_distribution(builder):
     pytest.importorskip("dit")
     hmm = builder()
-    edge = edge_machine_from_hmm(hmm)
+    edge = hmm.to_edge_machine()
     symbols = sorted(hmm.observation_alphabet, key=repr)
     dist_hmm0 = hmm.joint_block_distribution(history_length=0)
     dist_edge0 = edge.joint_block_distribution(history_length=0)
@@ -55,10 +55,10 @@ def test_edge_machine_preserves_block_distribution(builder):
 
 def test_edge_machine_state_count():
     hmm = golden_mean(0.5)
-    edge = edge_machine_from_hmm(hmm)
+    edge = hmm_to_edge_machine(hmm)
     assert len(list(edge.states())) == _count_labeled_transitions(hmm)
 
 
 def test_fair_coin_edge_machine_has_two_states():
-    edge = edge_machine_from_hmm(fair_coin())
+    edge = fair_coin().to_edge_machine()
     assert len(list(edge.states())) == 2

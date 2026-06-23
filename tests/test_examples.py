@@ -102,7 +102,7 @@ def test_ellison_fig9_information_identities():
     pytest.importorskip("dit")
     forward = ellison_fig9_forward()
     reverse = ellison_fig9_reverse()
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(forward, reverse)
+    bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
 
     c_plus = forward.statistical_complexity()
     c_minus = reverse.statistical_complexity()

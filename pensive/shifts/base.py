@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Hashable, Iterator
 from typing import Any, Self
 
 from pensive.base import StateMachine
@@ -17,6 +17,10 @@ class SymbolicModel(StateMachine):
     def __init__(self, symbol_alphabet: frozenset[Any] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.symbol_alphabet = symbol_alphabet if symbol_alphabet is not None else frozenset()
+
+    def add_transition(self, source: Hashable, target: Hashable, symbol: Any, **attrs: Any) -> int:
+        """Add a labeled transition in the shift presentation."""
+        return self.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol, **attrs})
 
     def validate(self) -> None:
         for transition in self.transitions():

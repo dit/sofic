@@ -35,7 +35,7 @@ def parse_edge_state_label(label: str) -> EdgeState:
     return (eval(parts[0]), eval(parts[1]), eval(parts[2]))
 
 
-def edge_machine_from_hmm(hmm: HiddenMarkovModel) -> MealyHMM:
+def hmm_to_edge_machine(hmm: HiddenMarkovModel) -> MealyHMM:
     """Build the edge machine whose states are the source HMM's transitions.
 
     Each edge state encodes ``(source, emission, target)``.  Leaving edge ``e₀``

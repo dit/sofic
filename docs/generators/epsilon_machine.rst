@@ -53,7 +53,7 @@ API
 ===
 
 .. autoclass:: EpsilonMachine
-   :members: from_generator, from_sequence, from_time_reversed, bidirectional_epsilon_machine, block_entropy_diagram, plot_block_entropy_diagram, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable
+   :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, plot_block_entropy_diagram, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, crypticity, bidirectional_crypticity, markov_order, cryptic_order, is_exactly_synchronizable
 
 .. autoclass:: pensive.generators.block_entropy.BlockEntropyDiagram
    :members: plot

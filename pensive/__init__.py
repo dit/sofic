@@ -38,7 +38,7 @@ from pensive.automata import (
     minimize,
     trim,
 )
-from pensive.base import StateMachine
+from pensive.core import EPSILON, StateIndex, StateMachine, Transition, TransitionGraph
 from pensive.generators import (
     BidirectionalEpsilonMachine,
     BlockEntropyDiagram,
@@ -56,8 +56,6 @@ from pensive.generators import (
     QuasiStochasticModel,
     StochasticModel,
 )
-from pensive.graph import EPSILON, TransitionGraph
-from pensive.indexing import StateIndex
 from pensive.operations import reverse
 from pensive.shifts import (
     LeftFischerCover,
@@ -119,6 +117,7 @@ __all__ = [
     "SymbolicModel",
     "TopologicalMarkovChain",
     "Transducer",
+    "Transition",
     "TransitionGraph",
     "UnifilarAutomaton",
     "VisiblyPushdownAutomaton",

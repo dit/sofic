@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from typing import Any
 
 import numpy as np
@@ -22,6 +22,14 @@ class ProbabilisticFiniteAutomaton(StochasticModel):
         super().__init__(**kwargs)
         self.output_alphabet = output_alphabet if output_alphabet is not None else frozenset()
 
+    def add_transition(self, source: Hashable, target: Hashable, symbol: Any, prob: float, **attrs: Any) -> int:
+        """Add an edge carrying joint output probability ``P(target, symbol | source)``."""
+        return self.graph.add_transition(
+            source,
+            target,
+            **{ATTR_EMISSION: symbol, ATTR_PROB: float(prob), **attrs},
+        )
+
     def validate_stochastic(self) -> None:
         super().validate_stochastic()
         validate_stochastic_edge_emissions(
@@ -38,10 +46,10 @@ class ProbabilisticFiniteAutomaton(StochasticModel):
 
         return is_unifilar_emissions(self)
 
-    def to_mealy_hmm(self) -> MealyHMM:
-        from pensive.generators.conversions import pfa_to_mealy_hmm
+    def to_mealy(self) -> MealyHMM:
+        from pensive.generators.conversions import pfa_to_mealy
 
-        return pfa_to_mealy_hmm(self)
+        return pfa_to_mealy(self)
 
     def string_probability(self, word: Sequence[Any]) -> float:
         if not word:

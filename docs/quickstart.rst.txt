@@ -89,7 +89,7 @@ transitions:
 
 .. ipython::
 
-   In [1]: from pensive.generators.edge_machine import edge_machine_from_hmm; from pensive.examples import tent_map_misiurewicz_hmm; edge = edge_machine_from_hmm(tent_map_misiurewicz_hmm())
+   In [1]: from pensive.examples import tent_map_misiurewicz_hmm; edge = tent_map_misiurewicz_hmm().to_edge_machine()
 
    @doctest
    In [2]: len(list(edge.states()))

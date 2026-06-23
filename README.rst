@@ -28,7 +28,7 @@ arXiv:0905.3587, Fig.~4) and compute information measures with ``dit``::
    print("Cμ =", eps.statistical_complexity())
 
    bidir = golden_mean_bidirectional(0.5)
-   # Or: BidirectionalEpsilonMachine.from_epsilon_machine(golden_mean_forward(0.5))
+   # Or: BidirectionalEpsilonMachine.from_forward(golden_mean_forward(0.5))
 
    print(bidir.draw())  # requires graphviz (``pip install pensive[viz]``)
    print("C± =", bidir.statistical_complexity())
@@ -46,9 +46,9 @@ Topological synchronization orders (James et al., arXiv:1010.5545) depend only o
 
 For exact Fig.~4(c) state labels ``(A, C)``, ``(A, D)``, ``(B, C)``, use
 ``golden_mean_bidirectional`` or pass ``golden_mean_forward`` and
-``golden_mean_reverse`` explicitly to ``from_epsilon_machines``. The helper
+``golden_mean_reverse`` explicitly to ``from_pair``. The helper
 ``golden_mean()`` uses the forbid-``11`` shift convention (not the paper's
-forbid-``00`` process), though ``from_epsilon_machine`` still yields a
+forbid-``00`` process), though ``from_forward`` still yields a
 three-state bidirectional presentation for either convention.
 
 Information anatomy (ρ_μ, b_μ, r_μ)
@@ -70,10 +70,9 @@ bidirectional ε-machine.  With ``dit`` installed::
 Edge machines (generator presentations) convert a non-unifilar HMM into a
 Mealy generator whose states index labeled transitions::
 
-   from pensive.generators.edge_machine import edge_machine_from_hmm
    from pensive.examples import tent_map_misiurewicz_hmm
 
-   edge = edge_machine_from_hmm(tent_map_misiurewicz_hmm())
+   edge = tent_map_misiurewicz_hmm().to_edge_machine()
 
 Optional extras:
 

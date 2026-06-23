@@ -164,7 +164,7 @@ class DirichletDistributionEM:
             return eps
         return machine
 
-    def get_PM_machine(self, start_node: Hashable) -> MealyHMM | None:
+    def posterior_mean_machine(self, start_node: Hashable) -> MealyHMM | None:
         if start_node not in self.valid_startnodes:
             return None
         probabilities = {}
@@ -252,13 +252,13 @@ class EpsilonMachinePosterior:
             raise BayesianInferenceError("sampled impossible start node")
         return start, machine
 
-    def get_PM_machine(self, start_node: Hashable | None = None) -> MealyHMM | None:
+    def posterior_mean_machine(self, start_node: Hashable | None = None) -> MealyHMM | None:
         if start_node is None:
             probs = self.start_node_probabilities()
             if not probs:
                 return None
             start_node = max(probs, key=probs.get)
-        return self.dirichlet.get_PM_machine(start_node)
+        return self.dirichlet.posterior_mean_machine(start_node)
 
     def as_pymc_model(self, start_node: Hashable | None = None) -> Any:
         from pensive.inference.bayesian.pymc_backend import epsilon_machine_model

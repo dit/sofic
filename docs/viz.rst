@@ -1,7 +1,7 @@
 Usage
 =====
 
-Call :meth:`~pensive.base.StateMachine.draw` or :meth:`~pensive.base.StateMachine.to_graphviz`
+Call :meth:`~pensive.core.StateMachine.draw` or :meth:`~pensive.core.StateMachine.to_graphviz`
 on any model when Graphviz is installed:
 
 .. code-block:: python

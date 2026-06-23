@@ -4,8 +4,10 @@
 Core
 ****
 
-The :mod:`pensive` core provides the graph-backed :class:`~pensive.base.StateMachine`
-abstraction shared by automata, generators, and symbolic models.
+The :mod:`pensive.core` module collects the graph-backed
+:class:`~pensive.core.StateMachine` abstraction, the
+:class:`~pensive.core.TransitionGraph` wrapper, and graph attribute constants
+shared by automata, generators, and symbolic models.
 
 .. toctree::
    :maxdepth: 1

@@ -37,14 +37,14 @@ def test_moore_to_mealy():
     assert isinstance(mealy, MealyHMM)
 
 
-def test_pfa_to_mealy_hmm():
+def test_pfa_to_mealy():
     pfa = ProbabilisticFiniteAutomaton(
         initial_distribution={"q0": 1.0},
         output_alphabet=frozenset({"a"}),
     )
     pfa.graph.add_state("q0")
     pfa.graph.add_transition("q0", "q0", **{ATTR_PROB: 1.0, ATTR_EMISSION: "a"})
-    hmm = pfa.to_mealy_hmm()
+    hmm = pfa.to_mealy()
     hmm.validate()
 
 
@@ -66,9 +66,9 @@ def test_hmm_to_sofic_shift_strips_probabilities():
     shift.validate()
 
 
-def test_hmm_to_automata_uses_fresh_epsilon_start():
+def test_hmm_to_support_nfa_uses_fresh_epsilon_start():
     hmm = _golden_mean_support_hmm()
-    nfa = hmm.to_automata()
+    nfa = hmm.to_support_nfa()
 
     assert isinstance(nfa, NFA)
     assert nfa.input_alphabet == frozenset({0, 1})
@@ -83,9 +83,9 @@ def test_hmm_to_automata_uses_fresh_epsilon_start():
     nfa.validate()
 
 
-def test_hmm_to_dfa_starts_from_all_states_and_accepts_recurrent_subsets():
+def test_hmm_to_support_dfa_starts_from_all_states_and_accepts_recurrent_subsets():
     hmm = _golden_mean_support_hmm()
-    dfa = hmm.to_dfa()
+    dfa = hmm.to_support_dfa()
 
     assert isinstance(dfa, DFA)
     assert dfa.initial_states == frozenset({frozenset({"A", "B"})})
@@ -109,8 +109,8 @@ def test_moore_hmm_support_conversions_delegate_to_mealy_support():
     moore.graph.add_transition("A", "B", **{ATTR_PROB: 1.0})
     moore.graph.add_transition("B", "A", **{ATTR_PROB: 1.0})
 
-    assert moore.to_automata().recognizes(("0", "1", "0"))
-    assert not moore.to_automata().recognizes(("1", "1"))
+    assert moore.to_support_nfa().recognizes(("0", "1", "0"))
+    assert not moore.to_support_nfa().recognizes(("1", "1"))
     assert {
         (transition.source, transition.target, transition.data[ATTR_SYMBOL])
         for transition in moore.to_sofic_shift().transitions()
@@ -133,5 +133,5 @@ def test_hmm_support_conversions_use_to_mealy_hook():
             return self._support
 
     wrapped = WrappedHMM(_golden_mean_support_hmm())
-    assert wrapped.to_automata().recognizes((1, 0, 1))
-    assert not wrapped.to_automata().recognizes((1, 1))
+    assert wrapped.to_support_nfa().recognizes((1, 0, 1))
+    assert not wrapped.to_support_nfa().recognizes((1, 1))

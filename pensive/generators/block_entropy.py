@@ -243,7 +243,7 @@ def _entropy_rate(pi: np.ndarray, symbol_matrices: dict[Any, np.ndarray]) -> flo
 
 
 def _excess_entropy(machine: EpsilonMachine) -> float:
-    bidirectional = machine.bidirectional_epsilon_machine()
+    bidirectional = machine.to_bidirectional()
     joint = bidirectional.joint_distribution()
     if not joint:
         return 0.0

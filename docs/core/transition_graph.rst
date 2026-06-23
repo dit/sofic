@@ -1,5 +1,5 @@
 .. transition_graph.rst
-.. py:module:: pensive.graph
+.. py:module:: pensive.core
 
 ****************
 TransitionGraph
@@ -11,7 +11,7 @@ models store their structure in a ``TransitionGraph``.
 
 .. ipython::
 
-   In [1]: from pensive.graph import TransitionGraph, ATTR_EMISSION, ATTR_PROB
+   In [1]: from pensive.core import TransitionGraph, ATTR_EMISSION, ATTR_PROB
 
    In [2]: g = TransitionGraph()
 

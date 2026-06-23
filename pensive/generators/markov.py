@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import Self
+from typing import Any, Self
 
 import numpy as np
 
@@ -14,6 +14,10 @@ from pensive.graph import ATTR_PROB
 
 class MarkovChain(StochasticModel):
     """Visible-state Markov process without an observation layer."""
+
+    def add_transition(self, source: Hashable, target: Hashable, prob: float, **attrs: Any) -> int:
+        """Add an edge carrying transition probability ``P(target | source)``."""
+        return self.graph.add_transition(source, target, **{ATTR_PROB: float(prob), **attrs})
 
     def is_deterministic(self) -> bool:
         """Return whether each state has a single successor with probability 1."""

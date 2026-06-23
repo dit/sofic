@@ -127,7 +127,7 @@ def test_mealy_hmm_not_unifilar():
 
 
 def test_epsilon_machine_is_unifilar():
-    eps = EpsilonMachine.from_generator(_mealy_hmm())
+    eps = EpsilonMachine.from_hmm(_mealy_hmm())
     assert eps.is_unifilar()
     eps.validate()
 

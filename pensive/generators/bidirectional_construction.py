@@ -460,10 +460,10 @@ def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
     """Infer a reverse ε-machine presentation for bidirectional construction.
 
     Time-reverses ``forward``, then builds the generator ε-machine via MSP and
-    probabilistic state merging (:meth:`EpsilonMachine.from_generator`).
+    probabilistic state merging (:meth:`EpsilonMachine.from_hmm`).
     """
     rev_hmm = time_reverse_stochastic(forward)
-    reverse = EpsilonMachine.from_generator(rev_hmm)
+    reverse = EpsilonMachine.from_hmm(rev_hmm)
     return _relabel_collision_free(reverse, forward)
 
 
@@ -574,12 +574,12 @@ def _require_dit_for_step():
     return dit
 
 
-def marginalize_forward(bidir: BidirectionalEpsilonMachine) -> EpsilonMachine:
+def forward_epsilon_machine(bidir: BidirectionalEpsilonMachine) -> EpsilonMachine:
     """Marginalize M± to recover M⁺ (paper Eq. after 2454)."""
     return _marginalize_to_epsilon(bidir, project_forward=True)
 
 
-def marginalize_reverse(bidir: BidirectionalEpsilonMachine) -> EpsilonMachine:
+def reverse_epsilon_machine(bidir: BidirectionalEpsilonMachine) -> EpsilonMachine:
     """Marginalize M± to recover M⁻ (paper Eq. after 2464)."""
     return _marginalize_to_epsilon(bidir, project_forward=False)
 

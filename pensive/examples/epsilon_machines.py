@@ -213,7 +213,7 @@ def golden_mean_bidirectional(p: float = 0.5):
     """
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
-    return BidirectionalEpsilonMachine.from_epsilon_machines(
+    return BidirectionalEpsilonMachine.from_pair(
         golden_mean_forward(p),
         golden_mean_reverse(p),
     )
@@ -251,7 +251,7 @@ def golden_mean_shift_parry() -> EpsilonMachine:
         symbol_alphabet=frozenset({0, 1}),
     )
     parry = tmc.parry_measure()
-    return EpsilonMachine.from_generator(parry)
+    return EpsilonMachine.from_hmm(parry)
 
 
 def alternating_biased_coins(p: float = 0.5, q: float = 0.4) -> EpsilonMachine:
@@ -792,7 +792,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: float | None = None):
         future_symbols={"E": 0, "F": 1, "G": 1, "H": -1},
     )
     try:
-        reverse = EpsilonMachine.from_generator(reverse_raw)
+        reverse = EpsilonMachine.from_hmm(reverse_raw)
     except Exception:
         from pensive.generators.epsilon_machine import _row_normalized_presentation
 
@@ -837,7 +837,7 @@ def ellison_fig9_reverse() -> EpsilonMachine:
     from pensive.generators.reversal import time_reverse_stochastic
 
     forward = ellison_fig9_forward()
-    reverse = EpsilonMachine.from_generator(time_reverse_stochastic(forward))
+    reverse = EpsilonMachine.from_hmm(time_reverse_stochastic(forward))
     reverse.validate()
     return reverse
 
@@ -850,7 +850,7 @@ def ellison_fig15_bidirectional():
     """
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
-    return BidirectionalEpsilonMachine.from_epsilon_machines(
+    return BidirectionalEpsilonMachine.from_pair(
         ellison_fig9_forward(),
         ellison_fig9_reverse(),
     )

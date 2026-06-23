@@ -84,7 +84,7 @@ class MarkovChainPosterior:
     def add_counts_from(self, data: Sequence[Any]) -> None:
         self.counts.add_counts_from(data)
 
-    def get_transition_probability_MLE(self, word: Sequence[Any], symbol: Any) -> tuple[float, float]:
+    def transition_probability_mle(self, word: Sequence[Any], symbol: Any) -> tuple[float, float]:
         context = tuple(word)
         n = self.counts.get_word_count((*context, symbol))
         N = self.counts.get_word_count((*context, "*"))
@@ -95,7 +95,7 @@ class MarkovChainPosterior:
             prob = variance = 0.0
         return float(prob), float(variance)
 
-    def get_transition_probability_PME(self, word: Sequence[Any], symbol: Any) -> tuple[float, float]:
+    def transition_probability_pme(self, word: Sequence[Any], symbol: Any) -> tuple[float, float]:
         context = tuple(word)
         n = self.counts.get_word_count((*context, symbol))
         N = self.counts.get_word_count((*context, "*"))
@@ -154,7 +154,7 @@ class MarkovChainPosterior:
             prob = (n + alpha) / beta
             result += invlog2 * prob * polygamma(0, n + alpha)
             for symbol in self.alphabet:
-                cond, _variance = self.get_transition_probability_PME(context, symbol)
+                cond, _variance = self.transition_probability_pme(context, symbol)
                 ws_count = self.counts.get_word_count((*context, symbol))
                 ws_alpha = self.prior.get_alpha((*context, symbol))
                 result -= invlog2 * prob * cond * polygamma(0, ws_count + ws_alpha)
@@ -175,22 +175,22 @@ class MarkovChainPosterior:
             prob = (n + alpha) / beta
             result -= invlog2 * prob**2 * polygamma(1, n + alpha)
             for symbol in self.alphabet:
-                cond, _variance = self.get_transition_probability_PME(context, symbol)
+                cond, _variance = self.transition_probability_pme(context, symbol)
                 ws_count = self.counts.get_word_count((*context, symbol))
                 ws_alpha = self.prior.get_alpha((*context, symbol))
                 result += invlog2 * prob**2 * cond**2 * polygamma(1, ws_count + ws_alpha)
         return float(result)
 
-    def transition_probability_MLE_iter(self) -> Iterable[tuple[str, str, float, float]]:
+    def transition_probability_mle_iter(self) -> Iterable[tuple[str, str, float, float]]:
         for context in self.contexts:
             for symbol in self.alphabet:
-                prob, var = self.get_transition_probability_MLE(context, symbol)
+                prob, var = self.transition_probability_mle(context, symbol)
                 yield pretty_word(context), pretty_symbol(symbol), prob, var
 
-    def transition_probability_PME_iter(self) -> Iterable[tuple[str, str, float, float]]:
+    def transition_probability_pme_iter(self) -> Iterable[tuple[str, str, float, float]]:
         for context in self.contexts:
             for symbol in self.alphabet:
-                prob, var = self.get_transition_probability_PME(context, symbol)
+                prob, var = self.transition_probability_pme(context, symbol)
                 yield pretty_word(context), pretty_symbol(symbol), prob, var
 
     def _state_for_context(self, context: tuple[Any, ...]) -> Hashable:
@@ -199,7 +199,7 @@ class MarkovChainPosterior:
     def _target_for(self, context: tuple[Any, ...], symbol: Any) -> Hashable:
         return (*context[1:], symbol) if self.order else "A"
 
-    def generate_MealyHMM(self, method: str = "PME", threshold: float = 0.0, reduce: bool = True) -> MealyHMM:
+    def generate_mealy_hmm(self, method: str = "PME", threshold: float = 0.0, reduce: bool = True) -> MealyHMM:
         del reduce
         if not 0 <= threshold <= 1:
             raise BayesianInferenceError("threshold must be between 0 and 1")
@@ -207,7 +207,7 @@ class MarkovChainPosterior:
             matrix = self.posterior_mean_matrix()
         elif method == "MLE":
             matrix = np.array(
-                [[self.get_transition_probability_MLE(context, symbol)[0] for symbol in self.alphabet] for context in self.contexts],
+                [[self.transition_probability_mle(context, symbol)[0] for symbol in self.alphabet] for context in self.contexts],
                 dtype=float,
             )
         else:
@@ -229,7 +229,7 @@ class MarkovChainPosterior:
         hmm.validate()
         return hmm
 
-    def sample_MealyHMM_iter(
+    def sample_mealy_hmms(
         self,
         n: int = 1,
         threshold: float = 0.0,
@@ -269,16 +269,16 @@ class MarkovChainPosterior:
     def prior_string(self) -> str:
         return str(self.prior)
 
-    def transition_probability_MLE_string(self) -> str:
+    def transition_probability_mle_string(self) -> str:
         return "".join(
             f"Pr( {symbol} | {context} ) = {prob:.8f} , StdDev = {np.sqrt(var):.8f}\n"
-            for context, symbol, prob, var in self.transition_probability_MLE_iter()
+            for context, symbol, prob, var in self.transition_probability_mle_iter()
         )
 
-    def transition_probability_PME_string(self) -> str:
+    def transition_probability_pme_string(self) -> str:
         return "".join(
             f"Pr( {symbol} | {context} ) = {prob:.8f} , StdDev = {np.sqrt(var):.8f}\n"
-            for context, symbol, prob, var in self.transition_probability_PME_iter()
+            for context, symbol, prob, var in self.transition_probability_pme_iter()
         )
 
 

@@ -91,7 +91,7 @@ def test_fair_coin_excess_entropy_and_crypticity():
 def test_golden_mean_forward_excess_entropy():
     forward = golden_mean_forward(0.5)
     reverse = golden_mean_reverse(0.5)
-    bidir = BidirectionalEpsilonMachine.from_epsilon_machines(forward, reverse)
+    bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-9)
     assert forward.excess_entropy() == pytest.approx(0.25162916738782304, abs=1e-9)
 

@@ -56,7 +56,7 @@ def moore_to_mealy(moore: MooreHMM) -> MealyHMM:
     )
 
 
-def pfa_to_mealy_hmm(pfa: ProbabilisticFiniteAutomaton) -> MealyHMM:
+def pfa_to_mealy(pfa: ProbabilisticFiniteAutomaton) -> MealyHMM:
     graph = pfa.graph.copy()
     return MealyHMM(
         graph=graph,
@@ -72,7 +72,7 @@ def hmm_to_sofic_shift(hmm: HiddenMarkovModel) -> SoficShift:
     return SoficShift(graph=graph, symbol_alphabet=support.observation_alphabet)
 
 
-def hmm_to_automata(hmm: HiddenMarkovModel) -> NFA:
+def hmm_to_support_nfa(hmm: HiddenMarkovModel) -> NFA:
     """Build an NFA whose language is the finite-word support of an HMM."""
     support = _mealy_support(hmm)
     graph = _support_graph(support, edge_attr=ATTR_SYMBOL)
@@ -89,11 +89,11 @@ def hmm_to_automata(hmm: HiddenMarkovModel) -> NFA:
     )
 
 
-def hmm_to_dfa(hmm: HiddenMarkovModel) -> DFA:
+def hmm_to_support_dfa(hmm: HiddenMarkovModel) -> DFA:
     """Determinize the HMM support NFA from the all-states subset."""
     support = _mealy_support(hmm)
     states = frozenset(support.states())
-    nfa = hmm_to_automata(support)
+    nfa = hmm_to_support_nfa(support)
     nfa.initial_states = states
 
     dfa = nfa.determinize(alphabet=support.observation_alphabet)
@@ -168,9 +168,9 @@ def nmachine_from_quasi_realization(
     )
 
 
-def edge_machine_from_hmm(hmm: MealyHMM | MooreHMM) -> MealyHMM:
+def hmm_to_edge_machine(hmm: MealyHMM | MooreHMM) -> MealyHMM:
     """Convert an HMM to its edge (generator) presentation."""
-    from pensive.generators.edge_machine import edge_machine_from_hmm as _build
+    from pensive.generators.edge_machine import hmm_to_edge_machine as _build
 
     return _build(hmm)
 

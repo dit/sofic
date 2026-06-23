@@ -77,7 +77,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return cloned
 
     @classmethod
-    def from_epsilon_machines(
+    def from_pair(
         cls,
         forward: EpsilonMachine,
         reverse: EpsilonMachine,
@@ -87,11 +87,11 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return build_bidirectional_epsilon_machine(forward, reverse)
 
     @classmethod
-    def from_epsilon_machine(cls, forward: EpsilonMachine) -> Self:
+    def from_forward(cls, forward: EpsilonMachine) -> Self:
         from pensive.generators.bidirectional_construction import infer_reverse_epsilon_machine
 
         reverse = infer_reverse_epsilon_machine(forward)
-        return cls.from_epsilon_machines(forward, reverse)
+        return cls.from_pair(forward, reverse)
 
     def joint_distribution(self) -> dict[tuple[Hashable, Hashable], float]:
         if self._joint_pi is not None:
@@ -100,15 +100,15 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return joint_distribution(self)
 
-    def marginalize_forward(self) -> EpsilonMachine:
-        from pensive.generators.bidirectional_construction import marginalize_forward
+    def forward_epsilon_machine(self) -> EpsilonMachine:
+        from pensive.generators.bidirectional_construction import forward_epsilon_machine
 
-        return marginalize_forward(self)
+        return forward_epsilon_machine(self)
 
-    def marginalize_reverse(self) -> EpsilonMachine:
-        from pensive.generators.bidirectional_construction import marginalize_reverse
+    def reverse_epsilon_machine(self) -> EpsilonMachine:
+        from pensive.generators.bidirectional_construction import reverse_epsilon_machine
 
-        return marginalize_reverse(self)
+        return reverse_epsilon_machine(self)
 
     def step_distribution(self) -> Any:
         from pensive.generators.bidirectional_construction import bidirectional_step_distribution

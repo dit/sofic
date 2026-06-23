@@ -10,14 +10,14 @@ mathematical expressions for computational mechanics and information theory.
 Graph-backed models
 ===================
 
-Every model in ``pensive`` is a :class:`~pensive.base.StateMachine`: a labeled
+Every model in ``pensive`` is a :class:`~pensive.core.StateMachine`: a labeled
 directed multigraph with typed node and edge attributes.
 
 * **States** are hashable labels (strings, integers, tuples, etc.).
 * **Transitions** are directed edges with attribute dictionaries.
 * **Alphabets** depend on model type: input symbols, emissions, or outputs.
 
-Edge attribute keys (from :mod:`pensive.graph`) include:
+Edge attribute keys (from :mod:`pensive.core`) include:
 
 * ``ATTR_SYMBOL`` — input symbol on automaton edges
 * ``ATTR_EMISSION`` — emitted symbol on generator edges

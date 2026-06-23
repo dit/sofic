@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pensive.exceptions import UnifilarityError
 from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.edge_emissions import validate_stochastic_edge_emissions
-from pensive.graph import ATTR_EMISSION
+from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 if TYPE_CHECKING:
     from pensive.generators.mixed_state import MixedState, MixedStatePresentation
@@ -19,7 +19,7 @@ class MealyHMM(HiddenMarkovModel):
 
     Each outgoing edge carries an emission symbol and a probability. Row sums at
     every state must equal 1. Use :meth:`mixed_state_presentation` to obtain
-    belief-state dynamics, or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.from_generator`
+    belief-state dynamics, or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.from_hmm`
     for the causal ε-machine presentation.
 
     Examples
@@ -29,6 +29,14 @@ class MealyHMM(HiddenMarkovModel):
     >>> eps.entropy_rate() > 0
     True
     """
+
+    def add_transition(self, source: Hashable, target: Hashable, symbol: Any, prob: float, **attrs: Any) -> int:
+        """Add an edge carrying joint emission probability ``P(target, symbol | source)``."""
+        return self.graph.add_transition(
+            source,
+            target,
+            **{ATTR_EMISSION: symbol, ATTR_PROB: float(prob), **attrs},
+        )
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()
@@ -74,6 +82,6 @@ class MealyHMM(HiddenMarkovModel):
         return MixedStatePresentation.from_presentation(self, initial_mixed_state=initial_mixed_state)
 
     def to_edge_machine(self) -> MealyHMM:
-        from pensive.generators.edge_machine import edge_machine_from_hmm
+        from pensive.generators.edge_machine import hmm_to_edge_machine
 
-        return edge_machine_from_hmm(self)
+        return hmm_to_edge_machine(self)

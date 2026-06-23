@@ -12,19 +12,17 @@ mechanics :cite:`Rabiner1989,Crutchfield1994`.
 
 .. ipython::
 
-   In [1]: from pensive.generators.edge_machine import edge_machine_from_hmm
+   In [1]: from pensive.examples import tent_map_misiurewicz_hmm
 
-   In [2]: from pensive.examples import tent_map_misiurewicz_hmm
-
-   In [3]: edge = edge_machine_from_hmm(tent_map_misiurewicz_hmm())
+   In [2]: edge = tent_map_misiurewicz_hmm().to_edge_machine()
 
    @doctest
-   In [4]: len(list(edge.states()))
-   Out[4]: 7
+   In [3]: len(list(edge.states()))
+   Out[3]: 7
 
 API
 ===
 
-.. autofunction:: edge_machine_from_hmm
+.. autofunction:: hmm_to_edge_machine
 .. autofunction:: edge_state_label
 .. autofunction:: parse_edge_state_label

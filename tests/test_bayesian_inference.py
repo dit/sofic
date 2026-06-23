@@ -35,8 +35,8 @@ def test_word_counts_markov_chain():
 
 def test_infer_mc_transition_estimates_and_evidence():
     posterior = InferMC(["0", "1"], list("01010"), order=1)
-    assert posterior.get_transition_probability_MLE(("0",), "1") == pytest.approx((1.0, 0.0))
-    prob, var = posterior.get_transition_probability_PME(("0",), "1")
+    assert posterior.transition_probability_mle(("0",), "1") == pytest.approx((1.0, 0.0))
+    prob, var = posterior.transition_probability_pme(("0",), "1")
     assert prob == pytest.approx(0.75)
     assert var == pytest.approx(0.0375)
     assert posterior.log_evidence() == pytest.approx(-2.1972245773362196)
@@ -44,7 +44,7 @@ def test_infer_mc_transition_estimates_and_evidence():
 
 def test_infer_mc_generates_valid_mealy_hmm():
     posterior = InferMC(["0", "1"], list("01010"), order=1)
-    machine = posterior.generate_MealyHMM("PME")
+    machine = posterior.generate_mealy_hmm("PME")
     machine.validate()
     assert len(list(machine.transitions())) == 4
 
