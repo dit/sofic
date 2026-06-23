@@ -41,39 +41,8 @@ def _unifilar_presentation(hmm: MealyHMM) -> MealyHMM:
     if not hmm.is_unifilar():
         hmm = hmm.mixed_state_presentation()
     if isinstance(hmm, MixedStatePresentation) and hmm.recurrent_states:
-        return _restrict_presentation(hmm, set(hmm.recurrent_states))
+        return hmm.to_recurrent()
     return hmm
-
-
-def _restrict_presentation(hmm: MealyHMM, keep: set[Any]) -> MealyHMM:
-    """Return the subpresentation induced by ``keep`` with stationary initial weights."""
-    graph = TransitionGraph()
-    for state in keep:
-        graph.add_state(state)
-    for state in keep:
-        for transition in hmm.graph.out_transitions(state):
-            if transition.target in keep:
-                graph.add_transition(state, transition.target, **transition.data)
-
-    idx = hmm.reindex()
-    pi = hmm.stationary_distribution()
-    initial: dict[Any, float] = {}
-    for state in keep:
-        mass = float(pi[idx.index(state)])
-        if mass > 0.0:
-            initial[state] = mass
-    if not initial:
-        raise StochasticValidationError("restricted presentation has no positive stationary mass")
-    total = sum(initial.values())
-    initial = {state: mass / total for state, mass in initial.items()}
-
-    restricted = MealyHMM(
-        graph=graph,
-        initial_distribution=initial,
-        observation_alphabet=hmm.observation_alphabet,
-    )
-    restricted.validate_stochastic()
-    return restricted
 
 
 def _refine_probabilistic_partitions(hmm: MealyHMM) -> list[set[Any]]:

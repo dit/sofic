@@ -8,7 +8,9 @@ from typing import Any
 
 import numpy as np
 
+from pensive.exceptions import StochasticValidationError
 from pensive.generators.mealy import MealyHMM
+from pensive.graph import TransitionGraph
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +112,82 @@ class MixedStatePresentation(MealyHMM):
         from pensive.generators.mixed_state_construction import build_mixed_state_presentation
 
         return build_mixed_state_presentation(hmm, initial_mixed_state=initial_mixed_state)
+
+    def to_recurrent(self) -> MealyHMM:
+        """Return the recurrent component with stationary initial weights.
+
+        Pure recurrent mixed states are relabeled by their basis states and returned
+        as an :class:`~pensive.generators.epsilon_machine.EpsilonMachine`.  Otherwise
+        the recurrent component remains a unifilar :class:`~pensive.generators.mealy.MealyHMM`
+        over mixed states.
+        """
+        keep = frozenset(self.recurrent_states)
+        if not keep:
+            raise StochasticValidationError("mixed-state presentation has no recurrent states")
+
+        state_map, is_epsilon_machine = self._recurrent_state_map(keep)
+        graph = TransitionGraph()
+        for state in keep:
+            graph.add_state(state_map[state], **self.graph.state_attrs(state))
+        for state in keep:
+            for transition in self.graph.out_transitions(state):
+                if transition.target in keep:
+                    graph.add_transition(
+                        state_map[state],
+                        state_map[transition.target],
+                        **transition.data,
+                    )
+
+        initial_distribution = self._recurrent_initial_distribution(keep, state_map)
+        if is_epsilon_machine:
+            from pensive.generators.epsilon_machine import EpsilonMachine
+
+            recurrent = EpsilonMachine(
+                graph=graph,
+                initial_distribution=initial_distribution,
+                observation_alphabet=self.observation_alphabet,
+            )
+            recurrent.validate()
+            return recurrent
+
+        recurrent = MealyHMM(
+            graph=graph,
+            initial_distribution=initial_distribution,
+            observation_alphabet=self.observation_alphabet,
+        )
+        recurrent.validate_stochastic()
+        recurrent._check_unifilar()
+        return recurrent
+
+    def _recurrent_state_map(
+        self,
+        keep: frozenset[MixedState],
+    ) -> tuple[dict[MixedState, Hashable], bool]:
+        labels: dict[MixedState, Hashable] = {}
+        for state in keep:
+            label = self.causal_state(state)
+            if label is None:
+                return {mixed_state: mixed_state for mixed_state in keep}, False
+            labels[state] = label
+        return labels, True
+
+    def _recurrent_initial_distribution(
+        self,
+        keep: frozenset[MixedState],
+        state_map: Mapping[MixedState, Hashable],
+    ) -> dict[Hashable, float]:
+        idx = self.reindex()
+        stationary = self.stationary_distribution()
+        initial: dict[Hashable, float] = {}
+        for state in keep:
+            mass = float(stationary[idx.index(state)])
+            if mass > 0.0:
+                label = state_map[state]
+                initial[label] = initial.get(label, 0.0) + mass
+        if not initial:
+            raise StochasticValidationError("recurrent component has no positive stationary mass")
+        total = sum(initial.values())
+        return {state: mass / total for state, mass in initial.items()}
 
     def belief(self, state: MixedState) -> tuple[float, ...]:
         return state.belief
