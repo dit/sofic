@@ -1,5 +1,7 @@
 """Canonical ε-machine examples from the computational mechanics literature."""
 
+from importlib import import_module as _import_module
+
 from pensive.examples.epsilon_machines import (
     alternating_biased_coins,
     bernoulli,
@@ -24,6 +26,10 @@ from pensive.examples.epsilon_machines import (
     tent_map_misiurewicz_information_expected,
     tent_map_misiurewicz_reverse,
 )
+from pensive.examples.processes import *
+from pensive.examples.processes import __all__ as _process_all
+
+processes = _import_module("pensive.examples.processes")
 
 __all__ = [
     "alternating_biased_coins",
@@ -49,3 +55,6 @@ __all__ = [
     "tent_map_misiurewicz_information_expected",
     "tent_map_misiurewicz_reverse",
 ]
+__all__ += _process_all
+__all__ = [name for name in __all__ if name != "processes"]
+__all__.append("processes")
