@@ -123,7 +123,7 @@ class MealyHMM(HiddenMarkovModel):
 
         return MixedStatePresentation.from_presentation(self, initial_mixed_state=initial_mixed_state)
 
-    def to_edge_machine(self) -> MealyHMM:
+    def to_edge_machine(self, iterations: int = 1, style: int = 0) -> MealyHMM:
         from pensive.generators.edge_machine import hmm_to_edge_machine
 
-        return hmm_to_edge_machine(self)
+        return hmm_to_edge_machine(self, iterations=iterations, style=style)

@@ -6,9 +6,9 @@ Edge Machine
 *************
 
 An **edge machine** (generator presentation) converts a non-unifilar HMM into a
-Mealy generator whose states index labeled transitions :math:`(q, o)`. This is a
-presentation-level construction for hidden Markov generators and computational
-mechanics :cite:`Rabiner1989,Crutchfield1994`.
+Mealy generator whose states index labeled transitions :math:`(q, o, q')`.
+This is a presentation-level construction for hidden Markov generators and
+computational mechanics :cite:`Rabiner1989,Crutchfield1994`.
 
 .. ipython::
 

@@ -168,11 +168,11 @@ def nmachine_from_quasi_realization(
     )
 
 
-def hmm_to_edge_machine(hmm: MealyHMM | MooreHMM) -> MealyHMM:
+def hmm_to_edge_machine(hmm: MealyHMM | MooreHMM, iterations: int = 1, style: int = 0) -> MealyHMM:
     """Convert an HMM to its edge (generator) presentation."""
     from pensive.generators.edge_machine import hmm_to_edge_machine as _build
 
-    return _build(hmm)
+    return _build(hmm, iterations=iterations, style=style)
 
 
 def epsilon_machine_to_unifilar_graph(eps: MealyHMM) -> TopologicalUnifilarGraph:
