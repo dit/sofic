@@ -1460,6 +1460,7 @@ source = { editable = "." }
 dependencies = [
     { name = "networkx" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "scipy" },
 ]
 
@@ -1541,6 +1542,7 @@ requires-dist = [
     { name = "pytest-sugar", marker = "extra == 'test'" },
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "pytest-xdist", marker = "extra == 'test'" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scipy", specifier = ">=1.7" },
     { name = "sphinx", marker = "extra == 'dev'" },

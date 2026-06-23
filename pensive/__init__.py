@@ -58,6 +58,7 @@ from pensive.generators import (
     StochasticModel,
 )
 from pensive.operations import reverse
+from pensive.serialization import from_yaml, model_from_yaml, model_to_yaml, read_yaml
 from pensive.shifts import (
     LeftFischerCover,
     LeftKriegerCover,
@@ -128,6 +129,10 @@ __all__ = [
     "determinize",
     "equivalent",
     "minimize",
+    "from_yaml",
+    "model_from_yaml",
+    "model_to_yaml",
+    "read_yaml",
     "reverse",
     "trim",
     "__version__",

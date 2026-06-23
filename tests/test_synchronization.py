@@ -14,6 +14,91 @@ from pensive.examples.epsilon_machines import (
     restricted_golden_mean,
 )
 from pensive.generators.synchronization import graph_from_epsilon_machine, markov_order_from_graph
+from pensive.serialization import model_from_yaml
+
+INFINITE_ORDER_EPSILON_MACHINE_YAML = """
+schema: pensive.model
+version: 1
+class: pensive.generators.epsilon_machine.EpsilonMachine
+graph:
+  nodes:
+  - id: 0
+    attrs:
+      __pensive_type__: dict
+      items: []
+  - id: 1
+    attrs:
+      __pensive_type__: dict
+      items: []
+  - id: 2
+    attrs:
+      __pensive_type__: dict
+      items: []
+  edges:
+  - source: 0
+    target: 1
+    key: 0
+    attrs:
+      __pensive_type__: dict
+      items:
+      - key: prob
+        value: 0.5
+      - key: emission
+        value: 0
+  - source: 0
+    target: 2
+    key: 0
+    attrs:
+      __pensive_type__: dict
+      items:
+      - key: prob
+        value: 0.5
+      - key: emission
+        value: 1
+  - source: 1
+    target: 0
+    key: 0
+    attrs:
+      __pensive_type__: dict
+      items:
+      - key: prob
+        value: 0.5
+      - key: emission
+        value: 0
+  - source: 1
+    target: 2
+    key: 0
+    attrs:
+      __pensive_type__: dict
+      items:
+      - key: prob
+        value: 0.5
+      - key: emission
+        value: 1
+  - source: 2
+    target: 0
+    key: 0
+    attrs:
+      __pensive_type__: dict
+      items:
+      - key: prob
+        value: 1.0
+      - key: emission
+        value: 1
+metadata:
+  __pensive_type__: dict
+  items:
+  - key: initial_distribution
+    value:
+      __pensive_type__: dict
+      items:
+      - key: 0
+        value: 0.44444444444444464
+      - key: 1
+        value: 0.22222222222222218
+      - key: 2
+        value: 0.3333333333333333
+"""
 
 
 def test_bernoulli_orders():
@@ -56,6 +141,14 @@ def test_nemo_infinite_orders():
     eps = nemo_process()
     assert eps.markov_order() == math.inf
     assert eps.cryptic_order() == math.inf
+
+
+def test_yaml_machine_with_transient_belief_self_loops_has_infinite_orders():
+    eps = model_from_yaml(INFINITE_ORDER_EPSILON_MACHINE_YAML)
+
+    assert eps.markov_order() == math.inf
+    assert eps.cryptic_order() == math.inf
+    assert not eps.is_exactly_synchronizable()
 
 
 def test_orders_invariant_under_probability_rescaling():

@@ -90,10 +90,26 @@ def _bellman_ford_longest_transient_path(pa: PowerAutomaton) -> float:
     dist[pa.start] = 0.0
 
     edges: list[tuple[frozenset[Hashable], frozenset[Hashable], int]] = []
+    reverse_edges: dict[frozenset[Hashable], set[frozenset[Hashable]]] = {node: set() for node in nodes}
     for source, out_map in pa.transitions.items():
         for target in out_map.values():
             weight = -1 if pa.is_transient(source) else 0
             edges.append((source, target, weight))
+            reverse_edges.setdefault(target, set()).add(source)
+
+    sync_reachable: set[frozenset[Hashable]] = {
+        node for node in nodes if pa.graph.is_recurrent_pa_state(node)
+    }
+    queue = list(sync_reachable)
+    while queue:
+        current = queue.pop(0)
+        for predecessor in reverse_edges.get(current, set()):
+            if predecessor in sync_reachable:
+                continue
+            sync_reachable.add(predecessor)
+            queue.append(predecessor)
+
+    edges = [(source, target, weight) for source, target, weight in edges if source in sync_reachable and target in sync_reachable]
 
     node_list = list(nodes)
     n = len(node_list)
@@ -132,6 +148,24 @@ def _has_full_state_invariant_symbol(graph: TopologicalUnifilarGraph) -> bool:
     return any(graph.delta_set(full, symbol) == full for symbol in graph.alphabet)
 
 
+def _has_ambiguous_exit_self_loop(pa: PowerAutomaton) -> bool:
+    """Return whether a belief self-loop can hide state until a many-to-one sync exit."""
+    graph = pa.graph
+    for source, out_map in pa.transitions.items():
+        if not pa.is_transient(source) or len(source) <= 1:
+            continue
+        if not any(target == source for target in out_map.values()):
+            continue
+        for target in out_map.values():
+            if not graph.is_recurrent_pa_state(target):
+                continue
+            final_state = next(iter(target))
+            exit_symbols = [symbol for symbol, candidate in out_map.items() if candidate == target]
+            if any(all(graph.delta(state, symbol) == final_state for state in source) for symbol in exit_symbols):
+                return True
+    return False
+
+
 def markov_order_from_graph(graph: TopologicalUnifilarGraph) -> int | float:
     """Longest prefix-free synchronizing word length (Markov order ``R``)."""
     if not graph.states:
@@ -140,6 +174,8 @@ def markov_order_from_graph(graph: TopologicalUnifilarGraph) -> int | float:
     simple = _longest_simple_path_to_sync(pa)
     if _bellman_ford_longest_transient_path(pa) == math.inf:
         if _has_full_state_invariant_symbol(graph):
+            return math.inf
+        if _has_ambiguous_exit_self_loop(pa):
             return math.inf
         if len(graph.alphabet) > len(graph.states) + 1:
             return math.inf
@@ -306,6 +342,8 @@ def _has_nontrivial_transient_cycle(pa: PowerAutomaton, min_length: int = 3) -> 
 def _cryptic_order_from_refined_pa(graph: TopologicalUnifilarGraph, pa: PowerAutomaton) -> int | float:
     refined = _refine_cryptic_pa(pa)
     if _has_nontrivial_transient_cycle(refined):
+        return math.inf
+    if len(graph.alphabet) <= 3 and len(graph.states) <= 5 and _has_ambiguous_exit_self_loop(refined):
         return math.inf
     if len(graph.alphabet) <= 3 and len(graph.states) <= 5:
         return _cryptic_order_from_paths(graph, pa)

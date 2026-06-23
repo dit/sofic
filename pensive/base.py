@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Hashable, Iterator
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Self
 
 import networkx as nx
@@ -50,6 +51,31 @@ class StateMachine(ABC):
     @classmethod
     def from_networkx(cls, g: nx.MultiDiGraph, **kwargs: Any) -> Self:
         return cls(graph=TransitionGraph(g.copy()), **kwargs)
+
+    def to_yaml(self) -> str:
+        """Return a YAML representation of this model."""
+        from pensive.serialization import model_to_yaml
+
+        return model_to_yaml(self)
+
+    def write_yaml(self, path: str | Path) -> None:
+        """Write this model as YAML."""
+        Path(path).write_text(self.to_yaml(), encoding="utf-8")
+
+    @classmethod
+    def from_yaml(cls, text: str, *, validate: bool = True) -> Self:
+        """Reconstruct a model from YAML text."""
+        from pensive.serialization import model_from_yaml
+
+        model = model_from_yaml(text, validate=validate)
+        if not isinstance(model, cls):
+            raise TypeError(f"YAML contains {type(model).__qualname__}, not a {cls.__qualname__}")
+        return model
+
+    @classmethod
+    def read_yaml(cls, path: str | Path, *, validate: bool = True) -> Self:
+        """Read a model from a YAML file."""
+        return cls.from_yaml(Path(path).read_text(encoding="utf-8"), validate=validate)
 
     def reverse(self) -> Self:
         """Return a model with the transition graph transposed."""

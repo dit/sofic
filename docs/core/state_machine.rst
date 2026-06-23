@@ -38,6 +38,20 @@ Reverse the transition graph:
 
    In [8]: rev = reverse(eps)
 
+Serialize and reconstruct a model with YAML:
+
+.. ipython::
+
+   In [9]: yaml_text = eps.to_yaml()
+
+   In [10]: eps3 = type(eps).from_yaml(yaml_text)
+
+   In [11]: eps3.validate()
+
+For HMM-style generators, emitted alphabets are inferred from graph emissions
+when loading YAML. Initial distributions remain serialized because they are not
+determined by the transition graph in general.
+
 Jupyter notebooks display models as Graphviz SVG when ``pensive[viz]`` is
 installed (see :doc:`../viz`).
 
@@ -45,7 +59,7 @@ API
 ===
 
 .. autoclass:: StateMachine
-   :members: validate, states, transitions, reindex, copy, reverse, to_networkx, from_networkx
+   :members: validate, states, transitions, reindex, copy, reverse, to_networkx, from_networkx, to_yaml, write_yaml, from_yaml, read_yaml
 
 .. autoclass:: StateIndex
 
