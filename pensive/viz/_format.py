@@ -29,6 +29,9 @@ def format_state(state: Any) -> str:
     if isinstance(state, tuple):
         inner = ", ".join(format_state(part) for part in state)
         return f"({inner})"
+    if isinstance(state, frozenset):
+        inner = ", ".join(sorted(format_state(part) for part in state))
+        return rf"\{{{inner}\}}"
     if state is EPSILON:
         return "ε"
     return dot_escape(str(state))

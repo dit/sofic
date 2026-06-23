@@ -1,12 +1,13 @@
 .. examples.rst
-.. py:module:: pensive.examples.epsilon_machines
+.. py:module:: pensive.examples
 
 ********
 Examples
 ********
 
-The :mod:`pensive.examples` module is a catalog of canonical ε-machines and
-related generators from the computational mechanics literature.
+The :mod:`pensive.examples` module is a catalog of canonical ε-machines,
+symbolic shifts, and related generators from the computational mechanics and
+symbolic dynamics literature.
 
 Catalog
 -------
@@ -42,6 +43,15 @@ Tent map (Misiurewicz point)
 * :func:`tent_map_misiurewicz_forward`, :func:`tent_map_misiurewicz_reverse`
 * :func:`tent_map_misiurewicz_bidirectional` — information anatomy reference
 * :func:`tent_map_misiurewicz_information_expected` — expected measure dict
+
+Sofic-Dyck shifts
+~~~~~~~~~~~~~~~~~
+
+* :func:`dyck_shift_order` — one-state Dyck shift of order ``k`` :cite:`BealBlockeletDima2015`
+* :func:`motzkin_shift` — Motzkin shift from Beal, Blockelet & Dima Fig. 1
+* :func:`sofic_dyck_fig1_shift` — two-state sofic-Dyck shift from Fig. 1
+* :func:`sofic_dyck_nondeterminizable_shift` — example with no deterministic presentation
+* :func:`sofic_dyck_zeta_example_shift` — zeta-function example shift
 
 Example
 -------
@@ -83,3 +93,8 @@ API
 .. autofunction:: tent_map_misiurewicz_bidirectional
 .. autofunction:: tent_map_misiurewicz_a
 .. autofunction:: tent_map_misiurewicz_information_expected
+.. autofunction:: dyck_shift_order
+.. autofunction:: motzkin_shift
+.. autofunction:: sofic_dyck_fig1_shift
+.. autofunction:: sofic_dyck_nondeterminizable_shift
+.. autofunction:: sofic_dyck_zeta_example_shift

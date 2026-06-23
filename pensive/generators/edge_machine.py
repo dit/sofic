@@ -17,8 +17,10 @@ from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
 type EdgeState = tuple[Hashable, Any, Hashable]
 
-_ATTR_EDGE_SOURCE = "edge_source"
-_ATTR_EDGE_TARGET = "edge_target"
+ATTR_EDGE_SOURCE = "edge_source"
+ATTR_EDGE_TARGET = "edge_target"
+_ATTR_EDGE_SOURCE = ATTR_EDGE_SOURCE
+_ATTR_EDGE_TARGET = ATTR_EDGE_TARGET
 
 
 def edge_state_label(edge: EdgeState) -> str:

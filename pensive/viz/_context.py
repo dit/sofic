@@ -71,6 +71,17 @@ def _state_label_with_attrs(state: Hashable, attrs: Mapping[str, Any], extras: l
     return "\\n".join(lines)
 
 
+def _edge_state_label_with_attrs(attrs: Mapping[str, Any]) -> str | None:
+    from pensive.generators.edge_machine import ATTR_EDGE_SOURCE, ATTR_EDGE_TARGET
+
+    if ATTR_EDGE_SOURCE not in attrs or ATTR_EMISSION not in attrs or ATTR_EDGE_TARGET not in attrs:
+        return None
+    source = format_state(attrs[ATTR_EDGE_SOURCE])
+    emission = format_symbol(attrs[ATTR_EMISSION])
+    target = format_state(attrs[ATTR_EDGE_TARGET])
+    return f"({source}, {emission}, {target})"
+
+
 def _edge_parts_symbol(transition: Transition) -> list[str]:
     symbol = transition.data.get(ATTR_SYMBOL)
     if symbol is not None:
@@ -324,7 +335,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
             quasidist = getattr(model, "initial_quasidistribution", {})
             if state in quasidist:
                 extras.append(f"π={format_prob_rational(float(quasidist[state]))}")
-        state_labels[state] = _state_label_with_attrs(state, attrs, extras)
+        state_labels[state] = _edge_state_label_with_attrs(attrs) or _state_label_with_attrs(state, attrs, extras)
 
     transient_fill, recurrent_fill = _recurrence_fill_sets(model, initial_states=initial_states)
 

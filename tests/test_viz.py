@@ -9,8 +9,10 @@ from pensive.examples.epsilon_machines import golden_mean, golden_mean_bidirecti
 from pensive.generators.markov import MarkovChain
 from pensive.graph import ATTR_PROB
 from pensive.viz._context import viz_context
-from pensive.viz._format import format_belief, format_distribution, format_prob_rational
+from pensive.viz._format import format_belief, format_distribution, format_prob_rational, format_state
+from pensive.viz._tikz_format import format_state_tikz_node
 from pensive.viz.graphviz import model_to_graphviz
+from pensive.viz.tikz import model_to_tikz
 
 graphviz = pytest.importorskip("graphviz")
 
@@ -27,6 +29,21 @@ def _dfa() -> DFA:
     dfa.add_transition("q0", "q0", "b")
     dfa.add_transition("q1", "q1", "a")
     dfa.add_transition("q1", "q0", "b")
+    return dfa
+
+
+def _nested_frozenset_dfa() -> DFA:
+    start = frozenset({frozenset({0}), frozenset({1, 2})})
+    accepting = frozenset()
+    dfa = DFA(
+        input_alphabet=frozenset({"a"}),
+        initial_states=frozenset({start}),
+        accepting_states=frozenset({accepting}),
+    )
+    dfa.graph.add_state(start)
+    dfa.graph.add_state(accepting)
+    dfa.add_transition(start, accepting, "a")
+    dfa.add_transition(accepting, accepting, "a")
     return dfa
 
 
@@ -64,6 +81,18 @@ def test_epsilon_machine_renders():
     assert "0.5" not in source
 
 
+def test_edge_machine_renders_readable_state_labels():
+    edge = golden_mean().to_edge_machine()
+    source = model_to_graphviz(edge).source
+    assert "\x1e" not in source
+    assert "(A, 0, A)" in source
+
+    bundle = edge._repr_mimebundle_()
+    assert bundle is not None
+    assert "image/svg+xml" in bundle
+    assert bundle["image/svg+xml"].lstrip().startswith("<")
+
+
 def test_format_prob_rational_two_digit_fractions():
     assert format_prob_rational(0.5) == "1/2"
     assert format_prob_rational(2 / 3) == "2/3"
@@ -83,6 +112,29 @@ def test_format_belief_uses_fractions():
 
 def test_format_distribution_uses_fractions():
     assert format_distribution({"0": 0.5, "1": 0.5}) == "0:1/2, 1:1/2"
+
+
+def test_format_state_formats_frozensets_readably():
+    nested = frozenset({frozenset({0}), frozenset({1, 2})})
+    assert format_state(frozenset({0, 1})) == r"\{0, 1\}"
+    assert format_state(nested) == r"\{\{0\}, \{1, 2\}\}"
+    assert format_state(frozenset()) == r"\{\}"
+
+
+def test_graphviz_nested_frozenset_state_labels_are_readable():
+    source = model_to_graphviz(_nested_frozenset_dfa()).source
+    assert "frozenset(" not in source
+    assert r"\{\{0\}, \{1, 2\}\}" in source
+    assert r"\{\}" in source
+
+
+def test_tikz_nested_frozenset_state_labels_are_readable():
+    assert format_state_tikz_node(frozenset({frozenset({0}), frozenset({1, 2})})) == (
+        r"\{\{0\}{,} \{1{,} 2\}\}"
+    )
+    source = model_to_tikz(_nested_frozenset_dfa())
+    assert "frozenset(" not in source
+    assert r"\{\{0\}{,} \{1{,} 2\}\}" in source
 
 
 def test_markov_chain_stationary_annotation_uses_fractions():

@@ -1,4 +1,4 @@
-"""Canonical ε-machine examples from the computational mechanics literature."""
+"""Canonical examples from the computational mechanics literature."""
 
 from importlib import import_module as _import_module
 
@@ -28,13 +28,22 @@ from pensive.examples.epsilon_machines import (
 )
 from pensive.examples.processes import *
 from pensive.examples.processes import __all__ as _process_all
+from pensive.examples.shifts import (
+    dyck_shift_order,
+    motzkin_shift,
+    sofic_dyck_fig1_shift,
+    sofic_dyck_nondeterminizable_shift,
+    sofic_dyck_zeta_example_shift,
+)
 
 processes = _import_module("pensive.examples.processes")
+shifts = _import_module("pensive.examples.shifts")
 
 __all__ = [
     "alternating_biased_coins",
     "bernoulli",
     "butterfly_process",
+    "dyck_shift_order",
     "ellison_fig9_forward",
     "ellison_fig9_reverse",
     "ellison_fig15_bidirectional",
@@ -46,8 +55,12 @@ __all__ = [
     "golden_mean_reverse",
     "golden_mean_bidirectional",
     "golden_mean_shift_parry",
+    "motzkin_shift",
     "nemo_process",
     "restricted_golden_mean",
+    "sofic_dyck_fig1_shift",
+    "sofic_dyck_nondeterminizable_shift",
+    "sofic_dyck_zeta_example_shift",
     "tent_map_misiurewicz_a",
     "tent_map_misiurewicz_bidirectional",
     "tent_map_misiurewicz_forward",
@@ -56,5 +69,6 @@ __all__ = [
     "tent_map_misiurewicz_reverse",
 ]
 __all__ += _process_all
-__all__ = [name for name in __all__ if name != "processes"]
+__all__ = [name for name in __all__ if name not in {"processes", "shifts"}]
 __all__.append("processes")
+__all__.append("shifts")

@@ -34,10 +34,7 @@ def _model_for_viz(model: StateMachine) -> StateMachine:
 
 
 def _node_name(state: Hashable) -> str:
-    from pensive.generators.mixed_state import MixedState
-    from pensive.viz._format import format_belief
-
-    text = format_belief(state.belief) if isinstance(state, MixedState) else format_state(state)
+    text = repr(state)
     ident = re.sub(r"[^A-Za-z0-9_]+", "_", text).strip("_")
     if not ident:
         ident = "state"
@@ -102,7 +99,7 @@ def _add_states(dot: graphviz.Digraph, model: StateMachine, context: VizContext)
     for state in model.states():
         dot.node(
             _node_name(state),
-            label=context.state_labels.get(state, str(state)),
+            label=context.state_labels.get(state, format_state(state)),
             shape="doublecircle" if state in context.accepting_states else "circle",
             peripheries="2" if state in context.accepting_states else "1",
             penwidth="2.5" if context.highlight_initial_states and state in context.initial_states else "1.0",

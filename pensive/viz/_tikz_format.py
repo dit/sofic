@@ -46,6 +46,9 @@ def format_state_latex(state: Any) -> str:
     if isinstance(state, tuple):
         inner = ", ".join(format_state_latex(part) for part in state)
         return f"({inner})"
+    if isinstance(state, frozenset):
+        inner = ", ".join(sorted(format_state_latex(part) for part in state))
+        return rf"\{{{inner}\}}"
     if state is EPSILON:
         return r"\varepsilon"
     return latex_escape(str(state))

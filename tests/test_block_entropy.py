@@ -62,12 +62,57 @@ def test_plot_block_entropy_diagram_feature_flags():
         show_markov_order=False,
         show_cryptic_order=False,
         show_crypticity=False,
+        show_grid=False,
         show_legend=False,
     )
 
     assert result is ax
     assert len(ax.lines) == 1
     assert ax.lines[0].get_label() == r"$H[X_{0:L}]$"
+    assert not any(line.get_visible() for line in ax.xaxis.get_gridlines())
+    assert not any(line.get_visible() for line in ax.yaxis.get_gridlines())
+    plt.close(ax.figure)
+
+
+def test_plot_block_entropy_diagram_default_features():
+    matplotlib = pytest.importorskip("matplotlib")
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots()
+    result = golden_mean(0.5).plot_block_entropy_diagram(3, ax=ax, show_legend=False)
+
+    labels = [line.get_label() for line in ax.lines]
+    assert result is ax
+    assert r"$H[S_0, X_{0:L}]$" not in labels
+    assert r"$\chi(L)$" not in labels
+    assert r"$\chi$" not in labels
+    assert any(line.get_visible() for line in ax.xaxis.get_gridlines())
+    assert any(line.get_visible() for line in ax.yaxis.get_gridlines())
+    plt.close(ax.figure)
+
+
+def test_plot_block_entropy_diagram_hidden_features_can_be_enabled():
+    matplotlib = pytest.importorskip("matplotlib")
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots()
+    result = golden_mean(0.5).plot_block_entropy_diagram(
+        3,
+        ax=ax,
+        show_state_block_entropy=True,
+        show_crypticity=True,
+        show_legend=False,
+    )
+
+    labels = [line.get_label() for line in ax.lines]
+    assert result is ax
+    assert r"$H[S_0, X_{0:L}]$" in labels
+    assert r"$\chi(L)$" in labels
+    assert r"$\chi$" in labels
     plt.close(ax.figure)
 
 

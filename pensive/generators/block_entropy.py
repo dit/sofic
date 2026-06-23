@@ -45,15 +45,16 @@ class BlockEntropyDiagram:
         ax: Any | None = None,
         *,
         show_block_entropy: bool = True,
-        show_state_block_entropy: bool = True,
+        show_state_block_entropy: bool = False,
         show_block_state_entropy: bool = True,
         show_asymptote: bool = True,
         show_markov_order: bool = True,
         show_cryptic_order: bool = True,
-        show_crypticity: bool = True,
+        show_crypticity: bool = False,
         show_excess_entropy: bool = False,
         show_statistical_complexity: bool = False,
         show_entropy_rate_estimate: bool = False,
+        show_grid: bool = True,
         show_legend: bool = True,
         title: str | None = None,
         marker: str = "o",
@@ -130,6 +131,11 @@ class BlockEntropyDiagram:
         if show_cryptic_order:
             self._plot_order_line(ax, self.cryptic_order, "tab:orange", r"$k_\chi$")
 
+        if show_grid:
+            ax.set_axisbelow(True)
+            ax.grid(True, color="0.85", linewidth=0.8)
+        else:
+            ax.grid(False)
         ax.set_xlabel("Block length L")
         ax.set_ylabel("Information (bits)")
         if title is not None:
