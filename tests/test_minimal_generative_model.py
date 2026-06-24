@@ -9,7 +9,13 @@ import numpy as np
 import pytest
 
 from pensive.examples.epsilon_machines import bernoulli, from_symbol_matrices, golden_mean_bidirectional
+from pensive.exceptions import StochasticValidationError
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.minimal_generative_model import (
+    MinimalGenerativeModel,
+    _auxiliary_state_channel,
+    _model_from_channel,
+)
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 pytest.importorskip("dit")
@@ -102,6 +108,107 @@ def _wgm(process: EpsilonMachine):
         cutoff=1e-8,
         rng=np.random.default_rng(4321),
     )
+
+
+class _FakeAuxiliaryOptimizer:
+    def __init__(self, aux_joint: np.ndarray, value: float = 0.0) -> None:
+        self.aux_joint = aux_joint
+        self.value = value
+        self._optima = np.ones(1)
+
+    def construct_joint(self, _x: np.ndarray) -> np.ndarray:
+        return self.aux_joint
+
+    def objective(self, _x: np.ndarray) -> float:
+        return self.value
+
+
+def test_golden_mean_minimal_generative_model_covers_expected_joint_support():
+    bidir = golden_mean_bidirectional(0.5)
+    mgm = bidir.minimal_generative_model(rng=np.random.default_rng(1234))
+
+    expected = {("A", "C"), ("A", "D"), ("B", "C")}
+    assert set(bidir.joint_distribution()) == expected
+    assert set(mgm.pair_state_channel) == expected
+    assert mgm.pair_state_channel[("A", "D")]
+
+
+def test_auxiliary_state_channel_retries_without_polishing_when_polished_row_is_missing():
+    joint = {("A", "C"): 1 / 3, ("A", "D"): 1 / 3, ("B", "C"): 1 / 3}
+    invalid = np.zeros((2, 2, 2))
+    invalid[0, 0, 0] = 1 / 3
+    invalid[1, 0, 0] = 1 / 3
+    valid = invalid.copy()
+    valid[0, 1, 1] = 1 / 3
+    calls: list[float | bool] = []
+
+    def optimizer(_dist, *, bound, niter, maxiter, polish, backend, rng):
+        calls.append(polish)
+        return _FakeAuxiliaryOptimizer(invalid if polish else valid, value=0.5)
+
+    channel, value = _auxiliary_state_channel(
+        joint,
+        optimizer=optimizer,
+        optimizer_name="exact common information",
+        bound=2,
+        niter=3,
+        maxiter=100,
+        polish=1e-6,
+        backend="numpy",
+        cutoff=1e-10,
+        rng=None,
+    )
+
+    assert calls == [1e-6, False]
+    assert channel[("A", "D")] == {"G1": 1.0}
+    assert value == pytest.approx(0.5)
+
+
+def test_auxiliary_state_channel_reports_missing_row_context_without_polishing():
+    joint = {("A", "C"): 1 / 3, ("A", "D"): 1 / 3, ("B", "C"): 1 / 3}
+    invalid = np.zeros((2, 2, 2))
+    invalid[0, 0, 0] = 1 / 3
+    invalid[1, 0, 0] = 1 / 3
+
+    def optimizer(_dist, *, bound, niter, maxiter, polish, backend, rng):
+        return _FakeAuxiliaryOptimizer(invalid)
+
+    with pytest.raises(
+        StochasticValidationError,
+        match=r"joint state \('A', 'D'\).*target joint mass=.*returned row mass=0.*polish=False.*niter=7",
+    ):
+        _auxiliary_state_channel(
+            joint,
+            optimizer=optimizer,
+            optimizer_name="exact common information",
+            bound=2,
+            niter=7,
+            maxiter=100,
+            polish=False,
+            backend="numpy",
+            cutoff=1e-10,
+            rng=None,
+        )
+
+
+def test_model_from_channel_keeps_outgoing_probabilities_for_rare_active_states():
+    bidir = golden_mean_bidirectional(0.5)
+    joint = dict.fromkeys((("A", "C"), ("A", "D"), ("B", "C")), 1 / 3)
+    rare_probability = 2e-10
+    pair_channel = {pair: {"G0": rare_probability, "G1": 1.0 - rare_probability} for pair in joint}
+
+    model = _model_from_channel(
+        bidir,
+        joint,
+        pair_channel,
+        model_cls=MinimalGenerativeModel,
+        model_name="minimal generative model",
+        measure_kwargs={"exact_common_information": 0.0},
+        cutoff=1e-10,
+    )
+
+    assert "G0" in set(model.states())
+    assert list(model.graph.out_transitions("G0"))
 
 
 @pytest.mark.parametrize(

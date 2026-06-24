@@ -219,6 +219,62 @@ def _indexed_joint_distribution(
     return dit.Distribution(outcomes, probs), plus_index, minus_index
 
 
+def _optimized_auxiliary_joint(
+    dist: Any,
+    *,
+    optimizer: Any,
+    optimizer_name: str,
+    bound: int | None,
+    niter: int | None,
+    maxiter: int,
+    polish: float | bool,
+    backend: str,
+    rng: np.random.Generator | None,
+) -> tuple[Any, np.ndarray]:
+    opt = optimizer(
+        dist,
+        bound=bound,
+        niter=niter,
+        maxiter=maxiter,
+        polish=polish,
+        backend=backend,
+        rng=rng,
+    )
+
+    aux_joint = _as_numpy(opt.construct_joint(opt._optima))
+    if aux_joint.ndim < 3:
+        raise StochasticValidationError(f"{optimizer_name} optimizer returned an invalid joint shape")
+    if aux_joint.ndim > 3:
+        aux_joint = aux_joint.sum(axis=tuple(range(2, aux_joint.ndim - 1)))
+    return opt, np.maximum(aux_joint, 0.0)
+
+
+def _raw_channel_from_auxiliary_joint(
+    aux_joint: np.ndarray,
+    joint: dict[tuple[Hashable, Hashable], float],
+    plus_index: dict[Hashable, int],
+    minus_index: dict[Hashable, int],
+    *,
+    optimizer_name: str,
+    cutoff: float,
+    polish: float | bool,
+    niter: int | None,
+) -> tuple[dict[tuple[Hashable, Hashable], np.ndarray] | None, str | None]:
+    raw_channel: dict[tuple[Hashable, Hashable], np.ndarray] = {}
+    for pair, target_mass in joint.items():
+        alpha, gamma = pair
+        row = aux_joint[plus_index[alpha], minus_index[gamma], :]
+        total = float(row.sum())
+        if total <= cutoff:
+            return None, (
+                f"missing generative-state channel row for joint state {pair!r}: "
+                f"target joint mass={target_mass:.17g}, returned row mass={total:.17g}, "
+                f"cutoff={cutoff:.17g}, polish={polish!r}, niter={niter!r}, optimizer={optimizer_name!r}"
+            )
+        raw_channel[pair] = row / total
+    return raw_channel, None
+
+
 def _auxiliary_state_channel(
     joint: dict[tuple[Hashable, Hashable], float],
     *,
@@ -241,8 +297,10 @@ def _auxiliary_state_channel(
         return matching_channel, _entropy(joint.values())
 
     dist, plus_index, minus_index = _indexed_joint_distribution(joint)
-    opt = optimizer(
+    opt, aux_joint = _optimized_auxiliary_joint(
         dist,
+        optimizer=optimizer,
+        optimizer_name=optimizer_name,
         bound=bound,
         niter=niter,
         maxiter=maxiter,
@@ -250,23 +308,46 @@ def _auxiliary_state_channel(
         backend=backend,
         rng=rng,
     )
+    raw_channel, validation_error = _raw_channel_from_auxiliary_joint(
+        aux_joint,
+        joint,
+        plus_index,
+        minus_index,
+        optimizer_name=optimizer_name,
+        cutoff=cutoff,
+        polish=polish,
+        niter=niter,
+    )
+    if validation_error is not None and polish:
+        opt, aux_joint = _optimized_auxiliary_joint(
+            dist,
+            optimizer=optimizer,
+            optimizer_name=optimizer_name,
+            bound=bound,
+            niter=niter,
+            maxiter=maxiter,
+            polish=False,
+            backend=backend,
+            rng=rng,
+        )
+        raw_channel, retry_error = _raw_channel_from_auxiliary_joint(
+            aux_joint,
+            joint,
+            plus_index,
+            minus_index,
+            optimizer_name=optimizer_name,
+            cutoff=cutoff,
+            polish=False,
+            niter=niter,
+        )
+        if retry_error is not None:
+            raise StochasticValidationError(
+                f"{validation_error}; retry without polishing also failed: {retry_error}"
+            )
+    elif validation_error is not None:
+        raise StochasticValidationError(validation_error)
 
-    aux_joint = _as_numpy(opt.construct_joint(opt._optima))
-    if aux_joint.ndim < 3:
-        raise StochasticValidationError(f"{optimizer_name} optimizer returned an invalid joint shape")
-    if aux_joint.ndim > 3:
-        aux_joint = aux_joint.sum(axis=tuple(range(2, aux_joint.ndim - 1)))
-    aux_joint = np.maximum(aux_joint, 0.0)
-
-    raw_channel: dict[tuple[Hashable, Hashable], np.ndarray] = {}
-    for pair in joint:
-        alpha, gamma = pair
-        row = aux_joint[plus_index[alpha], minus_index[gamma], :]
-        total = float(row.sum())
-        if total <= cutoff:
-            raise StochasticValidationError(f"missing generative-state channel row for joint state {pair!r}")
-        raw_channel[pair] = row / total
-
+    assert raw_channel is not None
     state_masses = _state_masses(joint, raw_channel)
     active_indices = [i for i, mass in enumerate(state_masses) if mass > cutoff]
     if not active_indices:
@@ -412,7 +493,7 @@ def _model_from_channel(
 
     by_source: dict[Hashable, dict[tuple[Hashable, Any], float]] = defaultdict(lambda: defaultdict(float))
     for (source, symbol, target), flow in flows.items():
-        if flow > cutoff:
+        if flow > 0.0:
             by_source[source][(target, symbol)] += flow
 
     for source in active_states:
@@ -420,11 +501,16 @@ def _model_from_channel(
         total = sum(outgoing.values())
         if total <= cutoff:
             raise StochasticValidationError(f"{model_name} state {source!r} has no outgoing mass")
+        added = False
         for (target, symbol), flow in outgoing.items():
             prob = flow / total
             if prob <= cutoff:
                 continue
             graph.add_transition(source, target, **{ATTR_PROB: float(prob), ATTR_EMISSION: symbol})
+            added = True
+        if not added:
+            target, symbol = max(outgoing, key=outgoing.__getitem__)
+            graph.add_transition(source, target, **{ATTR_PROB: 1.0, ATTR_EMISSION: symbol})
 
     model = model_cls(
         graph=graph,
