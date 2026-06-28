@@ -47,3 +47,17 @@ or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.block_entropy_estim
 These finite-block estimates do not replace the exact bidirectional quantities;
 they report the current block-length approximation to ``h_mu``, ``E``,
 ``rho_mu``, ``b_mu``, ``r_mu``, and related convergence curves.
+
+Causal irreversibility and stored information
+=============================================
+
+Time-asymmetric stored information is available via
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.causal_irreversibility`
+and :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.stored_information_decomposition`
+:cite:`Crutchfield2009,Ellison2009`.
+
+Finite-block convergence scalars — transient, oracular, gauge, and predictability-gain
+information — are exposed as :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.transient_information`,
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.oracular_information`,
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.gauge_information`, and
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.predictability_gain`.

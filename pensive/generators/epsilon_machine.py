@@ -206,6 +206,66 @@ class EpsilonMachine(MealyHMM):
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""
         return self.statistical_complexity() - self.excess_entropy()
 
+    def causal_irreversibility(self) -> float:
+        """ΔC_μ = C_μ − C_μ^rev (Crutchfield et al., 2009)."""
+        reverse = self.from_time_reversed(self)
+        return self.statistical_complexity() - reverse.statistical_complexity()
+
+    def stored_information_decomposition(self) -> dict[str, float]:
+        """Bidirectional stored-information quantities (Ellison et al., 2009)."""
+        bidir = self.to_bidirectional()
+        forward = self.statistical_complexity()
+        reverse = self.from_time_reversed(self).statistical_complexity()
+        bidirectional = bidir.statistical_complexity()
+        return {
+            "forward_complexity": forward,
+            "reverse_complexity": reverse,
+            "bidirectional_complexity": bidirectional,
+            "causal_irreversibility": forward - reverse,
+            "excess_entropy": bidir.excess_entropy(),
+            "crypticity": bidir.crypticity(),
+        }
+
+    def transient_information(self, max_length: int) -> float:
+        """Finite-block transient information TI(L) (Ellison et al., 2009)."""
+        estimates = self.block_entropy_estimates(max_length)
+        return float(estimates.transient_information_estimate[max_length])
+
+    def oracular_information(self, max_length: int) -> float:
+        """Finite-block oracular information Ω(L) (Ellison et al., 2009)."""
+        estimates = self.block_entropy_estimates(max_length)
+        return float(estimates.oracular_information_estimate[max_length])
+
+    def gauge_information(self, max_length: int) -> float:
+        """Finite-block gauge information Γ(L) (Ellison et al., 2009)."""
+        estimates = self.block_entropy_estimates(max_length)
+        return float(estimates.gauge_information_estimate[max_length])
+
+    def predictability_gain(self, max_length: int) -> float:
+        """Finite-block predictability gain PG(L) (Bialek et al., 2001)."""
+        if max_length < 2:
+            raise ValueError("max_length must be at least 2 for predictability gain")
+        estimates = self.block_entropy_estimates(max_length)
+        return float(estimates.predictability_gain_estimate[max_length])
+
+    def structural_information(self) -> float:
+        """Asymptotic structural information (Feldman & Crutchfield, 1998)."""
+        from pensive.generators.alternative_complexity import structural_information
+
+        return structural_information(self)
+
+    def thermodynamic_depth(self) -> float:
+        """Thermodynamic depth of causal states (Shalizi & Crutchfield, 1999)."""
+        from pensive.generators.alternative_complexity import thermodynamic_depth
+
+        return thermodynamic_depth(self)
+
+    def spectral_complexity(self) -> float:
+        """Spectral entropy of mixed-state transition eigenvalues (Riechers & Crutchfield, 2017)."""
+        from pensive.generators.alternative_complexity import spectral_complexity
+
+        return spectral_complexity(self)
+
     def markov_order(self) -> int | float:
         """Markov order ``R``: longest prefix-free synchronizing word length.
 

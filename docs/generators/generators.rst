@@ -32,6 +32,8 @@ Computational mechanics
    mixed_state_presentation
    edge_machine
    information_anatomy
+   directional_flow
+   alternative_complexity
 
 Constructions and conversions
 =============================

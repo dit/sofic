@@ -16,6 +16,12 @@ from pensive.inference.bayesian.counts import (
 )
 from pensive.inference.bayesian.epsilon import DirichletDistributionEM, EpsilonMachinePosterior, InferEM
 from pensive.inference.bayesian.markov import DirichletPriorMC, InferMC, MarkovChainPosterior
+from pensive.inference.bayesian.stack_hmm import (
+    DirichletDistributionStackHMM,
+    ModelComparisonStackHMM,
+    PathCountStackHMM,
+    StackHMMPosterior,
+)
 
 BayesianMCException = BayesianInferenceError
 BayesianEMException = BayesianInferenceError
@@ -25,6 +31,7 @@ __all__ = [
     "BayesianMCException",
     "BayesianInferenceError",
     "DirichletDistributionEM",
+    "DirichletDistributionStackHMM",
     "DirichletPriorMC",
     "EpsilonMachinePosterior",
     "InferEM",
@@ -33,7 +40,10 @@ __all__ = [
     "ModelComparisonEM",
     "ModelComparisonMC",
     "ModelComparisonMC2",
+    "ModelComparisonStackHMM",
     "PathCountEM",
+    "PathCountStackHMM",
+    "StackHMMPosterior",
     "WordCountsMC",
     "pretty_symbol",
     "pretty_word",

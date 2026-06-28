@@ -44,8 +44,17 @@ from pensive.automata.languages import AutomatonLanguage, RegularLanguage
 from pensive.automata.nfa import NFA
 from pensive.automata.nwa import NestedWord, NestedWordAutomaton
 from pensive.automata.observation import ObservationTable
+from pensive.automata.papni import (
+    DyckAlphabet,
+    is_well_matched,
+    learn_sofic_dyck_shift_papni,
+    papni_encode,
+    papni_encode_samples,
+    sofic_dyck_shift_from_papni_dfa,
+)
 from pensive.automata.regex import automaton_to_regex
 from pensive.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+from pensive.automata.rpni import learn_dfa_rpni
 from pensive.automata.transducer_operations import (
     ERROR_STATE,
     ERROR_SYMBOL,
@@ -84,6 +93,7 @@ __all__ = [
     "CompositeVisiblyPushdownAutomaton",
     "DFA",
     "DeterministicVisiblyPushdownAutomaton",
+    "DyckAlphabet",
     "ERROR_STATE",
     "ERROR_SYMBOL",
     "ICDFAString",
@@ -124,17 +134,23 @@ __all__ = [
     "flags_from_string",
     "icdfa_string_to_dfa",
     "intersection_vpa",
+    "is_well_matched",
     "iter_icdfa",
     "iter_icdfa_empty_strings",
     "iter_idfa_strings",
     "last_icdfa_empty_string",
     "MISSING_TRANSITION",
     "kleene_star_vpa",
+    "learn_dfa_rpni",
+    "learn_sofic_dyck_shift_papni",
     "minimize",
     "next_flags",
     "next_icdfa_empty_string",
+    "papni_encode",
+    "papni_encode_samples",
     "rank_idfa_string",
     "reroot_idfa_string",
+    "sofic_dyck_shift_from_papni_dfa",
     "string_from_flags",
     "trim",
     "transduce_generator",

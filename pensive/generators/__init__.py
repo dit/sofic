@@ -3,6 +3,14 @@
 from pensive.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from pensive.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
+from pensive.generators.directional_flow import (
+    directed_information,
+    independent_pair_generator,
+    intrinsic_information_flow,
+    shared_information_flow,
+    synergistic_information_flow,
+    transfer_entropy,
+)
 from pensive.generators.epsilon_inference import cssr, subtree_merge
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
@@ -19,6 +27,12 @@ from pensive.generators.nmachine import NMachine
 from pensive.generators.pfa import ProbabilisticFiniteAutomaton
 from pensive.generators.quasi_realization import QuasiRealization
 from pensive.generators.stack_hmm import HiddenMarkovStackModel
+from pensive.generators.stack_inference import (
+    fit_stack_hmm_mle,
+    learn_stack_hmm_papni,
+    stack_cssr,
+    stack_subtree_merge,
+)
 from pensive.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     epsilon_machine_to_idfa_string,
@@ -38,6 +52,16 @@ __all__ = [
     "EpsilonMachine",
     "cssr",
     "subtree_merge",
+    "fit_stack_hmm_mle",
+    "learn_stack_hmm_papni",
+    "stack_cssr",
+    "stack_subtree_merge",
+    "directed_information",
+    "independent_pair_generator",
+    "intrinsic_information_flow",
+    "shared_information_flow",
+    "synergistic_information_flow",
+    "transfer_entropy",
     "HiddenMarkovModel",
     "HiddenMarkovStackModel",
     "MarkovChain",
