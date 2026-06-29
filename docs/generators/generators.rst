@@ -28,6 +28,7 @@ Computational mechanics
    :maxdepth: 1
 
    epsilon_machine
+   block_convergence
    bidirectional_epsilon_machine
    mixed_state_presentation
    edge_machine

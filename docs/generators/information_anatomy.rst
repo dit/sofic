@@ -43,10 +43,11 @@ also exposes these quantities by building its bidirectional presentation.
 
 When that construction is unavailable, use
 :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.approximate_information_anatomy`
-or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.block_entropy_estimates`.
+or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.block_convergence_estimates`.
 These finite-block estimates do not replace the exact bidirectional quantities;
 they report the current block-length approximation to ``h_mu``, ``E``,
-``rho_mu``, ``b_mu``, ``r_mu``, and related convergence curves.
+``rho_mu``, ``b_mu``, ``r_mu``, ``q_mu``, ``w_mu``, block coinformation, CAEKL,
+and related convergence curves.  See :doc:`block_convergence`.
 
 Causal irreversibility and stored information
 =============================================

@@ -3,6 +3,7 @@
 from pensive.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from pensive.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
+from pensive.generators.block_convergence import BlockConvergenceDiagram, BlockConvergenceEstimates
 from pensive.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
@@ -49,6 +50,8 @@ __all__ = [
     "BidirectionalEpsilonMachine",
     "BlockEntropyDiagram",
     "BlockEntropyEstimates",
+    "BlockConvergenceDiagram",
+    "BlockConvergenceEstimates",
     "EpsilonMachine",
     "cssr",
     "subtree_merge",

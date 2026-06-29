@@ -32,6 +32,7 @@ Other literature processes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :func:`even_process` — even parity process
+* :func:`noisy_random_phase_slip` — NRPS prototype (James et al. :cite:`James2011`, Fig.~11c)
 * :func:`butterfly_process`, :func:`nemo_process`
 * :func:`ellison_fig9_forward`, :func:`ellison_fig9_reverse` — Ellison et al. :cite:`Ellison2011`
 * :func:`ellison_fig15_bidirectional` — bidirectional presentation
@@ -52,6 +53,16 @@ Sofic-Dyck shifts
 * :func:`sofic_dyck_fig1_shift` — two-state sofic-Dyck shift from Fig. 1
 * :func:`sofic_dyck_nondeterminizable_shift` — example with no deterministic presentation
 * :func:`sofic_dyck_zeta_example_shift` — zeta-function example shift
+
+Anatomy of a Bit prototypes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+James et al. :cite:`James2011` use three canonical processes for block-convergence
+figures:
+
+* :func:`even_process`
+* :func:`golden_mean`
+* :func:`noisy_random_phase_slip`
 
 Example
 -------
@@ -80,6 +91,7 @@ API
 .. autofunction:: golden_mean_markov
 .. autofunction:: golden_mean_shift_parry
 .. autofunction:: even_process
+.. autofunction:: noisy_random_phase_slip
 .. autofunction:: alternating_biased_coins
 .. autofunction:: restricted_golden_mean
 .. autofunction:: butterfly_process

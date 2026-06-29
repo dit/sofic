@@ -468,35 +468,18 @@ def _predictability_gain(block_entropy: np.ndarray) -> np.ndarray:
 
 
 def _residual_entropy_curve(machine: EpsilonMachine, max_length: int) -> np.ndarray:
+    from pensive.generators.block_convergence import residual_entropy_from_distribution
+
     residual = np.zeros(max_length + 1, dtype=float)
     for length in range(1, max_length + 1):
-        residual[length] = _residual_entropy(machine.word_probabilities(length))
+        residual[length] = residual_entropy_from_distribution(machine.word_probabilities(length))
     return residual
 
 
 def _residual_entropy(distribution: dict[tuple[Any, ...], float]) -> float:
-    if not distribution:
-        return 0.0
-    first = next(iter(distribution))
-    length = len(first)
-    if length == 0:
-        return 0.0
+    from pensive.generators.block_convergence import residual_entropy_from_distribution
 
-    total = sum(float(prob) for prob in distribution.values())
-    if total <= _TOL:
-        return 0.0
-    normalized = {word: float(prob) / total for word, prob in distribution.items() if prob > _TOL}
-    joint_entropy = _entropy(normalized.values())
-
-    marginal_entropies = 0.0
-    for index in range(length):
-        marginal: dict[tuple[Any, ...], float] = {}
-        for word, prob in normalized.items():
-            reduced = word[:index] + word[index + 1 :]
-            marginal[reduced] = marginal.get(reduced, 0.0) + prob
-        marginal_entropies += _entropy(marginal.values())
-
-    return max(0.0, float(length * joint_entropy - marginal_entropies))
+    return residual_entropy_from_distribution(distribution)
 
 
 def _entropy(probabilities: Iterable[float]) -> float:

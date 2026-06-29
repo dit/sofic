@@ -152,6 +152,32 @@ def even_process(p: float = 0.5) -> EpsilonMachine:
     )
 
 
+def noisy_random_phase_slip() -> EpsilonMachine:
+    """Noisy Random Phase-Slip Process (James et al., 2011, Fig.~11c).
+
+    Five-state ε-machine with stochastic phase slip at state ``A`` and
+    emission noise at state ``D``.  Prototype for block-convergence figures in
+    *Anatomy of a Bit* :cite:`James2011`.
+    """
+    from pensive.examples.processes import _edge_machine
+
+    states = sequential_labels(5)
+    a, b, c, d, e = states
+    return _edge_machine(
+        [
+            (a, a, 0, 0.5),
+            (a, b, 1, 0.5),
+            (b, c, 0, 1.0),
+            (c, d, 1, 1.0),
+            (d, e, 0, 0.5),
+            (d, e, 1, 0.5),
+            (e, a, 0, 1.0),
+        ],
+        machine_type=EpsilonMachine,
+        normalize=False,
+    )
+
+
 def golden_mean(p: float = 0.5) -> EpsilonMachine:
     """Golden Mean Process (two-state presentation, forbid consecutive ``11``).
 

@@ -178,13 +178,42 @@ class EpsilonMachine(MealyHMM):
         entropy_rate: float | None = None,
     ) -> dict[str, float]:
         """Approximate anatomy rates without constructing a bidirectional machine."""
-        return self.block_entropy_estimates(max_length, entropy_rate=entropy_rate).information_anatomy()
+        return self.block_convergence_estimates(max_length, entropy_rate=entropy_rate).information_anatomy()
 
     def plot_block_entropy_diagram(self, max_length: int, ax: Any | None = None, **kwargs: Any) -> Any:
         """Compute and plot finite-block entropy convergence curves."""
         from pensive.generators.block_entropy import plot_block_entropy_diagram
 
         return plot_block_entropy_diagram(self, max_length, ax=ax, **kwargs)
+
+    def block_convergence_diagram(self, max_length: int) -> Any:
+        """James et al. (2011) block convergence curves up to ``max_length``."""
+        from pensive.generators.block_convergence import block_convergence_diagram
+
+        return block_convergence_diagram(self, max_length)
+
+    def block_convergence_estimates(
+        self,
+        max_length: int,
+        *,
+        entropy_rate: float | None = None,
+        use_exact: bool = True,
+    ) -> Any:
+        """Finite-block anatomy estimates including TC, DTC, coinformation, and CAEKL."""
+        from pensive.generators.block_convergence import block_convergence_estimates
+
+        return block_convergence_estimates(
+            self,
+            max_length,
+            entropy_rate=entropy_rate,
+            use_exact=use_exact,
+        )
+
+    def plot_block_convergence_diagram(self, max_length: int, ax: Any | None = None, **kwargs: Any) -> Any:
+        """Compute and plot James et al. (2011) block convergence curves."""
+        from pensive.generators.block_convergence import plot_block_convergence_diagram
+
+        return plot_block_convergence_diagram(self, max_length, ax=ax, **kwargs)
 
     def bidirectional_crypticity(self) -> float:
         """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""

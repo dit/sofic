@@ -918,7 +918,9 @@ def NoisyPeriod2(noise: float = 0.5) -> EpsilonMachine:
 
 
 def NRPS() -> EpsilonMachine:
-    return _from_string("A A 0; A B 1; B C 0; C D 1; D E 0; D E 1; E A 0", name="Noisy Random Phase Slip")
+    from pensive.examples.epsilon_machines import noisy_random_phase_slip
+
+    return noisy_random_phase_slip()
 
 
 def Odd(machine_type: Any = EpsilonMachine, bias1: float = 0.5, bias2: float = 0.5) -> EpsilonMachine:
