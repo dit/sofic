@@ -51,6 +51,32 @@ Curves
      - ``j_μ``
      - ``J_∞``
 
+Exact vs estimated rates
+------------------------
+
+James (2011) curves ``H``, ``T``, ``R``, ``B``, ``Q``, and ``W`` satisfy block
+identities checked by :meth:`~pensive.generators.block_convergence.BlockConvergenceDiagram.validate_identities`.
+When a bidirectional ε-machine is available, the promoted rates ``h_μ``,
+``ρ_μ``, ``b_μ``, and ``r_μ`` are **exact** (from the step distribution); see
+:doc:`information_anatomy`.
+
+The CAEKL curve ``J(ℓ)`` is separate: for each ``ℓ`` it is **exact** given the
+ε-machine word distribution and ``dit``'s partition-minimization definition of
+CAEKL.  There is no bidirectional closed form analogous to ``ρ_μ = I[X₀:S⁺₀]``.
+The extensive rate ``j_μ`` is promoted from finite differences ``J(ℓ)-J(ℓ-1)``;
+when :attr:`~pensive.generators.block_convergence.BlockConvergenceEstimates.caekl_rate_converged`
+is ``True``, that rate is certified from a stable affine tail.
+
+Multivariate ordering :cite:`chan2015multivariate` gives ``J(ℓ) ≤ B(ℓ) ≤ T(ℓ)``
+at each block length, so (when limits exist) ``j_μ ≤ b_μ ≤ ρ_μ``.  There is no
+general identity relating ``j_μ`` to the entropy rate ``h_μ`` (e.g. a fair coin
+has ``h_μ = 1`` and ``j_μ = 0``).
+
+CAEKL partition minimization costs grow quickly with ``ℓ`` (Bell-number partitions);
+pass ``max_caekl_length`` to
+:func:`~pensive.generators.block_convergence.block_convergence_estimates`
+to cap how far ``J(ℓ)`` is computed when ``max_length`` is large.
+
 Example
 -------
 
@@ -81,6 +107,8 @@ Example
 API
 ---
 
+.. autofunction:: pensive.generators.block_convergence.block_caekl
+
 .. autofunction:: pensive.generators.block_convergence.block_convergence_diagram
 
 .. autofunction:: pensive.generators.block_convergence.block_convergence_estimates
@@ -88,7 +116,7 @@ API
 .. autofunction:: pensive.generators.block_convergence.plot_block_convergence_diagram
 
 .. autoclass:: pensive.generators.block_convergence.BlockConvergenceDiagram
-   :members: plot, validate_identities
+   :members: plot, validate_identities, j_mu, J_inf, caekl_rate_converged
 
 .. autoclass:: pensive.generators.block_convergence.BlockConvergenceEstimates
    :members: information_anatomy

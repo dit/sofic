@@ -49,6 +49,19 @@ they report the current block-length approximation to ``h_mu``, ``E``,
 ``rho_mu``, ``b_mu``, ``r_mu``, ``q_mu``, ``w_mu``, block coinformation, CAEKL,
 and related convergence curves.  See :doc:`block_convergence`.
 
+CAEKL rate ``j_μ``
+==================
+
+The block CAEKL curve ``J(ℓ)`` and its asymptotic rate ``j_μ`` are documented in
+:doc:`block_convergence`.  Per-block values ``J(ℓ)`` are exact from
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_block_information`;
+``j_μ`` is **not** a single-step bidirectional quantity like ``ρ_μ``.  When the
+affine tail of ``J(ℓ)`` stabilizes,
+:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_rate_converged`
+returns ``True`` and :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_rate`
+is exact.  Multivariate ordering yields ``j_μ ≤ b_μ ≤ ρ_μ``; ``j_μ`` is not
+determined by ``h_μ`` alone.
+
 Causal irreversibility and stored information
 =============================================
 

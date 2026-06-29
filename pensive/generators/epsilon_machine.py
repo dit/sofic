@@ -186,11 +186,11 @@ class EpsilonMachine(MealyHMM):
 
         return plot_block_entropy_diagram(self, max_length, ax=ax, **kwargs)
 
-    def block_convergence_diagram(self, max_length: int) -> Any:
+    def block_convergence_diagram(self, max_length: int, **kwargs: Any) -> Any:
         """James et al. (2011) block convergence curves up to ``max_length``."""
         from pensive.generators.block_convergence import block_convergence_diagram
 
-        return block_convergence_diagram(self, max_length)
+        return block_convergence_diagram(self, max_length, **kwargs)
 
     def block_convergence_estimates(
         self,
@@ -198,6 +198,7 @@ class EpsilonMachine(MealyHMM):
         *,
         entropy_rate: float | None = None,
         use_exact: bool = True,
+        max_caekl_length: int | None = None,
     ) -> Any:
         """Finite-block anatomy estimates including TC, DTC, coinformation, and CAEKL."""
         from pensive.generators.block_convergence import block_convergence_estimates
@@ -207,7 +208,31 @@ class EpsilonMachine(MealyHMM):
             max_length,
             entropy_rate=entropy_rate,
             use_exact=use_exact,
+            max_caekl_length=max_caekl_length,
         )
+
+    def caekl_block_information(self, length: int) -> float:
+        """Block CAEKL mutual information ``J(ℓ)`` from exact word probabilities."""
+        from pensive.generators.block_convergence import block_caekl
+
+        return block_caekl(self, length)
+
+    def caekl_rate(self, max_length: int, **kwargs: Any) -> float:
+        """Asymptotic CAEKL rate ``j_μ`` from finite-block convergence.
+
+        When :attr:`~pensive.generators.block_convergence.BlockConvergenceEstimates.caekl_rate_converged`
+        is ``True``, the returned rate equals ``J(ℓ) - J(ℓ-1)`` for all sufficiently
+        large ``ℓ`` in the affine tail.
+        """
+        return float(self.block_convergence_estimates(max_length, **kwargs).caekl_rate)
+
+    def caekl_intercept(self, max_length: int, **kwargs: Any) -> float:
+        """Subextensive intercept ``J_∞`` in ``J(ℓ) ≈ J_∞ + j_μ ℓ``."""
+        return float(self.block_convergence_estimates(max_length, **kwargs).caekl_intercept_scalar)
+
+    def caekl_rate_converged(self, max_length: int, **kwargs: Any) -> bool:
+        """Whether ``j_μ`` is certified from a stable affine tail of ``J(ℓ)``."""
+        return bool(self.block_convergence_estimates(max_length, **kwargs).caekl_rate_converged)
 
     def plot_block_convergence_diagram(self, max_length: int, ax: Any | None = None, **kwargs: Any) -> Any:
         """Compute and plot James et al. (2011) block convergence curves."""

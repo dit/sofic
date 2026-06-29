@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from pensive.generators.epsilon_machine import EpsilonMachine
 
 _TOL = 1e-15
+_CAEKL_RATE_STABLE_STEPS = 2
+_CAEKL_RATE_TOL = 1e-9
 FigureName = Literal["all", "fig4", "fig5", "fig6", "caekl", "cm"]
 
 
@@ -104,6 +106,37 @@ def _block_caekl(dist: Any, length: int) -> float:
     return float(caekl_mutual_information(dist, rvs=_positional_rvs(length)))
 
 
+def block_caekl(machine: EpsilonMachine, length: int) -> float:
+    """Exact block CAEKL mutual information ``J(ℓ)`` for block length ``length``.
+
+    Uses the ε-machine word distribution ``P(X_{0:ℓ-1})`` and
+    ``dit.multivariate.caekl_mutual_information``.  Requires ``dit``
+    (``pip install pensive[measures]``).  Returns ``0`` for ``length <= 1``.
+    """
+    if length < 0:
+        raise ValueError("length must be nonnegative")
+    if length <= 1:
+        return 0.0
+    dist = _block_word_distribution(machine, length)
+    return _block_caekl(dist, length)
+
+
+def _block_caekl_curve(
+    machine: EpsilonMachine,
+    max_length: int,
+    *,
+    max_caekl_length: int | None = None,
+) -> np.ndarray:
+    """Build ``J(ℓ)`` for ``ℓ = 0 … max_length`` (zeros where not computed)."""
+    if max_length < 0:
+        raise ValueError("max_length must be nonnegative")
+    caekl_limit = max_length if max_caekl_length is None else min(max_length, max_caekl_length)
+    block_caekl = np.zeros(max_length + 1, dtype=float)
+    for length in range(2, caekl_limit + 1):
+        block_caekl[length] = block_caekl(machine, length)
+    return block_caekl
+
+
 @dataclass(frozen=True)
 class CurveConvergence:
     """Rate/intercept/asymptote arrays for one block curve."""
@@ -148,12 +181,65 @@ def _convergence_scalars(
     )
 
 
+@dataclass(frozen=True)
+class CaeklConvergence(CurveConvergence):
+    """CAEKL block-curve convergence with an affine-tail certification flag."""
+
+    converged: bool
+
+
+def _caekl_convergence_scalars(
+    lengths: np.ndarray,
+    block_caekl: np.ndarray,
+    *,
+    stable_steps: int = _CAEKL_RATE_STABLE_STEPS,
+    tol: float = _CAEKL_RATE_TOL,
+) -> CaeklConvergence:
+    """Promote ``j_μ`` from ``J(ℓ)``, certifying exact rate when ``ΔJ`` stabilizes."""
+    rate_estimate = _entropy_rate_estimates(block_caekl)
+    converged = False
+    promoted_rate = math.nan
+
+    if len(block_caekl) > 2 and stable_steps >= 1:
+        diffs = rate_estimate[2:]
+        for start in range(len(diffs) - stable_steps + 1):
+            window = diffs[start : start + stable_steps]
+            if not all(math.isfinite(value) for value in window):
+                continue
+            reference = float(window[0])
+            if all(abs(float(value) - reference) <= tol for value in window):
+                promoted_rate = reference
+                converged = True
+                break
+
+    if not converged:
+        promoted_rate = _promoted_rate(block_caekl)
+
+    intercept = np.array(block_caekl, dtype=float, copy=True)
+    if math.isfinite(promoted_rate):
+        intercept = block_caekl - promoted_rate * lengths
+    intercept_scalar = float(intercept[-1]) if intercept.size else math.nan
+    asymptote = block_caekl.copy()
+    if math.isfinite(promoted_rate):
+        asymptote = intercept_scalar + promoted_rate * lengths
+
+    return CaeklConvergence(
+        rate_estimate=rate_estimate,
+        intercept=intercept,
+        asymptote=asymptote,
+        rate=promoted_rate,
+        intercept_scalar=intercept_scalar,
+        converged=converged,
+    )
+
+
 def _anatomy_curves(
     machine: EpsilonMachine,
     max_length: int,
     *,
     block_entropy: np.ndarray,
     h1: float,
+    max_caekl_length: int | None = None,
 ) -> dict[str, np.ndarray]:
     block_total_correlation = np.zeros(max_length + 1, dtype=float)
     block_residual_entropy = np.zeros(max_length + 1, dtype=float)
@@ -161,7 +247,7 @@ def _anatomy_curves(
     block_enigmatic_information = np.zeros(max_length + 1, dtype=float)
     block_local_exogenous_information = np.zeros(max_length + 1, dtype=float)
     block_coinformation = np.zeros(max_length + 1, dtype=float)
-    block_caekl = np.zeros(max_length + 1, dtype=float)
+    caekl_curve = np.zeros(max_length + 1, dtype=float)
 
     for length in range(max_length + 1):
         h_l = float(block_entropy[length])
@@ -174,7 +260,7 @@ def _anatomy_curves(
             block_enigmatic_information[length] = 0.0
             block_local_exogenous_information[length] = 0.0
             block_coinformation[length] = 0.0
-            block_caekl[length] = 0.0
+            caekl_curve[length] = 0.0
             continue
 
         dist = _block_word_distribution(machine, length)
@@ -187,8 +273,10 @@ def _anatomy_curves(
         block_enigmatic_information[length] = t_l - b_l
         block_local_exogenous_information[length] = b_l + t_l
         block_coinformation[length] = _block_coinformation(dist, length, h_l)
-        if length <= 10:
-            block_caekl[length] = _block_caekl(dist, length)
+
+    caekl_limit = max_length if max_caekl_length is None else min(max_length, max_caekl_length)
+    for length in range(2, caekl_limit + 1):
+        caekl_curve[length] = block_caekl(machine, length)
 
     return {
         "block_total_correlation": block_total_correlation,
@@ -197,7 +285,7 @@ def _anatomy_curves(
         "block_enigmatic_information": block_enigmatic_information,
         "block_local_exogenous_information": block_local_exogenous_information,
         "block_coinformation": block_coinformation,
-        "block_caekl": block_caekl,
+        "block_caekl": caekl_curve,
     }
 
 
@@ -293,6 +381,7 @@ class BlockConvergenceDiagram:
     E_W: float
     caekl_rate: float
     caekl_intercept_scalar: float
+    caekl_rate_converged: bool
     statistical_complexity: float
     crypticity: float
     markov_order: int | float
@@ -484,11 +573,21 @@ class BlockConvergenceEstimates(BlockConvergenceDiagram):
             "E_W": self.E_W,
             "j_mu": self.caekl_rate,
             "caekl_intercept": self.caekl_intercept_scalar,
+            "caekl_rate_converged": self.caekl_rate_converged,
         }
 
 
-def block_convergence_diagram(machine: EpsilonMachine, max_length: int) -> BlockConvergenceDiagram:
-    estimates = block_convergence_estimates(machine, max_length)
+def block_convergence_diagram(
+    machine: EpsilonMachine,
+    max_length: int,
+    *,
+    max_caekl_length: int | None = None,
+) -> BlockConvergenceDiagram:
+    estimates = block_convergence_estimates(
+        machine,
+        max_length,
+        max_caekl_length=max_caekl_length,
+    )
     return BlockConvergenceDiagram(
         **{
             field: getattr(estimates, field)
@@ -503,16 +602,25 @@ def block_convergence_estimates(
     *,
     entropy_rate: float | None = None,
     use_exact: bool = True,
+    max_caekl_length: int | None = None,
 ) -> BlockConvergenceEstimates:
     if max_length < 0:
         raise ValueError("max_length must be nonnegative")
+    if max_caekl_length is not None and max_caekl_length < 0:
+        raise ValueError("max_caekl_length must be nonnegative")
 
     lengths, block_entropy, state_block_entropy, block_state_entropy, pi, symbol_matrices = _block_entropy_curves(
         machine,
         max_length,
     )
     h1 = float(block_entropy[1]) if max_length >= 1 else math.nan
-    anatomy = _anatomy_curves(machine, max_length, block_entropy=block_entropy, h1=h1)
+    anatomy = _anatomy_curves(
+        machine,
+        max_length,
+        block_entropy=block_entropy,
+        h1=h1,
+        max_caekl_length=max_caekl_length,
+    )
 
     exact = _exact_anatomy_scalars(machine) if use_exact else None
     h_mu_exact = exact["entropy_rate"] if exact else None
@@ -537,18 +645,26 @@ def block_convergence_estimates(
         anatomy["block_total_correlation"],
         rate=exact["predicted_information"] if exact else None,
     )
-    r_conv = _convergence_scalars(lengths, anatomy["block_residual_entropy"])
-    b_conv = _convergence_scalars(lengths, anatomy["block_binding_information"])
+    r_conv = _convergence_scalars(
+        lengths,
+        anatomy["block_residual_entropy"],
+        rate=exact["ephemeral_information"] if exact else None,
+    )
+    b_conv = _convergence_scalars(
+        lengths,
+        anatomy["block_binding_information"],
+        rate=exact["bound_information"] if exact else None,
+    )
     q_conv = _convergence_scalars(lengths, anatomy["block_enigmatic_information"])
     w_conv = _convergence_scalars(lengths, anatomy["block_local_exogenous_information"])
     i_conv = _convergence_scalars(lengths, anatomy["block_coinformation"])
-    j_conv = _convergence_scalars(lengths, anatomy["block_caekl"])
+    j_conv = _caekl_convergence_scalars(lengths, anatomy["block_caekl"])
 
     rho_mu = exact["predicted_information"] if exact else t_conv.rate
-    r_mu = r_conv.rate
-    b_mu = b_conv.rate
-    q_mu = q_conv.rate
-    w_mu = w_conv.rate
+    r_mu = exact["ephemeral_information"] if exact else r_conv.rate
+    b_mu = exact["bound_information"] if exact else b_conv.rate
+    q_mu = exact["q_mu"] if exact else q_conv.rate
+    w_mu = exact["w_mu"] if exact else w_conv.rate
 
     excess_entropy_lower = block_entropy - h_mu * lengths
     excess_entropy_upper = block_state_entropy - h_mu * lengths
@@ -609,6 +725,7 @@ def block_convergence_estimates(
         E_W=float(w_conv.intercept_scalar),
         caekl_rate=float(j_conv.rate),
         caekl_intercept_scalar=float(j_conv.intercept_scalar),
+        caekl_rate_converged=bool(j_conv.converged),
         statistical_complexity=float(statistical_complexity),
         crypticity=float(crypticity),
         markov_order=machine.markov_order(),
