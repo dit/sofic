@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from scipy.special import logsumexp
@@ -11,6 +11,9 @@ from scipy.special import logsumexp
 from pensive.generators.mealy import MealyHMM
 from pensive.inference.bayesian.counts import BayesianInferenceError
 from pensive.inference.bayesian.markov import MarkovChainPosterior
+
+if TYPE_CHECKING:
+    from pensive.inference.bayesian.diversity import PosteriorDiversityResult
 
 
 class ModelComparisonMC:
@@ -129,3 +132,36 @@ class ModelComparisonEM:
         weights = np.array([probs[name] for name in names], dtype=float)
         choice = names[int(generator.choice(len(names), p=weights))]
         return self.em_dict[choice].generate_sample(rng=generator)
+
+    def machine_diversity(self) -> float:
+        """Shannon entropy (bits) of the topology posterior weights.
+
+        See :func:`~pensive.inference.bayesian.diversity.machine_diversity`.
+        """
+        from pensive.inference.bayesian.diversity import machine_diversity
+
+        return machine_diversity(self)
+
+    def process_diversity(
+        self,
+        *,
+        method: str = "posterior_mean",
+        n_samples: int = 500,
+        rng: np.random.Generator | None = None,
+        convention: str = "paz",
+        word_length: int | None = None,
+    ) -> PosteriorDiversityResult:
+        """Weighted JSD over length-:math:`L` word distributions in the posterior.
+
+        See :func:`~pensive.inference.bayesian.diversity.posterior_process_diversity`.
+        """
+        from pensive.inference.bayesian.diversity import posterior_process_diversity
+
+        return posterior_process_diversity(
+            self,
+            method=method,
+            n_samples=n_samples,
+            rng=rng,
+            convention=convention,
+            word_length=word_length,
+        )
