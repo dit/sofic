@@ -165,3 +165,30 @@ def test_plot_block_convergence_diagram():
     assert result is ax
     assert len(ax.lines) >= 2
     plt.close(ax.figure)
+
+
+def test_plot_block_convergence_all_panels():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    diag = golden_mean(0.5).block_convergence_diagram(4)
+    axes = diag.plot(figure="all", show_legend=False)
+    assert len(axes) == 6
+    assert len(axes[1].lines) == 4  # R/B data + asymptotes
+    assert len(axes[2].lines) == 4  # Q/W data + asymptotes
+    plt.close(axes[0].figure)
+
+
+def test_plot_block_convergence_split_panels():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    diag = golden_mean(0.5).block_convergence_diagram(4)
+    for name in ("fig5_rb", "fig5_qw"):
+        _, ax = plt.subplots()
+        result = diag.plot(ax=ax, figure=name, show_legend=False)
+        assert result is ax
+        assert len(ax.lines) == 4
+        plt.close(ax.figure)

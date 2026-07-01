@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 _TOL = 1e-15
 _CAEKL_RATE_STABLE_STEPS = 2
 _CAEKL_RATE_TOL = 1e-9
-FigureName = Literal["all", "fig4", "fig5", "fig6", "caekl", "cm"]
+FigureName = Literal["all", "fig4", "fig5", "fig5_rb", "fig5_qw", "fig6", "caekl", "cm"]
 
 
 def _require_dit():
@@ -456,7 +456,7 @@ class BlockConvergenceDiagram:
                 axes_list = axes.ravel()
                 for panel, name in zip(
                     axes_list,
-                    ("fig4", "fig5", "fig6", "caekl", "cm", "fig4"),
+                    ("fig4", "fig5_rb", "fig5_qw", "fig6", "caekl", "cm"),
                     strict=False,
                 ):
                     if name == "cm":
@@ -494,6 +494,18 @@ class BlockConvergenceDiagram:
             if show_asymptotes:
                 ax.plot(self.lengths, self.residual_entropy_asymptote, linestyle="--", label=r"$E_R + r_\mu \ell$")
                 ax.plot(self.lengths, self.binding_information_asymptote, linestyle="--", label=r"$E_B + b_\mu \ell$")
+                ax.plot(self.lengths, self.enigmatic_information_asymptote, linestyle="--", label=r"$E_Q + q_\mu \ell$")
+                ax.plot(self.lengths, self.local_exogenous_information_asymptote, linestyle="--", label=r"$E_W + w_\mu \ell$")
+        elif figure == "fig5_rb":
+            ax.plot(self.lengths, self.block_residual_entropy, marker=marker, label=r"$R(\ell)$")
+            ax.plot(self.lengths, self.block_binding_information, marker=marker, label=r"$B(\ell)$")
+            if show_asymptotes:
+                ax.plot(self.lengths, self.residual_entropy_asymptote, linestyle="--", label=r"$E_R + r_\mu \ell$")
+                ax.plot(self.lengths, self.binding_information_asymptote, linestyle="--", label=r"$E_B + b_\mu \ell$")
+        elif figure == "fig5_qw":
+            ax.plot(self.lengths, self.block_enigmatic_information, marker=marker, label=r"$Q(\ell)$")
+            ax.plot(self.lengths, self.block_local_exogenous_information, marker=marker, label=r"$W(\ell)$")
+            if show_asymptotes:
                 ax.plot(self.lengths, self.enigmatic_information_asymptote, linestyle="--", label=r"$E_Q + q_\mu \ell$")
                 ax.plot(self.lengths, self.local_exogenous_information_asymptote, linestyle="--", label=r"$E_W + w_\mu \ell$")
         elif figure == "fig6":
