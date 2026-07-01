@@ -7,7 +7,6 @@ from itertools import product
 from typing import Any
 
 from pensive.automata.base import LabeledAutomaton
-from pensive.graph import ATTR_SYMBOL, EPSILON
 
 
 def words_of_length(automaton: LabeledAutomaton, length: int) -> Iterator[tuple[Any, ...]]:
@@ -40,11 +39,6 @@ def iter_language(
 
 
 def _effective_alphabet(automaton: LabeledAutomaton) -> frozenset[Any]:
-    symbols = {symbol for symbol in automaton.input_alphabet if symbol is not EPSILON}
-    if symbols:
-        return frozenset(symbols)
-    for transition in automaton.transitions():
-        symbol = transition.data.get(ATTR_SYMBOL)
-        if symbol is not None and symbol is not EPSILON:
-            symbols.add(symbol)
-    return frozenset(symbols)
+    from pensive.automata.algorithms import _effective_alphabet as _shared
+
+    return _shared(automaton)

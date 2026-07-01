@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from pensive.generators.stochastic import shannon_entropy
 from pensive.graph import ATTR_PROB
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ def spectral_complexity(machine: EpsilonMachine) -> float:
     if nontrivial.size == 0:
         return 0.0
     weights = nontrivial / nontrivial.sum()
-    return float(-np.sum(weights * np.log2(weights)))
+    return shannon_entropy(weights)
 
 
 def _mean_first_passage_time(transition: np.ndarray, start: np.ndarray, target: int) -> float:

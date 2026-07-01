@@ -21,7 +21,8 @@ _LOOP_STYLE_ANGLES = {
 _LOOP_CONFLICT_RADIUS = 55.0
 
 
-def _state_id(state: Hashable) -> str:
+def state_node_name(state: Hashable) -> str:
+    """Return the Graphviz-compatible node identifier for ``state``."""
     from pensive.viz.graphviz import _node_name
 
     return _node_name(state)
@@ -78,7 +79,7 @@ def layout_graphviz(
     positions = _parse_plain_positions(plain)
     coords: dict[Hashable, str] = {}
     for state in model.states():
-        node = _state_id(state)
+        node = state_node_name(state)
         if node not in positions:
             raise RuntimeError(f"graphviz layout missing position for node {node!r}")
         x_cm, y_cm = positions[node]
@@ -221,7 +222,3 @@ def _reciprocal_bend(parallel_index: int, total_parallel: int) -> str:
         return "bend left"
     base = 30 + 25 * parallel_index
     return f"bend left, out={base}, in={180 - base}"
-
-
-def state_node_name(state: Hashable) -> str:
-    return _state_id(state)

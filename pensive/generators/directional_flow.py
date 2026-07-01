@@ -12,11 +12,9 @@ from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _require_dit():
-    try:
-        import dit
-    except ImportError as exc:
-        raise ImportError("dit is required for directional flow; install with `pip install pensive[measures]`") from exc
-    return dit
+    from pensive.generators.measures import require_dit
+
+    return require_dit("directional flow")
 
 
 

@@ -483,14 +483,9 @@ def _residual_entropy(distribution: dict[tuple[Any, ...], float]) -> float:
 
 
 def _entropy(probabilities: Iterable[float]) -> float:
-    probs = np.asarray([prob for prob in probabilities if prob > _TOL], dtype=float)
-    if probs.size == 0:
-        return 0.0
-    total = float(probs.sum())
-    if total <= _TOL:
-        return 0.0
-    probs = probs / total
-    return float(-np.sum(probs * np.log2(probs)))
+    from pensive.generators.stochastic import shannon_entropy
+
+    return shannon_entropy(probabilities, normalize=True, atol=_TOL)
 
 
 def _is_finite_order(order: int | float) -> bool:

@@ -11,12 +11,23 @@ from pensive.generators.markov import MarkovChain
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 
-def _require_dit():
+def require_dit(feature: str = "entropy measures") -> Any:
+    """Import and return the :mod:`dit` package, or raise a helpful error.
+
+    ``feature`` names the capability requiring dit and is interpolated into the
+    error message when the optional dependency is missing.
+    """
     try:
         import dit
     except ImportError as exc:
-        raise ImportError("dit is required for entropy measures; install with `pip install pensive[measures]`") from exc
+        raise ImportError(
+            f"dit is required for {feature}; install with `pip install pensive[measures]`"
+        ) from exc
     return dit
+
+
+# Backwards-compatible internal alias.
+_require_dit = require_dit
 
 
 def state_distribution(model: StochasticModel) -> Any:

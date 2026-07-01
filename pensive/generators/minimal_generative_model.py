@@ -174,11 +174,9 @@ def wyner_generative_model(
 
 
 def _require_dit():
-    try:
-        import dit
-    except ImportError as exc:
-        raise ImportError("dit is required for minimal generative models; install pensive[measures]") from exc
-    return dit
+    from pensive.generators.measures import require_dit
+
+    return require_dit("minimal generative models")
 
 
 def _as_numpy(array: Any) -> np.ndarray:
@@ -386,11 +384,9 @@ def _matching_support_channel(
 
 
 def _entropy(masses: Any) -> float:
-    probs = np.asarray(list(masses), dtype=float)
-    probs = probs[probs > 0.0]
-    if probs.size == 0:
-        return 0.0
-    return float(-(probs * np.log2(probs)).sum())
+    from pensive.generators.stochastic import shannon_entropy
+
+    return shannon_entropy(masses, atol=0.0)
 
 
 def _optimize_exact_common_information(

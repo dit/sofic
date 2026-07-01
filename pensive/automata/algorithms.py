@@ -237,9 +237,9 @@ def _dfa_as_nfa(dfa: DFA) -> NFA:
 
 
 def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
-    if aut.input_alphabet:
-        return frozenset(aut.input_alphabet)
-    symbols: set[Any] = set()
+    symbols = {symbol for symbol in aut.input_alphabet if symbol is not EPSILON}
+    if symbols:
+        return frozenset(symbols)
     for transition in aut.transitions():
         symbol = transition.data.get(ATTR_SYMBOL)
         if symbol is not None and symbol is not EPSILON:

@@ -28,13 +28,9 @@ FigureName = Literal["all", "fig4", "fig5", "fig5_rb", "fig5_qw", "fig6", "caekl
 
 
 def _require_dit():
-    try:
-        import dit
-    except ImportError as exc:
-        raise ImportError(
-            "dit is required for block convergence measures; install with `pip install pensive[measures]`"
-        ) from exc
-    return dit
+    from pensive.generators.measures import require_dit
+
+    return require_dit("block convergence measures")
 
 
 def _positional_rvs(length: int) -> list[list[int]]:
@@ -119,22 +115,6 @@ def block_caekl(machine: EpsilonMachine, length: int) -> float:
         return 0.0
     dist = _block_word_distribution(machine, length)
     return _block_caekl(dist, length)
-
-
-def _block_caekl_curve(
-    machine: EpsilonMachine,
-    max_length: int,
-    *,
-    max_caekl_length: int | None = None,
-) -> np.ndarray:
-    """Build ``J(ℓ)`` for ``ℓ = 0 … max_length`` (zeros where not computed)."""
-    if max_length < 0:
-        raise ValueError("max_length must be nonnegative")
-    caekl_limit = max_length if max_caekl_length is None else min(max_length, max_caekl_length)
-    block_caekl = np.zeros(max_length + 1, dtype=float)
-    for length in range(2, caekl_limit + 1):
-        block_caekl[length] = block_caekl(machine, length)
-    return block_caekl
 
 
 @dataclass(frozen=True)

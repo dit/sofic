@@ -45,8 +45,6 @@ from pensive.viz._tikz_layout import (
 )
 from pensive.viz.graphviz import _model_for_viz
 
-_VAUCANSON_ASSET = Path(__file__).resolve().parent / "assets" / "vaucanson.tikz"
-
 
 def _tikz_state_label(context: VizContext, state: Hashable) -> str:
     from pensive.generators.mixed_state import MixedState, pure_state_index

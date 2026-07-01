@@ -232,26 +232,7 @@ def state_residual_languages(dfa: DFA) -> dict[Hashable, DFA]:
     return residuals
 
 
-def _forward_from(dfa: DFA, start: Hashable) -> set[Hashable]:
-    seen = {start}
-    queue = [start]
-    while queue:
-        state = queue.pop(0)
-        for symbol in dfa.input_alphabet:
-            targets = dfa.delta(state, symbol)
-            for target in targets:
-                if target not in seen:
-                    seen.add(target)
-                    queue.append(target)
-    return seen
-
-
 def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
-    if aut.input_alphabet:
-        return frozenset(aut.input_alphabet)
-    symbols: set[Any] = set()
-    for transition in aut.transitions():
-        symbol = transition.data.get(ATTR_SYMBOL)
-        if symbol is not None and symbol is not EPSILON:
-            symbols.add(symbol)
-    return frozenset(symbols)
+    from pensive.automata.algorithms import _effective_alphabet as _shared
+
+    return _shared(aut)

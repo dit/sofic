@@ -17,11 +17,9 @@ _STEP_S_MINUS_1 = 4
 
 
 def _require_dit():
-    try:
-        import dit
-    except ImportError as exc:
-        raise ImportError("dit is required for entropy measures; install with `pip install pensive[measures]`") from exc
-    return dit
+    from pensive.generators.measures import require_dit
+
+    return require_dit("entropy measures")
 
 
 class BidirectionalEpsilonMachine(MealyHMM):

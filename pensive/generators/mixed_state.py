@@ -68,12 +68,9 @@ def pure_state_index(state: MixedState, *, atol: float = 1e-9) -> int | None:
 
 def mixed_state_entropy(state: MixedState, *, atol: float = 1e-12) -> float:
     """Shannon entropy of a mixed state in bits."""
-    belief = state.as_array()
-    mask = belief > atol
-    if not np.any(mask):
-        return 0.0
-    positive = belief[mask]
-    return float(-np.sum(positive * np.log2(positive)))
+    from pensive.generators.stochastic import shannon_entropy
+
+    return shannon_entropy(state.as_array(), atol=atol)
 
 
 class MixedStatePresentation(MealyHMM):

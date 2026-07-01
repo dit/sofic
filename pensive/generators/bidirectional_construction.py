@@ -651,11 +651,9 @@ def bidirectional_step_distribution(bidir: BidirectionalEpsilonMachine) -> Any:
 
 
 def _require_dit_for_step():
-    try:
-        import dit
-    except ImportError as exc:
-        raise ImportError("dit is required for bidirectional step distributions") from exc
-    return dit
+    from pensive.generators.measures import require_dit
+
+    return require_dit("bidirectional step distributions")
 
 
 def forward_epsilon_machine(bidir: BidirectionalEpsilonMachine) -> EpsilonMachine:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable
 from typing import Any
 
 from pensive.automata.atomaton import Atomaton, MaximizedPrimeAtomaton
@@ -26,35 +25,18 @@ def _language_automaton(language: RegularLanguage | NFA | DFA) -> NFA | DFA:
 
 
 def canonical_rfsa_from_language(language: RegularLanguage | NFA | DFA) -> CanonicalRFSA:
-    """Build canonical RFSA from prime residuals of the language."""
-    from pensive.automata.languages.residuals import prime_residuals
+    """Build canonical RFSA from prime residuals of the language.
 
+    Phase 2 placeholder: currently reuses the minimal DFA structure directly.
+    """
     aut = _language_automaton(language)
     dfa = minimal_dfa_from_language(aut)
-    residuals = prime_residuals(AutomatonLanguage(dfa))
-    residual_list = sorted(residuals, key=lambda r: id(r))
-
-    state_map: dict[int, Hashable] = {}
-    for index, residual in enumerate(residual_list):
-        if isinstance(residual, AutomatonLanguage):
-            state_map[index] = f"r{index}"
-        else:
-            state_map[index] = f"r{index}"
-
-    rfsa = CanonicalRFSA(
-        input_alphabet=dfa.input_alphabet,
-        initial_states=frozenset({"r0"}),
-        accepting_states=frozenset(),
-        graph=dfa.graph.copy(),
-    )
-    # States correspond to residuals; reuse minimal DFA structure with residual naming
-    rfsa = CanonicalRFSA(
+    return CanonicalRFSA(
         input_alphabet=dfa.input_alphabet,
         initial_states=dfa.initial_states,
         accepting_states=dfa.accepting_states,
         graph=dfa.graph.copy(),
     )
-    return rfsa
 
 
 def atomaton_from_language(language: RegularLanguage | NFA | DFA) -> Atomaton:
@@ -72,25 +54,18 @@ def atomaton_from_language(language: RegularLanguage | NFA | DFA) -> Atomaton:
 
 
 def maximized_prime_atomaton_from_language(language: RegularLanguage | NFA | DFA) -> MaximizedPrimeAtomaton:
-    from pensive.automata.languages.atoms import prime_atoms
+    """Build maximized prime átomaton from a language.
 
+    Phase 2 placeholder: currently reuses the minimal DFA structure directly.
+    """
     aut = _language_automaton(language)
     lang = AutomatonLanguage(minimal_dfa_from_language(aut))
-    primes = prime_atoms(lang)
-    graph = NFA(
-        input_alphabet=lang.automaton.input_alphabet,
-        initial_states=frozenset(),
-        accepting_states=frozenset(),
-        graph=lang.automaton.graph.copy(),
-    ).graph.copy()
-    mpa = MaximizedPrimeAtomaton(
+    return MaximizedPrimeAtomaton(
         input_alphabet=lang.automaton.input_alphabet,
         initial_states=lang.automaton.initial_states,
         accepting_states=lang.automaton.accepting_states,
-        graph=graph,
+        graph=lang.automaton.graph.copy(),
     )
-    _ = primes
-    return mpa
 
 
 def observation_to_minimal_dfa(table: ObservationTable) -> DFA:
