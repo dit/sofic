@@ -39,19 +39,12 @@ class MarkovChain(StochasticModel):
 
     def stationary_distribution(self) -> np.ndarray:
         from pensive.generators.stationary import stationary_distribution_from_transition
+        from pensive.properties import transition_matrix
 
         idx = self.reindex()
-        n = len(idx)
-        if n == 0:
+        if len(idx) == 0:
             return np.array([], dtype=float)
-
-        transition = np.zeros((n, n), dtype=float)
-        for source in idx.states:
-            i = idx.index(source)
-            for edge in self.graph.out_transitions(source):
-                j = idx.index(edge.target)
-                transition[i, j] += float(edge.data.get(ATTR_PROB, 0.0))
-
+        transition, _states = transition_matrix(self, attr=ATTR_PROB, states=idx.states)
         return stationary_distribution_from_transition(transition)
 
     def entropy_rate(self) -> float:

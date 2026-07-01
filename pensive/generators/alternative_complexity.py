@@ -9,6 +9,7 @@ import numpy as np
 
 from pensive.generators.stochastic import shannon_entropy
 from pensive.graph import ATTR_PROB
+from pensive.properties import transition_matrix
 
 if TYPE_CHECKING:
     from pensive.generators.epsilon_machine import EpsilonMachine
@@ -35,13 +36,7 @@ def thermodynamic_depth(machine: EpsilonMachine) -> float:
         return 0.0
     index = {state: i for i, state in enumerate(states)}
     n = len(states)
-    transition = np.zeros((n, n), dtype=float)
-    for state in states:
-        i = index[state]
-        for transition_out in machine.graph.out_transitions(state):
-            prob = float(transition_out.data.get(ATTR_PROB, 0.0))
-            j = index[transition_out.target]
-            transition[i, j] += prob
+    transition, _ = transition_matrix(machine, attr=ATTR_PROB, states=states)
 
     pi_vec = np.asarray([pi[index[state]] for state in states], dtype=float)
     pi_vec = pi_vec / pi_vec.sum()
@@ -66,17 +61,7 @@ def spectral_complexity(machine: EpsilonMachine) -> float:
     if len(states) <= 1:
         return 0.0
 
-    index = {state: i for i, state in enumerate(states)}
-    n = len(states)
-    matrix = np.zeros((n, n), dtype=float)
-    for state in states:
-        i = index[state]
-        for transition_out in msp.graph.out_transitions(state):
-            if transition_out.target not in index:
-                continue
-            prob = float(transition_out.data.get(ATTR_PROB, 0.0))
-            j = index[transition_out.target]
-            matrix[i, j] += prob
+    matrix, _ = transition_matrix(msp, attr=ATTR_PROB, states=states)
 
     eigenvalues = np.linalg.eigvals(matrix)
     moduli = np.sort(np.abs(eigenvalues))[::-1]
@@ -111,11 +96,9 @@ def _mean_first_passage_time(transition: np.ndarray, start: np.ndarray, target: 
 
 
 def _stationary_vector(transition: np.ndarray) -> np.ndarray | None:
-    eigenvalues, vectors = np.linalg.eig(transition.T)
-    idx = np.argmin(np.abs(eigenvalues - 1.0))
-    vector = np.real(vectors[:, idx])
-    vector = np.maximum(vector, 0.0)
-    total = vector.sum()
-    if total <= 0.0:
+    from pensive.generators.stationary import stationary_distribution_from_transition
+
+    try:
+        return stationary_distribution_from_transition(transition)
+    except Exception:
         return None
-    return vector / total

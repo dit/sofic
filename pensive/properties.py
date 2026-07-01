@@ -225,15 +225,39 @@ def _simple_digraph(model: StateMachine) -> nx.DiGraph:
     return graph
 
 
+def transition_matrix(
+    model: StateMachine,
+    *,
+    attr: str = ATTR_PROB,
+    states: Iterable[Hashable] | None = None,
+) -> tuple[np.ndarray, list[Hashable]]:
+    """Return the dense state-to-state matrix accumulating edge ``attr`` weights.
+
+    Rows/columns follow ``states`` when given (edges to states outside the set
+    are ignored), otherwise all model states in iteration order. Returns the
+    matrix together with the ordered state list defining its axes.
+    """
+    ordered = list(states) if states is not None else list(model.states())
+    index = {state: i for i, state in enumerate(ordered)}
+    n = len(ordered)
+    matrix = np.zeros((n, n), dtype=float)
+    for state in ordered:
+        i = index[state]
+        for transition in model.graph.out_transitions(state):
+            j = index.get(transition.target)
+            if j is None:
+                continue
+            matrix[i, j] += float(transition.data.get(attr, 0.0))
+    return matrix, ordered
+
+
 def _initial_vector_and_transition(model: StateMachine) -> tuple[np.ndarray, np.ndarray]:
     idx = model.reindex()
     n = len(idx)
     vector = np.zeros(n, dtype=float)
     for state, mass in getattr(model, "initial_distribution", {}).items():
         vector[idx.index(state)] = float(mass)
-    transition = np.zeros((n, n), dtype=float)
-    for edge in model.transitions():
-        transition[idx.index(edge.source), idx.index(edge.target)] += float(edge.data.get(ATTR_PROB, 0.0))
+    transition, _states = transition_matrix(model, attr=ATTR_PROB, states=idx.states)
     return vector, transition
 
 

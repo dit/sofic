@@ -34,17 +34,10 @@ def _stationary_distribution(
     states: Sequence[Hashable],
     symbol_matrices: Mapping[Any, np.ndarray],
 ) -> dict[Hashable, float]:
+    from pensive.generators.stationary import stationary_distribution_from_transition
+
     transition = sum(symbol_matrices.values())
-    eigenvalues, vectors = np.linalg.eig(transition.T)
-    index = int(np.argmin(np.abs(eigenvalues - 1.0)))
-    pi = np.real(vectors[:, index])
-    if pi.sum() < 0.0:
-        pi = -pi
-    pi = np.maximum(pi, 0.0)
-    total = float(pi.sum())
-    if total <= 0.0:
-        raise ValueError("failed to compute stationary distribution")
-    pi /= total
+    pi = stationary_distribution_from_transition(transition)
     return {states[i]: float(pi[i]) for i in range(len(states))}
 
 

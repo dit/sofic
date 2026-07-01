@@ -40,6 +40,8 @@ def _stationary_initial(
     states: Sequence[Hashable],
     edges: Sequence[tuple[Hashable, Hashable, Any, float]],
 ) -> dict[Hashable, float]:
+    from pensive.generators.stationary import stationary_distribution_from_transition
+
     if not states:
         return {}
     index = {state: i for i, state in enumerate(states)}
@@ -51,20 +53,10 @@ def _stationary_initial(
         return _uniform_initial(states)
     transition = transition / row_sums[:, None]
     try:
-        eigenvalues, vectors = np.linalg.eig(transition.T)
-    except np.linalg.LinAlgError:
+        pi = stationary_distribution_from_transition(transition)
+    except Exception:
         return _uniform_initial(states)
-    choices = np.argsort(np.abs(eigenvalues - 1.0))
-    for choice in choices:
-        pi = np.real(vectors[:, int(choice)])
-        if pi.sum() < 0.0:
-            pi = -pi
-        pi[np.abs(pi) < 1e-14] = 0.0
-        if np.all(pi >= -1e-12) and pi.sum() > 0.0:
-            pi = np.maximum(pi, 0.0)
-            pi = pi / pi.sum()
-            return {state: float(pi[i]) for i, state in enumerate(states)}
-    return _uniform_initial(states)
+    return {state: float(pi[i]) for i, state in enumerate(states)}
 
 
 def _normalize_edges(

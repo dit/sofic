@@ -10,18 +10,12 @@ from pensive.graph import ATTR_PROB
 
 
 def stationary_distribution_hmm(hmm: HiddenMarkovModel) -> np.ndarray:
+    from pensive.properties import transition_matrix
+
     idx = hmm.reindex()
-    n = len(idx)
-    if n == 0:
+    if len(idx) == 0:
         return np.array([], dtype=float)
-
-    transition = np.zeros((n, n), dtype=float)
-    for state in idx.states:
-        i = idx.index(state)
-        for edge in hmm.graph.out_transitions(state):
-            j = idx.index(edge.target)
-            transition[i, j] += float(edge.data.get(ATTR_PROB, 0.0))
-
+    transition, _states = transition_matrix(hmm, attr=ATTR_PROB, states=idx.states)
     return stationary_distribution_from_transition(transition)
 
 
