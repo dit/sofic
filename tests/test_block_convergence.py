@@ -18,8 +18,8 @@ def test_fair_coin_block_convergence_independent():
     assert diag.block_caekl[2:] == pytest.approx(0.0, abs=1e-12)
     assert diag.entropy_rate == pytest.approx(1.0, abs=1e-12)
     assert diag.excess_entropy == pytest.approx(0.0, abs=1e-12)
-    assert diag.bound_information == pytest.approx(1.0, abs=1e-12)
-    assert diag.ephemeral_information == pytest.approx(0.0, abs=1e-12)
+    assert diag.bound_information == pytest.approx(0.0, abs=1e-12)
+    assert diag.ephemeral_information == pytest.approx(1.0, abs=1e-12)
     assert diag.j_mu == pytest.approx(0.0, abs=1e-12)
     assert diag.caekl_rate_converged is True
 
@@ -56,9 +56,9 @@ def test_golden_mean_table_i_scalars():
     assert est.block_entropy[1] == pytest.approx(0.91830, abs=1e-4)
     assert est.h_mu == pytest.approx(2.0 / 3.0, abs=1e-4)
     assert est.rho_mu == pytest.approx(0.25163, abs=1e-4)
-    assert est.r_mu == pytest.approx(0.20752, abs=1e-4)
-    assert est.b_mu == pytest.approx(0.45915, abs=1e-4)
-    assert est.q_mu == pytest.approx(-0.20752, abs=1e-4)
+    assert est.r_mu == pytest.approx(0.45915, abs=1e-4)
+    assert est.b_mu == pytest.approx(0.20752, abs=1e-4)
+    assert est.q_mu == pytest.approx(0.04411, abs=1e-4)
     assert est.E == pytest.approx(0.25163, abs=1e-4)
 
 
@@ -66,9 +66,11 @@ def test_even_process_table_i_scalars():
     eps = even_process(0.5)
     est = eps.block_convergence_estimates(max_length=8, max_caekl_length=6)
     est.validate_identities()
+    assert est.h_mu == pytest.approx(2 / 3, abs=1e-4)
+    assert est.b_mu == pytest.approx(2 / 3, abs=1e-4)
+    assert est.r_mu == pytest.approx(0.0, abs=1e-4)
     assert est.q_mu == pytest.approx(est.rho_mu - est.b_mu, abs=1e-9)
-    assert est.r_mu == pytest.approx(est.h_mu - est.b_mu, abs=1e-9)
-    assert est.b_mu == pytest.approx(0.0, abs=1e-9)
+    assert est.b_mu + est.r_mu == pytest.approx(est.h_mu, abs=1e-4)
 
 
 def test_nrps_table_i_scalars():
@@ -79,6 +81,8 @@ def test_nrps_table_i_scalars():
     assert est.rho_mu == pytest.approx(0.47987, abs=1e-4)
     assert est.E == pytest.approx(1.57393, abs=1e-4)
     assert est.r_mu + est.b_mu == pytest.approx(est.h_mu, abs=1e-4)
+    assert est.b_mu == pytest.approx(0.33333, abs=1e-4)
+    assert est.r_mu == pytest.approx(0.16667, abs=1e-4)
 
 
 def test_golden_mean_caekl_ordering():

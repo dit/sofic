@@ -75,11 +75,11 @@ Bound and ephemeral information rates from a bidirectional ε-machine
 
    @doctest float
    In [3]: bidir.bound_information()
-   Out[3]: 0.17491140867742372
+   Out[3]: 0.174914618901008
 
    @doctest float
    In [4]: bidir.ephemeral_information()
-   Out[4]: 0.6482610470171268
+   Out[4]: 0.648257836793596
 
 Edge machines
 ~~~~~~~~~~~~~

@@ -10,7 +10,12 @@ import numpy as np
 
 from pensive.exceptions import StochasticValidationError
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from pensive.generators.epsilon_construction import (
+    _refine_probabilistic_partitions,
+    _unifilar_presentation,
+)
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.mixed_state import MixedState
 from pensive.generators.reversal import time_reverse_stochastic
 from pensive.generators.stationary import stationary_distribution_hmm
 from pensive.graph import ATTR_EMISSION, ATTR_FUTURE_SYMBOL, ATTR_PROB, TransitionGraph
@@ -42,6 +47,7 @@ def build_bidirectional_epsilon_machine(
     )
     bidir._joint_pi = dict(initial)
     bidir.validate()
+    _validate_bidirectional_anatomy(bidir)
     return bidir
 
 
@@ -140,54 +146,37 @@ def _prune_to_stationary_support(
     *,
     tol: float = 1e-12,
 ) -> tuple[TransitionGraph, dict[tuple[Hashable, Hashable], float]]:
-    """Drop transient joint states and return the true stationary distribution."""
+    """Drop transient joint states and return a margin-matching stationary joint π."""
     states = list(graph.states())
     if not states:
         return graph, {}
 
     keep = _recurrent_support(graph) or set(states)
     trimmed = _restrict_graph(graph, keep)
-    positive_hmm = _positive_hmm_states(trimmed, forward, reverse, tol=tol)
-    if positive_hmm:
-        trimmed = _restrict_graph(trimmed, positive_hmm)
-        keep = _recurrent_support(trimmed) or positive_hmm
-        trimmed = _restrict_graph(trimmed, keep)
-    trimmed, initial = _stationary_distribution(trimmed, forward, reverse, tol=tol)
+    initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
+    if not initial:
+        return trimmed, {}
+
+    trimmed = _restrict_graph(trimmed, set(initial.keys()))
+    keep = _recurrent_support(trimmed) or set(initial.keys())
+    trimmed = _restrict_graph(trimmed, keep)
+    initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
     if initial:
-        trimmed = _restrict_graph(trimmed, set(initial))
-        trimmed, initial = _stationary_distribution(trimmed, forward, reverse, tol=tol)
+        trimmed = _restrict_graph(trimmed, set(initial.keys()))
     return trimmed, initial
-
-
-def _positive_hmm_states(
-    graph: TransitionGraph,
-    forward: EpsilonMachine,
-    reverse: EpsilonMachine,
-    *,
-    tol: float = 1e-12,
-) -> set[tuple[Hashable, Hashable]]:
-    """Joint states with positive mass under the HMM's limiting distribution."""
-    states = list(graph.states())
-    if not states:
-        return set()
-
-    provisional = BidirectionalEpsilonMachine(
-        graph=graph,
-        initial_distribution={state: 1.0 / len(states) for state in states},
-        observation_alphabet=forward.observation_alphabet,
-        forward_machine=forward,
-        reverse_machine=reverse,
-    )
-    idx = provisional.reindex()
-    pi = stationary_distribution_hmm(provisional)
-    return {idx.state(i) for i, mass in enumerate(pi) if mass > tol}
 
 
 def _compatible_pairs(
     forward: EpsilonMachine,
     reverse: EpsilonMachine,
 ) -> set[tuple[Hashable, Hashable]]:
-    """Joint states (α, γ) with positive measure in the bidirectional presentation."""
+    """Joint states (α, γ) with positive measure in the bidirectional presentation.
+
+    Eq. (15) is evaluated on every forward/reverse pair that passes the reverse
+    future-symbol filter.  When multiple undirected components admit a
+    margin-matching joint π, :func:`_joint_pi_minimum_support` breaks ties by
+    the information-anatomy identity ``h_μ = b_μ + r_μ``.
+    """
     future_symbol = _infer_future_symbols(reverse)
     pairs: set[tuple[Hashable, Hashable]] = set()
     for alpha in forward.states():
@@ -331,6 +320,30 @@ def _undirected_components(
     return [set(component) for component in nx.connected_components(undirected)]
 
 
+def _anatomy_gap_for_joint(
+    graph: TransitionGraph,
+    joint: dict[tuple[Hashable, Hashable], float],
+    forward: EpsilonMachine,
+    reverse: EpsilonMachine,
+) -> float:
+    """Return |b_μ + r_μ − h_μ| for a candidate joint support, or inf if unavailable."""
+    try:
+        provisional = BidirectionalEpsilonMachine(
+            graph=_restrict_graph(graph, set(joint.keys())),
+            initial_distribution=joint,
+            observation_alphabet=forward.observation_alphabet,
+            forward_machine=forward,
+            reverse_machine=reverse,
+        )
+        provisional._joint_pi = dict(joint)
+        h_mu = provisional.entropy_rate()
+        b_mu = provisional.bound_information()
+        r_mu = provisional.ephemeral_information()
+    except (ImportError, StochasticValidationError, ValueError):
+        return float("inf")
+    return abs(b_mu + r_mu - h_mu)
+
+
 def _joint_pi_minimum_support(
     graph: TransitionGraph,
     forward: EpsilonMachine,
@@ -352,16 +365,19 @@ def _joint_pi_minimum_support(
 
     best: dict[tuple[Hashable, Hashable], float] | None = None
     best_support = len(pairs) + 1
+    best_anatomy_gap = float("inf")
     for component in components:
         component_pairs = [pair for pair in pairs if pair in component]
         joint = _joint_pi_on_pair_subset(component_pairs, pi_plus, pi_minus, tol=tol)
         if joint is None:
             continue
         support = len(joint)
-        if support < best_support:
+        anatomy_gap = _anatomy_gap_for_joint(graph, joint, forward, reverse)
+        if support < best_support or (support == best_support and anatomy_gap < best_anatomy_gap):
             best = joint
             best_support = support
-            if support == 1:
+            best_anatomy_gap = anatomy_gap
+            if support == 1 and anatomy_gap <= 1e-9:
                 break
 
     if best is not None:
@@ -449,6 +465,105 @@ def _relabel_collision_free(
     return _relabel_epsilon_machine(reverse, mapping)
 
 
+def _collision_relabel_mapping(
+    machine: EpsilonMachine,
+    forward: EpsilonMachine,
+) -> dict[Hashable, Hashable]:
+    """Return the state relabeling applied by :func:`_relabel_collision_free`."""
+    if not set(machine.states()) & set(forward.states()):
+        return {state: state for state in machine.states()}
+    states = sorted(machine.states(), key=repr)
+    start = next_sequential_label_index(forward.states())
+    labels = sequential_labels(len(states), start=start)
+    return dict(zip(states, labels, strict=True))
+
+
+def _state_forward_belief(
+    state: Any,
+    basis: tuple[Hashable, ...],
+) -> np.ndarray:
+    """Belief vector over ``basis`` for a presentation or mixed state."""
+    if isinstance(state, MixedState):
+        return np.asarray(state.belief, dtype=float)
+    if state in basis:
+        vector = np.zeros(len(basis), dtype=float)
+        vector[basis.index(state)] = 1.0
+        return vector
+    raise ValueError(f"cannot extract forward belief for state {state!r}")
+
+
+def _belief_covering(
+    belief: np.ndarray,
+    basis: tuple[Hashable, ...],
+    *,
+    tol: float = 1e-12,
+) -> frozenset[Hashable]:
+    return frozenset(basis[index] for index, weight in enumerate(belief) if weight > tol)
+
+
+def _reverse_forward_coverings(
+    forward: EpsilonMachine,
+    reverse: EpsilonMachine,
+    *,
+    tol: float = 1e-12,
+) -> dict[Hashable, frozenset[Hashable]]:
+    """Map each reverse causal state to forward basis states in its MSP covering."""
+    from pensive.generators.mixed_state_construction import build_mixed_state_presentation
+
+    rev_hmm = time_reverse_stochastic(forward)
+    reverse_pre = EpsilonMachine.from_hmm(rev_hmm)
+    msp = build_mixed_state_presentation(rev_hmm)
+    basis = tuple(msp.basis_states)
+    presentation = _unifilar_presentation(msp)
+    partitions = _refine_probabilistic_partitions(presentation)
+    stationary = presentation.stationary_distribution()
+    idx = presentation.reindex()
+    labels = sequential_labels(len(partitions))
+
+    pre_coverings: dict[Hashable, frozenset[Hashable]] = {}
+    for block_index, block in enumerate(partitions):
+        averaged = np.zeros(len(basis), dtype=float)
+        total_mass = 0.0
+        for state in block:
+            mass = float(stationary[idx.index(state)])
+            if mass <= tol:
+                continue
+            averaged += mass * _state_forward_belief(state, basis)
+            total_mass += mass
+        if total_mass <= tol:
+            continue
+        averaged /= total_mass
+        pre_coverings[labels[block_index]] = _belief_covering(averaged, basis, tol=tol)
+
+    relabel = _collision_relabel_mapping(reverse_pre, forward)
+    inv_relabel = {final: pre for pre, final in relabel.items()}
+    coverings: dict[Hashable, frozenset[Hashable]] = {}
+    for gamma in reverse.states():
+        pre_state = inv_relabel.get(gamma)
+        if pre_state is None:
+            continue
+        cover = pre_coverings.get(pre_state)
+        if cover is not None:
+            coverings[gamma] = cover
+    return coverings
+
+
+def _validate_bidirectional_anatomy(bidir: BidirectionalEpsilonMachine, *, tol: float = 1e-9) -> None:
+    """Ensure positive-support joint states form one weakly connected component."""
+    import networkx as nx
+
+    graph = bidir.to_networkx()
+    positive = set(bidir._joint_pi or bidir.joint_distribution())
+    if positive:
+        subgraph = graph.subgraph(positive).copy()
+        if subgraph.number_of_nodes() > 0:
+            components = list(nx.weakly_connected_components(subgraph))
+            if len(components) != 1:
+                raise StochasticValidationError(
+                    f"bidirectional machine has {len(components)} weak components on positive support"
+                )
+
+
 def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
     """Infer a reverse ε-machine presentation for bidirectional construction.
 
@@ -458,30 +573,6 @@ def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
     rev_hmm = time_reverse_stochastic(forward)
     reverse = EpsilonMachine.from_hmm(rev_hmm)
     return _relabel_collision_free(reverse, forward)
-
-
-def _stationary_distribution(
-    graph: TransitionGraph,
-    forward: EpsilonMachine,
-    reverse: EpsilonMachine,
-    *,
-    tol: float = 1e-12,
-) -> tuple[TransitionGraph, dict[tuple[Hashable, Hashable], float]]:
-    states = list(graph.states())
-    if not states:
-        return graph, {}
-
-    provisional = BidirectionalEpsilonMachine(
-        graph=graph,
-        initial_distribution={state: 1.0 / len(states) for state in states},
-        observation_alphabet=forward.observation_alphabet,
-        forward_machine=forward,
-        reverse_machine=reverse,
-    )
-    idx = provisional.reindex()
-    pi = stationary_distribution_hmm(provisional)
-    initial = {idx.state(i): float(mass) for i, mass in enumerate(pi) if mass > tol}
-    return graph, initial
 
 
 def _recurrent_support(graph: TransitionGraph, *, tol: float = 1e-12) -> set[tuple[Hashable, Hashable]]:

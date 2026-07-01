@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 from pensive.examples import (
+    bernoulli,
+    even_process,
     fair_coin,
     golden_mean_forward,
     golden_mean_reverse,
@@ -22,6 +24,29 @@ def test_fair_coin_predicted_information_near_zero():
     coin = fair_coin()
     bidir = BidirectionalEpsilonMachine.from_pair(coin, coin)
     assert bidir.predicted_information() == pytest.approx(0.0, abs=1e-9)
+
+
+@pytest.mark.parametrize("p", [0.5, 0.3])
+def test_iid_ephemeral_information_equals_entropy_rate(p: float):
+    """IID sources have no bound anatomy: all entropy rate is ephemeral."""
+    pytest.importorskip("dit")
+    bidir = bernoulli(p).to_bidirectional()
+    h_mu = bidir.entropy_rate()
+    r_mu = bidir.ephemeral_information()
+    assert bidir.bound_information() == pytest.approx(0.0, abs=1e-9)
+    assert r_mu == pytest.approx(h_mu, abs=1e-9)
+
+
+def test_even_process_ephemeral_information_is_zero():
+    """Even process: present symbol is fixed by bidirectional causal states."""
+    pytest.importorskip("dit")
+    bidir = even_process(0.5).to_bidirectional()
+    h_mu = bidir.entropy_rate()
+    b_mu = bidir.bound_information()
+    r_mu = bidir.ephemeral_information()
+    assert r_mu == pytest.approx(0.0, abs=1e-9)
+    assert b_mu == pytest.approx(h_mu, abs=1e-9)
+    assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
 
 
 def test_golden_mean_anatomy_identities():
@@ -64,12 +89,11 @@ def test_golden_mean_anatomy_matches_component_methods():
 
 
 def test_tent_map_misiurewicz_closed_form():
-    """Supplement closed forms for h_μ and r_μ (James et al., 2013)."""
+    """Supplement closed forms for h_μ and b_μ (James et al., 2013)."""
     expected = tent_map_misiurewicz_information_expected()
     assert expected["entropy_rate"] == pytest.approx(0.823172, abs=1e-4)
-    assert expected["ephemeral_mu"] == pytest.approx(0.648258, abs=1e-4)
     assert expected["bound_mu"] == pytest.approx(0.174915, abs=1e-4)
-    assert expected["bound_mu"] + expected["ephemeral_mu"] == pytest.approx(expected["entropy_rate"], abs=1e-9)
+    assert expected["ephemeral_mu"] == pytest.approx(0.648258, abs=1e-4)
 
 
 def test_tent_map_misiurewicz_entropy_rate():

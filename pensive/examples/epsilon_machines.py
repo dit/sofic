@@ -18,8 +18,7 @@ References
 from __future__ import annotations
 
 import math
-from collections.abc import Hashable, Mapping, Sequence
-from functools import lru_cache
+from collections.abc import Hashable, Mapping
 from typing import Any
 
 import numpy as np
@@ -539,182 +538,49 @@ def _tent_map_misiurewicz_fig8_joint_state(
     return forward, relabel[reverse]
 
 
-_FIG8_EDGE_PROBABILITIES_AT_MISIUREWICZ: tuple[float, ...] = (
-    1.0,
-    0.7325936746551633,
-    0.26740632534483655,
-    0.8253430632518405,
-    0.17465693674815952,
-    1.0,
-    0.48324387259673596,
-    0.5167561274032639,
-    0.4428508087092617,
-    0.5571491912907383,
-    0.3082381094948121,
-    0.6917618905051879,
-    0.39570451409651825,
-    0.6042954859034818,
-)
-
-
-@lru_cache(maxsize=8)
-def _tent_map_misiurewicz_fig8_edge_probabilities(a: float) -> tuple[float, ...]:
-    """Row-stochastic edge probabilities for supplement Fig.~8 at parameter ``a``.
-
-    Figure labels use ``1/2`` and ``a/(a+1)`` templates; values are fit to the
-    supplement's closed-form anatomy while preserving the Fig.~8 topology.
-    """
-    if math.isclose(a, tent_map_misiurewicz_a(), rel_tol=0.0, abs_tol=1e-12):
-        return _FIG8_EDGE_PROBABILITIES_AT_MISIUREWICZ
-
-    return _fit_tent_map_misiurewicz_fig8_edge_probabilities(a)
-
-
-def _fit_tent_map_misiurewicz_fig8_edge_probabilities(a: float) -> tuple[float, ...]:
-    from scipy.optimize import minimize
-
-    edge_tpl = [
-        ("BA", "CC", 0),
-        ("CC", "BA", 0),
-        ("CC", "DB", 1),
-        ("DB", "DA", 1),
-        ("DB", "DC", 1),
-        ("DA", "CC", 0),
-        ("DC", "DB", 1),
-        ("DC", "CB", 0),
-        ("CB", "DA", 1),
-        ("CB", "BA", 1),
-        ("BC", "CB", 0),
-        ("BC", "AB", 1),
-        ("AB", "BA", 1),
-        ("AB", "BC", 1),
-    ]
-    row_keys = ("BA", "CC", "DB", "DA", "DC", "CB", "BC", "AB")
-    rows: dict[str, list[int]] = {row: [] for row in row_keys}
-    for index, (row, _target, _symbol) in enumerate(edge_tpl):
-        rows[row].append(index)
-
-    relabel = _tent_map_misiurewicz_fig8_reverse_relabel()
-    name = {
-        "BA": ("B", "A"),
-        "CC": ("C", "C"),
-        "DB": ("D", "B"),
-        "DA": ("D", "A"),
-        "DC": ("D", "C"),
-        "CB": ("C", "B"),
-        "BC": ("B", "C"),
-        "AB": ("A", "B"),
-    }
-    expected_h = math.log2(a)
-    expected_r = 0.25 * (3.0 - 2.0 / (a + 1) - 4.0 / (a + 2) + 9.0 / (2 * a + 3))
-    expected_b = expected_h - expected_r
-
-    def _softmax(values: Sequence[float]) -> np.ndarray:
-        vector = np.asarray(values, dtype=float)
-        vector = vector - vector.max()
-        exponentials = np.exp(vector)
-        return exponentials / exponentials.sum()
-
-    def _unpack(logits: Sequence[float]) -> list[np.ndarray]:
-        grouped: list[np.ndarray] = []
-        offset = 0
-        for row in row_keys:
-            count = len(rows[row])
-            grouped.append(_softmax(logits[offset : offset + count]))
-            offset += count
-        return grouped
-
-    def _probabilities_from_logits(logits: Sequence[float]) -> np.ndarray:
-        probabilities = np.zeros(len(edge_tpl), dtype=float)
-        for row, weights in zip(row_keys, _unpack(logits), strict=True):
-            for index, weight in zip(rows[row], weights, strict=True):
-                probabilities[index] = float(weight)
-        return probabilities
-
-    def _objective(logits: Sequence[float]) -> float:
-        probabilities = _probabilities_from_logits(logits)
-        joint_states = sorted(
-            {_tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel) for row in name}
-        )
-        state_index = {state: index for index, state in enumerate(joint_states)}
-        transition = np.zeros((len(joint_states), len(joint_states)), dtype=float)
-        symbol_out: dict[tuple[str, str], list[tuple[int, float, tuple[str, str]]]] = {}
-        for index, (row, target, symbol) in enumerate(edge_tpl):
-            source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
-            dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
-            prob = float(probabilities[index])
-            transition[state_index[source], state_index[dest]] += prob
-            symbol_out.setdefault(source, []).append((symbol, prob, dest))
-
-        stationary = np.ones(len(joint_states), dtype=float) / len(joint_states)
-        for _ in range(20_000):
-            stationary = stationary @ transition
-
-        outcomes: list[tuple[str, str, int, str, str]] = []
-        weights: list[float] = []
-        for state_index_value, state in enumerate(joint_states):
-            mass = stationary[state_index_value]
-            for symbol, prob, dest in symbol_out[state]:
-                outcomes.append((state[0], state[1], symbol, dest[0], dest[1]))
-                weights.append(mass * prob)
-        total = float(sum(weights))
-        if total <= 0.0:
-            return 1.0e6
-        weights_array = np.asarray(weights, dtype=float) / total
-
-        try:
-            import dit
-        except ImportError as exc:
-            raise ImportError("dit is required to fit tent-map Fig.~8 edge probabilities") from exc
-
-        distribution = dit.Distribution(outcomes, weights_array)
-        entropy = float(dit.shannon.entropy(distribution.marginal([2])))
-        bound = float(dit.shannon.conditional_entropy(distribution, [2], [0, 4]))
-        ephemeral = entropy - bound
-        return (entropy - expected_h) ** 2 + (ephemeral - expected_r) ** 2 + (bound - expected_b) ** 2
-
-    dimension = sum(len(rows[row]) for row in row_keys)
-    result = minimize(_objective, np.zeros(dimension), method="Nelder-Mead", options={"maxiter": 50_000})
-    return tuple(float(value) for value in _probabilities_from_logits(result.x))
-
-
 def _tent_map_misiurewicz_fig8_edges(
     a: float,
 ) -> list[tuple[tuple[str, str], tuple[str, str], int, float]]:
-    """Directed edges for supplement Fig.~8 with reverse states relabeled E--H."""
+    """Directed edges for supplement Fig.~8 with reverse states relabeled E--H.
+
+    Joint labels use ``S⁺:S⁻`` from James et al. (2013), supplement Fig.~8.
+    Edge probabilities are the figure's ``1/2`` and ``a/(a+1)`` templates.
+    """
     relabel = _tent_map_misiurewicz_fig8_reverse_relabel()
     name = {
         "BA": ("B", "A"),
         "CC": ("C", "C"),
-        "DB": ("D", "B"),
-        "DA": ("D", "A"),
-        "DC": ("D", "C"),
-        "CB": ("C", "B"),
-        "BC": ("B", "C"),
         "AB": ("A", "B"),
+        "BC": ("B", "C"),
+        "CB": ("C", "B"),
+        "DA": ("D", "A"),
+        "DB": ("D", "B"),
+        "DC": ("D", "C"),
     }
-    edge_tpl = [
-        ("BA", "CC", 0),
-        ("CC", "BA", 0),
-        ("CC", "DB", 1),
-        ("DB", "DA", 1),
-        ("DB", "DC", 1),
-        ("DA", "CC", 0),
-        ("DC", "DB", 1),
-        ("DC", "CB", 0),
-        ("CB", "DA", 1),
-        ("CB", "BA", 1),
-        ("BC", "CB", 0),
-        ("BC", "AB", 1),
-        ("AB", "BA", 1),
-        ("AB", "BC", 1),
+    half = 0.5
+    inv_a1 = 1.0 / (a + 1.0)
+    frac_a1 = a / (a + 1.0)
+    edge_specs = [
+        ("BA", "CC", 0, 1.0),
+        ("CC", "AB", 0, half),
+        ("CC", "DB", 1, half),
+        ("AB", "BA", 1, inv_a1),
+        ("AB", "BC", 1, frac_a1),
+        ("BC", "AB", 1, half),
+        ("BC", "CB", 0, half),
+        ("DA", "CC", 0, 1.0),
+        ("DB", "DA", 1, inv_a1),
+        ("DB", "DC", 1, frac_a1),
+        ("DC", "DB", 1, half),
+        ("DC", "CB", 0, half),
+        ("CB", "DC", 1, frac_a1),
+        ("CB", "DA", 1, inv_a1),
     ]
-    probabilities = _tent_map_misiurewicz_fig8_edge_probabilities(a)
     edges: list[tuple[tuple[str, str], tuple[str, str], int, float]] = []
-    for index, (row, target, symbol) in enumerate(edge_tpl):
+    for row, target, symbol, prob in edge_specs:
         source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
         dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
-        edges.append((source, dest, symbol, probabilities[index]))
+        edges.append((source, dest, symbol, prob))
     return edges
 
 
@@ -846,8 +712,9 @@ def tent_map_misiurewicz_information_expected(a: float | None = None) -> dict[st
     if a is None:
         a = tent_map_misiurewicz_a()
     h_mu = math.log2(a)
-    r_mu = 0.25 * (3.0 - 2.0 / (a + 1) - 4.0 / (a + 2) + 9.0 / (2 * a + 3))
-    b_mu = h_mu - r_mu
+    # Supplement closed form for I[X₀ : S⁻₁ | S⁺₀] (bound rate b_μ).
+    b_mu = h_mu - 0.25 * (3.0 - 2.0 / (a + 1) - 4.0 / (a + 2) + 9.0 / (2 * a + 3))
+    r_mu = h_mu - b_mu
     return {
         "bound_mu": b_mu,
         "ephemeral_mu": r_mu,

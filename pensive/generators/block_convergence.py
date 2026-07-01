@@ -298,6 +298,8 @@ def _exact_anatomy_scalars(machine: EpsilonMachine) -> dict[str, float] | None:
     rho_mu = float(bidir.predicted_information())
     b_mu = float(bidir.bound_information())
     r_mu = float(bidir.ephemeral_information())
+    if abs(b_mu + r_mu - h_mu) > 1e-9:
+        return None
     q_mu = rho_mu - b_mu
     w_mu = h_mu + rho_mu
     excess = float(bidir.excess_entropy())
@@ -661,8 +663,9 @@ def block_convergence_estimates(
     j_conv = _caekl_convergence_scalars(lengths, anatomy["block_caekl"])
 
     rho_mu = exact["predicted_information"] if exact else t_conv.rate
-    r_mu = exact["ephemeral_information"] if exact else r_conv.rate
-    b_mu = exact["bound_information"] if exact else b_conv.rate
+    # James block residual R(ℓ) → b_μ; binding B(ℓ) = H(ℓ) − R(ℓ) → r_μ.
+    b_mu = exact["bound_information"] if exact else r_conv.rate
+    r_mu = exact["ephemeral_information"] if exact else b_conv.rate
     q_mu = exact["q_mu"] if exact else q_conv.rate
     w_mu = exact["w_mu"] if exact else w_conv.rate
 

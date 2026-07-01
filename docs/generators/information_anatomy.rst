@@ -11,8 +11,8 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
    h_\mu = b_\mu + r_\mu, \qquad
    \rho_\mu = \I{X_0 : S^+_0}, \qquad
-   b_\mu = \H{X_0 \mid S^+_0, S^-_1}, \qquad
-   r_\mu = \I{X_0 : S^-_1 \mid S^+_0}
+   b_\mu = \I{X_0 : S^-_1 \mid S^+_0}, \qquad
+   r_\mu = \H{X_0 \mid S^+_0, S^-_1}
 
 .. ipython::
 
@@ -22,15 +22,15 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
    @doctest float
    In [3]: bidir.predicted_information()
-   Out[3]: 0.19828318592750582
+   Out[3]: 0.12334603575116132
 
    @doctest float
    In [4]: bidir.bound_information()
-   Out[4]: 0.17491140867742372
+   Out[4]: 0.174914618901008
 
    @doctest float
    In [5]: bidir.ephemeral_information()
-   Out[5]: 0.6482610470171268
+   Out[5]: 0.648257836793596
 
    In [6]: anatomy = bidir.information_anatomy()
 

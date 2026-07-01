@@ -122,7 +122,20 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return float(dit.shannon.mutual_information(dist, [_STEP_X_0], [_STEP_S_PLUS_0]))
 
     def bound_information(self) -> float:
-        """b_μ = H[X₀ | S⁺₀, S⁻₁] — bound information rate (James et al., 2013)."""
+        """b_μ = I[X₀ : S⁻₁ | S⁺₀] — bound information rate (James et al., 2013)."""
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(dist, [_STEP_X_0], [_STEP_S_PLUS_0])
+            - dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_X_0],
+                [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
+            )
+        )
+
+    def ephemeral_information(self) -> float:
+        """r_μ = H[X₀ | S⁺₀, S⁻₁] — ephemeral information rate (James et al., 2013)."""
         dit = _require_dit()
         dist = self.step_distribution()
         return float(
@@ -132,10 +145,6 @@ class BidirectionalEpsilonMachine(MealyHMM):
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
             )
         )
-
-    def ephemeral_information(self) -> float:
-        """r_μ = I[X₀ : S⁻₁ | S⁺₀] — ephemeral information rate (James et al., 2013)."""
-        return float(self.entropy_rate() - self.bound_information())
 
     def excess_entropy(self) -> float:
         """Exact excess entropy E = I[S⁺; S⁻] from the bidirectional joint distribution."""
@@ -191,11 +200,10 @@ class BidirectionalEpsilonMachine(MealyHMM):
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and χ for this bidirectional presentation."""
         h_mu = self.entropy_rate()
-        b_mu = self.bound_information()
         return {
             "rho_mu": self.predicted_information(),
-            "bound_mu": b_mu,
-            "ephemeral_mu": h_mu - b_mu,
+            "bound_mu": self.bound_information(),
+            "ephemeral_mu": self.ephemeral_information(),
             "entropy_rate": h_mu,
             "excess_entropy": self.excess_entropy(),
             "crypticity": self.crypticity(),

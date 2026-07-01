@@ -149,6 +149,21 @@ def test_fig9_information_identities():
     assert c_bidir == pytest.approx(c_plus + c_minus - excess, abs=1e-9)
 
 
+@pytest.mark.measures
+def test_bidirectional_even_process_single_weak_component_and_anatomy():
+    """Even process bidirectional machine is connected with b_μ = h_μ, r_μ = 0."""
+    pytest.importorskip("dit")
+    import networkx as nx
+
+    bidir = even_process(0.5).to_bidirectional()
+    graph = bidir.to_networkx()
+    assert len(list(nx.weakly_connected_components(graph))) == 1
+    h_mu = bidir.entropy_rate()
+    assert bidir.ephemeral_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.bound_information() == pytest.approx(h_mu, abs=1e-9)
+    assert bidir.bound_information() + bidir.ephemeral_information() == pytest.approx(h_mu, abs=1e-9)
+
+
 def test_bidirectional_golden_mean_paper_topology():
     """Ellison et al., arXiv:0905.3587 Fig. 4(c): three joint states, one SCC."""
     forward = golden_mean_forward(0.5)
@@ -235,6 +250,41 @@ def test_bidirectional_joint_pi_matches_marginals():
         assert pi_plus[state] == pytest.approx(float(pi_f[i]), abs=1e-9)
     for i, state in enumerate(idx_r.states):
         assert pi_minus[state] == pytest.approx(float(pi_r[i]), abs=1e-9)
+
+
+@pytest.mark.measures
+def test_bidirectional_tent_map_fig8_edges():
+    """Supplement Fig.~8 topology with symbolic ``1/2`` and ``a/(a+1)`` weights."""
+    from pensive.examples.epsilon_machines import _tent_map_misiurewicz_fig8_edges, tent_map_misiurewicz_a
+
+    a = tent_map_misiurewicz_a()
+    half = 0.5
+    inv_a1 = 1.0 / (a + 1.0)
+    frac_a1 = a / (a + 1.0)
+    expected = [
+        (("B", "E"), 0, ("C", "G"), 1.0),
+        (("C", "G"), 0, ("A", "F"), half),
+        (("C", "G"), 1, ("D", "F"), half),
+        (("A", "F"), 1, ("B", "E"), inv_a1),
+        (("A", "F"), 1, ("B", "G"), frac_a1),
+        (("B", "G"), 1, ("A", "F"), half),
+        (("B", "G"), 0, ("C", "F"), half),
+        (("D", "E"), 0, ("C", "G"), 1.0),
+        (("D", "F"), 1, ("D", "E"), inv_a1),
+        (("D", "F"), 1, ("D", "G"), frac_a1),
+        (("D", "G"), 1, ("D", "F"), half),
+        (("D", "G"), 0, ("C", "F"), half),
+        (("C", "F"), 1, ("D", "G"), frac_a1),
+        (("C", "F"), 1, ("D", "E"), inv_a1),
+    ]
+    actual = sorted(
+        (source, symbol, target, prob)
+        for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(a)
+    )
+    assert len(actual) == len(expected)
+    for got, want in zip(actual, sorted(expected), strict=True):
+        assert got[:3] == want[:3]
+        assert got[3] == pytest.approx(want[3], rel=0.0, abs=1e-12)
 
 
 @pytest.mark.measures
