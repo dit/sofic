@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import Any, Self
+from typing import Any
 
 import numpy as np
 
@@ -57,11 +57,6 @@ class MarkovChain(StochasticModel):
         from pensive.generators.words import markov_words_of_length
 
         return markov_words_of_length(self, length)
-
-    def reverse(self) -> Self:
-        from pensive.generators.reversal import time_reverse_stochastic
-
-        return time_reverse_stochastic(self)
 
     def sample_path(self, n: int, rng: np.random.Generator | None = None) -> list[Hashable]:
         generator = rng if rng is not None else np.random.default_rng()

@@ -9,7 +9,7 @@ from pensive.generators.nmachine import NMachine
 from pensive.graph import ATTR_EMISSION, ATTR_PROB, ATTR_QUASIPROB, TransitionGraph
 
 
-def build_nmachine_from_epsilon(
+def build_nmachine(
     eps: EpsilonMachine,
     splits: Mapping[Hashable, int] | None = None,
 ) -> NMachine:

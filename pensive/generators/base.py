@@ -54,6 +54,14 @@ class StochasticModel(StateMachine):
         return state_entropy(self)
 
     def reverse(self) -> Self:
+        """Return the time-reversed generator (stochastic reversal, not a graph transpose).
+
+        Overrides :meth:`pensive.base.StateMachine.reverse` (which merely
+        transposes the transition graph): for a stochastic process the reversal
+        must reweight edges by the stationary distribution
+        (:func:`~pensive.generators.reversal.time_reverse_stochastic`). Emission
+        machines are routed through :meth:`EpsilonMachine.from_hmm`.
+        """
         from pensive.generators.reversal import is_markov_like, time_reverse_stochastic
 
         if not is_markov_like(self):
@@ -204,9 +212,6 @@ class HiddenMarkovModel(StochasticModel):
         from pensive.generators.conversions import hmm_to_support_dfa
 
         return hmm_to_support_dfa(self)
-
-    def reverse(self) -> Self:
-        return super().reverse()
 
 
 class QuasiStochasticModel(StateMachine):

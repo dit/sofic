@@ -58,9 +58,9 @@ class NMachine(QuasiStochasticModel):
         splits: Mapping[Hashable, int] | None = None,
         **kwargs: Any,
     ) -> NMachine:
-        from pensive.generators.nmachine_construction import build_nmachine_from_epsilon
+        from pensive.generators.nmachine_construction import build_nmachine
 
-        return build_nmachine_from_epsilon(eps, splits)
+        return build_nmachine(eps, splits)
 
     def coarse_grained_distribution(self) -> dict[Hashable, float]:
         from pensive.generators.nmachine_construction import coarse_grained_distribution
