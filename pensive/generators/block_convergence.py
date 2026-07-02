@@ -3,19 +3,26 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from pensive.generators._word_measures import (
+    _block_caekl,
+    _block_coinformation,
+    _block_residual_entropy,
+    _block_total_correlation,
+    _block_word_distribution,
+)
 from pensive.generators.block_entropy import (
+    CMExtensionEstimates,
     _block_entropy_curves,
+    _cm_extension_curves,
     _entropy,
     _entropy_rate,
     _entropy_rate_estimates,
     _estimated_excess_entropy,
-    _predictability_gain,
 )
 
 if TYPE_CHECKING:
@@ -25,81 +32,6 @@ _TOL = 1e-15
 _CAEKL_RATE_STABLE_STEPS = 2
 _CAEKL_RATE_TOL = 1e-9
 FigureName = Literal["all", "fig4", "fig5", "fig5_rb", "fig5_qw", "fig6", "caekl", "cm"]
-
-
-def _require_dit():
-    from pensive.generators.measures import require_dit
-
-    return require_dit("block convergence measures")
-
-
-def _positional_rvs(length: int) -> list[list[int]]:
-    return [[index] for index in range(length)]
-
-
-def _word_distribution(
-    distribution: dict[tuple[Any, ...], float],
-) -> Any:
-    dit = _require_dit()
-    if not distribution:
-        return dit.Distribution([()], [1.0])
-    total = sum(float(prob) for prob in distribution.values())
-    if total <= _TOL:
-        return dit.Distribution([()], [1.0])
-    outcomes = list(distribution.keys())
-    probs = [float(distribution[outcome]) / total for outcome in outcomes]
-    dist = dit.Distribution(outcomes, probs)
-    dist.set_rv_names([f"X_{index}" for index in range(len(outcomes[0]))])
-    return dist
-
-
-def _block_word_distribution(machine: EpsilonMachine, length: int) -> Any:
-    if length == 0:
-        dit = _require_dit()
-        return dit.Distribution([()], [1.0])
-    return _word_distribution(machine.word_probabilities(length))
-
-
-def _block_total_correlation(dist: Any, length: int, block_entropy: float, h1: float) -> float:
-    if length <= 1:
-        return 0.0
-    dit = _require_dit()
-    from dit.multivariate import total_correlation
-
-    return float(total_correlation(dist, rvs=_positional_rvs(length)))
-
-
-def _block_residual_entropy(dist: Any, length: int) -> float:
-    if length == 0:
-        return 0.0
-    dit = _require_dit()
-    from dit.multivariate import residual_entropy
-
-    return float(residual_entropy(dist, rvs=_positional_rvs(length)))
-
-
-def _block_binding_information(dist: Any, length: int, block_entropy: float) -> float:
-    if length == 0:
-        return 0.0
-    return block_entropy - _block_residual_entropy(dist, length)
-
-
-def _block_coinformation(dist: Any, length: int, block_entropy: float) -> float:
-    if length <= 1:
-        return 0.0
-    dit = _require_dit()
-    from dit.multivariate import coinformation
-
-    return float(coinformation(dist, rvs=_positional_rvs(length)))
-
-
-def _block_caekl(dist: Any, length: int) -> float:
-    if length <= 1:
-        return 0.0
-    dit = _require_dit()
-    from dit.multivariate import caekl_mutual_information
-
-    return float(caekl_mutual_information(dist, rvs=_positional_rvs(length)))
 
 
 def block_caekl(machine: EpsilonMachine, length: int) -> float:
@@ -537,18 +469,8 @@ class BlockConvergenceDiagram:
 
 
 @dataclass(frozen=True)
-class BlockConvergenceEstimates(BlockConvergenceDiagram):
+class BlockConvergenceEstimates(BlockConvergenceDiagram, CMExtensionEstimates):
     """Block convergence diagram plus Ellison/Mahoney CM extension curves."""
-
-    excess_entropy_lower: np.ndarray
-    excess_entropy_upper: np.ndarray
-    excess_entropy_estimate: np.ndarray
-    synchronization_estimate: np.ndarray
-    reverse_synchronization_estimate: np.ndarray
-    transient_information_estimate: np.ndarray
-    predictability_gain_estimate: np.ndarray
-    oracular_information_estimate: np.ndarray
-    gauge_information_estimate: np.ndarray
 
     def information_anatomy(self) -> dict[str, float]:
         """Return promoted anatomy scalars using James (2011) key names."""
@@ -633,7 +555,6 @@ def block_convergence_estimates(
     crypticity_estimate = state_block_entropy - block_state_entropy
     entropy_rate_estimate = _entropy_rate_estimates(block_entropy)
 
-    h_conv = _convergence_scalars(lengths, block_entropy, rate=h_mu if exact else None)
     t_conv = _convergence_scalars(
         lengths,
         anatomy["block_total_correlation"],
@@ -661,15 +582,17 @@ def block_convergence_estimates(
     q_mu = exact["q_mu"] if exact else q_conv.rate
     w_mu = exact["w_mu"] if exact else w_conv.rate
 
-    excess_entropy_lower = block_entropy - h_mu * lengths
-    excess_entropy_upper = block_state_entropy - h_mu * lengths
-    excess_entropy_estimate = 0.5 * (excess_entropy_lower + excess_entropy_upper)
-    synchronization = block_state_entropy - block_entropy
-    reverse_synchronization = state_block_entropy - block_entropy
-    transient_information = np.cumsum(entropy_asymptote - block_entropy)
-    predictability_gain = _predictability_gain(block_entropy)
-    oracular_information = statistical_complexity + h_mu * lengths - state_block_entropy
-    gauge_information = statistical_complexity - excess_entropy - crypticity_estimate - oracular_information
+    cm = _cm_extension_curves(
+        lengths,
+        block_entropy,
+        state_block_entropy,
+        block_state_entropy,
+        h_mu=h_mu,
+        statistical_complexity=statistical_complexity,
+        excess_entropy=excess_entropy,
+        entropy_asymptote=entropy_asymptote,
+        crypticity_estimate=crypticity_estimate,
+    )
 
     return BlockConvergenceEstimates(
         lengths=lengths,
@@ -725,15 +648,15 @@ def block_convergence_estimates(
         crypticity=float(crypticity),
         markov_order=machine.markov_order(),
         cryptic_order=machine.cryptic_order(),
-        excess_entropy_lower=excess_entropy_lower,
-        excess_entropy_upper=excess_entropy_upper,
-        excess_entropy_estimate=excess_entropy_estimate,
-        synchronization_estimate=synchronization,
-        reverse_synchronization_estimate=reverse_synchronization,
-        transient_information_estimate=transient_information,
-        predictability_gain_estimate=predictability_gain,
-        oracular_information_estimate=oracular_information,
-        gauge_information_estimate=gauge_information,
+        excess_entropy_lower=cm.excess_entropy_lower,
+        excess_entropy_upper=cm.excess_entropy_upper,
+        excess_entropy_estimate=cm.excess_entropy_estimate,
+        synchronization_estimate=cm.synchronization_estimate,
+        reverse_synchronization_estimate=cm.reverse_synchronization_estimate,
+        transient_information_estimate=cm.transient_information_estimate,
+        predictability_gain_estimate=cm.predictability_gain_estimate,
+        oracular_information_estimate=cm.oracular_information_estimate,
+        gauge_information_estimate=cm.gauge_information_estimate,
     )
 
 
@@ -744,14 +667,3 @@ def plot_block_convergence_diagram(
     **kwargs: Any,
 ) -> Any:
     return block_convergence_diagram(machine, max_length).plot(ax=ax, **kwargs)
-
-
-def residual_entropy_from_distribution(distribution: dict[tuple[Any, ...], float]) -> float:
-    """Dit-backed residual entropy for a word distribution."""
-    if not distribution:
-        return 0.0
-    length = len(next(iter(distribution)))
-    if length == 0:
-        return 0.0
-    dist = _word_distribution(distribution)
-    return _block_residual_entropy(dist, length)

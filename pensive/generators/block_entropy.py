@@ -154,7 +154,28 @@ class BlockEntropyDiagram:
 
 
 @dataclass(frozen=True)
-class BlockEntropyEstimates:
+class CMExtensionEstimates:
+    """Ellison/Mahoney CM-extension curves shared by block estimate diagrams.
+
+    These nine finite-block curves are computed identically for
+    :class:`BlockEntropyEstimates` and
+    :class:`~pensive.generators.block_convergence.BlockConvergenceEstimates`
+    (see :func:`_cm_extension_curves`).
+    """
+
+    excess_entropy_lower: np.ndarray
+    excess_entropy_upper: np.ndarray
+    excess_entropy_estimate: np.ndarray
+    synchronization_estimate: np.ndarray
+    reverse_synchronization_estimate: np.ndarray
+    transient_information_estimate: np.ndarray
+    predictability_gain_estimate: np.ndarray
+    oracular_information_estimate: np.ndarray
+    gauge_information_estimate: np.ndarray
+
+
+@dataclass(frozen=True)
+class BlockEntropyEstimates(CMExtensionEstimates):
     """Finite-block estimates for computational-mechanics quantities."""
 
     lengths: np.ndarray
@@ -165,16 +186,7 @@ class BlockEntropyEstimates:
     entropy_rate_estimate: np.ndarray
     residual_entropy: np.ndarray
     residual_entropy_rate_estimate: np.ndarray
-    excess_entropy_lower: np.ndarray
-    excess_entropy_upper: np.ndarray
-    excess_entropy_estimate: np.ndarray
     crypticity_estimate: np.ndarray
-    synchronization_estimate: np.ndarray
-    reverse_synchronization_estimate: np.ndarray
-    transient_information_estimate: np.ndarray
-    predictability_gain_estimate: np.ndarray
-    oracular_information_estimate: np.ndarray
-    gauge_information_estimate: np.ndarray
     entropy_rate: float
     excess_entropy: float
     statistical_complexity: float
@@ -276,20 +288,24 @@ def block_entropy_estimates(
     statistical_complexity = _entropy(pi)
 
     h_mu_l = h_mu * lengths
-    excess_entropy_lower = block_entropy - h_mu_l
-    excess_entropy_upper = block_state_entropy - h_mu_l
-    excess_entropy_estimate = 0.5 * (excess_entropy_lower + excess_entropy_upper)
+    excess_entropy_estimate = 0.5 * (block_entropy + block_state_entropy) - h_mu_l
     excess_entropy = _estimated_excess_entropy(machine, excess_entropy_estimate, use_exact=use_exact)
 
     entropy_asymptote = excess_entropy + h_mu_l
     crypticity_estimate = state_block_entropy - block_state_entropy
     crypticity = float(crypticity_estimate[-1]) if crypticity_estimate.size else 0.0
-    synchronization = block_state_entropy - block_entropy
-    reverse_synchronization = state_block_entropy - block_entropy
-    transient_information = np.cumsum(entropy_asymptote - block_entropy)
-    predictability_gain = _predictability_gain(block_entropy)
-    oracular_information = statistical_complexity + h_mu_l - state_block_entropy
-    gauge_information = statistical_complexity - excess_entropy - crypticity_estimate - oracular_information
+
+    cm = _cm_extension_curves(
+        lengths,
+        block_entropy,
+        state_block_entropy,
+        block_state_entropy,
+        h_mu=h_mu,
+        statistical_complexity=statistical_complexity,
+        excess_entropy=excess_entropy,
+        entropy_asymptote=entropy_asymptote,
+        crypticity_estimate=crypticity_estimate,
+    )
 
     residual_entropy = _residual_entropy_curve(machine, max_length)
     residual_entropy_rate_estimate = _entropy_rate_estimates(residual_entropy)
@@ -306,16 +322,7 @@ def block_entropy_estimates(
         entropy_rate_estimate=entropy_rate_estimate,
         residual_entropy=residual_entropy,
         residual_entropy_rate_estimate=residual_entropy_rate_estimate,
-        excess_entropy_lower=excess_entropy_lower,
-        excess_entropy_upper=excess_entropy_upper,
-        excess_entropy_estimate=excess_entropy_estimate,
         crypticity_estimate=crypticity_estimate,
-        synchronization_estimate=synchronization,
-        reverse_synchronization_estimate=reverse_synchronization,
-        transient_information_estimate=transient_information,
-        predictability_gain_estimate=predictability_gain,
-        oracular_information_estimate=oracular_information,
-        gauge_information_estimate=gauge_information,
         entropy_rate=h_mu,
         excess_entropy=excess_entropy,
         statistical_complexity=statistical_complexity,
@@ -323,6 +330,15 @@ def block_entropy_estimates(
         predicted_information=rho_mu,
         bound_information=b_mu,
         ephemeral_information=r_mu,
+        excess_entropy_lower=cm.excess_entropy_lower,
+        excess_entropy_upper=cm.excess_entropy_upper,
+        excess_entropy_estimate=cm.excess_entropy_estimate,
+        synchronization_estimate=cm.synchronization_estimate,
+        reverse_synchronization_estimate=cm.reverse_synchronization_estimate,
+        transient_information_estimate=cm.transient_information_estimate,
+        predictability_gain_estimate=cm.predictability_gain_estimate,
+        oracular_information_estimate=cm.oracular_information_estimate,
+        gauge_information_estimate=cm.gauge_information_estimate,
     )
 
 
@@ -467,19 +483,49 @@ def _predictability_gain(block_entropy: np.ndarray) -> np.ndarray:
     return gain
 
 
+def _cm_extension_curves(
+    lengths: np.ndarray,
+    block_entropy: np.ndarray,
+    state_block_entropy: np.ndarray,
+    block_state_entropy: np.ndarray,
+    *,
+    h_mu: float,
+    statistical_complexity: float,
+    excess_entropy: float,
+    entropy_asymptote: np.ndarray,
+    crypticity_estimate: np.ndarray,
+) -> CMExtensionEstimates:
+    """Ellison/Mahoney CM-extension curves shared by both block estimators."""
+    h_mu_l = h_mu * lengths
+    excess_entropy_lower = block_entropy - h_mu_l
+    excess_entropy_upper = block_state_entropy - h_mu_l
+    excess_entropy_estimate = 0.5 * (excess_entropy_lower + excess_entropy_upper)
+    synchronization = block_state_entropy - block_entropy
+    reverse_synchronization = state_block_entropy - block_entropy
+    transient_information = np.cumsum(entropy_asymptote - block_entropy)
+    predictability_gain = _predictability_gain(block_entropy)
+    oracular_information = statistical_complexity + h_mu_l - state_block_entropy
+    gauge_information = statistical_complexity - excess_entropy - crypticity_estimate - oracular_information
+    return CMExtensionEstimates(
+        excess_entropy_lower=excess_entropy_lower,
+        excess_entropy_upper=excess_entropy_upper,
+        excess_entropy_estimate=excess_entropy_estimate,
+        synchronization_estimate=synchronization,
+        reverse_synchronization_estimate=reverse_synchronization,
+        transient_information_estimate=transient_information,
+        predictability_gain_estimate=predictability_gain,
+        oracular_information_estimate=oracular_information,
+        gauge_information_estimate=gauge_information,
+    )
+
+
 def _residual_entropy_curve(machine: EpsilonMachine, max_length: int) -> np.ndarray:
-    from pensive.generators.block_convergence import residual_entropy_from_distribution
+    from pensive.generators._word_measures import residual_entropy_from_distribution
 
     residual = np.zeros(max_length + 1, dtype=float)
     for length in range(1, max_length + 1):
         residual[length] = residual_entropy_from_distribution(machine.word_probabilities(length))
     return residual
-
-
-def _residual_entropy(distribution: dict[tuple[Any, ...], float]) -> float:
-    from pensive.generators.block_convergence import residual_entropy_from_distribution
-
-    return residual_entropy_from_distribution(distribution)
 
 
 def _entropy(probabilities: Iterable[float]) -> float:
