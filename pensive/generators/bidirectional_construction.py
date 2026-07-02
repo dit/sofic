@@ -17,7 +17,10 @@ from pensive.generators.epsilon_construction import (
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.mixed_state import MixedState
 from pensive.generators.reversal import time_reverse_stochastic
-from pensive.generators.stationary import stationary_distribution_hmm
+from pensive.generators.stationary import (
+    stationary_distribution_from_transition,
+    stationary_distribution_hmm,
+)
 from pensive.graph import ATTR_EMISSION, ATTR_FUTURE_SYMBOL, ATTR_PROB, TransitionGraph
 from pensive.states import next_sequential_label_index, sequential_labels
 
@@ -173,9 +176,9 @@ def _compatible_pairs(
     """Joint states (α, γ) with positive measure in the bidirectional presentation.
 
     Eq. (15) is evaluated on every forward/reverse pair that passes the reverse
-    future-symbol filter.  When multiple undirected components admit a
-    margin-matching joint π, :func:`_joint_pi_minimum_support` breaks ties by
-    the information-anatomy identity ``h_μ = b_μ + r_μ``.
+    future-symbol filter.  When multiple undirected components admit a stationary
+    joint π, :func:`_joint_pi_minimum_support` breaks ties by the
+    information-anatomy identity ``h_μ = b_μ + r_μ``.
     """
     future_symbol = _infer_future_symbols(reverse)
     pairs: set[tuple[Hashable, Hashable]] = set()
@@ -211,104 +214,44 @@ def _infer_future_symbols(reverse: EpsilonMachine) -> dict[Hashable, Any]:
     return mapping
 
 
-def _joint_pi_from_marginals(
-    graph: TransitionGraph,
-    forward: EpsilonMachine,
-    reverse: EpsilonMachine,
-    *,
-    tol: float = 1e-12,
-    max_iter: int = 256,
-) -> dict[tuple[Hashable, Hashable], float]:
-    """Match forward/reverse stationary marginals on the retained joint support."""
-    pairs = [state for state in graph.states() if isinstance(state, tuple) and len(state) == 2]
-    if not pairs:
-        return {}
-
-    pi_plus = _state_distribution(forward)
-    pi_minus = _state_distribution(reverse)
-    return _ipf_joint_on_pairs(pairs, pi_plus, pi_minus, tol=tol, max_iter=max_iter)
-
-
-def _ipf_joint_on_pairs(
-    pairs: list[tuple[Hashable, Hashable]],
-    pi_plus: dict[Hashable, float],
-    pi_minus: dict[Hashable, float],
-    *,
-    tol: float = 1e-12,
-    max_iter: int = 256,
-) -> dict[tuple[Hashable, Hashable], float]:
-    if not pairs:
-        return {}
-    joint = {pair: 1.0 / len(pairs) for pair in pairs}
-
-    for _ in range(max_iter):
-        for alpha in {pair[0] for pair in pairs}:
-            target = pi_plus.get(alpha, 0.0)
-            current = sum(joint[pair] for pair in pairs if pair[0] == alpha)
-            if current <= tol or target <= tol:
-                continue
-            scale = target / current
-            for pair in pairs:
-                if pair[0] == alpha:
-                    joint[pair] *= scale
-        for gamma in {pair[1] for pair in pairs}:
-            target = pi_minus.get(gamma, 0.0)
-            current = sum(joint[pair] for pair in pairs if pair[1] == gamma)
-            if current <= tol or target <= tol:
-                continue
-            scale = target / current
-            for pair in pairs:
-                if pair[1] == gamma:
-                    joint[pair] *= scale
-
-    total = sum(joint.values())
-    if total <= tol:
-        return {}
-    joint = {pair: mass / total for pair, mass in joint.items() if mass > tol}
-    return joint
-
-
 def _joint_pi_on_pair_subset(
+    graph: TransitionGraph,
     pairs: list[tuple[Hashable, Hashable]],
-    pi_plus: dict[Hashable, float],
-    pi_minus: dict[Hashable, float],
     *,
     tol: float = 1e-12,
 ) -> dict[tuple[Hashable, Hashable], float] | None:
-    """Return a joint matching marginals on ``pairs`` only, or ``None`` if infeasible."""
+    """Stationary joint π over a closed joint-state component, or ``None`` if unavailable.
+
+    The joint stationary distribution is the normalized left eigenvector (eigenvalue
+    one) of the component's row-stochastic transition matrix — the general HMM
+    stationary distribution.  A component that is not row-stochastic (i.e. leaks
+    probability outside ``pairs``) is not a closed recurrent class and is rejected.
+    """
     if not pairs:
         return None
 
-    for alpha, target in pi_plus.items():
-        subset = [pair for pair in pairs if pair[0] == alpha]
-        if not subset:
-            if target > tol:
-                return None
-            continue
-        if len(subset) == 1:
-            if target < -tol:
-                return None
-            continue
-    for gamma, target in pi_minus.items():
-        subset = [pair for pair in pairs if pair[1] == gamma]
-        if not subset:
-            if target > tol:
-                return None
-            continue
+    states = sorted(pairs, key=repr)
+    index = {state: i for i, state in enumerate(states)}
+    n = len(states)
+    matrix = np.zeros((n, n), dtype=float)
+    for state in states:
+        row = index[state]
+        for transition in graph.out_transitions(state):
+            column = index.get(transition.target)
+            if column is None:
+                continue
+            matrix[row, column] += float(transition.data.get(ATTR_PROB, 0.0))
 
-    joint = _ipf_joint_on_pairs(pairs, pi_plus, pi_minus, tol=tol)
-    if not joint:
+    if not np.allclose(matrix.sum(axis=1), 1.0, atol=1e-9):
         return None
 
-    for alpha, target in pi_plus.items():
-        got = sum(joint.get(pair, 0.0) for pair in pairs if pair[0] == alpha)
-        if abs(got - target) > 1e-8:
-            return None
-    for gamma, target in pi_minus.items():
-        got = sum(joint.get(pair, 0.0) for pair in pairs if pair[1] == gamma)
-        if abs(got - target) > 1e-8:
-            return None
-    return joint
+    try:
+        pi = stationary_distribution_from_transition(matrix)
+    except (StochasticValidationError, ValueError):
+        return None
+
+    joint = {states[i]: float(pi[i]) for i in range(n) if pi[i] > tol}
+    return joint or None
 
 
 def _undirected_components(
@@ -351,13 +294,17 @@ def _joint_pi_minimum_support(
     *,
     tol: float = 1e-12,
 ) -> dict[tuple[Hashable, Hashable], float]:
-    """Pick the smallest feasible undirected component with a marginal-matching joint π."""
+    """Pick the smallest closed undirected component with a stationary joint π.
+
+    The joint π on each component is the general HMM stationary distribution (left
+    eigenvector for eigenvalue one), not an iterative-proportional-fit to the
+    forward/reverse marginals — the eigenvector already reproduces those marginals
+    on a closed recurrent class and is exact.
+    """
     pairs = [state for state in graph.states() if isinstance(state, tuple) and len(state) == 2]
     if not pairs:
         return {}
 
-    pi_plus = _state_distribution(forward)
-    pi_minus = _state_distribution(reverse)
     components = sorted(
         _undirected_components(graph),
         key=lambda component: (len(component), sorted(component, key=repr)),
@@ -368,7 +315,7 @@ def _joint_pi_minimum_support(
     best_anatomy_gap = float("inf")
     for component in components:
         component_pairs = [pair for pair in pairs if pair in component]
-        joint = _joint_pi_on_pair_subset(component_pairs, pi_plus, pi_minus, tol=tol)
+        joint = _joint_pi_on_pair_subset(graph, component_pairs, tol=tol)
         if joint is None:
             continue
         support = len(joint)
@@ -382,13 +329,7 @@ def _joint_pi_minimum_support(
 
     if best is not None:
         return best
-    return _joint_pi_from_marginals(graph, forward, reverse, tol=tol)
-
-
-def _state_distribution(model: EpsilonMachine) -> dict[Hashable, float]:
-    idx = model.reindex()
-    pi = model.stationary_distribution()
-    return {idx.state(i): float(pi[i]) for i in range(len(idx))}
+    return {}
 
 
 def _canonical_joint_state(
