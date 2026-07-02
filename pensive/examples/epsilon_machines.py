@@ -18,7 +18,7 @@ References
 from __future__ import annotations
 
 import math
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -87,38 +87,22 @@ def from_symbol_matrices(
     return eps
 
 
-def _add_edges(
-    eps: EpsilonMachine,
-    edges: Sequence[tuple[Hashable, Hashable, Any, float]],
-) -> None:
-    for source, target, symbol, prob in edges:
-        eps.graph.add_transition(
-            source,
-            target,
-            **{ATTR_PROB: float(prob), ATTR_EMISSION: symbol},
-        )
-
-
 def bernoulli(p: float = 0.5, *, symbols: tuple[Any, Any] = ("0", "1")) -> EpsilonMachine:
     """Memoryless (Bernoulli) source with ``P(symbols[0]) = 1 - p``."""
     if not 0.0 < p < 1.0:
         raise ValueError("p must be in (0, 1)")
+    from pensive.examples.processes import _edge_machine
+
     zero, one = symbols
     state = sequential_labels(1)[0]
-    eps = EpsilonMachine(
-        initial_distribution={state: 1.0},
-        observation_alphabet=frozenset(symbols),
-    )
-    eps.graph.add_state(state)
-    _add_edges(
-        eps,
+    return _edge_machine(
         [
             (state, state, zero, 1.0 - p),
             (state, state, one, p),
         ],
+        initial_distribution={state: 1.0},
+        normalize=False,
     )
-    eps.validate()
-    return eps
 
 
 def fair_coin() -> EpsilonMachine:
@@ -389,40 +373,35 @@ def butterfly_process() -> EpsilonMachine:
         6: "C",
         7: "E",
     }
-    eps = EpsilonMachine(
-        initial_distribution=dict.fromkeys(states, 0.2),
-        observation_alphabet=frozenset(range(8)),
-    )
-    for state in states:
-        eps.graph.add_state(state)
+    from pensive.examples.processes import _edge_machine
+
+    edges = []
     for source in states:
         for symbol in range(8):
             target_spec = targets[symbol]
             target = target_spec if isinstance(target_spec, str) else target_spec[source]
-            _add_edges(eps, [(source, target, symbol, prob)])
-    eps.validate()
-    return eps
+            edges.append((source, target, symbol, prob))
+    return _edge_machine(
+        edges,
+        initial_distribution=dict.fromkeys(states, 0.2),
+        normalize=False,
+    )
 
 
 def ellison_fig9_forward() -> EpsilonMachine:
     """Forward ε-machine from Ellison et al., arXiv:1107.2168, Fig.~9."""
-    eps = EpsilonMachine(
-        initial_distribution={"A": 0.5, "B": 0.5},
-        observation_alphabet=frozenset({0, 1, 2}),
-    )
-    for state in ("A", "B"):
-        eps.graph.add_state(state)
-    _add_edges(
-        eps,
+    from pensive.examples.processes import _edge_machine
+
+    return _edge_machine(
         [
             ("A", "A", 0, 0.5),
             ("A", "B", 1, 0.5),
             ("B", "B", 1, 0.5),
             ("B", "A", 2, 0.5),
         ],
+        initial_distribution={"A": 0.5, "B": 0.5},
+        normalize=False,
     )
-    eps.validate()
-    return eps
 
 
 def tent_map_misiurewicz_a() -> float:

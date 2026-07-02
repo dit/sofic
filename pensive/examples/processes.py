@@ -23,6 +23,16 @@ from pensive.graph import ATTR_EMISSION, ATTR_OUTPUT, ATTR_PROB, ATTR_QUASIPROB,
 RecurrentEpsilonMachine = EpsilonMachine
 
 
+def _require_machine_type(machine_type: Any, *allowed: type) -> None:
+    """Raise ``NotImplementedError`` unless ``machine_type`` is ``None`` or allowed.
+
+    ``None`` always selects the constructor's default output type, so it is
+    accepted implicitly alongside the explicitly-supported classes.
+    """
+    if machine_type not in (*allowed, None):
+        raise NotImplementedError
+
+
 def _as_alphabet(symbols: int | Sequence[Any]) -> tuple[Any, ...]:
     if isinstance(symbols, int):
         return tuple(range(symbols))
@@ -214,8 +224,7 @@ def BeadsOnNecklace(
     necklace: Sequence[Any] = ("0", "1", "3"),
     probs: float | Sequence[float] = 0.5,
 ) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     if not necklace or not beads:
         raise ValueError("beads and necklace are required")
     bead_rows: list[Sequence[Any]] = (
@@ -255,8 +264,7 @@ def BeadsOnNecklace(
 
 
 def BeforeAfter(machine_type: Any = MealyHMM, style: str = "simple") -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     if style == "simple":
         edges = [("A", "A", "0", 0.5), ("A", "B", "1", 0.5), ("B", "B", "0", 0.5), ("B", "A", "2", 0.5)]
     elif style == "cayley":
@@ -438,8 +446,7 @@ def Butterfly() -> EpsilonMachine:
 
 
 def Cantor(machine_type: Any = MealyHMM) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     edges = [
         ("A", "A", "0", 0.55),
         ("B", "A", "0", 0.30),
@@ -523,8 +530,7 @@ def CyclicBranching(num_states: int, num_branchings: int, num_symbols: int = 2) 
 
 
 def Ehrenfest(p: float = 0.5, N: int = 5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     edges = []
     for state in range(N + 1):
         edges.append((state, state, state, 1 - p))
@@ -547,8 +553,7 @@ def RandomEven(machine_type: Any = EpsilonMachine, rng: np.random.Generator | No
 
 
 def EvenRedundant(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string(
         f"A A 0 {bias}; A B 1 {1 - bias}; B C 1 1.; C C 0 {bias}; C D 1 {1 - bias}; D A 1 1.",
         name="Even Process (4-state)",
@@ -556,8 +561,7 @@ def EvenRedundant(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> Epsi
 
 
 def ThreEven(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string("A A 0 1; A B 1 1; A C 2 1; B A 1 1; C A 2 1;", name="ThreEven Process")
 
 
@@ -568,8 +572,7 @@ def Flower(
     reverse_dists: np.ndarray | None = None,
     machine_type: Any = EpsilonMachine,
 ) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     if N < 2 or M < 2:
         raise ValueError("N and M must be at least 2")
     if forward_dist is None:
@@ -645,8 +648,7 @@ def Girvan_fig6d(
 
 
 def GoldenMean(bias: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _edge_machine(
         [("A", "A", "1", 1 - bias), ("A", "B", "0", bias), ("B", "A", "1", 1)],
         machine_type=EpsilonMachine,
@@ -759,8 +761,7 @@ def IrreversibleTwoState(p: float = 0.5, q: float = 0.5, machine_type: Any = Eps
 
 
 def Ising(machine_type: Any = EpsilonMachine, J: float = 1.0, B: float = 0.3, T: float = 1.0) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     beta = 1.0 / T
     rad = (np.sinh(beta * B) ** 2 + np.exp(-4 * beta * J)) ** 0.5
     two_p = 1.0 - (2 * np.exp(-4 * beta * J)) / (rad * (np.cosh(beta * B) + rad))
@@ -778,8 +779,7 @@ def Ising(machine_type: Any = EpsilonMachine, J: float = 1.0, B: float = 0.3, T:
 
 
 def Lollipop(N: int, M: int, p: float = 0.5, q: float = 0.5, r: float = 0.1, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     hns = [str(ind) for ind in range(N)]
     sns = [str(ind) for ind in range(N, N + 2 * (M - 1) + 1)]
     edges = []
@@ -828,8 +828,7 @@ def markov_skeleton(R: int, k: int | Sequence[Any], join: bool | None = None) ->
 
 
 def Misiurewicz(machine_type: Any = MealyHMM) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [("A", "B", "0", 0.364), ("B", "C", "0", 0.276), ("D", "B", "0", 0.521), ("A", "A", "1", 0.636), ("B", "A", "1", 0.724), ("C", "D", "1", 1), ("D", "C", "1", 0.479)],
         machine_type=MealyHMM,
@@ -839,8 +838,7 @@ def Misiurewicz(machine_type: Any = MealyHMM) -> MealyHMM:
 
 
 def MisiurewiczSimplified(machine_type: Any = MealyHMM) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [("A", "B", "0", 0.4), ("B", "C", "0", 0.25), ("D", "B", "0", 0.5), ("A", "A", "1", 0.6), ("B", "A", "1", 0.75), ("C", "D", "1", 1), ("D", "C", "1", 0.5)],
         machine_type=MealyHMM,
@@ -850,8 +848,7 @@ def MisiurewiczSimplified(machine_type: Any = MealyHMM) -> MealyHMM:
 
 
 def MisiurewiczUniform(machine_type: Any = MealyHMM) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [("A", "B", "0", 0.5), ("B", "C", "0", 0.5), ("D", "B", "0", 0.5), ("A", "A", "1", 0.5), ("B", "A", "1", 0.5), ("C", "D", "1", 1), ("D", "C", "1", 0.5)],
         machine_type=MealyHMM,
@@ -869,8 +866,7 @@ def Multiple4(machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
 
 
 def MultipleN(n: int, machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
-    if machine_type not in (MealyHMM, EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM, EpsilonMachine, RecurrentEpsilonMachine)
     edges = [(0, 0, "0", bias), (0, 1, "1", 1 - bias)]
     for x in range(1, int(n)):
         edges.append((x, 0 if x == n - 1 else x + 1, "1", 1))
@@ -879,8 +875,7 @@ def MultipleN(n: int, machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyH
 
 
 def Nemo(machine_type: Any = EpsilonMachine, p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string(
         f"A A 1 {p}; A B 0 {1 - p}; B C 0 1; C A 0 {1 - q}; C A 1 {q};",
         name="Nemo Process",
@@ -888,8 +883,7 @@ def Nemo(machine_type: Any = EpsilonMachine, p: float = 0.5, q: float = 0.5) -> 
 
 
 def NemoRedundant(machine_type: Any = MealyHMM, p: float = 0.5, q: float = 0.5) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     return _from_string(
         f"""
         A A 1 {p}; A B 0 {1 - p}; B C 0 1; C D 0 {1 - q}; C D 1 {q};
@@ -916,8 +910,7 @@ def NRPS() -> EpsilonMachine:
 
 
 def Odd(machine_type: Any = EpsilonMachine, bias1: float = 0.5, bias2: float = 0.5) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     edges = [
         ("A", "A", "0", bias1),
         ("A", "B", "1", 1 - bias1),
@@ -952,14 +945,12 @@ def OddGHMM(variant: int = 1) -> QuasiStochasticModel:
 
 
 def EvenOdd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string("A B 0 0.5; B A 0 1; A C 1 0.5; C B 0 0.5; C D 1 0.5; D C 1 1;", name="EvenOdd Process")
 
 
 def ThreEvenOdd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string("A A 0 1; A B 1 1; B A 1 1; A C 2 1; C A 0 1; C B 1 1; C D 2 1; D C 2 1;", name="ThreEvenOdd Process")
 
 
@@ -1053,8 +1044,7 @@ def Rn1C(noise: float = 0.5, bias: float = 0.5) -> EpsilonMachine:
 
 
 def Rn1N(machine_type: Any = EpsilonMachine, bias: float = 0.5, noise: float = 0.1) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _edge_machine(
         [("A", "B", "0", bias), ("A", "C", "1", 1 - bias), ("B", "A", "1", 1), ("C", "A", "1", noise), ("C", "A", "0", 1 - noise)],
         machine_type=EpsilonMachine,
@@ -1098,8 +1088,7 @@ def RRX(machine_type: Any = EpsilonMachine) -> MealyHMM:
 
 
 def RRXRO(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     return _from_string(
         """
         S 0 0 .5; S 1 1 .5; 0 00 0 .5; 0 01 1 .5; 1 10 0 .5; 1 11 1 .5;
@@ -1111,8 +1100,7 @@ def RRXRO(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
 
 
 def SNS(machine_type: Any = MealyHMM) -> MealyHMM:
-    if machine_type not in (MealyHMM, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [("A", "A", "1", 0.5), ("A", "B", "1", 0.5), ("B", "A", "0", 0.5), ("B", "B", "1", 0.5)],
         machine_type=MealyHMM,
@@ -1122,8 +1110,7 @@ def SNS(machine_type: Any = MealyHMM) -> MealyHMM:
 
 
 def ThreeHundred(machine_type: Any = EpsilonMachine, biases: tuple[float, float, float] = (0.5, 0.5, 0.5)) -> EpsilonMachine:
-    if machine_type not in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        raise NotImplementedError
+    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
     p, q, r = biases
     spec = f"A B 0 {p}; A C 1 {1 - p}; B D 0 1; C E 0 1; D F 0 {q}; D F 1 {1 - q}; E A 0 1; F A 0 {r}; F A 1 {1 - r};"
     return _from_string(spec, name="ThreeHundred Process")
