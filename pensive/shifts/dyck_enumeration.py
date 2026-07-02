@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Hashable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from itertools import product
 from typing import Any
@@ -132,7 +132,6 @@ def dyck_graph_string_to_shift(spec: DyckGraphString) -> SoficDyckShift:
 
 
 def _one_state_transition_choices(
-  n_kinds: int,
   symbols_per_kind: Sequence[int],
   *,
   include_empty: bool,
@@ -170,7 +169,6 @@ def iter_dyck_graph_strings(
         raise DyckEnumerationError("call and return symbol counts must match")
 
     for transitions in _one_state_transition_choices(
-        3,
         (len(calls), len(returns), len(internals)),
         include_empty=include_empty,
     ):

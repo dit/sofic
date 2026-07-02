@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -100,14 +100,6 @@ def papni_encode_samples(
             raise ValueError(f"sample {seq!r} is not well-matched")
         encoded.append(papni_encode(seq, alphabet))
     return encoded
-
-
-def _stack_aware_alphabet(alphabet: DyckAlphabet) -> frozenset[Any]:
-    symbols: set[Any] = set(alphabet.internal_alphabet) | set(alphabet.call_alphabet)
-    for return_symbol in alphabet.return_alphabet:
-        for call_symbol in alphabet.call_alphabet:
-            symbols.add((return_symbol, call_symbol))
-    return frozenset(symbols)
 
 
 def _decode_symbol(symbol: Any, alphabet: DyckAlphabet) -> tuple[str, Any, Any | None]:

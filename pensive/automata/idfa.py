@@ -223,62 +223,6 @@ def count_accessible_idfa(k: int, n: int) -> int:
 
 
 @cache
-def _n1_value(m: int, j: int, n: int, k: int) -> int:
-    if m == n - 1:
-        if n - 2 <= j <= (n - 1) * k - 1:
-            return (n + 1) ** (n * k - 1 - j)
-        return 0
-    if j == m * k - 1:
-        return sum((m + 2) ** index * _n1_value(m + 1, m * k + index, n, k) for index in range(k))
-    if m - 1 <= j <= m * k - 2:
-        return (m + 2) * _n1_value(m, j + 1, n, k) + _n1_value(m + 1, j + 1, n, k)
-    return 0
-
-
-def _rank_nf(flags: Sequence[int], *, n: int, k: int) -> int:
-    ext = extended_flags(flags, n=n, k=k)
-    total = 0
-    for label in range(1, n):
-        prefix = 1
-        for previous in range(label):
-            segment = ext[previous + 1] - ext[previous] - 1
-            if segment and previous > 0:
-                prefix *= (previous + 2) ** segment
-        inner = 0
-        for position in range(ext[label] + 1, label * k):
-            inner += (label + 1) ** (position - ext[label]) * _n1_value(label, position, n, k)
-        total += prefix * inner
-    return total
-
-
-def _segment_suffix_product(ext: Sequence[int], start_segment: int) -> int:
-    product = 1
-    for segment_index in range(start_segment, len(ext) - 1):
-        segment = ext[segment_index + 1] - ext[segment_index] - 1
-        if segment == 0 or segment_index == 0:
-            continue
-        product *= (segment_index + 2) ** segment
-    return product
-
-
-def _rank_nr(transitions: Sequence[int], flags: Sequence[int], *, n: int, k: int) -> int:
-    ext = extended_flags(flags, n=n, k=k)
-    total = 0
-    for segment_index in range(n):
-        segment_start = ext[segment_index] + 1
-        segment_end = ext[segment_index + 1]
-        if segment_index == 0:
-            continue
-        base = segment_index + 2
-        suffix = _segment_suffix_product(ext, segment_index + 1)
-        for position in range(segment_start, segment_end):
-            digit = transitions[position] + 1
-            power = segment_end - 1 - position
-            total += digit * (base**power) * suffix
-    return total
-
-
-@cache
 def _enumeration_index(k: int, n: int) -> dict[tuple[int, ...], int]:
     return {candidate: rank for rank, candidate in enumerate(_iter_idfa_strings_impl(k, n))}
 

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
 from pensive.generators.stack_hmm import Configuration, HiddenMarkovStackModel
-from pensive.graph import ATTR_PROB, ATTR_SYMBOL
+from pensive.graph import ATTR_SYMBOL
 from pensive.inference.bayesian.counts import (
     BayesianInferenceError,
     dirichlet_multinomial_log_evidence,

@@ -93,7 +93,7 @@ def transfer_entropy(
     """
     if source not in {"x", "y"} or target not in {"x", "y"}:
         raise ValueError("source and target must be 'x' or 'y'")
-    dit = _require_dit()
+    _require_dit()
     from dit.multivariate import total_correlation as I
 
     dist = _window_distribution(generator, history=history)
@@ -114,7 +114,7 @@ def directed_information(
     """Finite-length directed information ``I(X^{n} -> Y^{n})`` on tuple emissions."""
     if length < 1:
         raise ValueError("length must be positive")
-    dit = _require_dit()
+    _require_dit()
     from dit.multivariate import total_correlation as I
 
     total = 0.0
@@ -136,9 +136,8 @@ def intrinsic_information_flow(
     history: int = 1,
 ) -> float:
     """Intrinsic information flow estimate at finite window length."""
-    dit = _require_dit()
+    _require_dit()
     from dit.multivariate import intrinsic_total_correlation as IMI
-    from dit.multivariate import total_correlation as I
 
     dist = _window_distribution(generator, history=history)
     idx = _rv_indices(history)
@@ -156,13 +155,12 @@ def shared_information_flow(
     history: int = 1,
 ) -> float:
     """Shared flow: time-delayed mutual information minus intrinsic flow."""
-    dit = _require_dit()
+    _require_dit()
     from dit.multivariate import total_correlation as I
 
     dist = _window_distribution(generator, history=history)
     idx = _rv_indices(history)
     source_past = idx[f"{source}_past"]
-    target_past = idx[f"{target}_past"]
     target_pres = idx[f"{target}_pres"]
     tdmi = float(I(dist, [source_past, target_pres]))
     intrinsic = intrinsic_information_flow(

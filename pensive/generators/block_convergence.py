@@ -226,23 +226,6 @@ def _exact_anatomy_scalars(machine: EpsilonMachine) -> dict[str, float] | None:
     }
 
 
-def _attach_convergence(
-    lengths: np.ndarray,
-    curve: np.ndarray,
-    *,
-    rate: float | None = None,
-) -> dict[str, Any]:
-    conv = _convergence_scalars(lengths, curve, rate=rate)
-    return {
-        "curve": curve,
-        "rate_estimate": conv.rate_estimate,
-        "intercept": conv.intercept,
-        "asymptote": conv.asymptote,
-        "rate": conv.rate,
-        "intercept_scalar": conv.intercept_scalar,
-    }
-
-
 @dataclass(frozen=True)
 class BlockConvergenceDiagram:
     """James (2011) block convergence curves for an epsilon-machine."""

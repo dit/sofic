@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterable, Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from pensive.automata.dfa import DFA
-from pensive.graph import ATTR_SYMBOL
 
 __all__ = ["learn_dfa_rpni"]
 

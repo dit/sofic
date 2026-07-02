@@ -10,12 +10,7 @@ import numpy as np
 
 from pensive.exceptions import StochasticValidationError
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.epsilon_construction import (
-    _refine_probabilistic_partitions,
-    _unifilar_presentation,
-)
 from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.mixed_state import MixedState
 from pensive.generators.reversal import time_reverse_stochastic
 from pensive.generators.stationary import (
     stationary_distribution_from_transition,
@@ -404,89 +399,6 @@ def _relabel_collision_free(
     labels = sequential_labels(len(states), start=start)
     mapping = dict(zip(states, labels, strict=True))
     return _relabel_epsilon_machine(reverse, mapping)
-
-
-def _collision_relabel_mapping(
-    machine: EpsilonMachine,
-    forward: EpsilonMachine,
-) -> dict[Hashable, Hashable]:
-    """Return the state relabeling applied by :func:`_relabel_collision_free`."""
-    if not set(machine.states()) & set(forward.states()):
-        return {state: state for state in machine.states()}
-    states = sorted(machine.states(), key=repr)
-    start = next_sequential_label_index(forward.states())
-    labels = sequential_labels(len(states), start=start)
-    return dict(zip(states, labels, strict=True))
-
-
-def _state_forward_belief(
-    state: Any,
-    basis: tuple[Hashable, ...],
-) -> np.ndarray:
-    """Belief vector over ``basis`` for a presentation or mixed state."""
-    if isinstance(state, MixedState):
-        return np.asarray(state.belief, dtype=float)
-    if state in basis:
-        vector = np.zeros(len(basis), dtype=float)
-        vector[basis.index(state)] = 1.0
-        return vector
-    raise ValueError(f"cannot extract forward belief for state {state!r}")
-
-
-def _belief_covering(
-    belief: np.ndarray,
-    basis: tuple[Hashable, ...],
-    *,
-    tol: float = 1e-12,
-) -> frozenset[Hashable]:
-    return frozenset(basis[index] for index, weight in enumerate(belief) if weight > tol)
-
-
-def _reverse_forward_coverings(
-    forward: EpsilonMachine,
-    reverse: EpsilonMachine,
-    *,
-    tol: float = 1e-12,
-) -> dict[Hashable, frozenset[Hashable]]:
-    """Map each reverse causal state to forward basis states in its MSP covering."""
-    from pensive.generators.mixed_state_construction import build_mixed_state_presentation
-
-    rev_hmm = time_reverse_stochastic(forward)
-    reverse_pre = EpsilonMachine.from_hmm(rev_hmm)
-    msp = build_mixed_state_presentation(rev_hmm)
-    basis = tuple(msp.basis_states)
-    presentation = _unifilar_presentation(msp)
-    partitions = _refine_probabilistic_partitions(presentation)
-    stationary = presentation.stationary_distribution()
-    idx = presentation.reindex()
-    labels = sequential_labels(len(partitions))
-
-    pre_coverings: dict[Hashable, frozenset[Hashable]] = {}
-    for block_index, block in enumerate(partitions):
-        averaged = np.zeros(len(basis), dtype=float)
-        total_mass = 0.0
-        for state in block:
-            mass = float(stationary[idx.index(state)])
-            if mass <= tol:
-                continue
-            averaged += mass * _state_forward_belief(state, basis)
-            total_mass += mass
-        if total_mass <= tol:
-            continue
-        averaged /= total_mass
-        pre_coverings[labels[block_index]] = _belief_covering(averaged, basis, tol=tol)
-
-    relabel = _collision_relabel_mapping(reverse_pre, forward)
-    inv_relabel = {final: pre for pre, final in relabel.items()}
-    coverings: dict[Hashable, frozenset[Hashable]] = {}
-    for gamma in reverse.states():
-        pre_state = inv_relabel.get(gamma)
-        if pre_state is None:
-            continue
-        cover = pre_coverings.get(pre_state)
-        if cover is not None:
-            coverings[gamma] = cover
-    return coverings
 
 
 def _validate_bidirectional_anatomy(bidir: BidirectionalEpsilonMachine, *, tol: float = 1e-9) -> None:
