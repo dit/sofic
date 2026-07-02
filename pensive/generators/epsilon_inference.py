@@ -7,9 +7,9 @@ follows Crutchfield & Young (PRL 1989; PRE 1994).
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import numpy as np
 from scipy import stats
@@ -28,6 +28,9 @@ class SuffixCounts:
     alphabet: tuple[Any, ...]
     history_counts: Counter[History] = field(default_factory=Counter)
     next_counts: dict[History, Counter[Any]] = field(default_factory=lambda: defaultdict(Counter))
+
+    #: History key used as the fallback for an empty history set (overridden by stack counts).
+    empty_history: ClassVar[History] = ()
 
     @classmethod
     def from_sequence(
@@ -70,7 +73,7 @@ class SuffixCounts:
         weights = {history: float(self.history_counts.get(history, 0)) for history in histories}
         total_weight = sum(weights.values())
         if total_weight <= 0.0:
-            return self.morph((), smoothing=smoothing)
+            return self.morph(self.empty_history, smoothing=smoothing)
         result = dict.fromkeys(self.alphabet, 0.0)
         for history, weight in weights.items():
             morph = self.morph(history, smoothing=smoothing)
@@ -88,6 +91,20 @@ class SuffixCounts:
             uniform = 1.0 / len(self.alphabet)
             return dict.fromkeys(self.alphabet, uniform)
         return {symbol: counts.get(symbol, 0) / grand for symbol in self.alphabet}
+
+    def restricted_to(self, histories: set[History]) -> SuffixCounts:
+        """Return a plain :class:`SuffixCounts` proxy limited to ``histories``.
+
+        The morph/comparison helpers only read the history sets handed to them, so
+        stack inference can reuse them by projecting its configuration counts onto a
+        flat proxy without changing any results.
+        """
+        proxy = SuffixCounts(alphabet=self.alphabet)
+        proxy.history_counts = Counter({h: self.history_counts.get(h, 0) for h in histories})
+        proxy.next_counts = defaultdict(Counter)
+        for history in histories:
+            proxy.next_counts[history] = self.next_counts.get(history, Counter())
+        return proxy
 
 
 def _observed_counts_for_morph(
@@ -202,13 +219,9 @@ def _default_lmax(n: int, alphabet_size: int, min_count: int) -> int:
     return max(1, min(15, n // max(1, alphabet_size * min_count)))
 
 
-def _successor_history(history: History, symbol: Any, length: int) -> History:
-    extended = history + (symbol,)
-    if length <= 0:
-        return ()
-    if len(extended) <= length:
-        return extended
-    return extended[-length:]
+def _grow_history(history: History, symbol: Any) -> History:
+    """Default successor: append the symbol without truncation (flat ε-machine CSSR)."""
+    return history + (symbol,)
 
 
 def _cssr_homogenize(
@@ -217,10 +230,11 @@ def _cssr_homogenize(
     Lmax: int,
     alpha: float,
     test: Literal["g", "chi2", "tv"],
+    successor_fn: Callable[[History, Any], History] = _grow_history,
 ) -> tuple[dict[int, set[History]], dict[History, int]]:
     """Return state id -> histories and history -> state id."""
-    states: dict[int, set[History]] = {0: {()}}
-    history_to_state: dict[History, int] = {(): 0}
+    states: dict[int, set[History]] = {0: {counts.empty_history}}
+    history_to_state: dict[History, int] = {counts.empty_history: 0}
     next_state_id = 1
 
     for _length in range(Lmax + 1):
@@ -228,7 +242,7 @@ def _cssr_homogenize(
             histories = set(states[state_id])
             for history in list(histories):
                 for symbol in counts.alphabet:
-                    child = history + (symbol,)
+                    child = successor_fn(history, symbol)
                     if child in history_to_state:
                         continue
                     if counts.history_counts.get(child, 0) == 0:
@@ -279,6 +293,7 @@ def _cssr_determinize(
     counts: SuffixCounts,
     *,
     length: int,
+    successor_fn: Callable[[History, Any], History] = _grow_history,
 ) -> dict[int, set[History]]:
     """Split homogeneous states until transitions are unifilar."""
     current = {state_id: set(histories) for state_id, histories in states.items()}
@@ -296,7 +311,7 @@ def _cssr_determinize(
                 for history in histories:
                     if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
                         continue
-                    child = history + (symbol,)
+                    child = successor_fn(history, symbol)
                     target = history_to_state.get(child)
                     if target is None:
                         continue

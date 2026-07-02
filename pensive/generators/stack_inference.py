@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Hashable, Mapping, Sequence
-from typing import Any, Literal
-
-import numpy as np
+from collections.abc import Callable, Hashable, Sequence
+from typing import Any, ClassVar, Literal
 
 from pensive.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni
 from pensive.exceptions import StochasticValidationError
-from pensive.graph import ATTR_SYMBOL
 from pensive.generators.epsilon_inference import (
+    History,
+    SuffixCounts,
+    _cluster_histories_by_morph,
+    _cssr_determinize,
+    _cssr_homogenize,
     _default_lmax,
     _drop_transient_states,
     _merge_similar_states,
-    morphs_differ,
-    morph_test_score,
 )
 from pensive.generators.stack_hmm import HiddenMarkovStackModel
+from pensive.graph import ATTR_SYMBOL
 from pensive.shifts.sofic_dyck import SoficDyckShift, TransitionRef, transition_ref
 
 __all__ = [
@@ -33,8 +34,14 @@ __all__ = [
 ConfigurationHistory = tuple[tuple[Any, ...], tuple[Any, ...]]
 
 
-class StackSuffixCounts:
-    """Empirical counts of (suffix, stack) histories and following symbols."""
+class StackSuffixCounts(SuffixCounts):
+    """Empirical counts of (suffix, stack) histories and following symbols.
+
+    Shares the morph / comparison machinery of :class:`SuffixCounts`; only the
+    empty-history key and the sequence-scanning constructor differ.
+    """
+
+    empty_history: ClassVar[History] = ((), ())
 
     def __init__(
         self,
@@ -42,12 +49,14 @@ class StackSuffixCounts:
         history_counts: Counter[ConfigurationHistory] | None = None,
         next_counts: dict[ConfigurationHistory, Counter[Any]] | None = None,
     ) -> None:
-        self.alphabet = alphabet
-        self.history_counts = history_counts if history_counts is not None else Counter()
-        self.next_counts = next_counts if next_counts is not None else defaultdict(Counter)
+        super().__init__(
+            alphabet=alphabet,
+            history_counts=history_counts if history_counts is not None else Counter(),
+            next_counts=next_counts if next_counts is not None else defaultdict(Counter),
+        )
 
     @classmethod
-    def from_sequence(
+    def from_sequence(  # type: ignore[override]
         cls,
         sequence: Sequence[Any],
         *,
@@ -79,27 +88,6 @@ class StackSuffixCounts:
                     stack.pop()
         return counts
 
-    def morph(self, history: ConfigurationHistory, *, smoothing: float = 0.0) -> dict[Any, float]:
-        counts = self.next_counts.get(history, Counter())
-        total = sum(counts.values())
-        if total == 0:
-            uniform = 1.0 / len(self.alphabet)
-            return dict.fromkeys(self.alphabet, uniform)
-        denom = total + smoothing * len(self.alphabet)
-        return {symbol: (counts.get(symbol, 0) + smoothing) / denom for symbol in self.alphabet}
-
-    def state_morph(self, histories: set[ConfigurationHistory], *, smoothing: float = 0.0) -> dict[Any, float]:
-        weights = {history: float(self.history_counts.get(history, 0)) for history in histories}
-        total_weight = sum(weights.values())
-        if total_weight <= 0.0:
-            return self.morph(((), ()), smoothing=smoothing)
-        result = dict.fromkeys(self.alphabet, 0.0)
-        for history, weight in weights.items():
-            morph = self.morph(history, smoothing=smoothing)
-            for symbol in self.alphabet:
-                result[symbol] += weight * morph[symbol]
-        return {symbol: prob / total_weight for symbol, prob in result.items()}
-
 
 def _successor_history(
     history: ConfigurationHistory,
@@ -128,6 +116,26 @@ def _successor_history(
     return new_suffix, tuple(stack_list)
 
 
+def _stack_successor_fn(
+    *,
+    alphabet: DyckAlphabet,
+    length: int,
+    max_stack_depth: int,
+) -> Callable[[ConfigurationHistory, Any], ConfigurationHistory]:
+    """Bind the stack-lifted successor into the ``(history, symbol)`` shape shared CSSR expects."""
+
+    def successor(history: ConfigurationHistory, symbol: Any) -> ConfigurationHistory:
+        return _successor_history(
+            history,
+            symbol,
+            alphabet=alphabet,
+            length=length,
+            max_stack_depth=max_stack_depth,
+        )
+
+    return successor
+
+
 def _stack_homogenize(
     counts: StackSuffixCounts,
     *,
@@ -137,102 +145,13 @@ def _stack_homogenize(
     test: Literal["g", "chi2", "tv"],
     max_stack_depth: int,
 ) -> tuple[dict[int, set[ConfigurationHistory]], dict[ConfigurationHistory, int]]:
-    states: dict[int, set[ConfigurationHistory]] = {0: {((), ())}}
-    history_to_state: dict[ConfigurationHistory, int] = {((), ()): 0}
-    next_state_id = 1
-
-    for _length in range(Lmax + 1):
-        for state_id in sorted(states):
-            histories = set(states[state_id])
-            for history in list(histories):
-                for symbol in counts.alphabet:
-                    child = _successor_history(
-                        history,
-                        symbol,
-                        alphabet=alphabet,
-                        length=Lmax,
-                        max_stack_depth=max_stack_depth,
-                    )
-                    if child in history_to_state:
-                        continue
-                    if counts.history_counts.get(child, 0) == 0:
-                        continue
-                    child_histories = {child}
-                    if _morphs_differ_stack(counts, histories, child_histories, alpha=alpha, test=test):
-                        best_state: int | None = None
-                        best_score = float("inf")
-                        for candidate_id, candidate_histories in states.items():
-                            if _morphs_differ_stack(
-                                counts,
-                                candidate_histories,
-                                child_histories,
-                                alpha=alpha,
-                                test=test,
-                            ):
-                                continue
-                            score = _morph_test_score_stack(counts, candidate_histories, child_histories, test=test)
-                            if score < best_score:
-                                best_score = score
-                                best_state = candidate_id
-                        if best_state is None:
-                            best_state = next_state_id
-                            states[next_state_id] = set()
-                            next_state_id += 1
-                        states[best_state].add(child)
-                        history_to_state[child] = best_state
-                    else:
-                        states[state_id].add(child)
-                        history_to_state[child] = state_id
-    return states, history_to_state
-
-
-def _morphs_differ_stack(
-    counts: StackSuffixCounts,
-    left_histories: set[ConfigurationHistory],
-    right_histories: set[ConfigurationHistory],
-    *,
-    alpha: float,
-    test: Literal["g", "chi2", "tv"],
-) -> bool:
-    from pensive.generators.epsilon_inference import SuffixCounts, morphs_differ
-
-    proxy = SuffixCounts(alphabet=counts.alphabet)
-    proxy.history_counts = Counter({h: counts.history_counts.get(h, 0) for h in left_histories | right_histories})
-    proxy.next_counts = defaultdict(Counter)
-    for history in left_histories | right_histories:
-        proxy.next_counts[history] = counts.next_counts.get(history, Counter())
-    return morphs_differ(proxy, left_histories, right_histories, alpha=alpha, test=test)
-
-
-def _morph_test_score_stack(
-    counts: StackSuffixCounts,
-    left_histories: set[ConfigurationHistory],
-    right_histories: set[ConfigurationHistory],
-    *,
-    test: Literal["g", "chi2", "tv"],
-) -> float:
-    from pensive.generators.epsilon_inference import SuffixCounts, morph_test_score
-
-    proxy = SuffixCounts(alphabet=counts.alphabet)
-    proxy.history_counts = Counter({h: counts.history_counts.get(h, 0) for h in left_histories | right_histories})
-    proxy.next_counts = defaultdict(Counter)
-    for history in left_histories | right_histories:
-        proxy.next_counts[history] = counts.next_counts.get(history, Counter())
-    return morph_test_score(proxy, left_histories, right_histories, test=test)
-
-
-def _stack_counts_proxy(
-    counts: StackSuffixCounts,
-    histories: set[ConfigurationHistory],
-) -> Any:
-    from pensive.generators.epsilon_inference import SuffixCounts
-
-    proxy = SuffixCounts(alphabet=counts.alphabet)
-    proxy.history_counts = Counter({h: counts.history_counts.get(h, 0) for h in histories})
-    proxy.next_counts = defaultdict(Counter)
-    for history in histories:
-        proxy.next_counts[history] = counts.next_counts.get(history, Counter())
-    return proxy
+    return _cssr_homogenize(
+        counts,
+        Lmax=Lmax,
+        alpha=alpha,
+        test=test,
+        successor_fn=_stack_successor_fn(alphabet=alphabet, length=Lmax, max_stack_depth=max_stack_depth),
+    )
 
 
 def _stack_determinize(
@@ -245,50 +164,13 @@ def _stack_determinize(
     max_stack_depth: int,
 ) -> dict[int, set[ConfigurationHistory]]:
     """Split homogeneous states until stack-lifted transitions are unifilar."""
-    from collections import defaultdict
-
-    current = {state_id: set(histories) for state_id, histories in states.items()}
-    changed = True
-    next_state_id = max(current) + 1 if current else 0
-
-    while changed:
-        changed = False
-        for state_id in sorted(current):
-            histories = current[state_id]
-            if len(histories) <= 1:
-                continue
-            for symbol in counts.alphabet:
-                buckets: dict[int, set[ConfigurationHistory]] = defaultdict(set)
-                for history in histories:
-                    if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
-                        continue
-                    child = _successor_history(
-                        history,
-                        symbol,
-                        alphabet=alphabet,
-                        length=length,
-                        max_stack_depth=max_stack_depth,
-                    )
-                    target = history_to_state.get(child)
-                    if target is None:
-                        continue
-                    buckets[target].add(history)
-                if len(buckets) <= 1:
-                    continue
-                ordered = sorted(buckets.items(), key=lambda item: (-len(item[1]), min(item[1])))
-                _keep_target, keep_histories = ordered[0]
-                current[state_id] = keep_histories
-                for _target, split_histories in ordered[1:]:
-                    new_id = next_state_id
-                    next_state_id += 1
-                    current[new_id] = split_histories
-                    for history in split_histories:
-                        history_to_state[history] = new_id
-                changed = True
-                break
-            if changed:
-                break
-    return current
+    return _cssr_determinize(
+        states,
+        history_to_state,
+        counts,
+        length=length,
+        successor_fn=_stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth),
+    )
 
 
 def _stack_merge(
@@ -299,7 +181,7 @@ def _stack_merge(
     alpha: float,
     test: Literal["g", "chi2", "tv"],
 ) -> dict[int, set[ConfigurationHistory]]:
-    proxy = _stack_counts_proxy(counts, set(history_to_state))
+    proxy = counts.restricted_to(set(history_to_state))
     return _merge_similar_states(states, history_to_state, proxy, alpha=alpha, test=test)
 
 
@@ -312,7 +194,7 @@ def _stack_drop_transient(
     alphabet: DyckAlphabet,
     max_stack_depth: int,
 ) -> dict[int, set[ConfigurationHistory]]:
-    proxy = _stack_counts_proxy(counts, set(history_to_state))
+    proxy = counts.restricted_to(set(history_to_state))
     return _drop_transient_states(states, history_to_state, proxy, length=length)
 
 
@@ -513,8 +395,6 @@ def stack_subtree_merge(
     delta: float = 0.0,
 ) -> HiddenMarkovStackModel:
     """Reconstruct a stack HMM by merging depth-``L`` configuration subtrees."""
-    from pensive.generators.epsilon_inference import _cluster_histories_by_morph
-
     if L < 0:
         raise ValueError("L must be non-negative")
     seq = tuple(sequence)
@@ -528,7 +408,7 @@ def stack_subtree_merge(
     )
     histories = {history for history in counts.history_counts if len(history[0]) <= L}
     histories.add(((), ()))
-    proxy = _stack_counts_proxy(counts, histories)
+    proxy = counts.restricted_to(histories)
     states = _cluster_histories_by_morph(proxy, histories, delta=delta)
     history_to_state = {history: state_id for state_id, members in states.items() for history in members}
     states = _stack_determinize(
