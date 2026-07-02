@@ -339,3 +339,154 @@ def test_wyner_bidirectional_and_epsilon_machine_apis_agree():
     _assert_same_words(process, from_forward)
     _assert_same_words(process, from_bidir)
     assert from_forward.wyner_common_information == pytest.approx(from_bidir.wyner_common_information, abs=1e-9)
+
+
+def _dit_gk_common_information(bidir) -> float:
+    dit = pytest.importorskip("dit")
+    from dit.multivariate import gk_common_information
+
+    joint = bidir.joint_distribution()
+    plus = sorted({pair[0] for pair in joint}, key=repr)
+    minus = sorted({pair[1] for pair in joint}, key=repr)
+    outcomes = [(plus.index(alpha), minus.index(gamma)) for alpha, gamma in joint]
+    probs = [joint[pair] for pair in joint]
+    dist = dit.Distribution(outcomes, probs)
+    return float(gk_common_information(dist, [[0], [1]]))
+
+
+def test_golden_mean_gacs_korner_generative_model_collapses_to_core():
+    bidir = golden_mean_bidirectional(0.5)
+    ggm = bidir.gacs_korner_generative_model()
+
+    # The joint support {(A,C),(A,D),(B,C)} is a single connected component,
+    # so the deterministic meet has one state and the GK common information is 0.
+    assert len(list(ggm.states())) == 1
+    assert ggm.generative_complexity() == pytest.approx(0.0, abs=1e-12)
+    assert ggm.gk_common_information == pytest.approx(0.0, abs=1e-12)
+    assert ggm.gk_common_information == pytest.approx(_dit_gk_common_information(bidir), abs=1e-9)
+
+
+def test_gacs_korner_generative_model_matches_dit_for_binary_markov():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    bidir = process.to_bidirectional()
+    ggm = process.gacs_korner_generative_model()
+
+    assert ggm.gk_common_information == pytest.approx(_dit_gk_common_information(bidir), abs=1e-9)
+    assert ggm.generative_complexity() == pytest.approx(ggm.gk_common_information, abs=1e-12)
+
+
+@pytest.mark.parametrize(("p", "q"), [(0.25, 0.75), (0.45, 0.55), (0.0, 0.5), (0.5, 0.0)])
+def test_gacs_korner_iid_and_constant_boundaries_collapse_to_one_state(p: float, q: float):
+    process = _binary_markov(p, q)
+    ggm = process.gacs_korner_generative_model()
+
+    assert ggm.generative_complexity() == pytest.approx(0.0, abs=1e-12)
+    assert len(list(ggm.states())) == 1
+
+
+def test_gacs_korner_period_two_boundary_keeps_matching_support():
+    process = _binary_markov(1.0, 1.0)
+    ggm = process.gacs_korner_generative_model()
+
+    # A perfect matching between forward and reverse states: two components,
+    # so the meet reproduces the period-two structure exactly.
+    _assert_same_words(process, ggm)
+    assert ggm.generative_complexity() == pytest.approx(1.0, abs=1e-12)
+    assert ggm.gk_common_information == pytest.approx(1.0, abs=1e-12)
+    assert len(list(ggm.states())) == 2
+
+
+def test_gacs_korner_is_floor_of_the_common_information_ordering():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    ggm = process.gacs_korner_generative_model()
+    wgm = _wgm(process)
+
+    assert ggm.generative_complexity() <= wgm.generative_complexity() + 1e-8
+
+
+def test_gacs_korner_bidirectional_and_epsilon_machine_apis_agree():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    bidir = process.to_bidirectional()
+
+    from_forward = process.gacs_korner_generative_model()
+    from_bidir = bidir.gacs_korner_generative_model()
+
+    assert from_forward.gk_common_information == pytest.approx(from_bidir.gk_common_information, abs=1e-12)
+    assert set(from_forward.states()) == set(from_bidir.states())
+
+
+def _dit_functional_common_information(bidir) -> float:
+    dit = pytest.importorskip("dit")
+    from dit.multivariate import functional_common_information
+
+    joint = bidir.joint_distribution()
+    plus = sorted({pair[0] for pair in joint}, key=repr)
+    minus = sorted({pair[1] for pair in joint}, key=repr)
+    outcomes = [(plus.index(alpha), minus.index(gamma)) for alpha, gamma in joint]
+    probs = [joint[pair] for pair in joint]
+    dist = dit.Distribution(outcomes, probs)
+    return float(functional_common_information(dist, [[0], [1]]))
+
+
+def test_golden_mean_functional_generative_model_matches_dit():
+    bidir = golden_mean_bidirectional(0.5)
+    fgm = bidir.functional_generative_model()
+
+    _assert_same_words(bidir.forward_machine, fgm)
+    assert fgm.functional_common_information == pytest.approx(_dit_functional_common_information(bidir), abs=1e-9)
+    # The functional auxiliary is deterministic, so H[G] equals F exactly.
+    assert fgm.generative_complexity() == pytest.approx(fgm.functional_common_information, abs=1e-12)
+
+
+def test_functional_generative_model_matches_dit_for_binary_markov():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    bidir = process.to_bidirectional()
+    fgm = process.functional_generative_model()
+
+    _assert_same_words(process, fgm)
+    assert fgm.functional_common_information == pytest.approx(_dit_functional_common_information(bidir), abs=1e-9)
+    assert fgm.generative_complexity() == pytest.approx(fgm.functional_common_information, abs=1e-12)
+
+
+@pytest.mark.parametrize(("p", "q"), [(0.25, 0.75), (0.45, 0.55), (0.0, 0.5), (0.5, 0.0)])
+def test_functional_iid_and_constant_boundaries_collapse_to_one_state(p: float, q: float):
+    process = _binary_markov(p, q)
+    fgm = process.functional_generative_model()
+
+    _assert_same_words(process, fgm)
+    assert fgm.functional_common_information == pytest.approx(0.0, abs=1e-9)
+    assert fgm.generative_complexity() == pytest.approx(0.0, abs=1e-9)
+    assert len(list(fgm.states())) == 1
+
+
+def test_functional_period_two_boundary_uses_matching_support():
+    process = _binary_markov(1.0, 1.0)
+    fgm = process.functional_generative_model()
+
+    _assert_same_words(process, fgm)
+    assert fgm.functional_common_information == pytest.approx(1.0, abs=1e-12)
+    assert fgm.generative_complexity() == pytest.approx(1.0, abs=1e-12)
+    assert len(list(fgm.states())) == 2
+
+
+def test_functional_bounds_the_common_information_ordering():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    fgm = process.functional_generative_model()
+    ggm = process.gacs_korner_generative_model()
+
+    # K = H[GK meet] <= F = H[functional] for the same joint (common-info ordering).
+    assert ggm.generative_complexity() <= fgm.generative_complexity() + 1e-8
+
+
+def test_functional_bidirectional_and_epsilon_machine_apis_agree():
+    process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
+    bidir = process.to_bidirectional()
+
+    from_forward = process.functional_generative_model()
+    from_bidir = bidir.functional_generative_model()
+
+    _assert_same_words(process, from_forward)
+    _assert_same_words(process, from_bidir)
+    assert from_forward.functional_common_information == pytest.approx(
+        from_bidir.functional_common_information, abs=1e-9
+    )

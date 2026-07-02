@@ -7,10 +7,6 @@ from pensive.shifts.covers import (
     RightFischerCover,
     RightKriegerCover,
 )
-from pensive.shifts.markov_dyck import MarkovDyckShift
-from pensive.shifts.sft import ShiftOfFiniteType
-from pensive.shifts.sofic import SoficShift
-from pensive.shifts.sofic_dyck import SoficDyckShift
 from pensive.shifts.dyck_enumeration import (
     DyckGraphString,
     count_dyck_graph_strings,
@@ -19,6 +15,10 @@ from pensive.shifts.dyck_enumeration import (
     iter_sofic_dyck_topologies,
     shift_to_dyck_graph_string,
 )
+from pensive.shifts.markov_dyck import MarkovDyckShift
+from pensive.shifts.sft import ShiftOfFiniteType
+from pensive.shifts.sofic import SoficShift
+from pensive.shifts.sofic_dyck import SoficDyckShift
 from pensive.shifts.tmc import TopologicalMarkovChain
 
 __all__ = [

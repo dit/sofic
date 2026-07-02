@@ -2,8 +2,8 @@
 
 from pensive.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
 from pensive.generators.block_convergence import BlockConvergenceDiagram, BlockConvergenceEstimates
+from pensive.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
 from pensive.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
@@ -17,8 +17,12 @@ from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.markov import MarkovChain
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.minimal_generative_model import (
+    FunctionalGenerativeModel,
+    GacsKornerGenerativeModel,
     MinimalGenerativeModel,
     WynerGenerativeModel,
+    functional_generative_model,
+    gacs_korner_generative_model,
     minimal_generative_model,
     wyner_generative_model,
 )
@@ -65,6 +69,8 @@ __all__ = [
     "shared_information_flow",
     "synergistic_information_flow",
     "transfer_entropy",
+    "FunctionalGenerativeModel",
+    "GacsKornerGenerativeModel",
     "HiddenMarkovModel",
     "HiddenMarkovStackModel",
     "MarkovChain",
@@ -81,6 +87,8 @@ __all__ = [
     "WynerGenerativeModel",
     "count_topological_epsilon_machines",
     "epsilon_machine_to_idfa_string",
+    "functional_generative_model",
+    "gacs_korner_generative_model",
     "idfa_string_to_epsilon_machine",
     "is_canonical_topological_epsilon",
     "is_minimal_idfa",

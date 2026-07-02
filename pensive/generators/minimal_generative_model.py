@@ -78,6 +78,44 @@ class WynerGenerativeModel(_CommonInformationGenerativeModel):
         self.wyner_common_information = float(wyner_common_information)
 
 
+class FunctionalGenerativeModel(_CommonInformationGenerativeModel):
+    """Deterministic generator from a functional-common-information auxiliary.
+
+    The auxiliary state ``G`` is a *deterministic function* of the joint causal
+    state ``(S+, S-)`` -- the smallest such function rendering ``S+`` and ``S-``
+    conditionally independent. The optimized value ``H[G]`` is the functional
+    common information and is stored as ``functional_common_information``. Because
+    ``G`` is deterministic, the model's state entropy ``H[G]`` equals that value
+    exactly.
+    """
+
+    functional_common_information: float
+
+    def __init__(self, *, functional_common_information: float = 0.0, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.functional_common_information = float(functional_common_information)
+
+
+class GacsKornerGenerativeModel(_CommonInformationGenerativeModel):
+    """Generator from the Gács-Körner (deterministic meet) auxiliary.
+
+    The states are the meet ``S+ ⩘ S-`` of the forward and reverse causal
+    states: the largest random variable that is simultaneously a deterministic
+    function of both. Unlike the Exact and Wyner models this is combinatorial,
+    not variational — each joint state pair maps to exactly one generative
+    state (its connected component in the joint support graph). Its state
+    entropy therefore equals the Gács-Körner common information
+    ``K[S+ : S-]`` exactly, and captures only the conserved "core" (phase /
+    ergodic-component structure), which is often trivial for mixing processes.
+    """
+
+    gk_common_information: float
+
+    def __init__(self, *, gk_common_information: float = 0.0, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.gk_common_information = float(gk_common_information)
+
+
 def minimal_generative_model(
     bidir: BidirectionalEpsilonMachine,
     *,
@@ -171,6 +209,159 @@ def wyner_generative_model(
             cutoff=cutoff,
         ),
     )
+
+
+def functional_generative_model(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    cutoff: float = 1e-10,
+    strategy: str = "auto",
+) -> FunctionalGenerativeModel:
+    """Construct a functional generative model from a bidirectional epsilon-machine.
+
+    The auxiliary state ``G`` is the smallest *deterministic function* of the
+    joint causal state ``(S+, S-)`` that renders ``S+`` and ``S-`` conditionally
+    independent. Its entropy ``H[G]`` is the functional common information,
+    exposed as ``functional_common_information``. Because ``G`` is deterministic,
+    the model's state entropy equals that value exactly.
+
+    Unlike :func:`minimal_generative_model` and :func:`wyner_generative_model`,
+    the functional auxiliary is found by an exact partition search rather than a
+    stochastic optimizer, so the optimizer controls (``bound``, ``niter``,
+    ``maxiter``, ``polish``, ``backend``, ``rng``) do not apply.
+    """
+    if cutoff < 0.0:
+        raise ValueError("cutoff must be nonnegative")
+
+    joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
+    pair_channel, functional_common_information = _functional_state_channel(
+        joint,
+        cutoff=cutoff,
+        strategy=strategy,
+    )
+    return cast(
+        FunctionalGenerativeModel,
+        _model_from_channel(
+            bidir,
+            joint,
+            pair_channel,
+            model_cls=FunctionalGenerativeModel,
+            model_name="functional generative model",
+            measure_kwargs={"functional_common_information": functional_common_information},
+            cutoff=cutoff,
+        ),
+    )
+
+
+def gacs_korner_generative_model(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    cutoff: float = 1e-10,
+) -> GacsKornerGenerativeModel:
+    """Construct a Gács-Körner generative model from a bidirectional epsilon-machine.
+
+    The generative state ``G`` is the meet ``S+ ⩘ S-`` of the forward and
+    reverse causal states — the largest random variable that is simultaneously
+    a deterministic function of both, obtained combinatorially as the connected
+    components of the joint support graph. Because the meet is deterministic
+    there is nothing to optimize, so this factory takes no optimizer arguments;
+    the returned model's state entropy ``H[G]`` equals the Gács-Körner common
+    information ``K[S+ : S-]``.
+    """
+    if cutoff < 0.0:
+        raise ValueError("cutoff must be nonnegative")
+
+    joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
+    pair_channel = _gacs_korner_meet_channel(joint)
+    component_mass: dict[Hashable, float] = defaultdict(float)
+    for pair, pair_mass in joint.items():
+        (state,) = pair_channel[pair]
+        component_mass[state] += pair_mass
+    gk_common_information = _entropy(component_mass.values())
+    return cast(
+        GacsKornerGenerativeModel,
+        _model_from_channel(
+            bidir,
+            joint,
+            pair_channel,
+            model_cls=GacsKornerGenerativeModel,
+            model_name="Gács-Körner generative model",
+            measure_kwargs={"gk_common_information": gk_common_information},
+            cutoff=cutoff,
+        ),
+    )
+
+
+def _gacs_korner_meet_channel(
+    joint: dict[tuple[Hashable, Hashable], float],
+) -> dict[tuple[Hashable, Hashable], dict[Hashable, float]]:
+    """Deterministic channel assigning each state pair to its meet component.
+
+    Builds the bipartite graph linking a forward state ``alpha`` to a reverse
+    state ``gamma`` whenever ``p(alpha, gamma) > 0``; the connected components
+    are the atoms of the meet ``S+ ⩘ S-``.
+    """
+    import networkx as nx
+
+    graph = nx.Graph()
+    for alpha, gamma in joint:
+        graph.add_edge(("+", alpha), ("-", gamma))
+
+    component_of: dict[Hashable, int] = {}
+    for rank, component in enumerate(nx.connected_components(graph)):
+        for node in component:
+            component_of[node] = rank
+
+    return {pair: {f"G{component_of[('+', pair[0])]}": 1.0} for pair in joint}
+
+
+def _functional_state_channel(
+    joint: dict[tuple[Hashable, Hashable], float],
+    *,
+    cutoff: float,
+    strategy: str,
+) -> tuple[dict[tuple[Hashable, Hashable], dict[Hashable, float]], float]:
+    """Deterministic channel from the functional-common-information partition.
+
+    Runs dit's exact functional-Markov search on the joint ``(S+, S-)``
+    distribution, recovers the optimal outcome partition ``W = f(S+, S-)``, and
+    maps each state pair to its (single) block label. The returned value is the
+    functional common information ``H[W]``.
+    """
+    plus_states = {pair[0] for pair in joint}
+    minus_states = {pair[1] for pair in joint}
+    if len(plus_states) <= 1 or len(minus_states) <= 1:
+        return {pair: {"G0": 1.0} for pair in joint}, 0.0
+    matching_channel = _matching_support_channel(joint)
+    if matching_channel is not None:
+        return matching_channel, _entropy(joint.values())
+
+    from dit.multivariate.common_informations.functional_common_information import functional_markov_chain
+
+    dist, plus_index, minus_index = _indexed_joint_distribution(joint)
+
+    stats: dict[str, Any] = {}
+    value = _as_float(functional_markov_chain(dist, [[0], [1]], _strategy=strategy, _stats=stats))
+    partition = stats.get("partition")
+    if partition is None:
+        raise StochasticValidationError("functional common information search returned no partition")
+
+    outcome_rank: dict[tuple[int, int], int] = {}
+    for rank, block in enumerate(partition):
+        for outcome in block:
+            outcome_rank[tuple(outcome)] = rank
+
+    pair_rank: dict[tuple[Hashable, Hashable], int] = {}
+    for pair in joint:
+        key = (plus_index[pair[0]], minus_index[pair[1]])
+        if key not in outcome_rank:
+            raise StochasticValidationError(f"functional partition is missing joint state {pair!r}")
+        pair_rank[pair] = outcome_rank[key]
+
+    used_ranks = sorted(set(pair_rank.values()))
+    relabel = {rank: f"G{i}" for i, rank in enumerate(used_ranks)}
+    channel = {pair: {relabel[rank]: 1.0} for pair, rank in pair_rank.items()}
+    return channel, value
 
 
 def _require_dit():
@@ -339,9 +530,7 @@ def _auxiliary_state_channel(
             niter=niter,
         )
         if retry_error is not None:
-            raise StochasticValidationError(
-                f"{validation_error}; retry without polishing also failed: {retry_error}"
-            )
+            raise StochasticValidationError(f"{validation_error}; retry without polishing also failed: {retry_error}")
     elif validation_error is not None:
         raise StochasticValidationError(validation_error)
 
@@ -459,7 +648,9 @@ def _model_from_channel(
         for state, prob in pair_channel[pair].items():
             state_mass[state] += pair_mass * prob
 
-    active_states = tuple(state for state, mass in sorted(state_mass.items(), key=lambda item: repr(item[0])) if mass > cutoff)
+    active_states = tuple(
+        state for state, mass in sorted(state_mass.items(), key=lambda item: repr(item[0])) if mass > cutoff
+    )
     total_state_mass = sum(state_mass[state] for state in active_states)
     if total_state_mass <= 0.0:
         raise StochasticValidationError(f"{model_name} has empty state support")
@@ -523,8 +714,12 @@ def _model_from_channel(
 
 
 __all__ = [
+    "FunctionalGenerativeModel",
+    "GacsKornerGenerativeModel",
     "MinimalGenerativeModel",
     "WynerGenerativeModel",
+    "functional_generative_model",
+    "gacs_korner_generative_model",
     "minimal_generative_model",
     "wyner_generative_model",
 ]

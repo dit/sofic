@@ -589,6 +589,8 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
+    { name = "sympy", marker = "extra == 'dev'" },
+    { name = "sympy", marker = "extra == 'docs'" },
     { name = "sympy", marker = "extra == 'symbolic'" },
     { name = "torch", marker = "extra == 'dev'" },
     { name = "torch", marker = "extra == 'torch'" },

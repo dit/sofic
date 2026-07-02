@@ -11,7 +11,12 @@ from pensive.generators.moore import MooreHMM
 if TYPE_CHECKING:
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from pensive.generators.block_entropy import BlockEntropyDiagram
-    from pensive.generators.minimal_generative_model import MinimalGenerativeModel, WynerGenerativeModel
+    from pensive.generators.minimal_generative_model import (
+        FunctionalGenerativeModel,
+        GacsKornerGenerativeModel,
+        MinimalGenerativeModel,
+        WynerGenerativeModel,
+    )
 
 
 class EpsilonMachine(MealyHMM):
@@ -251,6 +256,14 @@ class EpsilonMachine(MealyHMM):
     def wyner_generative_model(self, **kwargs: Any) -> WynerGenerativeModel:
         """Construct the Wyner-common-information generative presentation."""
         return self.to_bidirectional().wyner_generative_model(**kwargs)
+
+    def functional_generative_model(self, **kwargs: Any) -> FunctionalGenerativeModel:
+        """Construct the functional-common-information generative presentation."""
+        return self.to_bidirectional().functional_generative_model(**kwargs)
+
+    def gacs_korner_generative_model(self, **kwargs: Any) -> GacsKornerGenerativeModel:
+        """Construct the Gács-Körner (deterministic meet) generative presentation."""
+        return self.to_bidirectional().gacs_korner_generative_model(**kwargs)
 
     def generative_complexity(self, **kwargs: Any) -> float:
         """C_g = H[G] for the minimal generative model."""
