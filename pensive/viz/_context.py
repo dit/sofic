@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Iterable, Mapping
+from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,19 +12,30 @@ from pensive.graph import (
     ATTR_EMISSION_DIST,
     ATTR_FUTURE_SYMBOL,
     ATTR_KIND,
-    ATTR_MULTIPLICITY,
     ATTR_OUTPUT,
-    ATTR_PROB,
-    ATTR_QUASIPROB,
-    ATTR_STACK_SYMBOL,
-    ATTR_SYMBOL,
-    EPSILON,
     KIND_CALL,
     KIND_INTERNAL,
     KIND_RETURN,
     Transition,
 )
-from pensive.viz._format import format_belief, format_distribution, format_prob_rational, format_state, format_symbol
+from pensive.viz._edge import (
+    PART_KIND,
+    PART_MATCH_TAG,
+    PART_MULTIPLICITY,
+    PART_PROB,
+    PART_QUASIPROB,
+    PART_STACK,
+    EdgePart,
+    EdgeSpec,
+    edge_spec,
+)
+from pensive.viz._format import (
+    format_belief,
+    format_distribution,
+    format_prob_rational,
+    format_state,
+    format_symbol,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,45 +93,24 @@ def _edge_state_label_with_attrs(attrs: Mapping[str, Any]) -> str | None:
     return f"({source}, {emission}, {target})"
 
 
-def _edge_parts_symbol(transition: Transition) -> list[str]:
-    symbol = transition.data.get(ATTR_SYMBOL)
-    if symbol is not None:
-        return [format_symbol(symbol)]
-    return []
+def _render_dot_part(part: EdgePart) -> str:
+    if part.kind == PART_KIND:
+        return str(part.value)
+    if part.kind == PART_STACK:
+        return f"↑{format_symbol(part.value)}"
+    if part.kind == PART_MULTIPLICITY:
+        return f"×{part.value}"
+    if part.kind == PART_MATCH_TAG:
+        return str(part.value)
+    if part.kind in (PART_PROB, PART_QUASIPROB):
+        return format_prob_rational(float(part.value))
+    # symbol / emission / output
+    return format_symbol(part.value)
 
 
-def _edge_parts_prob(transition: Transition) -> list[str]:
-    prob = transition.data.get(ATTR_PROB)
-    if prob is not None:
-        return [format_prob_rational(float(prob))]
-    return []
-
-
-def _edge_parts_emission(transition: Transition) -> list[str]:
-    emission = transition.data.get(ATTR_EMISSION)
-    if emission is not None:
-        return [format_symbol(emission)]
-    return []
-
-
-def _edge_parts_quasiprob(transition: Transition) -> list[str]:
-    quasiprob = transition.data.get(ATTR_QUASIPROB)
-    if quasiprob is not None:
-        return [format_prob_rational(float(quasiprob))]
-    return []
-
-
-def _join_edge(parts: list[str]) -> str:
+def _dot_edge_label(spec: EdgeSpec) -> str:
+    parts = [_render_dot_part(part) for part in spec.parts]
     return " | ".join(parts) if parts else ""
-
-
-def _dyck_match_tags(matched_edges: Iterable[tuple[Any, Any]]) -> dict[Any, tuple[str, ...]]:
-    tags: dict[Any, list[str]] = {}
-    for index, (call_ref, return_ref) in enumerate(sorted(matched_edges, key=repr), start=1):
-        tag = f"m{index}"
-        tags.setdefault(call_ref, []).append(tag)
-        tags.setdefault(return_ref, []).append(tag)
-    return {ref: tuple(ref_tags) for ref, ref_tags in tags.items()}
 
 
 def _dyck_edge_color(kind: Any) -> str | None:
@@ -170,7 +160,7 @@ def _recurrence_fill_sets(
 
 def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     from pensive.automata.base import LabeledAutomaton
-    from pensive.automata.transducers import MooreMachine, Transducer
+    from pensive.automata.transducers import Transducer
     from pensive.automata.vpa import VisiblyPushdownAutomaton
     from pensive.generators.base import QuasiStochasticModel, StochasticModel
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
@@ -179,9 +169,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     from pensive.generators.mixed_state import MixedState, MixedStatePresentation, pure_state_index
     from pensive.generators.moore import MooreHMM
     from pensive.generators.nmachine import NMachine
-    from pensive.shifts.base import SymbolicModel
-    from pensive.shifts.sofic_dyck import SoficDyckShift, transition_ref
-    from pensive.shifts.tmc import TopologicalMarkovChain
+    from pensive.shifts.sofic_dyck import SoficDyckShift
 
     paper_style = style == "paper" or (style == "auto" and isinstance(model, BidirectionalEpsilonMachine))
     epsilon_paper = style == "paper"
@@ -198,152 +186,33 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     accepting_states: frozenset[Hashable] = frozenset()
     state_labels: dict[Hashable, str] = {}
 
+    def edge_label(transition: Transition) -> str:
+        return _dot_edge_label(edge_spec(model, transition))
+
+    def _dyck_color(transition: Transition) -> str | None:
+        return _dyck_edge_color(transition.data.get(ATTR_KIND))
+
+    edge_color: Callable[[Transition], str | None] = lambda _t: None
+    edge_style: Callable[[Transition], str | None] = lambda _t: None
+
     if isinstance(model, LabeledAutomaton):
         initial_states = model.initial_states
         accepting_states = model.accepting_states
-
-        def edge_label(transition: Transition) -> str:
-            symbol = transition.data.get(ATTR_SYMBOL, EPSILON)
-            return format_symbol(symbol)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
     elif isinstance(model, Transducer):
         initial_states = model.initial_states
-
-        if isinstance(model, MooreMachine):
-
-            def edge_label(transition: Transition) -> str:
-                return _join_edge(_edge_parts_symbol(transition))
-
-        else:
-
-            def edge_label(transition: Transition) -> str:
-                parts = _edge_parts_symbol(transition)
-                output = transition.data.get(ATTR_OUTPUT)
-                if output is not None:
-                    parts.append(format_symbol(output))
-                return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
     elif isinstance(model, VisiblyPushdownAutomaton):
         if model.initial_state is not None:
             initial_states = frozenset({model.initial_state})
         accepting_states = model.accepting_states
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_symbol(transition)
-            kind = transition.data.get(ATTR_KIND)
-            if kind is not None:
-                parts.append(str(kind))
-            stack = transition.data.get(ATTR_STACK_SYMBOL)
-            if stack is not None:
-                parts.append(f"↑{format_symbol(stack)}")
-            return _join_edge(parts)
-
-        def edge_color(transition: Transition) -> str | None:
-            return _dyck_edge_color(transition.data.get(ATTR_KIND))
-
-        edge_style = lambda _t: None
-    elif isinstance(model, NMachine):
-        initial_states = _stochastic_initials(model)
-
-        def edge_label(transition: Transition) -> str:
-            return _join_edge([*_edge_parts_emission(transition), *_edge_parts_quasiprob(transition)])
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    elif isinstance(model, MooreHMM):
-        initial_states = _stochastic_initials(model)
-
-        def edge_label(transition: Transition) -> str:
-            return _join_edge(_edge_parts_prob(transition))
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    elif isinstance(model, BidirectionalEpsilonMachine):
-        initial_states = frozenset()
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_emission(transition) or _edge_parts_symbol(transition)
-            parts.extend(_edge_parts_prob(transition))
-            return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
+        edge_color = _dyck_color
     elif isinstance(model, MixedStatePresentation):
         initial_states = frozenset({model.initial_mixed_state})
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_emission(transition) or _edge_parts_symbol(transition)
-            parts.extend(_edge_parts_prob(transition))
-            return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    elif isinstance(model, (MealyHMM, StochasticModel)):
+    elif isinstance(model, BidirectionalEpsilonMachine):
+        initial_states = frozenset()
+    elif isinstance(model, (NMachine, MooreHMM, MealyHMM, StochasticModel, QuasiStochasticModel)):
         initial_states = _stochastic_initials(model)
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_emission(transition) or _edge_parts_symbol(transition)
-            parts.extend(_edge_parts_prob(transition))
-            return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    elif isinstance(model, QuasiStochasticModel):
-        initial_states = _stochastic_initials(model)
-
-        def edge_label(transition: Transition) -> str:
-            return _join_edge([*_edge_parts_emission(transition), *_edge_parts_quasiprob(transition)])
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
     elif isinstance(model, SoficDyckShift):
-        match_tags = _dyck_match_tags(model.matched_edges)
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_symbol(transition)
-            kind = transition.data.get(ATTR_KIND)
-            if kind is not None:
-                parts.append(str(kind))
-            parts.extend(match_tags.get(transition_ref(transition), ()))
-            return _join_edge(parts)
-
-        def edge_color(transition: Transition) -> str | None:
-            return _dyck_edge_color(transition.data.get(ATTR_KIND))
-
-        edge_style = lambda _t: None
-    elif isinstance(model, TopologicalMarkovChain):
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_symbol(transition)
-            mult = transition.data.get(ATTR_MULTIPLICITY)
-            if mult is not None and mult != 1:
-                parts.append(f"×{mult}")
-            return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    elif isinstance(model, SymbolicModel):
-
-        def edge_label(transition: Transition) -> str:
-            return _join_edge(_edge_parts_symbol(transition))
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
-    else:
-
-        def edge_label(transition: Transition) -> str:
-            parts = _edge_parts_symbol(transition)
-            parts.extend(_edge_parts_emission(transition))
-            parts.extend(_edge_parts_prob(transition))
-            parts.extend(_edge_parts_quasiprob(transition))
-            return _join_edge(parts)
-
-        edge_color = lambda _t: None
-        edge_style = lambda _t: None
+        edge_color = _dyck_color
 
     for state in model.states():
         attrs = model.graph.state_attrs(state)

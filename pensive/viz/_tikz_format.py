@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from fractions import Fraction
 from typing import Any
 
-from pensive.graph import EPSILON
-
-_TWO_DIGIT_RATIONAL_ATOL = 1e-9
-_MAX_TWO_DIGIT_RATIONAL = 99
+from pensive.viz import _labels
+from pensive.viz._rational import _TWO_DIGIT_RATIONAL_ATOL, two_digit_rational
 
 _LATEX_SPECIAL = {
     "\\": r"\textbackslash{}",
@@ -43,15 +40,7 @@ def _latex_arg(text: str) -> str:
 
 
 def format_state_latex(state: Any) -> str:
-    if isinstance(state, tuple):
-        inner = ", ".join(format_state_latex(part) for part in state)
-        return f"({inner})"
-    if isinstance(state, frozenset):
-        inner = ", ".join(sorted(format_state_latex(part) for part in state))
-        return rf"\{{{inner}\}}"
-    if state is EPSILON:
-        return r"\varepsilon"
-    return latex_escape(str(state))
+    return _labels.format_state(state, escape=latex_escape, epsilon=r"\varepsilon")
 
 
 def format_state_tikz_node(state: Any) -> str:
@@ -67,20 +56,7 @@ def format_belief_tikz_node(belief: Sequence[float]) -> str:
 
 
 def format_symbol_latex(symbol: Any) -> str:
-    if symbol is EPSILON:
-        return r"\varepsilon"
-    return _latex_arg(str(symbol))
-
-
-def _two_digit_rational(value: float, *, atol: float = _TWO_DIGIT_RATIONAL_ATOL) -> Fraction | None:
-    if value <= 0.0 or value >= 1.0:
-        return None
-    frac = Fraction(value).limit_denominator(_MAX_TWO_DIGIT_RATIONAL)
-    if abs(float(frac) - value) >= atol:
-        return None
-    if not (1 <= frac.numerator <= _MAX_TWO_DIGIT_RATIONAL and 1 <= frac.denominator <= _MAX_TWO_DIGIT_RATIONAL):
-        return None
-    return frac
+    return _labels.format_symbol(symbol, escape=_latex_arg, epsilon=r"\varepsilon")
 
 
 def format_prob_latex(value: float, *, precision: int = 3) -> str:
@@ -91,7 +67,7 @@ def format_prob_latex(value: float, *, precision: int = 3) -> str:
         return "1"
     if abs(value - 0.5) < _TWO_DIGIT_RATIONAL_ATOL:
         return r"\half"
-    frac = _two_digit_rational(value)
+    frac = two_digit_rational(value)
     if frac is not None:
         if frac.numerator == frac.denominator:
             return "1"

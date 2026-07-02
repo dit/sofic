@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import re
-from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any
 
 from pensive.base import StateMachine
 from pensive.viz._context import VizContext, viz_context
 from pensive.viz._format import format_state
+from pensive.viz._names import node_name as _node_name
 
 if TYPE_CHECKING:
     import graphviz
@@ -31,16 +30,6 @@ def _model_for_viz(model: StateMachine) -> StateMachine:
     if isinstance(model, QuasiRealization) and not any(model.states()):
         return model.to_nmachine()
     return model
-
-
-def _node_name(state: Hashable) -> str:
-    text = repr(state)
-    ident = re.sub(r"[^A-Za-z0-9_]+", "_", text).strip("_")
-    if not ident:
-        ident = "state"
-    if ident[0].isdigit():
-        ident = f"s_{ident}"
-    return ident
 
 
 def model_to_graphviz(

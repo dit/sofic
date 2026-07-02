@@ -9,6 +9,7 @@ from collections.abc import Hashable, Mapping
 from typing import Any
 
 from pensive.base import StateMachine
+from pensive.viz._names import node_name
 
 _LOOP_STYLES = ("loop above", "loop right", "loop below", "loop left")
 _BEND_STYLES = ("bend left", "bend right")
@@ -19,13 +20,6 @@ _LOOP_STYLE_ANGLES = {
     "loop left": 180.0,
 }
 _LOOP_CONFLICT_RADIUS = 55.0
-
-
-def state_node_name(state: Hashable) -> str:
-    """Return the Graphviz-compatible node identifier for ``state``."""
-    from pensive.viz.graphviz import _node_name
-
-    return _node_name(state)
 
 
 def layout_circle(
@@ -79,7 +73,7 @@ def layout_graphviz(
     positions = _parse_plain_positions(plain)
     coords: dict[Hashable, str] = {}
     for state in model.states():
-        node = state_node_name(state)
+        node = node_name(state)
         if node not in positions:
             raise RuntimeError(f"graphviz layout missing position for node {node!r}")
         x_cm, y_cm = positions[node]

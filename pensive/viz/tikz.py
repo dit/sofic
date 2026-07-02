@@ -11,19 +11,29 @@ from pathlib import Path
 from typing import Any
 
 from pensive.base import StateMachine
-from pensive.graph import (
-    ATTR_EMISSION,
-    ATTR_KIND,
-    ATTR_MULTIPLICITY,
-    ATTR_OUTPUT,
-    ATTR_PROB,
-    ATTR_QUASIPROB,
-    ATTR_STACK_SYMBOL,
-    ATTR_SYMBOL,
-    EPSILON,
-    Transition,
+from pensive.graph import Transition
+from pensive.viz._context import VizContext, viz_context
+from pensive.viz._edge import (
+    PART_EMISSION,
+    PART_KIND,
+    PART_MATCH_TAG,
+    PART_MULTIPLICITY,
+    PART_OUTPUT,
+    PART_PROB,
+    PART_QUASIPROB,
+    PART_STACK,
+    PART_SYMBOL,
+    STYLE_DYCK,
+    STYLE_EDGE,
+    STYLE_PROB_ONLY,
+    STYLE_SYMBOL_ONLY,
+    STYLE_TMC,
+    STYLE_TRANSDUCER,
+    STYLE_VPA,
+    edge_spec,
+    part_value,
 )
-from pensive.viz._context import VizContext, _dyck_match_tags, viz_context
+from pensive.viz._names import node_name
 from pensive.viz._tikz_format import (
     format_belief_tikz_node,
     format_edge_latex,
@@ -41,7 +51,6 @@ from pensive.viz._tikz_layout import (
     layout_graphviz,
     placement_to_xy,
     plan_loop_styles,
-    state_node_name,
 )
 from pensive.viz.graphviz import _model_for_viz
 
@@ -64,102 +73,69 @@ def _format_dyck_match_tag_latex(tag: str) -> str:
 
 
 def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
-    from pensive.automata.base import LabeledAutomaton
-    from pensive.automata.transducers import MooreMachine, Transducer
-    from pensive.automata.vpa import VisiblyPushdownAutomaton
-    from pensive.generators.base import QuasiStochasticModel, StochasticModel
-    from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-    from pensive.generators.mealy import MealyHMM
-    from pensive.generators.moore import MooreHMM
-    from pensive.generators.nmachine import NMachine
-    from pensive.shifts.base import SymbolicModel
-    from pensive.shifts.sofic_dyck import SoficDyckShift, transition_ref
-    from pensive.shifts.tmc import TopologicalMarkovChain
+    spec = edge_spec(model, transition)
+    style = spec.style
 
-    data = transition.data
-    symbol = data.get(ATTR_SYMBOL)
-    emission = data.get(ATTR_EMISSION)
-    prob = data.get(ATTR_PROB)
-    quasiprob = data.get(ATTR_QUASIPROB)
-    output = data.get(ATTR_OUTPUT)
+    if style == STYLE_SYMBOL_ONLY:
+        symbol = part_value(spec, PART_SYMBOL)
+        return format_symbol_only_latex(symbol) if symbol is not None else ""
 
-    if isinstance(model, LabeledAutomaton):
-        sym = symbol if symbol is not None else EPSILON
-        return format_symbol_only_latex(sym)
-
-    if isinstance(model, Transducer):
-        if isinstance(model, MooreMachine):
-            return format_symbol_only_latex(symbol) if symbol is not None else ""
+    if style == STYLE_TRANSDUCER:
+        symbol = part_value(spec, PART_SYMBOL)
+        output = part_value(spec, PART_OUTPUT)
+        if symbol is None and output is None:
+            return ""
         return format_transducer_edge_latex(symbol, output)
 
-    if isinstance(model, VisiblyPushdownAutomaton):
+    if style == STYLE_PROB_ONLY:
+        prob = part_value(spec, PART_PROB)
+        return rf"${format_prob_latex(float(prob))}$" if prob is not None else ""
+
+    if style == STYLE_EDGE:
+        label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
+        value = part_value(spec, PART_PROB, PART_QUASIPROB)
+        if label_symbol is not None and value is not None:
+            return format_edge_latex(label_symbol, float(value))
+        if label_symbol is not None:
+            return format_symbol_only_latex(label_symbol)
+        if value is not None:
+            return rf"${format_prob_latex(float(value))}$"
+        return ""
+
+    if style == STYLE_VPA:
         parts: list[str] = []
-        if symbol is not None:
-            parts.append(format_symbol_latex(symbol))
-        kind = data.get(ATTR_KIND)
-        if kind is not None:
-            parts.append(latex_escape(str(kind)))
-        stack = data.get(ATTR_STACK_SYMBOL)
-        if stack is not None:
-            parts.append(rf"\uparrow{format_symbol_latex(stack)}")
-        if not parts:
-            return ""
-        return "$" + r"\mid".join(parts) + "$"
+        for part in spec.parts:
+            if part.kind == PART_SYMBOL:
+                parts.append(format_symbol_latex(part.value))
+            elif part.kind == PART_KIND:
+                parts.append(latex_escape(str(part.value)))
+            elif part.kind == PART_STACK:
+                parts.append(rf"\uparrow{format_symbol_latex(part.value)}")
+        return "$" + r"\mid".join(parts) + "$" if parts else ""
 
-    if isinstance(model, BidirectionalEpsilonMachine):
-        if emission is None or prob is None:
-            return ""
-        return format_edge_latex(emission, float(prob))
+    if style == STYLE_DYCK:
+        parts = []
+        for part in spec.parts:
+            if part.kind == PART_SYMBOL:
+                parts.append(rf"\Symbol{{{format_symbol_latex(part.value)}}}")
+            elif part.kind == PART_KIND:
+                parts.append(rf"\mathrm{{{latex_escape(str(part.value))}}}")
+            elif part.kind == PART_MATCH_TAG:
+                parts.append(_format_dyck_match_tag_latex(part.value))
+        return "$" + r"\mid ".join(parts) + "$" if parts else ""
 
-    if isinstance(model, MooreHMM):
-        if prob is None:
-            return ""
-        return rf"${format_prob_latex(float(prob))}$"
+    if style == STYLE_TMC:
+        parts = []
+        for part in spec.parts:
+            if part.kind == PART_SYMBOL:
+                parts.append(format_symbol_latex(part.value))
+            elif part.kind == PART_MULTIPLICITY:
+                parts.append(latex_escape(f"\\times {part.value}"))
+        return "$" + r"\mid".join(parts) + "$" if parts else ""
 
-    if isinstance(model, NMachine):
-        if emission is None or quasiprob is None:
-            return ""
-        return format_edge_latex(emission, float(quasiprob))
-
-    if isinstance(model, QuasiStochasticModel):
-        if emission is None or quasiprob is None:
-            return ""
-        return format_edge_latex(emission, float(quasiprob))
-
-    if isinstance(model, SoficDyckShift):
-        parts: list[str] = []
-        if symbol is not None:
-            parts.append(rf"\Symbol{{{format_symbol_latex(symbol)}}}")
-        kind = data.get(ATTR_KIND)
-        if kind is not None:
-            parts.append(rf"\mathrm{{{latex_escape(str(kind))}}}")
-        match_tags = _dyck_match_tags(model.matched_edges)
-        parts.extend(_format_dyck_match_tag_latex(tag) for tag in match_tags.get(transition_ref(transition), ()))
-        if not parts:
-            return ""
-        return "$" + r"\mid ".join(parts) + "$"
-
-    if isinstance(model, TopologicalMarkovChain):
-        parts = [format_symbol_latex(symbol)] if symbol is not None else []
-        mult = data.get(ATTR_MULTIPLICITY)
-        if mult is not None and mult != 1:
-            parts.append(latex_escape(f"\\times {mult}"))
-        if not parts:
-            return ""
-        return "$" + r"\mid".join(parts) + "$"
-
-    if isinstance(model, SymbolicModel):
-        if symbol is None:
-            return ""
-        return format_symbol_only_latex(symbol)
-
-    if isinstance(model, (MealyHMM, StochasticModel)):
-        label_symbol = emission if emission is not None else symbol
-        if label_symbol is None or prob is None:
-            return ""
-        return format_edge_latex(label_symbol, float(prob))
-
-    label_symbol = emission if emission is not None else symbol
+    # STYLE_FALLBACK
+    label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
+    prob = part_value(spec, PART_PROB)
     if label_symbol is not None and prob is not None:
         return format_edge_latex(label_symbol, float(prob))
     if label_symbol is not None:
@@ -220,7 +196,7 @@ def model_to_tikz(
     from pensive.generators.mixed_state import MixedState, pure_state_index
 
     for state in sorted(model.states(), key=repr):
-        node = state_node_name(state)
+        node = node_name(state)
         placement = coords[state]
         node_label = _tikz_state_label(context, state)
         state_opts = ["state"]
@@ -267,8 +243,8 @@ def model_to_tikz(
                 loop_style=loop_styles.get((source, target, index)),
             )
             edge_label = _tikz_edge_label(model, transition)
-            source_name = state_node_name(source)
-            target_name = state_node_name(target)
+            source_name = node_name(source)
+            target_name = node_name(target)
             opts = f"[{style_opts}]" if style_opts else ""
             label_part = f" node {{{edge_label}}}" if edge_label else ""
             edge_lines.append(f"({source_name}) edge {opts}{label_part} ({target_name})")

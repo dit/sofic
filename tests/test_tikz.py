@@ -74,12 +74,12 @@ def test_loop_avoids_outgoing_corridor():
 
 def test_msp_self_loop_avoids_reciprocal_edge():
     from pensive.examples.epsilon_machines import golden_mean
-    from pensive.viz._tikz_layout import state_node_name
+    from pensive.viz._names import node_name
     from pensive.viz.tikz import model_to_tikz
 
     msp = golden_mean(0.5).mixed_state_presentation()
     a_state = next(state for state in msp.states() if msp.causal_state(state) == "A")
-    a_node = state_node_name(a_state)
+    a_node = node_name(a_state)
     tikz = model_to_tikz(msp, style="paper")
     a_loop_lines = [line for line in tikz.splitlines() if f"({a_node})" in line and "loop" in line]
     assert len(a_loop_lines) == 1

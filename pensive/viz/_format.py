@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from fractions import Fraction
 from typing import Any
 
-from pensive.graph import EPSILON
-
-_TWO_DIGIT_RATIONAL_ATOL = 1e-9
-_MAX_TWO_DIGIT_RATIONAL = 99
+from pensive.viz import _labels
+from pensive.viz._rational import two_digit_rational
 
 
 def dot_escape(text: str) -> str:
@@ -26,37 +23,15 @@ def dot_escape(text: str) -> str:
 
 
 def format_state(state: Any) -> str:
-    if isinstance(state, tuple):
-        inner = ", ".join(format_state(part) for part in state)
-        return f"({inner})"
-    if isinstance(state, frozenset):
-        inner = ", ".join(sorted(format_state(part) for part in state))
-        return rf"\{{{inner}\}}"
-    if state is EPSILON:
-        return "ε"
-    return dot_escape(str(state))
+    return _labels.format_state(state, escape=dot_escape, epsilon="ε")
 
 
 def format_symbol(symbol: Any) -> str:
-    if symbol is EPSILON:
-        return "ε"
-    return dot_escape(str(symbol))
+    return _labels.format_symbol(symbol, escape=dot_escape, epsilon="ε")
 
 
 def format_prob(value: float, *, precision: int = 3) -> str:
     return dot_escape(f"{value:.{precision}g}")
-
-
-def _two_digit_rational(value: float, *, atol: float = _TWO_DIGIT_RATIONAL_ATOL) -> Fraction | None:
-    """Return a reduced rational with 1 <= p, q <= 99 when ``value`` matches exactly."""
-    if value <= 0.0 or value >= 1.0:
-        return None
-    frac = Fraction(value).limit_denominator(_MAX_TWO_DIGIT_RATIONAL)
-    if abs(float(frac) - value) >= atol:
-        return None
-    if not (1 <= frac.numerator <= _MAX_TWO_DIGIT_RATIONAL and 1 <= frac.denominator <= _MAX_TWO_DIGIT_RATIONAL):
-        return None
-    return frac
 
 
 def format_prob_rational(value: float, *, precision: int = 3) -> str:
@@ -65,7 +40,7 @@ def format_prob_rational(value: float, *, precision: int = 3) -> str:
         return "0"
     if value >= 1.0:
         return "1"
-    frac = _two_digit_rational(value)
+    frac = two_digit_rational(value)
     if frac is not None:
         if frac.numerator == frac.denominator:
             return "1"
