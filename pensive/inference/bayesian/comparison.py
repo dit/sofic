@@ -6,10 +6,9 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from scipy.special import logsumexp
 
 from pensive.generators.mealy import MealyHMM
-from pensive.inference.bayesian.counts import BayesianInferenceError
+from pensive.inference.bayesian.counts import BayesianInferenceError, posterior_weights
 from pensive.inference.bayesian.markov import MarkovChainPosterior
 
 if TYPE_CHECKING:
@@ -53,9 +52,9 @@ class ModelComparisonMC:
 
     def model_probabilities(self) -> dict[int, float]:
         orders = sorted(self.mc_dict)
-        values = np.array([self.mc_dict[order].log_evidence() + self._log_prior_penalty(order) for order in orders], dtype=float)
-        norm = logsumexp(values)
-        return {order: float(np.exp(value - norm)) for order, value in zip(orders, values, strict=True)}
+        log_evidences = [self.mc_dict[order].log_evidence() + self._log_prior_penalty(order) for order in orders]
+        weights, _ = posterior_weights(orders, log_evidences)
+        return weights
 
     def most_probable_model(self) -> MealyHMM:
         probs = self.model_probabilities()
@@ -117,12 +116,8 @@ class ModelComparisonEM:
             return dict(self.probs)
         evidence = self.log_evidence()
         names = list(evidence)
-        values = np.array(
-            [evidence[name] - self.beta * len(self.em_dict[name].dirichlet.nodes) for name in names],
-            dtype=float,
-        )
-        self.set_evidence = float(logsumexp(values)) if len(values) else -np.inf
-        self.probs = {name: float(np.exp(value - self.set_evidence)) for name, value in zip(names, values, strict=True)}
+        log_evidences = [evidence[name] - self.beta * len(self.em_dict[name].dirichlet.nodes) for name in names]
+        self.probs, self.set_evidence = posterior_weights(names, log_evidences)
         return dict(self.probs)
 
     def generate_sample(self, rng: np.random.Generator | None = None) -> tuple[Any, MealyHMM]:

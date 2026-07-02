@@ -250,16 +250,8 @@ def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
 def _forward_reachable(aut: LabeledAutomaton) -> set[Hashable]:
     if not aut.initial_states:
         return set()
-    reachable = set(aut.epsilon_closure(set(aut.initial_states)))
-    queue = deque(reachable)
-    while queue:
-        state = queue.popleft()
-        for transition in aut.graph.out_transitions(state):
-            target = transition.target
-            if target not in reachable:
-                reachable.add(target)
-                queue.append(target)
-    return reachable
+    seed = set(aut.epsilon_closure(set(aut.initial_states)))
+    return set(aut.graph.forward_reachable(seed))
 
 
 def _backward_coaccessible(aut: LabeledAutomaton) -> set[Hashable]:

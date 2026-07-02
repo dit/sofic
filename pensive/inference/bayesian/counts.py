@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Hashable, Sequence
+from collections.abc import Hashable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
+from scipy.special import gammaln
 
 from pensive.generators.mealy import MealyHMM
 from pensive.graph import ATTR_EMISSION
@@ -13,6 +16,45 @@ from pensive.graph import ATTR_EMISSION
 
 class BayesianInferenceError(ValueError):
     """Raised when Bayesian inference inputs are inconsistent."""
+
+
+def dirichlet_multinomial_log_evidence(
+    row_alpha: float,
+    row_count: float,
+    cells: Iterable[tuple[float, float]],
+) -> float:
+    """Log marginal likelihood contribution of one Dirichlet-multinomial row.
+
+    Computes ``lnΓ(A) - lnΓ(A + N) + Σ_i [lnΓ(α_i + n_i) - lnΓ(α_i)]`` for a row
+    with concentration ``row_alpha`` (``A``), observed total ``row_count`` (``N``)
+    and per-cell ``(alpha_i, count_i)`` pairs.
+    """
+    evidence = gammaln(row_alpha) - gammaln(row_alpha + row_count)
+    for alpha, count in cells:
+        evidence += gammaln(alpha + count) - gammaln(alpha)
+    return float(evidence)
+
+
+def posterior_weights(
+    keys: Sequence[Any],
+    log_evidences: Sequence[float],
+) -> tuple[dict[Any, float], float]:
+    """Normalize log-evidences into posterior weights via a softmax.
+
+    Returns ``(weights, log_norm)`` where ``weights[key]`` is the posterior
+    probability of each key and ``log_norm`` is the log-sum-exp normalizer
+    (``-inf`` when there are no keys). ``log_evidences`` should already include
+    any log-prior penalty terms.
+    """
+    from scipy.special import logsumexp
+
+    values = np.asarray(log_evidences, dtype=float)
+    if values.size == 0:
+        return {}, float("-inf")
+    log_norm = float(logsumexp(values))
+    weights = {key: float(np.exp(value - log_norm)) for key, value in zip(keys, values, strict=True)}
+    return weights, log_norm
+
 
 
 def pretty_symbol(symbol: Any) -> str:
@@ -83,6 +125,28 @@ class WordCountsMC:
         self.counts[(context, "*")] = self.counts.get((context, "*"), 0.0) - previous + float(value)
 
 
+def scan_unifilar_topology(
+    machine: MealyHMM,
+) -> tuple[dict[tuple[Hashable, Any], Hashable], list[tuple[Hashable, Any]]]:
+    """Scan ``machine`` transitions into a ``(trace, sorted_edges)`` topology.
+
+    ``trace`` maps each ``(source, emission)`` edge to its target; ``edges`` is the
+    sorted list of distinct edge keys. Raises :class:`BayesianInferenceError` if
+    two transitions share a ``(source, emission)`` key (non-unifilar topology).
+    """
+    trace: dict[tuple[Hashable, Any], Hashable] = {}
+    edges: list[tuple[Hashable, Any]] = []
+    for transition in machine.transitions():
+        symbol = transition.data.get(ATTR_EMISSION)
+        key = (transition.source, symbol)
+        if key in trace:
+            raise BayesianInferenceError("non-unifilar topology is not allowed")
+        trace[key] = transition.target
+        edges.append(key)
+    edges.sort(key=repr)
+    return trace, edges
+
+
 @dataclass(frozen=True)
 class PathTrace:
     """Counts and terminal state for one assumed start state."""
@@ -107,15 +171,7 @@ class PathCountEM:
         self._generate_counts(tuple(data or ()))
 
     def _process_machine(self) -> None:
-        for transition in self.machine.transitions():
-            symbol = transition.data.get(ATTR_EMISSION)
-            key = (transition.source, symbol)
-            if key in self.trace:
-                raise BayesianInferenceError("non-unifilar topology is not allowed")
-            self.trace[key] = transition.target
-            if key not in self.edges:
-                self.edges.append(key)
-        self.edges.sort(key=repr)
+        self.trace, self.edges = scan_unifilar_topology(self.machine)
 
     def _generate_counts(self, data: tuple[Any, ...]) -> None:
         for start in self.nodes:

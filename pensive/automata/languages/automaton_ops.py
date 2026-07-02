@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections import deque
+from collections.abc import Callable, Hashable, Sequence
 from typing import Any
 
 from pensive.automata.algorithms import complete, determinize, minimize, trim
@@ -71,21 +72,33 @@ def union_nfa(left: LabeledAutomaton, right: LabeledAutomaton) -> NFA:
     )
 
 
-def intersection_dfa(left: LabeledAutomaton, right: LabeledAutomaton) -> DFA:
-    left_dfa = _to_dfa(left)
-    right_dfa = _to_dfa(right)
-    alphabet = left_dfa.input_alphabet | right_dfa.input_alphabet
+def _product_dfa(
+    left_dfa: DFA,
+    right_dfa: DFA,
+    alphabet: frozenset[Any],
+    accept_pred: Callable[[Hashable, Hashable], bool],
+    *,
+    complete_inputs: bool,
+) -> DFA:
+    """Product-construction BFS over ``left_dfa`` x ``right_dfa``.
+
+    When ``complete_inputs`` is ``False`` (intersection semantics) transitions
+    with a missing successor in either factor are skipped, yielding a sparse
+    product. When ``True`` (difference semantics) both factors are assumed total
+    so every symbol produces a successor and traps contribute to the language.
+    ``accept_pred`` decides acceptance from the two component states.
+    """
     graph = TransitionGraph()
     initial = (next(iter(left_dfa.initial_states)), next(iter(right_dfa.initial_states)))
     graph.add_state(initial)
-    queue = [initial]
+    queue: deque[tuple[Hashable, Hashable]] = deque([initial])
     seen = {initial}
     while queue:
-        pair = queue.pop(0)
+        pair = queue.popleft()
         for symbol in alphabet:
             left_next = left_dfa.delta(pair[0], symbol)
             right_next = right_dfa.delta(pair[1], symbol)
-            if len(left_next) != 1 or len(right_next) != 1:
+            if not complete_inputs and (len(left_next) != 1 or len(right_next) != 1):
                 continue
             target = (next(iter(left_next)), next(iter(right_next)))
             if target not in seen:
@@ -93,14 +106,25 @@ def intersection_dfa(left: LabeledAutomaton, right: LabeledAutomaton) -> DFA:
                 graph.add_state(target)
                 queue.append(target)
             graph.add_transition(pair, target, **{ATTR_SYMBOL: symbol})
-    accepting = {
-        pair for pair in seen if pair[0] in left_dfa.accepting_states and pair[1] in right_dfa.accepting_states
-    }
+    accepting = {pair for pair in seen if accept_pred(pair[0], pair[1])}
     return DFA(
         input_alphabet=alphabet,
         initial_states=frozenset({initial}),
         accepting_states=frozenset(accepting),
         graph=graph,
+    )
+
+
+def intersection_dfa(left: LabeledAutomaton, right: LabeledAutomaton) -> DFA:
+    left_dfa = _to_dfa(left)
+    right_dfa = _to_dfa(right)
+    alphabet = left_dfa.input_alphabet | right_dfa.input_alphabet
+    return _product_dfa(
+        left_dfa,
+        right_dfa,
+        alphabet,
+        lambda ls, rs: ls in left_dfa.accepting_states and rs in right_dfa.accepting_states,
+        complete_inputs=False,
     )
 
 
@@ -123,31 +147,12 @@ def difference_dfa(
     symbols = alphabet if alphabet is not None else _effective_alphabet(left) | _effective_alphabet(right)
     left_dfa = complete(_to_dfa(left, alphabet=symbols), alphabet=symbols)
     right_dfa = complete(_to_dfa(right, alphabet=symbols), alphabet=symbols)
-    graph = TransitionGraph()
-    initial = (next(iter(left_dfa.initial_states)), next(iter(right_dfa.initial_states)))
-    graph.add_state(initial)
-    queue = [initial]
-    seen = {initial}
-    while queue:
-        pair = queue.pop(0)
-        for symbol in symbols:
-            target = (
-                next(iter(left_dfa.delta(pair[0], symbol))),
-                next(iter(right_dfa.delta(pair[1], symbol))),
-            )
-            if target not in seen:
-                seen.add(target)
-                graph.add_state(target)
-                queue.append(target)
-            graph.add_transition(pair, target, **{ATTR_SYMBOL: symbol})
-    accepting = {
-        pair for pair in seen if pair[0] in left_dfa.accepting_states and pair[1] not in right_dfa.accepting_states
-    }
-    return DFA(
-        input_alphabet=symbols,
-        initial_states=frozenset({initial}),
-        accepting_states=frozenset(accepting),
-        graph=graph,
+    return _product_dfa(
+        left_dfa,
+        right_dfa,
+        symbols,
+        lambda ls, rs: ls in left_dfa.accepting_states and rs not in right_dfa.accepting_states,
+        complete_inputs=True,
     )
 
 

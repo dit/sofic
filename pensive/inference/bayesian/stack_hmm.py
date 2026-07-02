@@ -7,11 +7,14 @@ from collections.abc import Hashable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
-from scipy.special import gammaln, logsumexp
 
 from pensive.generators.stack_hmm import Configuration, HiddenMarkovStackModel
 from pensive.graph import ATTR_PROB, ATTR_SYMBOL
-from pensive.inference.bayesian.counts import BayesianInferenceError
+from pensive.inference.bayesian.counts import (
+    BayesianInferenceError,
+    dirichlet_multinomial_log_evidence,
+    posterior_weights,
+)
 from pensive.shifts.sofic_dyck import TransitionRef, transition_ref
 
 
@@ -117,12 +120,8 @@ class DirichletDistributionStackHMM:
             if row_count == 0:
                 continue
             row_alpha = sum(self.alphas[(config, edge)] for edge in edges)
-            evidence += gammaln(row_alpha) - gammaln(row_alpha + row_count)
-            for edge in edges:
-                alpha = self.alphas[(config, edge)]
-                count = self.data.get_count(config, edge)
-                evidence -= gammaln(alpha)
-                evidence += gammaln(alpha + count)
+            cells = [(self.alphas[(config, edge)], self.data.get_count(config, edge)) for edge in edges]
+            evidence += dirichlet_multinomial_log_evidence(row_alpha, row_count, cells)
         return float(evidence)
 
     def posterior_mean_probabilities(self) -> dict[TransitionRef, float]:
@@ -211,8 +210,8 @@ class ModelComparisonStackHMM:
         values = np.array(self.log_evidences(), dtype=float)
         if self.topology_prior == "penalty":
             values -= np.array([len(list(model.transitions())) for model in self.models], dtype=float)
-        norm = logsumexp(values)
-        return {index: float(np.exp(value - norm)) for index, value in enumerate(values)}
+        weights, _ = posterior_weights(list(range(len(values))), values)
+        return weights
 
     def most_probable_model(self) -> HiddenMarkovStackModel:
         probs = self.model_probabilities()

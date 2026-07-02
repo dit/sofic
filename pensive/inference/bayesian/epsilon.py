@@ -6,12 +6,17 @@ from collections.abc import Hashable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
-from scipy.special import gammaln, logsumexp
+from scipy.special import logsumexp
 
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.mealy import MealyHMM
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
-from pensive.inference.bayesian.counts import BayesianInferenceError, PathCountEM
+from pensive.inference.bayesian.counts import (
+    BayesianInferenceError,
+    PathCountEM,
+    dirichlet_multinomial_log_evidence,
+    scan_unifilar_topology,
+)
 
 
 class DirichletDistributionEM:
@@ -34,16 +39,10 @@ class DirichletDistributionEM:
             self.valid_startnodes = self.data.get_possible_start_nodes()
 
     def _process_machine_topology(self) -> None:
+        self.trace, self.edges = scan_unifilar_topology(self.machine)
         outgoing: dict[Hashable, list[tuple[Hashable, Any]]] = {}
-        for transition in self.machine.transitions():
-            symbol = transition.data.get(ATTR_EMISSION)
-            edge = (transition.source, symbol)
-            if edge in self.trace:
-                raise BayesianInferenceError("non-unifilar topology is not allowed")
-            self.trace[edge] = transition.target
-            self.edges.append(edge)
-            outgoing.setdefault(transition.source, []).append(edge)
-        self.edges.sort(key=repr)
+        for edge in self.edges:
+            outgoing.setdefault(edge[0], []).append(edge)
         for _source, edges in outgoing.items():
             if len(edges) > 1:
                 self.valid_edges.extend(edges)
@@ -101,8 +100,7 @@ class DirichletDistributionEM:
     def log_evidence_start_node(self, start_node: Hashable) -> float:
         if start_node not in self.valid_startnodes:
             return -np.inf
-        evidence = 0.0
-        evaluated_rows: set[Hashable] = set()
+        rows: dict[Hashable, list[tuple[float, float]]] = {}
         for edge in self.valid_edges:
             source, _symbol = edge
             alpha = self.get_edge_alpha(start_node, edge)
@@ -110,13 +108,12 @@ class DirichletDistributionEM:
             if alpha is None or alpha_row is None:
                 raise BayesianInferenceError("missing Dirichlet alpha")
             count = self.get_edge_count(start_node, edge) or 0
+            rows.setdefault(source, []).append((alpha, count))
+        evidence = 0.0
+        for source, cells in rows.items():
+            alpha_row = self.get_node_alpha(start_node, source)
             count_row = self.get_node_count(start_node, source) or 0
-            if source not in evaluated_rows:
-                evidence += gammaln(alpha_row)
-                evidence -= gammaln(alpha_row + count_row)
-                evaluated_rows.add(source)
-            evidence -= gammaln(alpha)
-            evidence += gammaln(alpha + count)
+            evidence += dirichlet_multinomial_log_evidence(alpha_row, count_row, cells)
         return float(evidence)
 
     def mean_edge_probability(self, start_node: Hashable, edge: tuple[Hashable, Any]) -> float | None:

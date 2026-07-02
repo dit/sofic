@@ -7,13 +7,14 @@ from itertools import product
 from typing import Any
 
 import numpy as np
-from scipy.special import gammaln, polygamma
+from scipy.special import polygamma
 
 from pensive.generators.mealy import MealyHMM
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 from pensive.inference.bayesian.counts import (
     BayesianInferenceError,
     WordCountsMC,
+    dirichlet_multinomial_log_evidence,
     pretty_symbol,
     pretty_word,
     split_word,
@@ -128,15 +129,16 @@ class MarkovChainPosterior:
             alpha_root = self.prior.get_alpha(root)
             if alpha_root is None:
                 raise BayesianInferenceError("missing prior alpha")
-            evidence += gammaln(alpha_root)
-            evidence -= gammaln(alpha_root + self.counts.get_word_count(root))
+            cells: list[tuple[float, float]] = []
             for symbol in self.alphabet:
                 word = (*context, symbol)
                 alpha = self.prior.get_alpha(word)
                 if alpha is None:
                     raise BayesianInferenceError("missing prior alpha")
-                evidence -= gammaln(alpha)
-                evidence += gammaln(alpha + self.counts.get_word_count(word))
+                cells.append((alpha, self.counts.get_word_count(word)))
+            evidence += dirichlet_multinomial_log_evidence(
+                alpha_root, self.counts.get_word_count(root), cells
+            )
         return float(evidence)
 
     def average_relative_entropy_plus_entropy_rate(self) -> float:

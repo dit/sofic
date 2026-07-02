@@ -132,7 +132,7 @@ def sofic_dyck_shift_from_papni_dfa(
     if not dfa.initial_states:
         raise ValueError("DFA requires an initial state")
     initial = next(iter(dfa.initial_states))
-    reachable = _reachable_dfa_states(dfa, initial)
+    reachable = dfa.graph.forward_reachable({initial})
 
     shift = SoficDyckShift(
         call_alphabet=alphabet.call_alphabet,
@@ -180,14 +180,7 @@ def _trim_shift_to_reachable(shift: SoficDyckShift, initial: Hashable) -> SoficD
     """Drop unreachable states and zero-outdegree control states."""
     if not shift.graph.has_state(initial):
         return shift
-    active: set[Hashable] = {initial}
-    queue = [initial]
-    while queue:
-        state = queue.pop(0)
-        for transition in shift.graph.out_transitions(state):
-            if transition.target not in active:
-                active.add(transition.target)
-                queue.append(transition.target)
+    active = set(shift.graph.forward_reachable({initial}))
 
     dead = {state for state in active if not any(True for _ in shift.graph.out_transitions(state))}
     active -= dead
@@ -286,18 +279,6 @@ def _select_transition(
             continue
         return transition_ref(transition)
     return None
-
-
-def _reachable_dfa_states(dfa: DFA, initial: Hashable) -> set[Hashable]:
-    seen = {initial}
-    queue = [initial]
-    while queue:
-        state = queue.pop(0)
-        for transition in dfa.graph.out_transitions(state):
-            if transition.target not in seen:
-                seen.add(transition.target)
-                queue.append(transition.target)
-    return seen
 
 
 def learn_sofic_dyck_shift_papni(

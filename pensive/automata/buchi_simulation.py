@@ -36,16 +36,6 @@ def accepts_omega_buchi(ba: BuchiAutomaton, word: Sequence[Any]) -> bool:
     raise NotImplementedError("BuchiAutomaton.accepts_omega supports ultimately periodic inputs as (prefix, loop) only")
 
 
-def _reachable_on_word(ba: BuchiAutomaton, start: set[Hashable], symbols: Sequence[Any]) -> set[Hashable]:
-    current = ba.epsilon_closure(set(start))
-    for symbol in symbols:
-        next_states: set[Hashable] = set()
-        for state in current:
-            next_states.update(ba.delta(state, symbol))
-        current = ba.epsilon_closure(next_states)
-    return current
-
-
 def _loop_closure(ba: BuchiAutomaton, start: set[Hashable], loop: Sequence[Any]) -> set[Hashable]:
     """States reachable from ``start`` by reading ``loop`` zero or more times."""
     if not loop:
@@ -54,7 +44,7 @@ def _loop_closure(ba: BuchiAutomaton, start: set[Hashable], loop: Sequence[Any])
     reachable = set(start)
     frontier = set(start)
     while frontier:
-        after = _reachable_on_word(ba, frontier, loop)
+        after = ba._run_nfa(loop, start=frontier)
         new = after - reachable
         if not new:
             break
@@ -71,7 +61,7 @@ def _can_revisit_on_loop(ba: BuchiAutomaton, state: Hashable, loop: Sequence[Any
     current = {state}
     limit = max(len(list(ba.states())), 1) + 1
     for _ in range(limit):
-        current = _reachable_on_word(ba, current, loop)
+        current = ba._run_nfa(loop, start=current)
         if state in current:
             return True
     return False

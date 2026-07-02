@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections.abc import Hashable, Iterator, Sequence
 from typing import Any
 
 import networkx as nx
 
+from pensive.automata._config_simulation import simulate_configs
 from pensive.automata.transducers import MealyMachine, MooreMachine, Transducer
 from pensive.exceptions import InfiniteTransductionError
 from pensive.graph import ATTR_OUTPUT, ATTR_SYMBOL, EPSILON
@@ -39,28 +40,29 @@ def _transduce(transducer: Transducer, word: Sequence[Any], *, moore: bool) -> s
     if not transducer.initial_states:
         return set()
 
-    stack: set[tuple[Hashable, tuple[Any, ...]]] = set()
-    for initial in transducer.initial_states:
-        prefix = _state_output(transducer, initial) if moore else ()
-        stack.add((initial, prefix))
-    stack = _epsilon_closure(transducer, stack, moore=moore)
+    initial: set[tuple[Hashable, tuple[Any, ...]]] = set()
+    for start in transducer.initial_states:
+        prefix = _state_output(transducer, start) if moore else ()
+        initial.add((start, prefix))
 
-    for symbol in word:
-        next_stack: set[tuple[Hashable, tuple[Any, ...]]] = set()
-        for state, output_prefix in stack:
-            for transition in transducer.graph.out_transitions(state):
-                if transition.data.get(ATTR_SYMBOL) != symbol:
-                    continue
-                if moore:
-                    extended = output_prefix + _state_output(transducer, transition.target)
-                else:
-                    out = transition.data.get(ATTR_OUTPUT)
-                    extended = output_prefix + ((out,) if out is not None and out is not EPSILON else ())
-                next_stack.add((transition.target, extended))
-        stack = _epsilon_closure(transducer, next_stack, moore=moore)
-        if not stack:
-            return set()
+    def step(config: tuple[Hashable, tuple[Any, ...]], symbol: Any) -> Iterator[tuple[Hashable, tuple[Any, ...]]]:
+        state, output_prefix = config
+        for transition in transducer.graph.out_transitions(state):
+            if transition.data.get(ATTR_SYMBOL) != symbol:
+                continue
+            if moore:
+                extended = output_prefix + _state_output(transducer, transition.target)
+            else:
+                out = transition.data.get(ATTR_OUTPUT)
+                extended = output_prefix + ((out,) if out is not None and out is not EPSILON else ())
+            yield (transition.target, extended)
 
+    stack = simulate_configs(
+        initial,
+        word,
+        step,
+        closure=lambda configs: _epsilon_closure(transducer, configs, moore=moore),
+    )
     return {output_prefix for _, output_prefix in stack}
 
 

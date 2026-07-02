@@ -139,8 +139,9 @@ class LabeledAutomaton(StateMachine):
                     stack.append(target)
         return closure
 
-    def _run_nfa(self, word: Sequence[Any]) -> set[Hashable]:
-        current = self.epsilon_closure(set(self.initial_states))
+    def _run_nfa(self, word: Sequence[Any], start: set[Hashable] | None = None) -> set[Hashable]:
+        seed = set(self.initial_states) if start is None else set(start)
+        current = self.epsilon_closure(seed)
         for symbol in word:
             next_states: set[Hashable] = set()
             for state in current:

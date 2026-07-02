@@ -67,16 +67,7 @@ def topological_entropy_from_matrix(matrix: np.ndarray) -> float:
 
 
 def _forward_reachable(model: SymbolicModel) -> set[Hashable]:
-    reachable: set[Hashable] = set()
-    queue = deque(model.states())
-    while queue:
-        state = queue.popleft()
-        if state in reachable:
-            continue
-        reachable.add(state)
-        for transition in model.graph.out_transitions(state):
-            queue.append(transition.target)
-    return reachable
+    return set(model.graph.forward_reachable(set(model.states())))
 
 
 def _backward_reachable(model: SymbolicModel) -> set[Hashable]:
