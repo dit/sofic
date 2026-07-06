@@ -15,8 +15,6 @@ from pensive.inference.bayesian import (
     process_identification_word_length,
 )
 
-pytestmark = pytest.mark.measures
-
 
 def test_single_topology_has_zero_diversity():
     pytest.importorskip("dit")

@@ -16,8 +16,6 @@ from pensive.examples import (
 )
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
-pytestmark = pytest.mark.measures
-
 
 def test_fair_coin_predicted_information_near_zero():
     pytest.importorskip("dit")
@@ -104,7 +102,6 @@ def test_tent_map_misiurewicz_entropy_rate():
     assert forward.entropy_rate() == pytest.approx(expected["entropy_rate"], abs=1e-4)
 
 
-@pytest.mark.measures
 def test_tent_map_misiurewicz_forward_epsilon_machine_matches_fig7():
     """Marginalizing supplement Fig.~8 recovers the Fig.~7 forward ε-machine."""
     pytest.importorskip("dit")

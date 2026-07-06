@@ -18,7 +18,6 @@ from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUA
 from pensive.shifts.tmc import TopologicalMarkovChain
 
 pytest.importorskip("dit")
-pytestmark = pytest.mark.measures
 
 
 def _epsilon() -> EpsilonMachine:
@@ -50,6 +49,25 @@ def test_state_distribution_matches_stationary_vector():
     assert float(dist.pmf.sum()) == pytest.approx(1.0)
     for i, state in enumerate(idx.states):
         assert float(dist[(state,)]) == pytest.approx(eps.stationary_distribution()[i])
+
+
+def test_state_distribution_edge_machine_tuple_states_roundtrip():
+    """Edge-machine states are tuples; state_distribution must encode them losslessly."""
+    from pensive.generators.edge_machine import parse_edge_state_label
+
+    edge = fair_coin().to_edge_machine()
+    dist = edge.state_distribution()
+    idx = edge.reindex()
+    assert float(dist.pmf.sum()) == pytest.approx(1.0)
+    # Outcomes are single dit-safe labels that decode back to the tuple states.
+    decoded = [parse_edge_state_label(outcome[0]) for outcome in dist.outcomes]
+    assert set(decoded) == set(idx.states)
+
+
+def test_state_entropy_edge_machine():
+    """state_entropy must not crash on tuple-valued edge-machine states."""
+    edge = fair_coin().to_edge_machine()
+    assert edge.state_entropy() == pytest.approx(1.0, abs=1e-9)
 
 
 def test_entropy_rate_epsilon():

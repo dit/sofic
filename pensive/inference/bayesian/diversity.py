@@ -21,7 +21,7 @@ Upper's rank-growing history/future word lists (see
 data-driven alternative. All topologies in a comparison share the same :math:`L`,
 chosen from the largest state count in the posterior.
 
-JSD is computed in bits via ``dit`` (install ``pensive[measures]``).
+JSD is computed in bits via ``dit``.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def _require_dit():
         from dit.divergences.jensen_shannon_divergence import jensen_shannon_divergence_pmf
     except ImportError as exc:
         raise ImportError(
-            "dit is required for posterior process diversity; install with `pip install pensive[measures]`"
+            "dit is required for posterior process diversity; install with `pip install dit`"
         ) from exc
     return jensen_shannon_divergence_pmf
 

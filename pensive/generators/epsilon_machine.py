@@ -139,11 +139,11 @@ class EpsilonMachine(MealyHMM):
         return self.to_bidirectional().predicted_information()
 
     def bound_information(self) -> float:
-        """b_μ = H[X₀ | S⁺₀, S⁻₁] — bound information rate (James et al., 2013)."""
+        """b_μ = I[X₀ : S⁻₁ | S⁺₀] — bound information rate (James et al., 2013)."""
         return self.to_bidirectional().bound_information()
 
     def ephemeral_information(self) -> float:
-        """r_μ = I[X₀ : S⁻₁ | S⁺₀] — ephemeral information rate (James et al., 2013)."""
+        """r_μ = H[X₀ | S⁺₀, S⁻₁] — ephemeral information rate (James et al., 2013)."""
         return self.to_bidirectional().ephemeral_information()
 
     def information_anatomy(self) -> dict[str, float]:
@@ -161,20 +161,26 @@ class EpsilonMachine(MealyHMM):
         max_length: int,
         *,
         entropy_rate: float | None = None,
-        use_exact: bool = False,
+        use_exact: bool = True,
     ) -> Any:
-        """Approximate information quantities from finite block entropies."""
+        """Approximate information quantities from finite block entropies.
+
+        With ``use_exact`` (the default) the asymptotic ``h_mu`` and excess entropy
+        use the exact closed-form/bidirectional values, matching the diagram and
+        block-convergence entry points. Pass ``use_exact=False`` for genuinely
+        finite-length estimates (see :meth:`approximate_entropy_rate`).
+        """
         from pensive.generators.block_entropy import block_entropy_estimates
 
         return block_entropy_estimates(self, max_length, entropy_rate=entropy_rate, use_exact=use_exact)
 
     def approximate_entropy_rate(self, max_length: int) -> float:
         """Approximate ``h_mu`` as the last finite-block entropy difference."""
-        return self.block_entropy_estimates(max_length).entropy_rate
+        return self.block_entropy_estimates(max_length, use_exact=False).entropy_rate
 
     def approximate_excess_entropy(self, max_length: int, *, entropy_rate: float | None = None) -> float:
         """Approximate ``E`` from finite-block entropy lower/upper estimates."""
-        return self.block_entropy_estimates(max_length, entropy_rate=entropy_rate).excess_entropy
+        return self.block_entropy_estimates(max_length, entropy_rate=entropy_rate, use_exact=False).excess_entropy
 
     def approximate_information_anatomy(
         self,
@@ -309,9 +315,9 @@ class EpsilonMachine(MealyHMM):
         return float(estimates.gauge_information_estimate[max_length])
 
     def predictability_gain(self, max_length: int) -> float:
-        """Finite-block predictability gain PG(L) (Bialek et al., 2001)."""
-        if max_length < 2:
-            raise ValueError("max_length must be at least 2 for predictability gain")
+        """Finite-block predictability gain ``PG(L) = h_mu(L) - h_mu`` (Bialek et al., 2001)."""
+        if max_length < 1:
+            raise ValueError("max_length must be at least 1 for predictability gain")
         estimates = self.block_entropy_estimates(max_length)
         return float(estimates.predictability_gain_estimate[max_length])
 

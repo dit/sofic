@@ -69,3 +69,19 @@ def test_sample_coin_length():
     assert len(observations) == 20
     assert len(states) == 20
     assert all(symbol in {"0", "1"} for symbol in observations)
+
+
+def test_log_likelihood_long_sequence_stays_finite():
+    """The scaled forward recursion must not underflow to -inf on long sequences."""
+    coin = fair_coin()
+    observations = ["0", "1"] * 1500
+    ll = log_likelihood(coin, observations)
+    assert np.isfinite(ll)
+    assert ll == pytest.approx(-3000 * np.log(2), rel=1e-9)
+
+
+def test_forward_scaled_rows_are_normalized():
+    coin = fair_coin()
+    alpha = forward(coin, ["0", "1", "0"], scaled=True)
+    assert alpha.shape == (4, 1)
+    assert np.allclose(alpha.sum(axis=1), 1.0)

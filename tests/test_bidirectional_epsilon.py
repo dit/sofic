@@ -30,7 +30,6 @@ def test_bidirectional_reversible_coin():
     assert len(list(bidir.states())) == 1
 
 
-@pytest.mark.measures
 def test_reversible_excess_entropy_near_zero():
     dit = pytest.importorskip("dit")
     del dit
@@ -130,7 +129,6 @@ def test_reverse_epsilon_machine_fig9():
             assert float(match[0].data.get(ATTR_PROB, 0.0)) == pytest.approx(prob, abs=1e-9)
 
 
-@pytest.mark.measures
 def test_fig9_information_identities():
     pytest.importorskip("dit")
     forward = ellison_fig9_forward()
@@ -149,7 +147,6 @@ def test_fig9_information_identities():
     assert c_bidir == pytest.approx(c_plus + c_minus - excess, abs=1e-9)
 
 
-@pytest.mark.measures
 def test_bidirectional_even_process_single_weak_component_and_anatomy():
     """Even process bidirectional machine is connected with b_μ = h_μ, r_μ = 0."""
     pytest.importorskip("dit")
@@ -181,7 +178,6 @@ def test_bidirectional_golden_mean_paper_topology():
         assert state in expected
 
 
-@pytest.mark.measures
 def test_bidirectional_golden_mean_paper_invariants():
     """Fig. 5 spot-check at p = 1/2: C±μ, E, χ from arXiv:0905.3587."""
     pytest.importorskip("dit")
@@ -229,7 +225,6 @@ def test_bidirectional_copy_clears_joint_pi_cache():
     assert cloned.joint_distribution() == bidir.joint_distribution()
 
 
-@pytest.mark.measures
 def test_bidirectional_joint_pi_matches_marginals():
     """Joint π from IPF matches forward/reverse stationary marginals."""
     pytest.importorskip("dit")
@@ -252,7 +247,6 @@ def test_bidirectional_joint_pi_matches_marginals():
         assert pi_minus[state] == pytest.approx(float(pi_r[i]), abs=1e-9)
 
 
-@pytest.mark.measures
 def test_bidirectional_tent_map_fig8_edges():
     """Supplement Fig.~8 topology with symbolic ``1/2`` and ``a/(a+1)`` weights."""
     from pensive.examples.epsilon_machines import _tent_map_misiurewicz_fig8_edges, tent_map_misiurewicz_a
@@ -287,7 +281,6 @@ def test_bidirectional_tent_map_fig8_edges():
         assert got[3] == pytest.approx(want[3], rel=0.0, abs=1e-12)
 
 
-@pytest.mark.measures
 def test_bidirectional_tent_map_fig8_topology():
     """James et al. (2013) supplement Fig. 8: eight recurrent joint states."""
     bidir = tent_map_misiurewicz_bidirectional()

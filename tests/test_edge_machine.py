@@ -59,7 +59,6 @@ def _period_two_hmm() -> MealyHMM:
 
 
 @pytest.mark.parametrize("builder", [fair_coin, golden_mean])
-@pytest.mark.measures
 def test_edge_machine_preserves_entropy_rate(builder):
     pytest.importorskip("dit")
     hmm = builder()
@@ -69,7 +68,6 @@ def test_edge_machine_preserves_entropy_rate(builder):
 
 
 @pytest.mark.parametrize("builder", [fair_coin, golden_mean])
-@pytest.mark.measures
 def test_edge_machine_preserves_block_distribution(builder):
     pytest.importorskip("dit")
     hmm = builder()

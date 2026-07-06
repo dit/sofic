@@ -343,7 +343,12 @@ def _merge_similar_states(
     alpha: float,
     test: Literal["g", "chi2", "tv"],
 ) -> dict[int, set[History]]:
-    """Merge inferred states whose pooled morphs are statistically indistinguishable."""
+    """Merge inferred states whose pooled morphs are statistically indistinguishable.
+
+    Merging on the morph alone can fuse states with incompatible ``symbol ->
+    successor`` maps, yielding a non-unifilar partition. Callers must re-run
+    :func:`_cssr_determinize` afterwards to restore unifilarity.
+    """
     current = {state_id: set(histories) for state_id, histories in states.items()}
     changed = True
     while changed:
@@ -431,14 +436,22 @@ def _empirical_state_visits(
     *,
     length: int,
 ) -> Counter[int]:
+    """Count how often each causal state is occupied along ``sequence``.
+
+    Every time step belongs to exactly one causal state — the one keyed by the
+    *longest* available suffix (up to ``length``). Counting each nested suffix
+    (as an earlier version did) over-weights short-history states and skews the
+    reconstructed ``initial_distribution`` away from the occupation/stationary law.
+    """
     visits: Counter[int] = Counter()
     seq = tuple(sequence)
     for t in range(len(seq)):
-        for hist_len in range(0, min(t, length) + 1):
+        for hist_len in range(min(t, length), -1, -1):
             history = seq[t - hist_len : t]
             state = history_to_state.get(history)
             if state is not None:
                 visits[state] += 1
+                break
     return visits
 
 
@@ -520,6 +533,9 @@ def cssr(
     )
     states = _cssr_determinize(states, history_to_state, counts, length=max_length)
     states = _merge_similar_states(states, history_to_state, counts, alpha=alpha, test=test)
+    # Re-determinize: morph-only merging can fuse states with incompatible
+    # successors, so restore unifilarity before building the machine.
+    states = _cssr_determinize(states, history_to_state, counts, length=max_length)
     states = _drop_transient_states(states, history_to_state, counts, length=max_length)
     history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
     return _counts_to_mealy(states, counts, history_to_state, seq, length=max_length)
@@ -614,6 +630,12 @@ def subtree_merge(
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
     states = _merge_similar_states(states, history_to_state, counts, alpha=0.05, test="tv")
+    history_to_state = {
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
+    }
+    # Re-determinize: morph-only merging can fuse states with incompatible
+    # successors, so restore unifilarity before building the machine.
+    states = _cssr_determinize(states, history_to_state, counts, length=L)
     states = _drop_transient_states(states, history_to_state, counts, length=L)
     history_to_state = {
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state

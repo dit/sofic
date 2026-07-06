@@ -27,6 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
+    "dit",
     "networkx>=2.6",
     "numpy>=1.22",
     "pyyaml>=6.0",
@@ -57,13 +58,10 @@ docs = [
     "matplotlib",
 ]
 dev = [
-    "pensive[test,measures,viz]",
+    "pensive[test,viz]",
     "pensive[docs]",
     "ruff",
     "ty",
-]
-measures = [
-    "dit",
 ]
 viz = [
     "graphviz>=0.20",
@@ -107,12 +105,11 @@ addopts = [
     "--durations=25",
     "--durations-min=1.0",
     "--reruns=1",
-    "-m", "not slow and not very_slow and not measures",
+    "-m", "not slow and not very_slow",
 ]
 markers = [
     "slow: mark that the test may take several minutes to complete. Excluded by default.",
     "very_slow: mark that the test is extremely slow. Excluded by default.",
-    "measures: tests requiring the optional dit dependency.",
 ]
 filterwarnings = [
     "ignore::pytest.PytestUnknownMarkWarning",

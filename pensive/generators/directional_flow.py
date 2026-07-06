@@ -20,12 +20,12 @@ def _require_dit():
 
 def _pair_block_distribution(generator: HiddenMarkovModel, *, history: int) -> Any:
     """Joint law over flattened ``(x0, y0, x1, y1, ...)`` windows."""
-    from pensive.generators.hmm_inference import _emission_transition_tensors
+    from pensive.generators.hmm_inference import _stationary_emission_tensors
 
     dit = _require_dit()
-    pi, joint = _emission_transition_tensors(generator)
-    if pi.sum() <= 0.0:
-        pi = generator.stationary_distribution()
+    # Directional-flow statistics describe the stationary joint process, so weight
+    # the initial state by the stationary law rather than ``initial_distribution``.
+    pi, joint = _stationary_emission_tensors(generator)
 
     block_length = history + 1
     ones = np.ones(len(pi), dtype=float)

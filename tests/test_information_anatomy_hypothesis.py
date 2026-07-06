@@ -40,7 +40,6 @@ def three_state_three_symbol_anatomy_machines(draw: st.DrawFn) -> EpsilonMachine
 
 @given(machine=three_state_three_symbol_anatomy_machines())
 @settings(max_examples=10, deadline=None)
-@pytest.mark.measures
 def test_anatomy_entropy_rate_equals_bound_plus_ephemeral(machine):
     """h_μ = b_μ + r_μ on random 3-state, 3-symbol ε-machines."""
     pytest.importorskip("dit")

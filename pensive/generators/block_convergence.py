@@ -38,8 +38,7 @@ def block_caekl(machine: EpsilonMachine, length: int) -> float:
     """Exact block CAEKL mutual information ``J(ℓ)`` for block length ``length``.
 
     Uses the ε-machine word distribution ``P(X_{0:ℓ-1})`` and
-    ``dit.multivariate.caekl_mutual_information``.  Requires ``dit``
-    (``pip install pensive[measures]``).  Returns ``0`` for ``length <= 1``.
+    ``dit.multivariate.caekl_mutual_information``.  Returns ``0`` for ``length <= 1``.
     """
     if length < 0:
         raise ValueError("length must be nonnegative")
@@ -559,9 +558,9 @@ def block_convergence_estimates(
     j_conv = _caekl_convergence_scalars(lengths, anatomy["block_caekl"])
 
     rho_mu = exact["predicted_information"] if exact else t_conv.rate
-    # James block residual R(ℓ) → b_μ; binding B(ℓ) = H(ℓ) − R(ℓ) → r_μ.
-    b_mu = exact["bound_information"] if exact else r_conv.rate
-    r_mu = exact["ephemeral_information"] if exact else b_conv.rate
+    # James block binding B(ℓ) = H(ℓ) − R(ℓ) → b_μ; residual R(ℓ) → r_μ.
+    b_mu = exact["bound_information"] if exact else b_conv.rate
+    r_mu = exact["ephemeral_information"] if exact else r_conv.rate
     q_mu = exact["q_mu"] if exact else q_conv.rate
     w_mu = exact["w_mu"] if exact else w_conv.rate
 

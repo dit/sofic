@@ -140,6 +140,15 @@ def test_nrps_j_mu_differs_from_rho_mu():
     assert est.j_mu != pytest.approx(est.rho_mu, abs=1e-3)
 
 
+def test_block_convergence_estimates_no_bmu_rmu_swap_without_exact():
+    """Finite-block b_mu/r_mu must track binding/residual curves, not be swapped."""
+    est = golden_mean(0.5).block_convergence_estimates(max_length=10, use_exact=False)
+    assert est.b_mu == pytest.approx(0.20752, abs=1e-2)
+    assert est.r_mu == pytest.approx(0.45915, abs=1e-2)
+    assert est.b_mu < est.r_mu
+    assert est.b_mu + est.r_mu == pytest.approx(est.h_mu, abs=1e-2)
+
+
 def test_max_caekl_length_cap():
     eps = golden_mean(0.5)
     capped = eps.block_convergence_estimates(8, max_caekl_length=5)

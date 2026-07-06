@@ -12,8 +12,6 @@ from pensive.generators.directional_flow import (
 )
 from pensive.generators.epsilon_machine import EpsilonMachine
 
-pytestmark = pytest.mark.measures
-
 
 def test_causal_irreversibility_even_process_is_zero():
     pytest.importorskip("dit")
@@ -66,6 +64,40 @@ def test_independent_pair_has_zero_transfer_entropy():
     assert te == pytest.approx(0.0, abs=1e-9)
     di = directed_information(pair, length=2)
     assert di == pytest.approx(0.0, abs=1e-9)
+
+
+def test_information_flow_measures_on_independent_pair():
+    pytest.importorskip("dit")
+    from pensive.generators.directional_flow import (
+        intrinsic_information_flow,
+        shared_information_flow,
+        synergistic_information_flow,
+    )
+
+    pair = independent_pair_generator(fair_coin(), fair_coin())
+    te = transfer_entropy(pair, history=1)
+    intrinsic = intrinsic_information_flow(pair, history=1)
+    shared = shared_information_flow(pair, history=1)
+    synergistic = synergistic_information_flow(pair, history=1)
+
+    assert intrinsic == pytest.approx(0.0, abs=1e-6)
+    assert shared == pytest.approx(0.0, abs=1e-6)
+    assert synergistic == pytest.approx(0.0, abs=1e-6)
+    # Synergistic flow is defined as TE - intrinsic; the identity must hold exactly.
+    assert synergistic + intrinsic == pytest.approx(te, abs=1e-6)
+
+
+def test_predictability_gain_transient_and_converged():
+    pytest.importorskip("dit")
+    eps = golden_mean(0.5)
+    estimates = eps.block_entropy_estimates(4)
+    h_mu = estimates.entropy_rate
+    # PG(1) = h_mu(1) - h_mu = (H[1] - H[0]) - h_mu, the largest, most informative gain.
+    expected_pg1 = (estimates.block_entropy[1] - estimates.block_entropy[0]) - h_mu
+    assert eps.predictability_gain(1) == pytest.approx(expected_pg1, abs=1e-9)
+    assert eps.predictability_gain(1) > 1e-6
+    # Beyond the Markov order the finite-block rate has converged, so PG -> 0.
+    assert eps.predictability_gain(4) == pytest.approx(0.0, abs=1e-9)
 
 
 def test_time_reversed_causal_irreversibility_sign():

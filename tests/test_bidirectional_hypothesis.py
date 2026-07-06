@@ -12,7 +12,6 @@ from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilo
 
 @given(p=st.floats(min_value=0.05, max_value=0.95))
 @settings(max_examples=25, deadline=None)
-@pytest.mark.measures
 def test_golden_mean_bidirectional_always_three_states(p: float):
     pytest.importorskip("dit")
     forward = golden_mean_forward(p)

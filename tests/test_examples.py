@@ -62,7 +62,6 @@ def test_golden_mean_topology():
     assert len(edges) == 3
 
 
-@pytest.mark.measures
 def test_even_and_bernoulli_differ_in_complexity():
     pytest.importorskip("dit")
     even = even_process(0.4)
@@ -76,7 +75,6 @@ def test_golden_mean_markov_stationary():
     assert gm.initial_distribution["A"] == pytest.approx(1.0 / 3.0, abs=1e-9)
 
 
-@pytest.mark.measures
 def test_golden_mean_shift_parry_entropy():
     parry = golden_mean_shift_parry()
     tmc = TopologicalMarkovChain.from_adjacency(
@@ -86,7 +84,6 @@ def test_golden_mean_shift_parry_entropy():
     assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy() / np.log(2), rel=0.05)
 
 
-@pytest.mark.measures
 def test_butterfly_statistical_complexity():
     pytest.importorskip("dit")
     butterfly = butterfly_process()
@@ -97,7 +94,6 @@ def test_butterfly_statistical_complexity():
     assert butterfly.statistical_complexity() == pytest.approx(expected, abs=1e-9)
 
 
-@pytest.mark.measures
 def test_ellison_fig9_information_identities():
     pytest.importorskip("dit")
     forward = ellison_fig9_forward()

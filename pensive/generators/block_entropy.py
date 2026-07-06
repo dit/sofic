@@ -40,6 +40,16 @@ class BlockEntropyDiagram:
     markov_order: int | float
     cryptic_order: int | float
 
+    @property
+    def transient_information(self) -> float:
+        """Transient information ``T`` (Crutchfield & Feldman, 2003).
+
+        Equal to the accumulated area between the block-entropy curve and its
+        linear asymptote over the plotted block lengths,
+        ``sum_L (E + h_mu L - H[X_{0:L}])``.
+        """
+        return float(np.sum(self.entropy_asymptote - self.block_entropy))
+
     def plot(
         self,
         ax: Any | None = None,
@@ -48,6 +58,7 @@ class BlockEntropyDiagram:
         show_state_block_entropy: bool = False,
         show_block_state_entropy: bool = True,
         show_asymptote: bool = True,
+        show_transient_information: bool = True,
         show_markov_order: bool = True,
         show_cryptic_order: bool = True,
         show_crypticity: bool = False,
@@ -68,6 +79,19 @@ class BlockEntropyDiagram:
             import matplotlib.pyplot as plt
 
             _, ax = plt.subplots()
+
+        if show_transient_information and show_block_entropy and show_asymptote:
+            # Shade the transient information: the area between H[X_{0:L}] and the
+            # E + h_mu L asymptote. Drawn first (low zorder) so lines stay on top.
+            ax.fill_between(
+                self.lengths,
+                self.block_entropy,
+                self.entropy_asymptote,
+                color="tab:blue",
+                alpha=0.15,
+                zorder=0,
+                label=rf"$\mathbf{{T}} = {self.transient_information:.3f}$",
+            )
 
         if show_block_entropy:
             ax.plot(self.lengths, self.block_entropy, marker=marker, label=r"$H[X_{0:L}]$")
@@ -270,21 +294,31 @@ def block_entropy_estimates(
 ) -> BlockEntropyEstimates:
     """Approximate information quantities from finite block entropies.
 
-    Exact excess entropy is used when available; ``use_exact`` is retained for
-    API compatibility.
+    When ``use_exact`` is true (the default) the asymptotic ``h_mu`` and excess
+    entropy come from the exact closed-form / bidirectional computation, matching
+    the diagram and block-convergence paths; when false they are promoted from the
+    finite-block curves (the last entropy-rate difference) for genuinely
+    finite-length estimates.
     """
     if max_length < 0:
         raise ValueError("max_length must be nonnegative")
     if entropy_rate is None and max_length < 1:
         raise ValueError("max_length must be positive when entropy_rate is not supplied")
 
-    lengths, block_entropy, state_block_entropy, block_state_entropy, pi, _symbol_matrices = _block_entropy_curves(
+    lengths, block_entropy, state_block_entropy, block_state_entropy, pi, symbol_matrices = _block_entropy_curves(
         machine,
         max_length,
     )
 
     entropy_rate_estimate = _entropy_rate_estimates(block_entropy)
-    h_mu = float(entropy_rate if entropy_rate is not None else entropy_rate_estimate[-1])
+    if entropy_rate is not None:
+        h_mu = float(entropy_rate)
+    elif use_exact:
+        # Match the diagram / convergence paths: the closed-form entropy rate is
+        # exact for unifilar presentations and does not depend on ``max_length``.
+        h_mu = _entropy_rate(pi, symbol_matrices)
+    else:
+        h_mu = float(entropy_rate_estimate[-1])
     statistical_complexity = _entropy(pi)
 
     h_mu_l = h_mu * lengths
@@ -461,10 +495,11 @@ def _block_entropy_excess_entropy(
 
 
 def _estimated_excess_entropy(machine: EpsilonMachine, estimate: np.ndarray, *, use_exact: bool) -> float:
-    try:
-        return float(machine.excess_entropy())
-    except Exception:
-        pass
+    if use_exact:
+        try:
+            return float(machine.excess_entropy())
+        except Exception:
+            pass
     return float(estimate[-1]) if estimate.size else 0.0
 
 
@@ -476,10 +511,15 @@ def _entropy_rate_estimates(entropies: np.ndarray) -> np.ndarray:
     return estimates
 
 
-def _predictability_gain(block_entropy: np.ndarray) -> np.ndarray:
+def _predictability_gain(block_entropy: np.ndarray, h_mu: float) -> np.ndarray:
+    """PG(L) = h_mu(L) - h_mu with h_mu(L) = H(L) - H(L-1) (Bialek et al., 2001).
+
+    The predictability gain is the excess of the length-``L`` entropy-rate estimate
+    over the asymptotic entropy rate, not the second difference of the block entropy.
+    """
     gain = np.full(len(block_entropy), math.nan, dtype=float)
-    if len(block_entropy) > 2:
-        gain[2:] = np.diff(block_entropy, n=2)
+    if len(block_entropy) > 1:
+        gain[1:] = np.diff(block_entropy) - h_mu
     return gain
 
 
@@ -503,7 +543,7 @@ def _cm_extension_curves(
     synchronization = block_state_entropy - block_entropy
     reverse_synchronization = state_block_entropy - block_entropy
     transient_information = np.cumsum(entropy_asymptote - block_entropy)
-    predictability_gain = _predictability_gain(block_entropy)
+    predictability_gain = _predictability_gain(block_entropy, h_mu)
     oracular_information = statistical_complexity + h_mu_l - state_block_entropy
     gauge_information = statistical_complexity - excess_entropy - crypticity_estimate - oracular_information
     return CMExtensionEstimates(

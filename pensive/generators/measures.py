@@ -21,7 +21,7 @@ def require_dit(feature: str = "entropy measures") -> Any:
         import dit
     except ImportError as exc:
         raise ImportError(
-            f"dit is required for {feature}; install with `pip install pensive[measures]`"
+            f"dit is required for {feature}; install with `pip install dit`"
         ) from exc
     return dit
 
@@ -30,12 +30,33 @@ def require_dit(feature: str = "entropy measures") -> Any:
 _require_dit = require_dit
 
 
+def dit_state_label(state: Any) -> Any:
+    """Return a dit-safe single-symbol label for a machine state.
+
+    ``dit.Distribution`` treats each outcome as a sequence of random-variable
+    values, so a tuple-valued state (e.g. an edge-machine state like
+    ``("A", "0", "A")``) is misread as multi-dimensional coordinate data and
+    raises ``MissingDimensionsError``. Tuple states are encoded to a lossless
+    string via :func:`pensive.generators.edge_machine.edge_state_label` (invert
+    with ``parse_edge_state_label``); scalar states pass through unchanged.
+    """
+    if isinstance(state, tuple):
+        from pensive.generators.edge_machine import edge_state_label
+
+        return edge_state_label(state)
+    return state
+
+
 def state_distribution(model: StochasticModel) -> Any:
-    """Return the stationary state law as a ``dit.Distribution``."""
+    """Return the stationary state law as a ``dit.Distribution``.
+
+    States are emitted as dit-safe labels (see :func:`dit_state_label`): scalar
+    states are preserved verbatim, tuple states are encoded to a lossless string.
+    """
     dit = _require_dit()
     idx = model.reindex()
     pi = model.stationary_distribution()
-    outcomes = [(idx.state(i),) for i in range(len(idx))]
+    outcomes = [(dit_state_label(idx.state(i)),) for i in range(len(idx))]
     return dit.Distribution(outcomes, pi)
 
 
@@ -56,12 +77,12 @@ def joint_block_distribution(
     """
     from itertools import product
 
-    from pensive.generators.hmm_inference import _emission_transition_tensors
+    from pensive.generators.hmm_inference import _stationary_emission_tensors
 
     dit = _require_dit()
-    pi, joint = _emission_transition_tensors(generator)
-    if pi.sum() <= 0.0:
-        pi = generator.stationary_distribution()
+    # Blocks of a stationary process are weighted by the stationary state law, not
+    # the model's initial distribution (which may describe only the transient).
+    pi, joint = _stationary_emission_tensors(generator)
 
     symbol_list = sorted(generator.observation_alphabet, key=repr)
     block_length = max(1, history_length + 1)
@@ -81,16 +102,20 @@ def joint_block_distribution(
 
 
 def _entropy_rate_from_transitions(
-    hmm: HiddenMarkovModel,
+    model: StochasticModel,
     pi: np.ndarray,
     idx: Any,
 ) -> float:
-    """Entropy rate from edge probabilities when symbol-labeled joint mass is absent."""
+    """Entropy rate from edge probabilities when symbol-labeled joint mass is absent.
+
+    Accepts any :class:`StochasticModel` (visible Markov chain or hidden Markov
+    model); the target state stands in as the emitted symbol when no emission is set.
+    """
     dit = _require_dit()
     rate = 0.0
     for state in idx.states:
         i = idx.index(state)
-        outgoing = list(hmm.graph.out_transitions(state))
+        outgoing = list(model.graph.out_transitions(state))
         if not outgoing:
             continue
         targets: list[Any] = []
@@ -101,7 +126,7 @@ def _entropy_rate_from_transitions(
                 continue
             emission = transition.data.get(ATTR_EMISSION)
             target = (transition.target, emission) if emission is not None else transition.target
-            targets.append(target)
+            targets.append(dit_state_label(target))
             probs.append(prob)
         if not probs:
             continue
@@ -123,15 +148,18 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> float:
     pi = hmm.stationary_distribution()
     _, joint = _emission_transition_tensors(hmm)
 
+    # Emit dit-safe state labels so tuple-valued states (e.g. edge-machine
+    # states like ("A", "0", "A")) do not break dit.Distribution.
     outcomes: list[tuple[Any, Any]] = []
     probs: list[float] = []
     for state in idx.states:
         i = idx.index(state)
+        label = dit_state_label(state)
         for symbol, matrix in joint.items():
             row_mass = float(pi[i] * matrix[i].sum())
             if row_mass <= 0.0:
                 continue
-            outcomes.append((state, symbol))
+            outcomes.append((label, symbol))
             probs.append(row_mass)
 
     if not probs:
@@ -146,40 +174,15 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> float:
 
 
 def entropy_rate_markov(chain: MarkovChain) -> float:
-    """Shannon entropy rate of a visible Markov chain in bits."""
-    dit = _require_dit()
+    """Shannon entropy rate of a visible Markov chain in bits.
+
+    A visible Markov chain has no separate emissions, so its entropy rate is the
+    conditional-transition entropy computed by :func:`_entropy_rate_from_transitions`
+    (which treats the target state as the emitted symbol when no emission is set).
+    """
     idx = chain.reindex()
     pi = chain.stationary_distribution()
-    rate = 0.0
-    for state in idx.states:
-        i = idx.index(state)
-        outgoing = list(chain.graph.out_transitions(state))
-        if not outgoing:
-            continue
-        targets: list[Any] = []
-        probs: list[float] = []
-        for transition in outgoing:
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
-            if prob <= 0.0:
-                continue
-            targets.append(transition.target)
-            probs.append(prob)
-        if not probs:
-            continue
-        conditional = dit.Distribution(targets, probs)
-        rate += float(pi[i] * dit.shannon.entropy(conditional))
-    return rate
-
-
-def excess_entropy(generator: HiddenMarkovModel, max_block: int = 4) -> float:
-    """Estimate excess entropy from finite observed block entropies."""
-    dit = _require_dit()
-    h = generator.entropy_rate()
-    estimates: list[float] = []
-    for n in range(1, max_block + 1):
-        dist = joint_block_distribution(generator, history_length=n - 1)
-        estimates.append(float(dit.shannon.entropy(dist)) - n * h)
-    return float(np.mean(estimates)) if estimates else 0.0
+    return _entropy_rate_from_transitions(chain, pi, idx)
 
 
 def collision_entropy(quasi_model: QuasiStochasticModel) -> float:

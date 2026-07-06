@@ -133,6 +133,25 @@ def test_from_sequence_subtree_dispatch(rng: np.random.Generator):
     assert len(list(inferred.states())) >= 2
 
 
+def test_cssr_initial_distribution_matches_occupation(rng: np.random.Generator):
+    """The reconstructed initial law should approximate the occupation/stationary law.
+
+    Counting each nested history suffix (the old behavior) over-weighted short-history
+    states; counting the longest matching suffix once per step recovers the stationary
+    occupation of the inferred causal states.
+    """
+    oracle = golden_mean(0.5)
+    observations, _ = sample(oracle, 8000, rng)
+    inferred = cssr(observations, Lmax=3, alpha=0.001)
+    inferred.validate()
+
+    idx = inferred.reindex()
+    pi = inferred.stationary_distribution()
+    initial = np.array([inferred.initial_distribution.get(idx.state(i), 0.0) for i in range(len(idx))])
+    assert initial.sum() == pytest.approx(1.0, abs=1e-9)
+    assert np.allclose(initial, pi, atol=0.05)
+
+
 def test_cssr_short_sequence_raises():
     with pytest.raises(ValueError, match="at least two"):
         cssr([0])

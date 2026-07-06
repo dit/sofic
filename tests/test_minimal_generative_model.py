@@ -19,7 +19,6 @@ from pensive.generators.minimal_generative_model import (
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 pytest.importorskip("dit")
-pytestmark = pytest.mark.measures
 
 
 def _binary_markov(p: float, q: float) -> EpsilonMachine:

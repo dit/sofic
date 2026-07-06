@@ -100,15 +100,15 @@ class HiddenMarkovModel(StochasticModel):
 
         return log_likelihood(self, observations)
 
-    def forward(self, observations: Sequence[Any]) -> np.ndarray:
+    def forward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
         from pensive.generators.hmm_inference import forward
 
-        return forward(self, observations)
+        return forward(self, observations, scaled=scaled)
 
-    def backward(self, observations: Sequence[Any]) -> np.ndarray:
+    def backward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
         from pensive.generators.hmm_inference import backward
 
-        return backward(self, observations)
+        return backward(self, observations, scaled=scaled)
 
     def viterbi(self, observations: Sequence[Any]) -> list[Hashable]:
         from pensive.generators.hmm_inference import viterbi
