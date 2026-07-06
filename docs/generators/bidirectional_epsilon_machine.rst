@@ -97,4 +97,4 @@ API
 ===
 
 .. autoclass:: BidirectionalEpsilonMachine
-   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, information_anatomy
+   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, information_anatomy, caekl_causal_information

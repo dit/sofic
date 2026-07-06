@@ -79,13 +79,13 @@ class BidirectionalEpsilonMachine(MealyHMM):
         cls,
         forward: EpsilonMachine,
         reverse: EpsilonMachine,
-    ) -> Self:
+    ) -> BidirectionalEpsilonMachine:
         from pensive.generators.bidirectional_construction import build_bidirectional_epsilon_machine
 
         return build_bidirectional_epsilon_machine(forward, reverse)
 
     @classmethod
-    def from_forward(cls, forward: EpsilonMachine) -> Self:
+    def from_forward(cls, forward: EpsilonMachine) -> BidirectionalEpsilonMachine:
         from pensive.generators.bidirectional_construction import infer_reverse_epsilon_machine
 
         reverse = infer_reverse_epsilon_machine(forward)
@@ -143,6 +143,22 @@ class BidirectionalEpsilonMachine(MealyHMM):
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
             )
         )
+
+    def caekl_causal_information(self) -> float:
+        """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual information among past, present, and future.
+
+        Chan-AlBashabsheh-Ebrahimi-Kaced-Liu multivariate mutual information
+        (:cite:`chan2015multivariate`) over the information-anatomy triple
+        (:cite:`James2013`): the forward causal state S⁺₀ (past), the present
+        symbol X₀, and the reverse causal state S⁻₁ (future). Finite and
+        closed-form since the causal states are finite sufficient statistics of
+        the semi-infinite past and future.
+        """
+        _require_dit()
+        from dit.multivariate import caekl_mutual_information
+
+        dist = self.step_distribution()
+        return float(caekl_mutual_information(dist, rvs=[[_STEP_S_PLUS_0], [_STEP_X_0], [_STEP_S_MINUS_1]]))
 
     def excess_entropy(self) -> float:
         """Exact excess entropy E = I[S⁺; S⁻] from the bidirectional joint distribution."""

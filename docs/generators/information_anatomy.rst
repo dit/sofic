@@ -49,6 +49,33 @@ they report the current block-length approximation to ``h_mu``, ``E``,
 ``rho_mu``, ``b_mu``, ``r_mu``, ``q_mu``, ``w_mu``, block coinformation, CAEKL,
 and related convergence curves.  See :doc:`block_convergence`.
 
+CAEKL past-present-future information
+====================================
+
+The Chan-AlBashabsheh-Ebrahimi-Kaced-Liu multivariate mutual information
+:cite:`chan2015multivariate` over the anatomy triple is a finite, closed-form
+"shared information" among past, present, and future.  The forward causal state
+:math:`S^+_0` and reverse causal state :math:`S^-_1` stand in for the
+semi-infinite past and future, keeping the quantity finite:
+
+.. math::
+
+   \op{J}{S^+_0 : X_0 : S^-_1}
+
+.. ipython::
+
+   In [1]: from pensive.examples import tent_map_misiurewicz_bidirectional
+
+   In [2]: bidir = tent_map_misiurewicz_bidirectional()
+
+   @doctest float
+   In [3]: bidir.caekl_causal_information()
+   Out[3]: 0.22044436492357078
+
+This single-step quantity is distinct from the block CAEKL rate ``j_μ`` below:
+it is a bidirectional causal-state measure like ``ρ_μ``, whereas ``j_μ`` is the
+asymptotic slope of the block curve ``J(ℓ)``.
+
 CAEKL rate ``j_μ``
 ==================
 

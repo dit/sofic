@@ -183,3 +183,57 @@ def test_epsilon_machine_bidirectional_cache():
 
     cloned = forward.copy()
     assert cloned.to_bidirectional() is not first
+
+
+@pytest.mark.parametrize("p", [0.5, 0.3])
+def test_iid_caekl_causal_information_is_zero(p: float):
+    """IID sources: past, present, and future share no information."""
+    pytest.importorskip("dit")
+    bidir = bernoulli(p).to_bidirectional()
+    assert bidir.caekl_causal_information() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_fair_coin_caekl_causal_information_is_zero():
+    pytest.importorskip("dit")
+    bidir = BidirectionalEpsilonMachine.from_pair(fair_coin(), fair_coin())
+    assert bidir.caekl_causal_information() == pytest.approx(0.0, abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: golden_mean_forward(0.5),
+        lambda: even_process(0.5),
+        tent_map_misiurewicz_forward,
+    ],
+)
+def test_caekl_causal_information_nonnegative(factory):
+    """J[S⁺₀ : X₀ : S⁻₁] is a CAEKL mutual information, hence non-negative."""
+    pytest.importorskip("dit")
+    assert factory().caekl_causal_information() >= -1e-9
+
+
+def test_caekl_causal_information_golden_mean_value():
+    """Exact J[S⁺₀ : X₀ : S⁻₁] for the golden-mean process at p = 1/2."""
+    pytest.importorskip("dit")
+    bidir = BidirectionalEpsilonMachine.from_pair(
+        golden_mean_forward(0.5),
+        golden_mean_reverse(0.5),
+    )
+    assert bidir.caekl_causal_information() == pytest.approx(0.25162916738782304, abs=1e-9)
+
+
+def test_caekl_causal_information_tent_map_value():
+    """Regression on the tent-map bidirectional machine (matches the docs doctest)."""
+    pytest.importorskip("dit")
+    bidir = tent_map_misiurewicz_bidirectional()
+    assert bidir.caekl_causal_information() == pytest.approx(0.22044436492357078, abs=1e-9)
+
+
+def test_epsilon_machine_caekl_causal_information_matches_bidirectional():
+    """EpsilonMachine delegates caekl_causal_information() to its bidirectional presentation."""
+    pytest.importorskip("dit")
+    forward = golden_mean_forward(0.5)
+    assert forward.caekl_causal_information() == pytest.approx(
+        forward.to_bidirectional().caekl_causal_information(), abs=1e-12
+    )

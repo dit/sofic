@@ -150,6 +150,10 @@ class EpsilonMachine(MealyHMM):
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
         return self.to_bidirectional().information_anatomy()
 
+    def caekl_causal_information(self) -> float:
+        """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual info among past, present, and future causal states."""
+        return self.to_bidirectional().caekl_causal_information()
+
     def block_entropy_diagram(self, max_length: int) -> BlockEntropyDiagram:
         """Compute finite-block entropy convergence curves up to ``max_length``."""
         from pensive.generators.block_entropy import block_entropy_diagram
