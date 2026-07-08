@@ -14,6 +14,7 @@ from pensive.generators.directional_flow import (
 )
 from pensive.generators.epsilon_inference import cssr, subtree_merge
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
 from pensive.generators.markov import MarkovChain
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.minimal_generative_model import (
@@ -57,7 +58,11 @@ __all__ = [
     "BlockConvergenceDiagram",
     "BlockConvergenceEstimates",
     "EpsilonMachine",
+    "LumpabilityError",
     "cssr",
+    "is_lumpable",
+    "lump",
+    "normalize_partition",
     "subtree_merge",
     "fit_stack_hmm_mle",
     "learn_stack_hmm_papni",

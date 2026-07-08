@@ -11,6 +11,7 @@ from pensive.generators.edge_emissions import validate_stochastic_edge_emissions
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
 if TYPE_CHECKING:
+    from pensive.generators.lumping import LabelsLike, PartitionLike
     from pensive.generators.mixed_state import MixedState, MixedStatePresentation
 
 
@@ -76,6 +77,26 @@ class MealyHMM(HiddenMarkovModel):
         from pensive.properties import is_counifilar_emissions
 
         return is_counifilar_emissions(self)
+
+    def is_lumpable(self, partition: PartitionLike, *, rtol: float = 1e-8, atol: float = 1e-10) -> bool:
+        """Return whether ``partition`` is strongly lumpable for this HMM."""
+        from pensive.generators.lumping import is_lumpable
+
+        return is_lumpable(self, partition, rtol=rtol, atol=atol)
+
+    def lump(
+        self,
+        partition: PartitionLike,
+        *,
+        check: bool = True,
+        labels: LabelsLike | None = None,
+        rtol: float = 1e-8,
+        atol: float = 1e-10,
+    ) -> MealyHMM:
+        """Aggregate states into blocks, returning the lumped Mealy HMM."""
+        from pensive.generators.lumping import lump
+
+        return lump(self, partition, check=check, labels=labels, rtol=rtol, atol=atol)
 
     def is_irreducible(self) -> bool:
         """Return whether the internal state graph is strongly connected."""

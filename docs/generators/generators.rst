@@ -44,6 +44,7 @@ Constructions and conversions
 
    constructions
    conversions
+   lumping
 
 Inference
 =========

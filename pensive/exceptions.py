@@ -25,5 +25,9 @@ class QuasiStochasticValidationError(PensiveValidationError):
     """Raised when quasi-stochastic invariants are violated."""
 
 
+class LumpabilityError(PensiveValidationError):
+    """Raised when a partition is not strongly lumpable for a model."""
+
+
 class InfiniteTransductionError(PensiveError):
     """Raised when a finite input has infinitely many transducer outputs."""

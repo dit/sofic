@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -11,6 +11,9 @@ from pensive.exceptions import StochasticValidationError
 from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.mealy import MealyHMM
 from pensive.graph import ATTR_EMISSION_DIST, ATTR_PROB
+
+if TYPE_CHECKING:
+    from pensive.generators.lumping import LabelsLike, PartitionLike
 
 
 class MooreHMM(HiddenMarkovModel):
@@ -32,6 +35,26 @@ class MooreHMM(HiddenMarkovModel):
         from pensive.generators.conversions import moore_to_mealy
 
         return moore_to_mealy(self)
+
+    def is_lumpable(self, partition: PartitionLike, *, rtol: float = 1e-8, atol: float = 1e-10) -> bool:
+        """Return whether ``partition`` is strongly lumpable for this HMM."""
+        from pensive.generators.lumping import is_lumpable
+
+        return is_lumpable(self, partition, rtol=rtol, atol=atol)
+
+    def lump(
+        self,
+        partition: PartitionLike,
+        *,
+        check: bool = True,
+        labels: LabelsLike | None = None,
+        rtol: float = 1e-8,
+        atol: float = 1e-10,
+    ) -> MooreHMM:
+        """Aggregate states into blocks, returning the lumped Moore HMM."""
+        from pensive.generators.lumping import lump
+
+        return lump(self, partition, check=check, labels=labels, rtol=rtol, atol=atol)
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()

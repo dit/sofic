@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from pensive.exceptions import StochasticValidationError
 from pensive.generators.base import StochasticModel
 from pensive.graph import ATTR_PROB
+
+if TYPE_CHECKING:
+    from pensive.generators.lumping import LabelsLike, PartitionLike
 
 
 class MarkovChain(StochasticModel):
@@ -24,6 +27,26 @@ class MarkovChain(StochasticModel):
         from pensive.properties import is_deterministic_markov
 
         return is_deterministic_markov(self)
+
+    def is_lumpable(self, partition: PartitionLike, *, rtol: float = 1e-8, atol: float = 1e-10) -> bool:
+        """Return whether ``partition`` is strongly lumpable for this chain."""
+        from pensive.generators.lumping import is_lumpable
+
+        return is_lumpable(self, partition, rtol=rtol, atol=atol)
+
+    def lump(
+        self,
+        partition: PartitionLike,
+        *,
+        check: bool = True,
+        labels: LabelsLike | None = None,
+        rtol: float = 1e-8,
+        atol: float = 1e-10,
+    ) -> MarkovChain:
+        """Aggregate states into blocks, returning the lumped chain."""
+        from pensive.generators.lumping import lump
+
+        return lump(self, partition, check=check, labels=labels, rtol=rtol, atol=atol)
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()

@@ -69,6 +69,8 @@ from pensive.generators import (
     WynerGenerativeModel,
     functional_generative_model,
     gacs_korner_generative_model,
+    is_lumpable,
+    lump,
     minimal_generative_model,
     wyner_generative_model,
 )
@@ -157,6 +159,8 @@ __all__ = [
     "from_yaml",
     "functional_generative_model",
     "gacs_korner_generative_model",
+    "is_lumpable",
+    "lump",
     "model_from_yaml",
     "model_to_yaml",
     "minimal_generative_model",
