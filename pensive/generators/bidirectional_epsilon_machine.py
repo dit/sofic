@@ -144,6 +144,97 @@ class BidirectionalEpsilonMachine(MealyHMM):
             )
         )
 
+    def structural_ephemeral_information(self) -> float:
+        """r_μ^struct = H[S⁺₁ | S⁺₀, S⁻₁] — structural (branching) part of r_μ.
+
+        The next forward causal state S⁺₁ is a deterministic function of S⁺₀ and
+        X₀, so this equals I[X₀ : S⁺₁ | S⁺₀, S⁻₁]: the ephemeral randomness that
+        selects among transitions to *different* next states (edges with
+        structural consequence) and is not resolved by the future S⁻₁. Together
+        with :meth:`parallel_edge_information` it partitions
+        :meth:`ephemeral_information` (r_μ = r_μ^struct + r_μ^par).
+
+        This refinement of the information anatomy (James et al., 2013) has no
+        separate canonical source; it follows from the determinism of the
+        forward transition function.
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_S_PLUS_1],
+                [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
+            )
+        )
+
+    def parallel_edge_information(self) -> float:
+        """r_μ^par = H[X₀ | S⁺₀, S⁺₁, S⁻₁] — parallel-edge (gauge) part of r_μ.
+
+        Once the source S⁺₀ and destination S⁺₁ forward causal states are both
+        fixed, the residual symbol uncertainty is pure output relabeling on edges
+        "from the same state to the same state" — no structural consequence. It
+        is the gauge component of the ephemeral information, complementary to
+        :meth:`structural_ephemeral_information` (r_μ = r_μ^struct + r_μ^par).
+
+        Refinement of the information anatomy (James et al., 2013); no separate
+        canonical source.
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_X_0],
+                [_STEP_S_PLUS_0, _STEP_S_PLUS_1, _STEP_S_MINUS_1],
+            )
+        )
+
+    def bound_structural_information(self) -> float:
+        """b_μ^struct = I[S⁺₁ : S⁻₁ | S⁺₀] — structural (branching) part of b_μ.
+
+        Companion to :meth:`structural_ephemeral_information`: the transition
+        randomness that changes the next forward causal state *and* is shared
+        with the future S⁻₁. Together with :meth:`bound_parallel_edge_information`
+        it partitions :meth:`bound_information` (b_μ = b_μ^struct + b_μ^par).
+
+        Refinement of the information anatomy (James et al., 2013); no separate
+        canonical source.
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(dist, [_STEP_S_PLUS_1], [_STEP_S_PLUS_0])
+            - dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_S_PLUS_1],
+                [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
+            )
+        )
+
+    def bound_parallel_edge_information(self) -> float:
+        """b_μ^par = I[X₀ : S⁻₁ | S⁺₀, S⁺₁] — parallel-edge (gauge) part of b_μ.
+
+        Companion to :meth:`parallel_edge_information`: the output-relabeling
+        randomness on a fixed transition (source and destination forward states
+        held constant) that is nonetheless shared with the future S⁻₁. Together
+        with :meth:`bound_structural_information` it partitions
+        :meth:`bound_information` (b_μ = b_μ^struct + b_μ^par).
+
+        Refinement of the information anatomy (James et al., 2013); no separate
+        canonical source.
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return float(
+            dit.shannon.conditional_entropy(dist, [_STEP_X_0], [_STEP_S_PLUS_0, _STEP_S_PLUS_1])
+            - dit.shannon.conditional_entropy(
+                dist,
+                [_STEP_X_0],
+                [_STEP_S_PLUS_0, _STEP_S_PLUS_1, _STEP_S_MINUS_1],
+            )
+        )
+
     def caekl_causal_information(self) -> float:
         """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual information among past, present, and future.
 
@@ -224,12 +315,22 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return self.minimal_generative_model(**kwargs).generative_complexity()
 
     def information_anatomy(self) -> dict[str, float]:
-        """Return ρ_μ, b_μ, r_μ, h_μ, E, and χ for this bidirectional presentation."""
+        """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, and the structural/gauge refinement.
+
+        The ``*_structural`` / ``*_gauge`` keys split the ephemeral (r_μ) and
+        bound (b_μ) rates along whether the randomness changes the next forward
+        causal state (structural) or merely relabels the output on a fixed
+        transition (gauge); each pair sums to its parent.
+        """
         h_mu = self.entropy_rate()
         return {
             "rho_mu": self.predicted_information(),
             "bound_mu": self.bound_information(),
             "ephemeral_mu": self.ephemeral_information(),
+            "ephemeral_structural": self.structural_ephemeral_information(),
+            "ephemeral_gauge": self.parallel_edge_information(),
+            "bound_structural": self.bound_structural_information(),
+            "bound_gauge": self.bound_parallel_edge_information(),
             "entropy_rate": h_mu,
             "excess_entropy": self.excess_entropy(),
             "crypticity": self.crypticity(),

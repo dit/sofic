@@ -6,6 +6,7 @@ import pytest
 
 from pensive.examples import (
     bernoulli,
+    butterfly_process,
     even_process,
     fair_coin,
     golden_mean_forward,
@@ -84,6 +85,103 @@ def test_golden_mean_anatomy_matches_component_methods():
     assert anatomy["ephemeral_mu"] == pytest.approx(bidir.ephemeral_information(), abs=1e-12)
     assert anatomy["excess_entropy"] == pytest.approx(bidir.excess_entropy(), abs=1e-12)
     assert anatomy["crypticity"] == pytest.approx(bidir.crypticity(), abs=1e-12)
+
+
+# --- structural / gauge refinement of the anatomy ------------------------------
+
+
+def _anatomy_processes():
+    """Bidirectional presentations with a valid ``b_μ + r_μ = h_μ`` anatomy."""
+    return {
+        "bernoulli_half": bernoulli(0.5).to_bidirectional(),
+        "bernoulli_biased": bernoulli(0.3).to_bidirectional(),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
+        "even": even_process(0.5).to_bidirectional(),
+        "butterfly": butterfly_process().to_bidirectional(),
+    }
+
+
+@pytest.mark.parametrize("name", ["bernoulli_half", "bernoulli_biased", "golden_mean", "even", "butterfly"])
+def test_structural_gauge_split_sums_to_parents(name: str):
+    """r_μ = r_μ^struct + r_μ^par and b_μ = b_μ^struct + b_μ^par, all non-negative."""
+    pytest.importorskip("dit")
+    bidir = _anatomy_processes()[name]
+
+    r_mu = bidir.ephemeral_information()
+    r_struct = bidir.structural_ephemeral_information()
+    r_gauge = bidir.parallel_edge_information()
+    b_mu = bidir.bound_information()
+    b_struct = bidir.bound_structural_information()
+    b_gauge = bidir.bound_parallel_edge_information()
+
+    for atom in (r_struct, r_gauge, b_struct, b_gauge):
+        assert atom >= -1e-9
+    assert r_struct + r_gauge == pytest.approx(r_mu, abs=1e-9)
+    assert b_struct + b_gauge == pytest.approx(b_mu, abs=1e-9)
+    # The four atoms refine the entropy rate.
+    assert r_struct + r_gauge + b_struct + b_gauge == pytest.approx(bidir.entropy_rate(), abs=1e-9)
+
+
+def test_bernoulli_ephemeral_is_pure_gauge():
+    """IID source: every ephemeral bit is parallel-edge (gauge); none is structural."""
+    pytest.importorskip("dit")
+    bidir = bernoulli(0.3).to_bidirectional()
+    h_mu = bidir.entropy_rate()
+    assert bidir.structural_ephemeral_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.parallel_edge_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+    assert bidir.parallel_edge_information() == pytest.approx(h_mu, abs=1e-9)
+
+
+def test_golden_mean_ephemeral_is_pure_structural():
+    """Golden mean has no parallel edges: r_μ is entirely structural."""
+    pytest.importorskip("dit")
+    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5))
+    assert bidir.parallel_edge_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.structural_ephemeral_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+    # Its bound information is likewise entirely structural.
+    assert bidir.bound_parallel_edge_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.bound_structural_information() == pytest.approx(bidir.bound_information(), abs=1e-9)
+
+
+def test_butterfly_ephemeral_is_mixed():
+    """Butterfly process populates both ephemeral atoms simultaneously."""
+    pytest.importorskip("dit")
+    bidir = butterfly_process().to_bidirectional()
+    r_struct = bidir.structural_ephemeral_information()
+    r_gauge = bidir.parallel_edge_information()
+    assert r_struct > 1e-6
+    assert r_gauge > 1e-6
+    assert r_struct + r_gauge == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+
+
+def test_information_anatomy_exposes_refinement_keys():
+    """information_anatomy() carries the structural/gauge atoms, matching the methods."""
+    pytest.importorskip("dit")
+    bidir = butterfly_process().to_bidirectional()
+    anatomy = bidir.information_anatomy()
+    assert anatomy["ephemeral_structural"] == pytest.approx(bidir.structural_ephemeral_information(), abs=1e-12)
+    assert anatomy["ephemeral_gauge"] == pytest.approx(bidir.parallel_edge_information(), abs=1e-12)
+    assert anatomy["bound_structural"] == pytest.approx(bidir.bound_structural_information(), abs=1e-12)
+    assert anatomy["bound_gauge"] == pytest.approx(bidir.bound_parallel_edge_information(), abs=1e-12)
+    assert anatomy["ephemeral_structural"] + anatomy["ephemeral_gauge"] == pytest.approx(
+        anatomy["ephemeral_mu"], abs=1e-9
+    )
+    assert anatomy["bound_structural"] + anatomy["bound_gauge"] == pytest.approx(anatomy["bound_mu"], abs=1e-9)
+
+
+def test_epsilon_machine_refinement_delegates_to_bidirectional():
+    """EpsilonMachine forwards the structural/gauge accessors to its bidirectional presentation."""
+    pytest.importorskip("dit")
+    forward = golden_mean_forward(0.5)
+    bidir = forward.to_bidirectional()
+    assert forward.structural_ephemeral_information() == pytest.approx(
+        bidir.structural_ephemeral_information(), abs=1e-12
+    )
+    assert forward.parallel_edge_information() == pytest.approx(bidir.parallel_edge_information(), abs=1e-12)
+    assert forward.bound_structural_information() == pytest.approx(bidir.bound_structural_information(), abs=1e-12)
+    assert forward.bound_parallel_edge_information() == pytest.approx(
+        bidir.bound_parallel_edge_information(), abs=1e-12
+    )
 
 
 def test_tent_map_misiurewicz_closed_form():

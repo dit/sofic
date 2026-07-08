@@ -146,6 +146,22 @@ class EpsilonMachine(MealyHMM):
         """r_μ = H[X₀ | S⁺₀, S⁻₁] — ephemeral information rate (James et al., 2013)."""
         return self.to_bidirectional().ephemeral_information()
 
+    def structural_ephemeral_information(self) -> float:
+        """r_μ^struct = H[S⁺₁ | S⁺₀, S⁻₁] — structural (branching) part of r_μ."""
+        return self.to_bidirectional().structural_ephemeral_information()
+
+    def parallel_edge_information(self) -> float:
+        """r_μ^par = H[X₀ | S⁺₀, S⁺₁, S⁻₁] — parallel-edge (gauge) part of r_μ."""
+        return self.to_bidirectional().parallel_edge_information()
+
+    def bound_structural_information(self) -> float:
+        """b_μ^struct = I[S⁺₁ : S⁻₁ | S⁺₀] — structural (branching) part of b_μ."""
+        return self.to_bidirectional().bound_structural_information()
+
+    def bound_parallel_edge_information(self) -> float:
+        """b_μ^par = I[X₀ : S⁻₁ | S⁺₀, S⁺₁] — parallel-edge (gauge) part of b_μ."""
+        return self.to_bidirectional().bound_parallel_edge_information()
+
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
         return self.to_bidirectional().information_anatomy()
