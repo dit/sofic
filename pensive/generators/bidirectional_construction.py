@@ -172,8 +172,8 @@ def _compatible_pairs(
 
     Eq. (15) is evaluated on every forward/reverse pair that passes the reverse
     future-symbol filter.  When multiple undirected components admit a stationary
-    joint π, :func:`_joint_pi_minimum_support` breaks ties by the
-    information-anatomy identity ``h_μ = b_μ + r_μ``.
+    joint π, :func:`_joint_pi_minimum_support` selects the one whose marginals
+    match the forward/reverse causal-state stationary distributions.
     """
     future_symbol = _infer_future_symbols(reverse)
     pairs: set[tuple[Hashable, Hashable]] = set()
@@ -282,49 +282,89 @@ def _anatomy_gap_for_joint(
     return abs(b_mu + r_mu - h_mu)
 
 
+def _stationary_state_probabilities(machine: EpsilonMachine) -> dict[Hashable, float]:
+    """Stationary causal-state distribution of ``machine`` keyed by state label."""
+    index = machine.reindex()
+    pi = machine.stationary_distribution()
+    return {state: float(pi[i]) for i, state in enumerate(index.states)}
+
+
+def _joint_marginal_mismatch(
+    joint: dict[tuple[Hashable, Hashable], float],
+    pi_plus: dict[Hashable, float],
+    pi_minus: dict[Hashable, float],
+) -> float:
+    """Max abs deviation of ``joint``'s marginals from the target stationary marginals.
+
+    A valid bidirectional presentation is a closed recurrent joint class whose
+    forward/reverse marginals equal the forward/reverse causal-state stationary
+    distributions.  Spurious closed sub-cycles (e.g. the all-``0`` period-3 cycle
+    of the Nemo process) violate this and are rejected by the selector below.
+    """
+    forward_marginal: dict[Hashable, float] = defaultdict(float)
+    reverse_marginal: dict[Hashable, float] = defaultdict(float)
+    for (alpha, gamma), mass in joint.items():
+        forward_marginal[alpha] += mass
+        reverse_marginal[gamma] += mass
+
+    error = 0.0
+    for state in set(pi_plus) | set(forward_marginal):
+        error = max(error, abs(forward_marginal.get(state, 0.0) - pi_plus.get(state, 0.0)))
+    for state in set(pi_minus) | set(reverse_marginal):
+        error = max(error, abs(reverse_marginal.get(state, 0.0) - pi_minus.get(state, 0.0)))
+    return error
+
+
 def _joint_pi_minimum_support(
     graph: TransitionGraph,
     forward: EpsilonMachine,
     reverse: EpsilonMachine,
     *,
     tol: float = 1e-12,
+    marginal_tol: float = 1e-6,
 ) -> dict[tuple[Hashable, Hashable], float]:
-    """Pick the smallest closed undirected component with a stationary joint π.
+    """Pick the closed undirected component that is the true bidirectional class.
 
     The joint π on each component is the general HMM stationary distribution (left
-    eigenvector for eigenvalue one), not an iterative-proportional-fit to the
-    forward/reverse marginals — the eigenvector already reproduces those marginals
-    on a closed recurrent class and is exact.
+    eigenvector for eigenvalue one).  When the Eq. (15) graph has more than one
+    closed recurrent component (e.g. the Nemo process, which admits a spurious
+    all-``0`` period-3 cycle alongside the genuine 6-state machine), the correct
+    class is the one whose forward/reverse marginals equal the forward/reverse
+    causal-state stationary distributions.  Among marginal-matching components the
+    information-anatomy identity ``h_μ = b_μ + r_μ`` and then the support size break
+    remaining ties; if none match we fall back to the smallest-mismatch component.
     """
     pairs = [state for state in graph.states() if isinstance(state, tuple) and len(state) == 2]
     if not pairs:
         return {}
+
+    pi_plus = _stationary_state_probabilities(forward)
+    pi_minus = _stationary_state_probabilities(reverse)
 
     components = sorted(
         _undirected_components(graph),
         key=lambda component: (len(component), sorted(component, key=repr)),
     )
 
-    best: dict[tuple[Hashable, Hashable], float] | None = None
-    best_support = len(pairs) + 1
-    best_anatomy_gap = float("inf")
+    candidates: list[tuple[float, float, int, dict[tuple[Hashable, Hashable], float]]] = []
     for component in components:
         component_pairs = [pair for pair in pairs if pair in component]
         joint = _joint_pi_on_pair_subset(graph, component_pairs, tol=tol)
         if joint is None:
             continue
-        support = len(joint)
+        marginal_error = _joint_marginal_mismatch(joint, pi_plus, pi_minus)
         anatomy_gap = _anatomy_gap_for_joint(graph, joint, forward, reverse)
-        if support < best_support or (support == best_support and anatomy_gap < best_anatomy_gap):
-            best = joint
-            best_support = support
-            best_anatomy_gap = anatomy_gap
-            if support == 1 and anatomy_gap <= 1e-9:
-                break
+        candidates.append((marginal_error, anatomy_gap, len(joint), joint))
 
-    if best is not None:
-        return best
-    return {}
+    if not candidates:
+        return {}
+
+    matching = [candidate for candidate in candidates if candidate[0] <= marginal_tol]
+    if matching:
+        best = min(matching, key=lambda candidate: (candidate[1], candidate[2]))
+    else:
+        best = min(candidates, key=lambda candidate: (candidate[0], candidate[1], candidate[2]))
+    return best[3]
 
 
 def _canonical_joint_state(

@@ -247,6 +247,45 @@ def test_bidirectional_joint_pi_matches_marginals():
         assert pi_minus[state] == pytest.approx(float(pi_r[i]), abs=1e-9)
 
 
+def test_nemo_bidirectional_selects_true_recurrent_component():
+    """Nemo admits a spurious all-0 3-cycle; the genuine 6-state class must be selected.
+
+    Mahoney et al., arXiv:0906.5099. The Eq. (15) graph has two closed recurrent
+    components; the degenerate one gives E = log2 3 > C_mu, which is impossible.
+    """
+    pytest.importorskip("dit")
+    import networkx as nx
+
+    from pensive.examples import nemo_process
+
+    forward = nemo_process(0.5, 0.5)
+    bidir = forward.to_bidirectional()
+
+    assert len(list(bidir.states())) == 6
+    graph = bidir.to_networkx()
+    assert len(list(nx.weakly_connected_components(graph))) == 1
+
+    c_mu = forward.statistical_complexity()
+    assert bidir.excess_entropy() <= c_mu + 1e-9
+    assert bidir.entropy_rate() == pytest.approx(0.75, abs=1e-9)
+
+    # Joint marginals equal the forward/reverse causal-state stationary marginals.
+    joint = bidir.joint_distribution()
+    pi_plus = dict.fromkeys(forward.states(), 0.0)
+    pi_minus = dict.fromkeys(bidir.reverse_machine.states(), 0.0)
+    for (alpha, gamma), mass in joint.items():
+        pi_plus[alpha] += mass
+        pi_minus[gamma] += mass
+    idx_f = forward.reindex()
+    pi_f = forward.stationary_distribution()
+    idx_r = bidir.reverse_machine.reindex()
+    pi_r = bidir.reverse_machine.stationary_distribution()
+    for i, state in enumerate(idx_f.states):
+        assert pi_plus[state] == pytest.approx(float(pi_f[i]), abs=1e-9)
+    for i, state in enumerate(idx_r.states):
+        assert pi_minus[state] == pytest.approx(float(pi_r[i]), abs=1e-9)
+
+
 def test_bidirectional_tent_map_fig8_edges():
     """Supplement Fig.~8 topology with symbolic ``1/2`` and ``a/(a+1)`` weights."""
     from pensive.examples.epsilon_machines import _tent_map_misiurewicz_fig8_edges, tent_map_misiurewicz_a
@@ -272,8 +311,7 @@ def test_bidirectional_tent_map_fig8_edges():
         (("C", "F"), 1, ("D", "E"), inv_a1),
     ]
     actual = sorted(
-        (source, symbol, target, prob)
-        for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(a)
+        (source, symbol, target, prob) for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(a)
     )
     assert len(actual) == len(expected)
     for got, want in zip(actual, sorted(expected), strict=True):

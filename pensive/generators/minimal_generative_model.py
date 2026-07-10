@@ -120,11 +120,12 @@ def minimal_generative_model(
     bidir: BidirectionalEpsilonMachine,
     *,
     bound: int | None = None,
-    niter: int | None = None,
+    niter: int | None = 10,
     maxiter: int = 1000,
-    polish: float | bool = 1e-6,
+    polish: float | bool = 1e-8,
     backend: str = "numpy",
     cutoff: float = 1e-10,
+    reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
 ) -> MinimalGenerativeModel:
     """Construct a minimal generative model from a bidirectional epsilon-machine.
@@ -132,6 +133,14 @@ def minimal_generative_model(
     Parameters mirror :class:`dit.multivariate.common_informations.ExactCommonInformation`.
     The returned model is an edge-emitting HMM over the optimized generative
     state ``G``.
+
+    The exact-common-information optimizer is stochastic and can converge to the
+    right objective value while returning a generative channel that does not
+    reproduce the source process.  The result is therefore verified against the
+    source process (word probabilities up to ``reproduction_atol``); if it fails,
+    the deterministic functional-common-information realization -- which always
+    reproduces the process and renders ``S+`` and ``S-`` conditionally
+    independent -- is returned instead.
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")
@@ -149,16 +158,26 @@ def minimal_generative_model(
         cutoff=cutoff,
         rng=rng,
     )
+    model = _model_from_channel(
+        bidir,
+        joint,
+        pair_channel,
+        model_cls=MinimalGenerativeModel,
+        model_name="minimal generative model",
+        measure_kwargs={"exact_common_information": exact_common_information},
+        cutoff=cutoff,
+    )
     return cast(
         MinimalGenerativeModel,
-        _model_from_channel(
+        _ensure_reproducing(
             bidir,
             joint,
-            pair_channel,
+            model,
             model_cls=MinimalGenerativeModel,
             model_name="minimal generative model",
             measure_kwargs={"exact_common_information": exact_common_information},
             cutoff=cutoff,
+            reproduction_atol=reproduction_atol,
         ),
     )
 
@@ -167,11 +186,12 @@ def wyner_generative_model(
     bidir: BidirectionalEpsilonMachine,
     *,
     bound: int | None = None,
-    niter: int | None = None,
+    niter: int | None = 10,
     maxiter: int = 1000,
-    polish: float | bool = 1e-6,
+    polish: float | bool = 1e-8,
     backend: str = "numpy",
     cutoff: float = 1e-10,
+    reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
 ) -> WynerGenerativeModel:
     """Construct a Wyner generative model from a bidirectional epsilon-machine.
@@ -180,6 +200,11 @@ def wyner_generative_model(
     it minimizes ``I[(S+, S-) : G]`` subject to rendering ``S+`` and ``S-``
     conditionally independent. The returned model's state entropy ``H[G]`` is
     not generally equal to that optimized mutual information.
+
+    Like :func:`minimal_generative_model`, the stochastic optimizer's generative
+    channel is verified against the source process (word probabilities up to
+    ``reproduction_atol``); on failure the deterministic functional realization
+    is returned instead (its ``H[G]`` may exceed the reported Wyner value).
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")
@@ -197,16 +222,26 @@ def wyner_generative_model(
         cutoff=cutoff,
         rng=rng,
     )
+    model = _model_from_channel(
+        bidir,
+        joint,
+        pair_channel,
+        model_cls=WynerGenerativeModel,
+        model_name="Wyner generative model",
+        measure_kwargs={"wyner_common_information": wyner_common_information},
+        cutoff=cutoff,
+    )
     return cast(
         WynerGenerativeModel,
-        _model_from_channel(
+        _ensure_reproducing(
             bidir,
             joint,
-            pair_channel,
+            model,
             model_cls=WynerGenerativeModel,
             model_name="Wyner generative model",
             measure_kwargs={"wyner_common_information": wyner_common_information},
             cutoff=cutoff,
+            reproduction_atol=reproduction_atol,
         ),
     )
 
@@ -631,6 +666,67 @@ def _state_masses(
     for pair, pair_mass in joint.items():
         masses += pair_mass * pair_channel[pair]
     return masses
+
+
+def _reproduction_length(reference: Any) -> int:
+    """Word length at which to compare a generative model against the source process."""
+    n_states = len(list(reference.states()))
+    return min(8, max(4, 2 * n_states))
+
+
+def _reproduction_error(model: Any, reference: Any, *, max_length: int) -> float:
+    """Max abs word-probability deviation of ``model`` from ``reference`` up to ``max_length``."""
+    error = 0.0
+    for length in range(max_length + 1):
+        model_words = model.word_probabilities(length, sparse=False)
+        reference_words = reference.word_probabilities(length, sparse=False)
+        for word in set(model_words) | set(reference_words):
+            error = max(error, abs(model_words.get(word, 0.0) - reference_words.get(word, 0.0)))
+    return error
+
+
+def _ensure_reproducing(
+    bidir: BidirectionalEpsilonMachine,
+    joint: dict[tuple[Hashable, Hashable], float],
+    model: _CommonInformationGenerativeModel,
+    *,
+    model_cls: type[_CommonInformationGenerativeModel],
+    model_name: str,
+    measure_kwargs: dict[str, float],
+    cutoff: float,
+    reproduction_atol: float,
+    strategy: str = "auto",
+) -> _CommonInformationGenerativeModel:
+    """Return ``model`` if it reproduces the source process, else the functional fallback.
+
+    The exact-/Wyner-common-information optimizers are stochastic and can return a
+    channel that fails to reproduce the process even when the objective value is
+    correct. The deterministic functional-common-information channel always
+    reproduces the process and renders ``S+`` and ``S-`` conditionally
+    independent, so it is used as an exact fallback (the optimizer's reported
+    measure value is preserved). Raises if even the functional realization fails.
+    """
+    reference = bidir.forward_machine
+    max_length = _reproduction_length(reference)
+    if _reproduction_error(model, reference, max_length=max_length) <= reproduction_atol:
+        return model
+
+    functional_channel, _functional_value = _functional_state_channel(joint, cutoff=cutoff, strategy=strategy)
+    fallback = _model_from_channel(
+        bidir,
+        joint,
+        functional_channel,
+        model_cls=model_cls,
+        model_name=model_name,
+        measure_kwargs=measure_kwargs,
+        cutoff=cutoff,
+    )
+    if _reproduction_error(fallback, reference, max_length=max_length) > reproduction_atol:
+        raise StochasticValidationError(
+            f"{model_name} does not reproduce the source process within {reproduction_atol:g} "
+            "and the deterministic functional fallback also failed"
+        )
+    return fallback
 
 
 def _model_from_channel(

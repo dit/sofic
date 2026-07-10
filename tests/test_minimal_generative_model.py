@@ -15,6 +15,7 @@ from pensive.generators.minimal_generative_model import (
     MinimalGenerativeModel,
     _auxiliary_state_channel,
     _model_from_channel,
+    _reproduction_error,
 )
 from pensive.graph import ATTR_EMISSION, ATTR_PROB
 
@@ -249,6 +250,65 @@ def test_binary_markov_period_two_boundary_uses_matching_support():
         _assert_same_words(process, mgm)
         assert mgm.generative_complexity() == pytest.approx(1.0, abs=1e-12)
         assert len(list(mgm.states())) == 2
+
+
+def test_nemo_minimal_generative_model_reproduces_process():
+    """Regression: Nemo's minimal generative model reproduces the process (three states, C_g = 1.5).
+
+    The exact-common-information optimizer alone returns a non-reproducing channel
+    here; the reproduction guard falls back to the deterministic functional
+    realization, which is isomorphic to the forward epsilon-machine.
+    """
+    from pensive.examples import nemo_process
+
+    process = nemo_process(0.5, 0.5)
+    mgm = process.minimal_generative_model(niter=2, rng=np.random.default_rng(0))
+
+    _assert_same_words(process, mgm)
+    assert len([state for state, mass in mgm.initial_distribution.items() if mass > 1e-8]) == 3
+    assert mgm.generative_complexity() == pytest.approx(1.5, abs=1e-6)
+    assert mgm.generative_complexity() <= process.statistical_complexity() + 1e-8
+    assert process.to_bidirectional().excess_entropy() <= mgm.generative_complexity() + 1e-8
+
+
+def test_ensure_reproducing_falls_back_to_functional_channel():
+    """A deliberately non-reproducing channel is replaced by the functional fallback."""
+    from pensive.examples import nemo_process
+    from pensive.generators.minimal_generative_model import (
+        _ensure_reproducing,
+        _normalized_joint_distribution,
+    )
+
+    bidir = nemo_process(0.5, 0.5).to_bidirectional()
+    joint = _normalized_joint_distribution(bidir, cutoff=1e-10)
+
+    # Collapse every joint pair onto one generative state: an i.i.d.-like generator
+    # that cannot reproduce the (non-i.i.d.) Nemo process.
+    bad_channel = {pair: {"G0": 1.0} for pair in joint}
+    bad_model = _model_from_channel(
+        bidir,
+        joint,
+        bad_channel,
+        model_cls=MinimalGenerativeModel,
+        model_name="minimal generative model",
+        measure_kwargs={"exact_common_information": 0.0},
+        cutoff=1e-10,
+    )
+    assert _reproduction_error(bad_model, bidir.forward_machine, max_length=6) > 1e-3
+
+    fixed = _ensure_reproducing(
+        bidir,
+        joint,
+        bad_model,
+        model_cls=MinimalGenerativeModel,
+        model_name="minimal generative model",
+        measure_kwargs={"exact_common_information": 0.0},
+        cutoff=1e-10,
+        reproduction_atol=1e-3,
+    )
+
+    _assert_same_words(bidir.forward_machine, fixed)
+    assert len(list(fixed.states())) == 3
 
 
 def test_bidirectional_and_epsilon_machine_apis_agree():
