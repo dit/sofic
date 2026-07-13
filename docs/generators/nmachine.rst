@@ -16,5 +16,5 @@ API
 .. autoclass:: NMachine
    :members: from_epsilon_machine, collision_entropy, process_negativity
 
-.. autofunction:: pensive.generators.nmachine_construction.build_nmachine_from_epsilon
+.. autofunction:: pensive.generators.nmachine_construction.build_nmachine
 .. autofunction:: pensive.generators.nmachine_construction.coarse_grained_distribution

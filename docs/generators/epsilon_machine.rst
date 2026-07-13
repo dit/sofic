@@ -76,5 +76,7 @@ API
 
 .. autoclass:: pensive.generators.block_convergence.BlockConvergenceDiagram
    :members: plot, validate_identities
+   :no-index:
 .. autoclass:: pensive.generators.block_convergence.BlockConvergenceEstimates
    :members: information_anatomy
+   :no-index:

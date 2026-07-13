@@ -1,5 +1,6 @@
 .. transition_graph.rst
 .. py:module:: pensive.core
+   :no-index:
 
 ****************
 TransitionGraph

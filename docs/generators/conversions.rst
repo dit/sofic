@@ -14,6 +14,7 @@ API
 
 .. autofunction:: moore_to_mealy
 .. autofunction:: pfa_to_mealy
+.. autofunction:: hmm_to_sofic_shift
 .. autofunction:: hmm_to_support_nfa
 .. autofunction:: hmm_to_support_dfa
 .. autofunction:: hmm_to_edge_machine

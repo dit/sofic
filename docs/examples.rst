@@ -64,6 +64,45 @@ figures:
 * :func:`golden_mean`
 * :func:`noisy_random_phase_slip`
 
+Process library
+---------------
+
+In addition to the curated ε-machines above, :mod:`pensive.examples.processes`
+ports a large library of parametrized process factories (``GoldenMean``,
+``Even``, ``Nemo``, ``IID``, ``Ising``, ``Ehrenfest``, the periodic and
+``Misiurewicz`` families, and many more). Each is a function that returns a
+generator, defaulting to an :class:`~pensive.generators.epsilon_machine.EpsilonMachine`
+but accepting a ``machine_type`` argument:
+
+.. ipython::
+
+   In [1]: from pensive.examples import GoldenMean, Even, Nemo
+
+   In [2]: gm = GoldenMean(bias=0.5)
+
+   @doctest float
+   In [3]: gm.entropy_rate()
+   Out[3]: 0.6666666666666665
+
+The module also exposes registries — ``processes.process_list`` and
+``processes.transducer_list`` — that enumerate every factory, which is handy for
+parametrized tests and sweeps:
+
+.. ipython::
+
+   In [4]: from pensive.examples import processes
+
+   In [5]: len(processes.process_list) > 0
+   Out[5]: True
+
+A parallel set of transducer factories (``BitFlip``, ``Parity``, ``Delay``,
+``BinaryChannel``, …) lives alongside the processes and produces
+:class:`~pensive.automata.transducers.MealyMachine` instances.
+
+Symbolic-shift examples (:mod:`pensive.examples.shifts`) provide the
+sofic-Dyck factories listed above; access them via
+``from pensive.examples import dyck_shift_order`` or the ``shifts`` module.
+
 Example
 -------
 

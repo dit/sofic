@@ -50,7 +50,7 @@ they report the current block-length approximation to ``h_mu``, ``E``,
 and related convergence curves.  See :doc:`block_convergence`.
 
 CAEKL past-present-future information
-====================================
+=====================================
 
 The Chan-AlBashabsheh-Ebrahimi-Kaced-Liu multivariate mutual information
 :cite:`chan2015multivariate` over the anatomy triple is a finite, closed-form

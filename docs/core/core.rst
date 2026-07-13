@@ -15,4 +15,5 @@ shared by automata, generators, and symbolic models.
    state_machine
    transition_graph
    properties
+   serialization
    exceptions

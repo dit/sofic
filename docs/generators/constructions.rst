@@ -32,5 +32,5 @@ Bidirectional ε-machine
 n-Machine construction
 ======================
 
-.. autofunction:: pensive.generators.nmachine_construction.build_nmachine_from_epsilon
+.. autofunction:: pensive.generators.nmachine_construction.build_nmachine
    :no-index:

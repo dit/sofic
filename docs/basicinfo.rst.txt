@@ -9,13 +9,17 @@ Dependencies:
    * `networkx <https://networkx.github.io/>`_
    * `numpy <http://www.numpy.org/>`_
    * `scipy <https://www.scipy.org/>`_
+   * `pyyaml <https://pyyaml.org/>`_
+   * `dit <https://github.com/dit/dit>`_ (entropy, complexity, crypticity, and information anatomy)
 
 Optional Dependencies
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``dit`` (``pensive[measures]``): entropy, complexity, crypticity, and information anatomy
-* ``graphviz`` (``pensive[viz]``): diagram rendering in terminals and Jupyter
-* ``pytest``, ``hypothesis`` (``pensive[test]``): test suite dependencies
+* ``graphviz`` (``pensive[viz]``): Graphviz diagram rendering in terminals and Jupyter
+* ``pymc``, ``arviz`` (``pensive[bayes]``): PyMC/ArviZ backends for Bayesian inference
+* ``pytest``, ``hypothesis``, ``graphviz`` (``pensive[test]``): test-suite dependencies
+* ``sphinx``, ``ipython``, ``matplotlib`` (``pensive[docs]``): documentation build
+* ``pensive[dev]``: linting, type checking, docs, and all of the above
 
 License:
    BSD 3-Clause, see LICENSE.txt for details.
