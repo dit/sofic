@@ -93,8 +93,46 @@ ergodic-component structure), which is often trivial for mixing processes.
    In [12]: ggm.generative_complexity() == ggm.gk_common_information
    Out[12]: True
 
+Structural / Gauge Anatomy Refinement
+=====================================
+
+The information anatomy :cite:`James2013` splits the entropy rate into predicted
+(:math:`\rho_\mu`), bound (:math:`b_\mu`), and ephemeral (:math:`r_\mu`) rates.
+Because the next forward causal state :math:`S^+_1` is a deterministic function
+of :math:`S^+_0` and :math:`X_0`, each generated rate splits further into a
+*structural* part (randomness that selects a different next causal state, i.e.
+an edge with structural consequence) and a *gauge* / parallel-edge part
+(output relabeling on edges from the same state to the same state):
+
+.. math::
+
+   r_\mu &= \underbrace{\H{S^+_1 \mid S^+_0, S^-_1}}_{\text{structural}}
+          + \underbrace{\H{X_0 \mid S^+_0, S^+_1, S^-_1}}_{\text{gauge}} \\
+   b_\mu &= \underbrace{\I{S^+_1 : S^-_1 \mid S^+_0}}_{\text{structural}}
+          + \underbrace{\I{X_0 : S^-_1 \mid S^+_0, S^+_1}}_{\text{gauge}}
+
+The two structural atoms sum to :math:`\H{S^+_1 \mid S^+_0}` (the rate of
+genuine next-state decisions) and the two gauge atoms to
+:math:`\H{X_0 \mid S^+_0, S^+_1}` (the parallel-edge relabeling rate); together
+they recover :math:`h_\mu`. This refinement has no separate canonical source; it
+follows from the determinism of the forward transition function.
+
+.. ipython::
+
+   In [13]: from pensive.examples import butterfly_process
+
+   In [14]: bidir = butterfly_process().to_bidirectional()
+
+   @doctest float
+   In [15]: bidir.structural_ephemeral_information()
+   Out[15]: 2.25
+
+   @doctest float
+   In [16]: bidir.parallel_edge_information()
+   Out[16]: 0.75
+
 API
 ===
 
 .. autoclass:: BidirectionalEpsilonMachine
-   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, information_anatomy, caekl_causal_information
+   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, structural_ephemeral_information, parallel_edge_information, bound_structural_information, bound_parallel_edge_information, information_anatomy, caekl_causal_information
