@@ -62,9 +62,7 @@ def _require_dit():
     try:
         from dit.divergences.jensen_shannon_divergence import jensen_shannon_divergence_pmf
     except ImportError as exc:
-        raise ImportError(
-            "dit is required for posterior process diversity; install with `pip install dit`"
-        ) from exc
+        raise ImportError("dit is required for posterior process diversity; install with `pip install dit`") from exc
     return jensen_shannon_divergence_pmf
 
 

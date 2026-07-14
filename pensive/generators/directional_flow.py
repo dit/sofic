@@ -17,7 +17,6 @@ def _require_dit():
     return require_dit("directional flow")
 
 
-
 def _pair_block_distribution(generator: HiddenMarkovModel, *, history: int) -> Any:
     """Joint law over flattened ``(x0, y0, x1, y1, ...)`` windows."""
     from pensive.generators.hmm_inference import _stationary_emission_tensors

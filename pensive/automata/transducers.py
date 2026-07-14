@@ -144,8 +144,7 @@ class MealyMachine(Transducer):
 
         for symbol in symbols:
             if not any(
-                transition.data.get(ATTR_SYMBOL) == symbol
-                for transition in result.graph.out_transitions(reject)
+                transition.data.get(ATTR_SYMBOL) == symbol for transition in result.graph.out_transitions(reject)
             ):
                 result.add_transition(reject, reject, symbol, error_output, prob=1.0)
 
@@ -232,9 +231,7 @@ class MealyMachine(Transducer):
             rows[(transition.source, transition.data.get(ATTR_SYMBOL, EPSILON))] += prob
         for (state, symbol), total in rows.items():
             if not np.isclose(total, 1.0):
-                raise StochasticValidationError(
-                    f"transducer row ({state!r}, {symbol!r}) sums to {total}, not 1"
-                )
+                raise StochasticValidationError(f"transducer row ({state!r}, {symbol!r}) sums to {total}, not 1")
 
     def validate(self) -> None:
         super().validate()

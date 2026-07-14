@@ -43,7 +43,10 @@ def cartesian_product_gg(
 
     edge_map: dict[tuple[tuple[Hashable, ...], tuple[Hashable, ...], tuple[Any, ...]], float] = defaultdict(float)
     for source_tuple in product(*states_by_model):
-        outgoing_groups = [list(generator.graph.out_transitions(state)) for generator, state in zip(mealy_generators, source_tuple, strict=True)]
+        outgoing_groups = [
+            list(generator.graph.out_transitions(state))
+            for generator, state in zip(mealy_generators, source_tuple, strict=True)
+        ]
         for edge_tuple in product(*outgoing_groups):
             target = tuple(edge.target for edge in edge_tuple)
             emission = tuple(edge.data.get(ATTR_EMISSION) for edge in edge_tuple)
@@ -73,7 +76,10 @@ def cartesian_product_tt(
 
     edges: list[tuple[Hashable, Hashable, Any, Any, float]] = []
     for source_tuple in product(*states_by_model):
-        outgoing_groups = [list(transducer.graph.out_transitions(state)) for transducer, state in zip(transducers, source_tuple, strict=True)]
+        outgoing_groups = [
+            list(transducer.graph.out_transitions(state))
+            for transducer, state in zip(transducers, source_tuple, strict=True)
+        ]
         for edge_tuple in product(*outgoing_groups):
             target = tuple(edge.target for edge in edge_tuple)
             input_symbol = tuple(_input(edge.data) for edge in edge_tuple)

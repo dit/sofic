@@ -20,9 +20,7 @@ def require_dit(feature: str = "entropy measures") -> Any:
     try:
         import dit
     except ImportError as exc:
-        raise ImportError(
-            f"dit is required for {feature}; install with `pip install dit`"
-        ) from exc
+        raise ImportError(f"dit is required for {feature}; install with `pip install dit`") from exc
     return dit
 
 

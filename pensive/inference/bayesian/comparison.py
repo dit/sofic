@@ -82,13 +82,21 @@ class ModelComparisonMC2(ModelComparisonMC):
         self.orders = order_list
         self.markov_chain_prior = mc_prior
         self.model_order_prior = mo_prior
-        self.mc_dict = {order: MarkovChainPosterior(self.alphabet, data, order, prior_type=mc_prior) for order in order_list}
+        self.mc_dict = {
+            order: MarkovChainPosterior(self.alphabet, data, order, prior_type=mc_prior) for order in order_list
+        }
 
 
 class ModelComparisonEM:
     """Compare candidate unifilar topologies using epsilon-machine evidences."""
 
-    def __init__(self, machines: Iterable[MealyHMM], data: Sequence[Any] | None = None, beta: float = 0.0, state_path: bool = False):
+    def __init__(
+        self,
+        machines: Iterable[MealyHMM],
+        data: Sequence[Any] | None = None,
+        beta: float = 0.0,
+        state_path: bool = False,
+    ):
         from pensive.inference.bayesian.epsilon import EpsilonMachinePosterior
 
         self.beta = float(beta)

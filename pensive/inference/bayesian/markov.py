@@ -39,7 +39,9 @@ class DirichletPriorMC:
         for context in words_iter(self.alphabet, self.order):
             lines.append(f"alpha({pretty_word(context)} -> *) = {self.get_alpha((*context, '*'))}")
             for symbol in self.alphabet:
-                lines.append(f"alpha({pretty_word(context)} -> {pretty_symbol(symbol)}) = {self.get_alpha((*context, symbol))}")
+                lines.append(
+                    f"alpha({pretty_word(context)} -> {pretty_symbol(symbol)}) = {self.get_alpha((*context, symbol))}"
+                )
         return "\n".join(lines) + "\n"
 
     def create_random_prior(self, lower: int, upper: int, rng: np.random.Generator | None = None) -> None:
@@ -136,9 +138,7 @@ class MarkovChainPosterior:
                 if alpha is None:
                     raise BayesianInferenceError("missing prior alpha")
                 cells.append((alpha, self.counts.get_word_count(word)))
-            evidence += dirichlet_multinomial_log_evidence(
-                alpha_root, self.counts.get_word_count(root), cells
-            )
+            evidence += dirichlet_multinomial_log_evidence(alpha_root, self.counts.get_word_count(root), cells)
         return float(evidence)
 
     def average_relative_entropy_plus_entropy_rate(self) -> float:
@@ -209,7 +209,10 @@ class MarkovChainPosterior:
             matrix = self.posterior_mean_matrix()
         elif method == "MLE":
             matrix = np.array(
-                [[self.transition_probability_mle(context, symbol)[0] for symbol in self.alphabet] for context in self.contexts],
+                [
+                    [self.transition_probability_mle(context, symbol)[0] for symbol in self.alphabet]
+                    for context in self.contexts
+                ],
                 dtype=float,
             )
         else:
@@ -227,7 +230,9 @@ class MarkovChainPosterior:
             for j, symbol in enumerate(self.alphabet):
                 prob = float(matrix[i, j])
                 if prob > threshold:
-                    hmm.graph.add_transition(source, self._target_for(context, symbol), **{ATTR_EMISSION: symbol, ATTR_PROB: prob})
+                    hmm.graph.add_transition(
+                        source, self._target_for(context, symbol), **{ATTR_EMISSION: symbol, ATTR_PROB: prob}
+                    )
         hmm.validate()
         return hmm
 
@@ -256,7 +261,9 @@ class MarkovChainPosterior:
                 for j, symbol in enumerate(self.alphabet):
                     prob = float(sample[i, j])
                     if prob > threshold:
-                        hmm.graph.add_transition(source, self._target_for(context, symbol), **{ATTR_EMISSION: symbol, ATTR_PROB: prob})
+                        hmm.graph.add_transition(
+                            source, self._target_for(context, symbol), **{ATTR_EMISSION: symbol, ATTR_PROB: prob}
+                        )
             hmm.validate()
             yield hmm
 

@@ -75,9 +75,7 @@ class StochasticModel(StateMachine):
                 if isinstance(self, EpsilonMachine):
                     return EpsilonMachine.from_time_reversed(self)
                 return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
-            raise NotImplementedError(
-                "time-reversed generators with edge emissions require EpsilonMachine.from_hmm"
-            )
+            raise NotImplementedError("time-reversed generators with edge emissions require EpsilonMachine.from_hmm")
         return time_reverse_stochastic(self)
 
 

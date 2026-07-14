@@ -138,7 +138,9 @@ class DirichletDistributionEM:
         for valid_edge in self.valid_edges:
             self.alphas[valid_edge[0]] += self.alphas[valid_edge]
 
-    def _machine_from_probabilities(self, start_node: Hashable, probabilities: Mapping[tuple[Hashable, Any], float], name: str) -> MealyHMM:
+    def _machine_from_probabilities(
+        self, start_node: Hashable, probabilities: Mapping[tuple[Hashable, Any], float], name: str
+    ) -> MealyHMM:
         machine = MealyHMM(observation_alphabet=getattr(self.machine, "observation_alphabet", frozenset()))
         machine.name = name
         initial_state = self.get_last_node(start_node) if self.data is not None else start_node
@@ -170,7 +172,9 @@ class DirichletDistributionEM:
             if prob is None:
                 raise BayesianInferenceError(f"missing probability for edge {edge!r}")
             probabilities[edge] = prob
-        return self._machine_from_probabilities(start_node, probabilities, f"Posterior Mean Machine, Start Node: {start_node}")
+        return self._machine_from_probabilities(
+            start_node, probabilities, f"Posterior Mean Machine, Start Node: {start_node}"
+        )
 
     def generate_sample(self, start_node: Hashable, rng: np.random.Generator | None = None) -> MealyHMM | None:
         if start_node not in self.valid_startnodes:

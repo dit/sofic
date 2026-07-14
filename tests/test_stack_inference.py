@@ -36,7 +36,6 @@ def _balanced_dyck_alphabet() -> DyckAlphabet:
     )
 
 
-
 def _uniform_probabilities(shift):
     from pensive.shifts.sofic_dyck import transition_ref
 
@@ -142,9 +141,7 @@ def test_model_comparison_stack_hmm_prefers_true_topology():
 
     candidates = [true_model]
     for topology in iter_sofic_dyck_topologies(call_symbols=("(",), return_symbols=(")",)):
-        candidates.append(
-            HiddenMarkovStackModel.from_sofic_dyck_shift(topology, _uniform_probabilities(topology))
-        )
+        candidates.append(HiddenMarkovStackModel.from_sofic_dyck_shift(topology, _uniform_probabilities(topology)))
     comparison = ModelComparisonStackHMM(candidates, observations, max_stack_depth=4)
     assert np.isfinite(comparison.log_evidences()[0])
     best = comparison.most_probable_model()

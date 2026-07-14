@@ -56,7 +56,6 @@ def posterior_weights(
     return weights, log_norm
 
 
-
 def pretty_symbol(symbol: Any) -> str:
     """Format a symbol like cmpy's Bayesian inference utilities."""
     if isinstance(symbol, str):
@@ -93,8 +92,7 @@ class WordCountsMC:
         if not self.counts:
             return "No counts."
         formatted = {
-            f"{pretty_word(context)} -> {pretty_symbol(symbol)}": (context, symbol)
-            for context, symbol in self.counts
+            f"{pretty_word(context)} -> {pretty_symbol(symbol)}": (context, symbol) for context, symbol in self.counts
         }
         integer_counts = all(float(value).is_integer() for value in self.counts.values())
         lines = []

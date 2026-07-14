@@ -254,9 +254,7 @@ def _counts_to_stack_hmm(
             if prob <= 0.0:
                 continue
             emitting = [
-                history
-                for history in histories
-                if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
+                history for history in histories if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
             ]
             if not emitting:
                 continue
@@ -374,7 +372,9 @@ def stack_cssr(
         max_stack_depth=max_stack_depth,
     )
     states = _stack_merge(states, history_to_state, counts, alpha=alpha, test=test)
-    states = _stack_drop_transient(states, history_to_state, counts, length=max_length, alphabet=alphabet, max_stack_depth=max_stack_depth)
+    states = _stack_drop_transient(
+        states, history_to_state, counts, length=max_length, alphabet=alphabet, max_stack_depth=max_stack_depth
+    )
     history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
     return _counts_to_stack_hmm(
         states,
@@ -419,11 +419,19 @@ def stack_subtree_merge(
         alphabet=alphabet,
         max_stack_depth=max_stack_depth,
     )
-    history_to_state = {history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state}
+    history_to_state = {
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
+    }
     states = _stack_merge(states, history_to_state, counts, alpha=0.05, test="tv")
-    history_to_state = {history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state}
-    states = _stack_drop_transient(states, history_to_state, counts, length=L, alphabet=alphabet, max_stack_depth=max_stack_depth)
-    history_to_state = {history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state}
+    history_to_state = {
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
+    }
+    states = _stack_drop_transient(
+        states, history_to_state, counts, length=L, alphabet=alphabet, max_stack_depth=max_stack_depth
+    )
+    history_to_state = {
+        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
+    }
     return _counts_to_stack_hmm(
         states,
         counts,

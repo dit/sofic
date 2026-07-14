@@ -25,9 +25,7 @@ def _count_labeled_transitions(hmm) -> int:
 
 def _transitions_between(hmm, source, target):
     return [
-        transition
-        for transition in hmm.transitions()
-        if transition.source == source and transition.target == target
+        transition for transition in hmm.transitions() if transition.source == source and transition.target == target
     ]
 
 

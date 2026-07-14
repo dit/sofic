@@ -169,10 +169,7 @@ def _stack_alphabets(graph: TransitionGraph) -> dict[str, frozenset[Any]]:
 
 
 def _graph_to_data(graph: TransitionGraph) -> dict[str, Any]:
-    nodes = [
-        {"id": _encode(state), "attrs": _encode(dict(attrs))}
-        for state, attrs in graph.nx.nodes(data=True)
-    ]
+    nodes = [{"id": _encode(state), "attrs": _encode(dict(attrs))} for state, attrs in graph.nx.nodes(data=True)]
     edges = [
         {
             "source": _encode(source),
@@ -241,10 +238,7 @@ def _encode(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {
             _TYPE_KEY: "dict",
-            "items": [
-                {"key": _encode(key), "value": _encode(item_value)}
-                for key, item_value in value.items()
-            ],
+            "items": [{"key": _encode(key), "value": _encode(item_value)} for key, item_value in value.items()],
         }
     raise TypeError(f"cannot YAML-serialize value of type {type(value).__qualname__}: {value!r}")
 
