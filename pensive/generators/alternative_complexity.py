@@ -28,7 +28,7 @@ def thermodynamic_depth(machine: EpsilonMachine) -> float:
     """Thermodynamic depth: stationary average mean first-passage time to causal states.
 
     Uses the hidden-state transition matrix (summing over emissions) and the
-  stationary causal-state distribution (Shalizi & Crutchfield, 1999).
+    stationary causal-state distribution (Shalizi & Crutchfield, 1999).
     """
     pi = machine.stationary_distribution()
     states = list(machine.states())

@@ -46,6 +46,35 @@ retrodictive states :math:`S^-` :cite:`Crutchfield1994`:
 Information anatomy satisfies :math:`h_\mu = b_\mu + r_\mu`
 :cite:`James2013`.
 
+Generative complexity and common information
+============================================
+
+Alongside the *predictive* complexity :math:`C_\mu = \H{S^+}`, ``pensive``
+computes *generative* complexities: the minimal state entropy of a (possibly
+non-unifilar) generator of the process. Each corresponds to a common
+information between the forward and reverse causal states :math:`S^+` and
+:math:`S^-`:
+
+* :math:`C_g` — generative complexity, the state entropy :math:`\H{G}` of a
+  generative presentation
+* exact common information (minimal generative model) :cite:`Kumar2014`
+* Wyner common information :cite:`Wyner1975`
+* Gács–Körner common information :cite:`GacsKorner1973`
+* functional common information
+
+See :doc:`generators/generative_models`.
+
+Directional information flow
+============================
+
+For bivariate generators emitting paired symbols :math:`(X, Y)`, ``pensive``
+computes transfer entropy :cite:`Schreiber2000`, directed information, and the
+intrinsic/shared/synergistic decomposition of information flow. See
+:doc:`generators/directional_flow`.
+
+Information-theoretic quantities require ``dit`` :cite:`James2018`, which is a
+core dependency of ``pensive``.
+
 Unifilarity
 ===========
 

@@ -47,8 +47,11 @@ API
 ===
 
 .. autoclass:: Transducer
+   :members: transduce, is_deterministic, is_complete, alphabets
 .. autoclass:: MealyMachine
+   :members: add_transition, transduce, complete, input_machine, output_machine, compose, joint_machine, transduce_generator, labeled_transition_matrices
 .. autoclass:: MooreMachine
+   :members: add_transition, set_output, transduce
 
 .. autofunction:: pensive.automata.transducer_simulation.transduce_mealy
 .. autofunction:: pensive.automata.transducer_simulation.transduce_moore

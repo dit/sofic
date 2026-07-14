@@ -36,8 +36,13 @@ API
 
 .. autofunction:: trim
 .. autofunction:: complete
+.. autofunction:: reverse
 .. autofunction:: determinize
 .. autofunction:: minimize
+.. autofunction:: minimize_hopcroft
+.. autofunction:: minimize_moore
+.. autofunction:: minimize_brzozowski
 .. autofunction:: equivalent
 .. autofunction:: pensive.automata.regex.automaton_to_regex
-.. autoclass:: MinimizationAlgorithm
+
+.. autodata:: MinimizationAlgorithm

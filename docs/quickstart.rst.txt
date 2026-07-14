@@ -4,14 +4,16 @@
 Quickstart
 ----------
 
-The basic workflow of ``pensive`` is to build or load a stochastic generator,
-validate it, and compute structural or information-theoretic properties.
+The basic workflow is the same for every model: build (or load) a model,
+call ``validate()``, then compute properties or convert to another
+presentation. States can be any hashable object, and every model exposes
+``states()``, ``transitions()``, ``draw()``, and ``to_yaml()``.
 
-Golden mean ε-machine
-~~~~~~~~~~~~~~~~~~~~~
+Stochastic generators
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Build the golden mean process (forbid-``11`` convention) and compute
-computational mechanics quantities :cite:`Ellison2009`:
+Build the golden mean process (forbid-``11`` convention) as an ε-machine and
+read off computational-mechanics quantities :cite:`Crutchfield1994,Ellison2009`:
 
 .. ipython::
 
@@ -35,11 +37,56 @@ computational mechanics quantities :cite:`Ellison2009`:
    In [6]: eps.cryptic_order()
    Out[6]: 1
 
+Finite automata
+~~~~~~~~~~~~~~~
+
+Recognize the language of strings with an even number of ``b``\ s, then
+minimize and extract a regular expression:
+
+.. ipython::
+
+   In [1]: from pensive import DFA
+
+   In [2]: dfa = DFA(input_alphabet=frozenset({"a", "b"}), initial_states=frozenset({"even"}), accepting_states=frozenset({"even"}))
+
+   In [3]: dfa.graph.add_state("even"); dfa.graph.add_state("odd")
+
+   In [4]: dfa.add_transition("even", "even", "a"); dfa.add_transition("even", "odd", "b");
+
+   In [5]: dfa.add_transition("odd", "odd", "a"); dfa.add_transition("odd", "even", "b");
+
+   In [6]: dfa.validate()
+
+   @doctest
+   In [7]: dfa.recognizes("abba"), dfa.recognizes("abbb")
+   Out[7]: (True, False)
+
+Symbolic shifts
+~~~~~~~~~~~~~~~
+
+Present the golden-mean shift as a topological Markov chain and compute its
+topological entropy (the log of the golden ratio) :cite:`LindMarcus1995`:
+
+.. ipython::
+
+   In [1]: import numpy as np; from pensive import TopologicalMarkovChain
+
+   In [2]: tmc = TopologicalMarkovChain.from_adjacency(np.array([[1, 1], [1, 0]], dtype=float), symbol_alphabet=frozenset({0, 1}))
+
+   In [3]: tmc.validate()
+
+   @doctest float
+   In [4]: tmc.topological_entropy()
+   Out[4]: 0.4812118250596035
+
+The Parry measure turns the shift into the maximum-entropy ``MealyHMM`` on it
+(``tmc.parry_measure()``), the measure that attains this topological entropy.
+
 Bidirectional ε-machine
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-A bidirectional presentation pairs forward and reverse causal states. With
-``dit`` installed (``pip install pensive[measures]``):
+A bidirectional presentation pairs forward and reverse causal states, exposing
+the excess entropy and crypticity:
 
 .. ipython::
 
@@ -94,3 +141,23 @@ transitions:
    @doctest
    In [2]: len(list(edge.states()))
    Out[2]: 7
+
+Inference from data
+~~~~~~~~~~~~~~~~~~~~
+
+Reconstruct an ε-machine from a sampled sequence with Causal-State Splitting
+Reconstruction :cite:`Shalizi2004`, or compare candidate Markov orders with
+exact Bayesian evidences :cite:`Strelioff2014`. See :doc:`inference/inference`.
+
+Converting between presentations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The presentations are linked by a web of conversions: HMMs minimize to
+ε-machines (:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.from_hmm`),
+probabilistic models drop their weights to become automata or shifts
+(:meth:`~pensive.generators.base.HiddenMarkovModel.to_sofic_shift`,
+:meth:`~pensive.generators.base.HiddenMarkovModel.to_support_dfa`), NFAs
+determinize to DFAs (:meth:`~pensive.automata.nfa.NFA.determinize`), and shifts
+yield their maximum-entropy measure
+(:meth:`~pensive.shifts.tmc.TopologicalMarkovChain.parry_measure`). Every model
+round-trips through YAML via ``to_yaml`` / ``from_yaml``.

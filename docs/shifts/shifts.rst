@@ -13,7 +13,9 @@ type, Sofic shifts, Dyck shifts, topological Markov chains, and covers
 
    shift_of_finite_type
    sofic_shift
+   topological_anatomy
    sofic_dyck_shift
    markov_dyck_shift
    topological_markov_chain
+   dyck_enumeration
    covers

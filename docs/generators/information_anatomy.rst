@@ -50,7 +50,7 @@ they report the current block-length approximation to ``h_mu``, ``E``,
 and related convergence curves.  See :doc:`block_convergence`.
 
 CAEKL past-present-future information
-====================================
+=====================================
 
 The Chan-AlBashabsheh-Ebrahimi-Kaced-Liu multivariate mutual information
 :cite:`chan2015multivariate` over the anatomy triple is a finite, closed-form
@@ -102,3 +102,11 @@ information — are exposed as :meth:`~pensive.generators.epsilon_machine.Epsilo
 :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.oracular_information`,
 :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.gauge_information`, and
 :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.predictability_gain`.
+
+Topological anatomy
+===================
+
+Evaluating this same anatomy at the measure of maximal entropy of a sofic shift
+yields the *topological* split ``h_top = b_top + r_top`` — a conjugacy invariant
+of the shift space rather than of a particular measure.  See
+:doc:`../shifts/topological_anatomy`.

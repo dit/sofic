@@ -33,6 +33,7 @@ Computational mechanics
    mixed_state_presentation
    edge_machine
    information_anatomy
+   generative_models
    directional_flow
    alternative_complexity
 
@@ -54,6 +55,7 @@ Inference
 
    hmm_inference
    epsilon_inference
+   stack_inference
 
 Advanced
 ========

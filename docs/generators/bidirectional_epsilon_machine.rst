@@ -31,8 +31,8 @@ Minimal Generative Models
 
 The bidirectional machine can be reduced to a non-unifilar minimal
 generative model by optimizing the exact common information between the
-forward and reverse causal states. This requires the optional
-``pensive[measures]`` dependencies.
+forward and reverse causal states (see :doc:`generative_models` for the full
+family of constructions and their common-information ordering).
 
 .. ipython::
 
