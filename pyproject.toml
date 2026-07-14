@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "dit",
+    "dit>=2.1",
     "networkx>=2.6",
     "numpy>=1.22",
     "pyyaml>=6.0",
@@ -75,9 +75,6 @@ bayes = [
 
 [tool.uv]
 override-dependencies = ["pycddlib; sys_platform == 'never'"]
-
-[tool.uv.sources]
-dit = { path = "../dit", editable = true }
 
 # ── Build configuration ─────────────────────────────────────────────────
 

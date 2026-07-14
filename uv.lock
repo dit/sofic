@@ -505,7 +505,8 @@ wheels = [
 
 [[package]]
 name = "dit"
-source = { editable = "../dit" }
+version = "2.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boltons" },
     { name = "debtcollector" },
@@ -517,87 +518,10 @@ dependencies = [
     { name = "scipy" },
     { name = "xarray" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "boltons" },
-    { name = "colorama", marker = "extra == 'dev'" },
-    { name = "colorama", marker = "extra == 'docs'" },
-    { name = "colorama", marker = "extra == 'optional'" },
-    { name = "debtcollector" },
-    { name = "ecos", marker = "extra == 'broja'" },
-    { name = "hypothesis", marker = "extra == 'dev'" },
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0" },
-    { name = "hypothesis", marker = "extra == 'docs'" },
-    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.0" },
-    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'dev'" },
-    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'" },
-    { name = "ipython", marker = "extra == 'dev'" },
-    { name = "ipython", marker = "extra == 'docs'" },
-    { name = "jax", marker = "extra == 'dev'" },
-    { name = "jax", marker = "extra == 'jax'" },
-    { name = "jaxlib", marker = "extra == 'dev'" },
-    { name = "jaxlib", marker = "extra == 'jax'" },
-    { name = "lattices", specifier = ">=0.5" },
-    { name = "loguru" },
-    { name = "matplotlib", marker = "extra == 'dev'" },
-    { name = "matplotlib", marker = "extra == 'docs'" },
-    { name = "matplotlib", marker = "extra == 'optional'" },
-    { name = "music21", marker = "extra == 'music'" },
-    { name = "nbconvert", marker = "extra == 'dev'" },
-    { name = "nbconvert", marker = "extra == 'docs'" },
-    { name = "networkx", specifier = ">=2.6" },
-    { name = "numdifftools", marker = "extra == 'dev'" },
-    { name = "numdifftools", marker = "extra == 'docs'" },
-    { name = "numdifftools", marker = "extra == 'optional'" },
-    { name = "numpy", specifier = ">=1.22" },
-    { name = "optimistix", marker = "extra == 'dev'" },
-    { name = "optimistix", marker = "extra == 'jax'" },
-    { name = "pint", marker = "extra == 'dev'" },
-    { name = "pint", marker = "extra == 'docs'" },
-    { name = "pint", marker = "extra == 'optional'" },
-    { name = "pltable" },
-    { name = "pycddlib-standalone", marker = "extra == 'dev'" },
-    { name = "pycddlib-standalone", marker = "extra == 'docs'" },
-    { name = "pycddlib-standalone", marker = "extra == 'optional'" },
-    { name = "pypoman", marker = "extra == 'dev'" },
-    { name = "pypoman", marker = "extra == 'optional'" },
-    { name = "pytensor", marker = "extra == 'dev'" },
-    { name = "pytensor", marker = "extra == 'pytensor'" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'test'" },
-    { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
-    { name = "pytest-rerunfailures", marker = "extra == 'test'" },
-    { name = "pytest-sugar", marker = "extra == 'dev'" },
-    { name = "pytest-sugar", marker = "extra == 'test'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'test'" },
-    { name = "python-ternary", marker = "extra == 'dev'" },
-    { name = "python-ternary", marker = "extra == 'docs'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scikit-learn", marker = "extra == 'dev'" },
-    { name = "scikit-learn", marker = "extra == 'docs'" },
-    { name = "scikit-learn", marker = "extra == 'optional'" },
-    { name = "scipy", specifier = ">=1.7" },
-    { name = "slsqp-jax", marker = "extra == 'dev'" },
-    { name = "slsqp-jax", marker = "extra == 'jax'" },
-    { name = "sphinx", marker = "extra == 'dev'" },
-    { name = "sphinx", marker = "extra == 'docs'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
-    { name = "sympy", marker = "extra == 'dev'" },
-    { name = "sympy", marker = "extra == 'docs'" },
-    { name = "sympy", marker = "extra == 'symbolic'" },
-    { name = "torch", marker = "extra == 'dev'" },
-    { name = "torch", marker = "extra == 'torch'" },
-    { name = "ty", marker = "extra == 'dev'" },
-    { name = "xarray" },
+sdist = { url = "https://files.pythonhosted.org/packages/e7/49/76c41727a2b328c0994d8f92a6289052d94f81ee3f0eee9178884c449d48/dit-2.1.tar.gz", hash = "sha256:e2f3c8267e95c48309ad41703f25d417fb40a6ccb4cbf83f215fa9a9ed99e048", size = 475878, upload-time = "2026-06-24T04:57:49.525Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/0e/f2a6cafb83504c28b55d0ddc19bb755339694231f394b5f8e843c1e6307d/dit-2.1-py3-none-any.whl", hash = "sha256:2cde420e6ce7d2ab96480254f67396521dc778f19e83c7445fe4d415f0d4898d", size = 474587, upload-time = "2026-06-24T04:57:47.852Z" },
 ]
-provides-extras = ["broja", "dev", "docs", "jax", "music", "optional", "pytensor", "symbolic", "test", "torch"]
 
 [[package]]
 name = "docutils"
@@ -1520,7 +1444,7 @@ viz = [
 [package.metadata]
 requires-dist = [
     { name = "arviz", marker = "extra == 'bayes'" },
-    { name = "dit", editable = "../dit" },
+    { name = "dit", specifier = ">=2.1" },
     { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },
