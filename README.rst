@@ -5,6 +5,43 @@ pensive
 ``pensive`` is a Python package for hidden Markov models, symbolic dynamics,
 finite state machines, and other stochastic symbol generators.
 
+Basic Information
+-----------------
+
+Documentation
+~~~~~~~~~~~~~~
+
+https://pensive.readthedocs.io
+
+Repository
+~~~~~~~~~~
+
+https://github.com/dit/pensive
+
+Dependencies
+~~~~~~~~~~~~
+
+* Python 3.11+
+* `networkx <https://networkx.github.io/>`_
+* `numpy <http://www.numpy.org/>`_
+* `scipy <https://www.scipy.org/>`_
+* `pyyaml <https://pyyaml.org/>`_
+* `dit <https://github.com/dit/dit>`_ (information-theoretic measures)
+
+Development
+~~~~~~~~~~~
+
+Clone the repository and install development dependencies with ``uv``:
+
+.. code-block:: bash
+
+   git clone https://github.com/dit/pensive.git
+   cd pensive
+   uv sync --extra dev
+
+Run tests with ``uv run pytest``. See the ``generalinfo`` page in the Sphinx
+docs for linting, type checking, and documentation builds.
+
 Introduction
 ------------
 
@@ -325,43 +362,6 @@ transient-information anatomy of a process (James, Burke & Crutchfield, 2013):
    tent = tent_map_misiurewicz_bidirectional()
    tent.information_anatomy()  # {'rho_mu', 'bound_mu', 'ephemeral_mu',
                               #  'entropy_rate', 'excess_entropy', 'crypticity'}
-
-Basic Information
------------------
-
-Documentation
-~~~~~~~~~~~~~~
-
-https://pensive.readthedocs.io
-
-Repository
-~~~~~~~~~~
-
-https://github.com/dit/pensive
-
-Dependencies
-~~~~~~~~~~~~
-
-* Python 3.11+
-* `networkx <https://networkx.github.io/>`_
-* `numpy <http://www.numpy.org/>`_
-* `scipy <https://www.scipy.org/>`_
-* `pyyaml <https://pyyaml.org/>`_
-* `dit <https://github.com/dit/dit>`_ (information-theoretic measures)
-
-Development
-~~~~~~~~~~~
-
-Clone the repository and install development dependencies with ``uv``:
-
-.. code-block:: bash
-
-   git clone https://github.com/dit/pensive.git
-   cd pensive
-   uv sync --extra dev
-
-Run tests with ``uv run pytest``. See the ``generalinfo`` page in the Sphinx
-docs for linting, type checking, and documentation builds.
 
 License
 -------
