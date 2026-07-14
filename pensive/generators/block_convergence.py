@@ -356,7 +356,13 @@ class BlockConvergenceDiagram:
                     if name == "cm":
                         self._plot_cm(panel, marker=marker, show_grid=show_grid, show_legend=show_legend)
                     else:
-                        self.plot(ax=panel, figure=name, show_asymptotes=show_asymptotes, show_grid=show_grid, show_legend=show_legend)
+                        self.plot(
+                            ax=panel,
+                            figure=name,
+                            show_asymptotes=show_asymptotes,
+                            show_grid=show_grid,
+                            show_legend=show_legend,
+                        )
                 if title is not None:
                     axes_list[0].figure.suptitle(title)
                 return axes_list
@@ -389,7 +395,12 @@ class BlockConvergenceDiagram:
                 ax.plot(self.lengths, self.residual_entropy_asymptote, linestyle="--", label=r"$E_R + r_\mu \ell$")
                 ax.plot(self.lengths, self.binding_information_asymptote, linestyle="--", label=r"$E_B + b_\mu \ell$")
                 ax.plot(self.lengths, self.enigmatic_information_asymptote, linestyle="--", label=r"$E_Q + q_\mu \ell$")
-                ax.plot(self.lengths, self.local_exogenous_information_asymptote, linestyle="--", label=r"$E_W + w_\mu \ell$")
+                ax.plot(
+                    self.lengths,
+                    self.local_exogenous_information_asymptote,
+                    linestyle="--",
+                    label=r"$E_W + w_\mu \ell$",
+                )
         elif figure == "fig5_rb":
             ax.plot(self.lengths, self.block_residual_entropy, marker=marker, label=r"$R(\ell)$")
             ax.plot(self.lengths, self.block_binding_information, marker=marker, label=r"$B(\ell)$")
@@ -401,7 +412,12 @@ class BlockConvergenceDiagram:
             ax.plot(self.lengths, self.block_local_exogenous_information, marker=marker, label=r"$W(\ell)$")
             if show_asymptotes:
                 ax.plot(self.lengths, self.enigmatic_information_asymptote, linestyle="--", label=r"$E_Q + q_\mu \ell$")
-                ax.plot(self.lengths, self.local_exogenous_information_asymptote, linestyle="--", label=r"$E_W + w_\mu \ell$")
+                ax.plot(
+                    self.lengths,
+                    self.local_exogenous_information_asymptote,
+                    linestyle="--",
+                    label=r"$E_W + w_\mu \ell$",
+                )
         elif figure == "fig6":
             ax.plot(self.lengths, self.block_coinformation, marker=marker, label=r"$I(\ell)$")
             if show_asymptotes:
@@ -487,10 +503,7 @@ def block_convergence_diagram(
         max_caekl_length=max_caekl_length,
     )
     return BlockConvergenceDiagram(
-        **{
-            field: getattr(estimates, field)
-            for field in BlockConvergenceDiagram.__dataclass_fields__
-        }
+        **{field: getattr(estimates, field) for field in BlockConvergenceDiagram.__dataclass_fields__}
     )
 
 
@@ -522,7 +535,11 @@ def block_convergence_estimates(
 
     exact = _exact_anatomy_scalars(machine) if use_exact else None
     h_mu_exact = exact["entropy_rate"] if exact else None
-    h_mu = float(entropy_rate if entropy_rate is not None else (_entropy_rate(pi, symbol_matrices) if h_mu_exact is None else h_mu_exact))
+    h_mu = float(
+        entropy_rate
+        if entropy_rate is not None
+        else (_entropy_rate(pi, symbol_matrices) if h_mu_exact is None else h_mu_exact)
+    )
 
     statistical_complexity = _entropy(pi)
     excess_entropy = _estimated_excess_entropy(

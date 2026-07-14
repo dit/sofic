@@ -341,8 +341,12 @@ class HiddenMarkovStackModel(StochasticModel):
             key = graph.add_transition(transition.source, transition.target, **data)
             edge_map[ref] = (transition.source, transition.target, key)
 
-        matched_edges = frozenset((edge_map[call_ref], edge_map[return_ref]) for call_ref, return_ref in shift.matched_edges)
-        initial = dict(initial_distribution) if initial_distribution is not None else _uniform_initial_distribution(shift)
+        matched_edges = frozenset(
+            (edge_map[call_ref], edge_map[return_ref]) for call_ref, return_ref in shift.matched_edges
+        )
+        initial = (
+            dict(initial_distribution) if initial_distribution is not None else _uniform_initial_distribution(shift)
+        )
         return cls(
             graph=graph,
             initial_distribution=initial,

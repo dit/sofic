@@ -210,7 +210,9 @@ def _encode_topological_graph_from_root(
         state_index += 1
 
     if len(index_to_state) != len(states):
-        raise TopologicalEpsilonEnumerationError("epsilon machine graph must be initially connected from the selected root")
+        raise TopologicalEpsilonEnumerationError(
+            "epsilon machine graph must be initially connected from the selected root"
+        )
 
     validate_idfa_string(transitions, n=len(states), k=len(symbols))
     return tuple(transitions)
@@ -253,8 +255,7 @@ def is_minimal_idfa(transitions: Sequence[int], *, n: int, k: int) -> bool:
             groups: dict[tuple[object, ...], set[int]] = {}
             for state in block:
                 signature = tuple(
-                    None if table[state][symbol] is None else block_index[table[state][symbol]]
-                    for symbol in range(k)
+                    None if table[state][symbol] is None else block_index[table[state][symbol]] for symbol in range(k)
                 )
                 groups.setdefault(signature, set()).add(state)
             if len(groups) > 1:

@@ -132,9 +132,9 @@ def dyck_graph_string_to_shift(spec: DyckGraphString) -> SoficDyckShift:
 
 
 def _one_state_transition_choices(
-  symbols_per_kind: Sequence[int],
-  *,
-  include_empty: bool,
+    symbols_per_kind: Sequence[int],
+    *,
+    include_empty: bool,
 ) -> Iterator[tuple[tuple[int, int, int, int], ...]]:
     """Enumerate transition subsets on a single state looping to itself."""
     slots: list[tuple[int, int, int, int]] = []

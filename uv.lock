@@ -505,7 +505,7 @@ wheels = [
 
 [[package]]
 name = "dit"
-version = "2.1"
+version = "2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boltons" },
@@ -518,9 +518,9 @@ dependencies = [
     { name = "scipy" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/49/76c41727a2b328c0994d8f92a6289052d94f81ee3f0eee9178884c449d48/dit-2.1.tar.gz", hash = "sha256:e2f3c8267e95c48309ad41703f25d417fb40a6ccb4cbf83f215fa9a9ed99e048", size = 475878, upload-time = "2026-06-24T04:57:49.525Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/e3/17530ca2c0f2bc42f771700ca5ed61fefd0a447f7d593f1221cbcb1c3d1e/dit-2.2.tar.gz", hash = "sha256:957fea2890148c005aca0ed01ebde48ef5aecda8385072dc86c1fb2b0b3dd324", size = 547354, upload-time = "2026-07-14T03:45:02.067Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/0e/f2a6cafb83504c28b55d0ddc19bb755339694231f394b5f8e843c1e6307d/dit-2.1-py3-none-any.whl", hash = "sha256:2cde420e6ce7d2ab96480254f67396521dc778f19e83c7445fe4d415f0d4898d", size = 474587, upload-time = "2026-06-24T04:57:47.852Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/17/0e18c8c994535bc409f7455a5a34fcaa7e19f8f1a43648b4ffe329ef0718/dit-2.2-py3-none-any.whl", hash = "sha256:e8f1929e201d1229ed333e8032f5e39925f97071331e45e9cff81646dcf9ecdf", size = 540525, upload-time = "2026-07-14T03:44:59.975Z" },
 ]
 
 [[package]]
@@ -1444,7 +1444,7 @@ viz = [
 [package.metadata]
 requires-dist = [
     { name = "arviz", marker = "extra == 'bayes'" },
-    { name = "dit", specifier = ">=2.1" },
+    { name = "dit", specifier = ">=2.2" },
     { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },

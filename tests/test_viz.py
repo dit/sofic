@@ -142,9 +142,7 @@ def test_graphviz_nested_frozenset_state_labels_are_readable():
 
 
 def test_tikz_nested_frozenset_state_labels_are_readable():
-    assert format_state_tikz_node(frozenset({frozenset({0}), frozenset({1, 2})})) == (
-        r"\{\{0\}{,} \{1{,} 2\}\}"
-    )
+    assert format_state_tikz_node(frozenset({frozenset({0}), frozenset({1, 2})})) == (r"\{\{0\}{,} \{1{,} 2\}\}")
     source = model_to_tikz(_nested_frozenset_dfa())
     assert "frozenset(" not in source
     assert r"\{\{0\}{,} \{1{,} 2\}\}" in source

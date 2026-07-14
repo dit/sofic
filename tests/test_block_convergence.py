@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from pensive.examples import even_process, fair_coin, golden_mean, noisy_random_phase_slip
@@ -59,7 +57,7 @@ def test_golden_mean_table_i_scalars():
     assert est.r_mu == pytest.approx(0.45915, abs=1e-4)
     assert est.b_mu == pytest.approx(0.20752, abs=1e-4)
     assert est.q_mu == pytest.approx(0.04411, abs=1e-4)
-    assert est.E == pytest.approx(0.25163, abs=1e-4)
+    assert pytest.approx(0.25163, abs=1e-4) == est.E
 
 
 def test_even_process_table_i_scalars():
@@ -79,7 +77,7 @@ def test_nrps_table_i_scalars():
     assert est.block_entropy[1] == pytest.approx(0.97987, abs=1e-4)
     assert est.h_mu == pytest.approx(0.5, abs=1e-4)
     assert est.rho_mu == pytest.approx(0.47987, abs=1e-4)
-    assert est.E == pytest.approx(1.57393, abs=1e-4)
+    assert pytest.approx(1.57393, abs=1e-4) == est.E
     assert est.r_mu + est.b_mu == pytest.approx(est.h_mu, abs=1e-4)
     assert est.b_mu == pytest.approx(0.33333, abs=1e-4)
     assert est.r_mu == pytest.approx(0.16667, abs=1e-4)

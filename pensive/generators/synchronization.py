@@ -97,9 +97,7 @@ def _bellman_ford_longest_transient_path(pa: PowerAutomaton) -> float:
             edges.append((source, target, weight))
             reverse_edges.setdefault(target, set()).add(source)
 
-    sync_reachable: set[frozenset[Hashable]] = {
-        node for node in nodes if pa.graph.is_recurrent_pa_state(node)
-    }
+    sync_reachable: set[frozenset[Hashable]] = {node for node in nodes if pa.graph.is_recurrent_pa_state(node)}
     queue = list(sync_reachable)
     while queue:
         current = queue.pop(0)
@@ -109,7 +107,11 @@ def _bellman_ford_longest_transient_path(pa: PowerAutomaton) -> float:
             sync_reachable.add(predecessor)
             queue.append(predecessor)
 
-    edges = [(source, target, weight) for source, target, weight in edges if source in sync_reachable and target in sync_reachable]
+    edges = [
+        (source, target, weight)
+        for source, target, weight in edges
+        if source in sync_reachable and target in sync_reachable
+    ]
 
     node_list = list(nodes)
     n = len(node_list)

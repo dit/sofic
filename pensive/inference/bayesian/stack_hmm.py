@@ -140,11 +140,7 @@ class DirichletDistributionStackHMM:
                 mean = (count + alpha) / (row_count + row_alpha)
                 edge_totals[edge] += mean
                 edge_counts[edge] += 1.0
-        return {
-            edge: edge_totals[edge] / edge_counts[edge]
-            for edge in edge_totals
-            if edge_counts[edge] > 0
-        }
+        return {edge: edge_totals[edge] / edge_counts[edge] for edge in edge_totals if edge_counts[edge] > 0}
 
     def posterior_mean_model(self) -> HiddenMarkovStackModel:
         from pensive.shifts.sofic_dyck import SoficDyckShift

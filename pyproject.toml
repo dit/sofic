@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "dit>=2.1",
+    "dit>=2.2",
     "networkx>=2.6",
     "numpy>=1.22",
     "pyyaml>=6.0",
@@ -184,11 +184,19 @@ known-first-party = ["pensive"]
 [tool.ty.environment]
 python-version = "3.13"
 
+[tool.ty.analysis]
+# Optional/conditional dependencies
+allowed-unresolved-imports = [
+    "pymc",
+    "pymc.**",
+]
+
 [tool.ty.rules]
 unresolved-import = "error"
 unresolved-attribute = "warn"
 call-non-callable = "warn"
 invalid-argument-type = "warn"
+invalid-return-type = "warn"
 not-subscriptable = "warn"
 invalid-method-override = "warn"
 missing-argument = "warn"

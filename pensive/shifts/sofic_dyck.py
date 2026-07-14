@@ -40,7 +40,9 @@ class SoficDyckShift(SymbolicModel):
         self.return_alphabet = return_alphabet if return_alphabet is not None else frozenset()
         self.internal_alphabet = internal_alphabet if internal_alphabet is not None else frozenset()
         inferred_alphabet = self.call_alphabet | self.return_alphabet | self.internal_alphabet
-        super().__init__(symbol_alphabet=symbol_alphabet if symbol_alphabet is not None else inferred_alphabet, **kwargs)
+        super().__init__(
+            symbol_alphabet=symbol_alphabet if symbol_alphabet is not None else inferred_alphabet, **kwargs
+        )
         self.matched_edges = frozenset(matched_edges or frozenset())
 
     def validate(self) -> None:
