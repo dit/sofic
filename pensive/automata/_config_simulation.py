@@ -9,9 +9,13 @@ that loop; the per-kind transition logic stays with each caller.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from typing import TypeVar
+
+Config = TypeVar("Config")
+Step = TypeVar("Step")
 
 
-def simulate_configs[Config, Step](
+def simulate_configs(
     initial: set[Config],
     steps: Iterable[Step],
     step_fn: Callable[[Config, Step], Iterable[Config]],

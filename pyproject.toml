@@ -175,6 +175,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "test_*.py" = ["N817", "S101"]
 "__init__.py" = ["F401", "F403"]
+# PEP 695 type-parameter syntax requires Python 3.12+; keep TypeVar for 3.11.
+"pensive/automata/_config_simulation.py" = ["UP047"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pensive"]
