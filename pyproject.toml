@@ -56,6 +56,7 @@ docs = [
     "sphinxcontrib-bibtex",
     "ipython",
     "matplotlib",
+    "sofic[symbolic]",
 ]
 dev = [
     "sofic[test,viz]",
@@ -195,6 +196,8 @@ python-version = "3.13"
 allowed-unresolved-imports = [
     "pymc",
     "pymc.**",
+    "sympy",
+    "sympy.**",
 ]
 
 [tool.ty.rules]

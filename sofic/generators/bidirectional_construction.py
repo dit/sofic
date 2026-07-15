@@ -215,8 +215,7 @@ def _compatible_pairs(
 
 def _forward_emits(forward: EpsilonMachine, state: Hashable, symbol: Any) -> bool:
     return any(
-        transition.data.get(ATTR_EMISSION) == symbol
-        and is_positive_mass(as_prob(transition.data.get(ATTR_PROB, 0.0)))
+        transition.data.get(ATTR_EMISSION) == symbol and is_positive_mass(as_prob(transition.data.get(ATTR_PROB, 0.0)))
         for transition in forward.graph.out_transitions(state)
     )
 
@@ -254,9 +253,7 @@ def _joint_pi_on_pair_subset(
     index = {state: i for i, state in enumerate(states)}
     n = len(states)
     edge_probs = [
-        as_prob(transition.data.get(ATTR_PROB, 0.0))
-        for state in states
-        for transition in graph.out_transitions(state)
+        as_prob(transition.data.get(ATTR_PROB, 0.0)) for state in states for transition in graph.out_transitions(state)
     ]
     symbolic = has_symbolic(edge_probs)
     matrix = zeros((n, n), symbolic=symbolic)
@@ -281,11 +278,7 @@ def _joint_pi_on_pair_subset(
         return None
 
     if symbolic:
-        joint = {
-            states[i]: simplify_prob(as_prob(pi[i]))
-            for i in range(n)
-            if is_positive_mass(pi[i])
-        }
+        joint = {states[i]: simplify_prob(as_prob(pi[i])) for i in range(n) if is_positive_mass(pi[i])}
     else:
         joint = {states[i]: float(pi[i]) for i in range(n) if float(pi[i]) > tol}
     return joint or None

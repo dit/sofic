@@ -42,9 +42,7 @@ def build_epsilon_machine(hmm: HiddenMarkovModel) -> EpsilonMachine:
     if is_zero(array_sum(stationary)):
         raise StochasticValidationError("generator must have a stationary distribution")
 
-    constraints = getattr(presentation, "symbol_constraints", None) or getattr(
-        hmm, "symbol_constraints", None
-    )
+    constraints = getattr(presentation, "symbol_constraints", None) or getattr(hmm, "symbol_constraints", None)
     partitions = _refine_probabilistic_partitions(presentation, constraints=constraints)
     return _quotient_machine(presentation, partitions, stationary, constraints=constraints)
 
@@ -167,9 +165,7 @@ def _quotient_machine(
         if is_zero(sum_probs(initial)):
             idx = hmm.reindex()
             for state, mass in zip(idx.states, stationary, strict=False):
-                initial[state_map[state]] = simplify_prob(
-                    as_prob(initial[state_map[state]]) + as_prob(mass)
-                )
+                initial[state_map[state]] = simplify_prob(as_prob(initial[state_map[state]]) + as_prob(mass))
         total = sum_probs(initial)
         initial_dist = {
             label_for_index[i]: simplify_prob(as_prob(initial[i]) / total)
@@ -185,9 +181,7 @@ def _quotient_machine(
             for state, mass in zip(idx.states, stationary, strict=False):
                 initial[state_map[state]] += float(mass)
         initial /= initial.sum()
-        initial_dist = {
-            label_for_index[i]: float(initial[i]) for i in range(len(partitions)) if initial[i] > 0.0
-        }
+        initial_dist = {label_for_index[i]: float(initial[i]) for i in range(len(partitions)) if initial[i] > 0.0}
 
     eps = EpsilonMachine(
         graph=graph,

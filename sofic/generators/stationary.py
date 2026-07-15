@@ -7,9 +7,7 @@ import numpy as np
 from sofic.exceptions import StochasticValidationError
 from sofic.generators.base import HiddenMarkovModel
 from sofic.generators.prob import (
-    as_prob,
     has_symbolic,
-    is_symbolic,
     simplify_prob,
     zeros,
 )

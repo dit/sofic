@@ -1,8 +1,8 @@
 .. symbolic_hmm.rst
 
-*************************
+**************************
 Symbolic HMM probabilities
-*************************
+**************************
 
 In addition to floating-point transition probabilities, :mod:`sofic` can carry
 exact `sympy <https://www.sympy.org>`_ expressions on HMM edges. Stationary
@@ -41,37 +41,36 @@ for the tent map at a Misiurewicz parameter via the bidirectional ε-machine
 :cite:`James2013`. With symbolic probabilities the same pipeline returns a
 sympy expression that evaluates to the supplement's numerical value:
 
+The pipeline is: the published Fig. 6 (right) non-unifilar HMM is minimized to
+its ε-machine (Fig. 7) via :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_hmm`,
+and the bidirectional machine (Fig. 8) is built with a symbolic control
+parameter ``a``.
+
 .. ipython::
 
    In [1]: import sympy as sp
 
-   In [2]: from sofic.examples import (
-   ...:     tent_map_misiurewicz_a,
-   ...:     tent_map_misiurewicz_bidirectional,
-   ...:     tent_map_misiurewicz_hmm,
-   ...:     tent_map_misiurewicz_information_expected,
-   ...: )
-   ...: from sofic.generators.epsilon_machine import EpsilonMachine
+   In [2]: from sofic.examples import tent_map_misiurewicz_a, tent_map_misiurewicz_bidirectional, tent_map_misiurewicz_hmm, tent_map_misiurewicz_information_expected
 
-   In [3]: a = sp.symbols("a", positive=True)
+   In [3]: from sofic.generators.epsilon_machine import EpsilonMachine
 
-   # Published Fig. 6 (right) non-unifilar HMM → ε-machine (Fig. 7)
-   In [4]: eps = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())
+   In [4]: a = sp.symbols("a", positive=True)
 
-   # Bidirectional machine (Fig. 8) with symbolic ``a``
-   In [5]: bidir = tent_map_misiurewicz_bidirectional(a)
+   In [5]: eps = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())
 
-   In [6]: r = bidir.ephemeral_information()
+   In [6]: bidir = tent_map_misiurewicz_bidirectional(a)
 
-   In [7]: a_num = tent_map_misiurewicz_a()
+   In [7]: r = bidir.ephemeral_information()
+
+   In [8]: a_num = tent_map_misiurewicz_a()
 
    @doctest float
-   In [8]: float(r.subs(a, a_num))
-   Out[8]: 0.648257836793515
-
-   @doctest float
-   In [9]: tent_map_misiurewicz_information_expected(a_num)["ephemeral_mu"]
+   In [9]: float(r.subs(a, a_num))
    Out[9]: 0.648257836793515
+
+   @doctest float
+   In [10]: tent_map_misiurewicz_information_expected(a_num)["ephemeral_mu"]
+   Out[10]: 0.648257836793515
 
 The supplement's rational-in-``a`` formula
 ``r_μ = (1/4)(3 - 2/(a+1) - 4/(a+2) + 9/(2a+3))`` is recovered by

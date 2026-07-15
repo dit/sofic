@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 
@@ -33,7 +34,6 @@ def normalize_row_weights(weights: dict[tuple, Any], *, atol: float = 1e-9) -> d
     from sofic.generators.prob import (
         as_prob,
         has_symbolic,
-        is_positive_mass,
         is_zero,
         probs_equal,
         simplify_prob,

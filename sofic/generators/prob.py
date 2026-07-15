@@ -14,9 +14,7 @@ def _sympy():
     try:
         import sympy
     except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "Symbolic probabilities require sympy. Install with: pip install sofic[symbolic]"
-        ) from exc
+        raise ImportError("Symbolic probabilities require sympy. Install with: pip install sofic[symbolic]") from exc
     return sympy
 
 

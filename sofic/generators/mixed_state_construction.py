@@ -107,9 +107,7 @@ def build_mixed_state_presentation(
                 discovered[state] = known
                 return known
         if len(discovered) >= max_states:
-            raise StochasticValidationError(
-                f"mixed-state presentation exceeded max_states={max_states}"
-            )
+            raise StochasticValidationError(f"mixed-state presentation exceeded max_states={max_states}")
         discovered[state] = state
         graph.add_state(state)
         queue.append(state)
@@ -162,7 +160,4 @@ def _beliefs_equal(left: MixedState, right: MixedState, *, constraints: Any = No
 
     if len(left.belief) != len(right.belief):
         return False
-    return all(
-        probs_equal(a, b, constraints=constraints)
-        for a, b in zip(left.belief, right.belief, strict=True)
-    )
+    return all(probs_equal(a, b, constraints=constraints) for a, b in zip(left.belief, right.belief, strict=True))

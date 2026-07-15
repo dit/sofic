@@ -2079,6 +2079,7 @@ bayes = [
     { name = "pymc", version = "6.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 dev = [
+    { name = "dit", extra = ["symbolic"] },
     { name = "graphviz" },
     { name = "hypothesis", extra = ["numpy"] },
     { name = "ipython" },
@@ -2093,15 +2094,18 @@ dev = [
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-rtd-theme" },
     { name = "sphinxcontrib-bibtex" },
+    { name = "sympy" },
     { name = "ty" },
 ]
 docs = [
+    { name = "dit", extra = ["symbolic"] },
     { name = "ipython" },
     { name = "matplotlib" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-rtd-theme" },
     { name = "sphinxcontrib-bibtex" },
+    { name = "sympy" },
 ]
 symbolic = [
     { name = "dit", extra = ["symbolic"] },
@@ -2124,6 +2128,8 @@ viz = [
 requires-dist = [
     { name = "arviz", marker = "extra == 'bayes'" },
     { name = "dit", specifier = ">=2.2" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.2" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.2" },
     { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.2" },
     { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
@@ -2158,6 +2164,8 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'" },
     { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
+    { name = "sympy", marker = "extra == 'dev'", specifier = ">=1.12" },
+    { name = "sympy", marker = "extra == 'docs'", specifier = ">=1.12" },
     { name = "sympy", marker = "extra == 'symbolic'", specifier = ">=1.12" },
     { name = "ty", marker = "extra == 'dev'" },
 ]

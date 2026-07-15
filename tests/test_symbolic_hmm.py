@@ -140,15 +140,9 @@ def test_symbolic_fig8_matches_numeric_anatomy():
     num = tent_map_misiurewicz_bidirectional(a_num)
     expected = tent_map_misiurewicz_information_expected(a_num)
 
-    assert float(sym.ephemeral_information().subs(a, a_num)) == pytest.approx(
-        num.ephemeral_information(), abs=1e-10
-    )
-    assert float(sym.bound_information().subs(a, a_num)) == pytest.approx(
-        num.bound_information(), abs=1e-10
-    )
-    assert float(sym.entropy_rate().subs(a, a_num)) == pytest.approx(
-        expected["entropy_rate"], abs=1e-10
-    )
+    assert float(sym.ephemeral_information().subs(a, a_num)) == pytest.approx(num.ephemeral_information(), abs=1e-10)
+    assert float(sym.bound_information().subs(a, a_num)) == pytest.approx(num.bound_information(), abs=1e-10)
+    assert float(sym.entropy_rate().subs(a, a_num)) == pytest.approx(expected["entropy_rate"], abs=1e-10)
     assert expected["entropy_rate"] == pytest.approx(math.log2(a_num), abs=1e-12)
 
 

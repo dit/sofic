@@ -294,17 +294,11 @@ class BidirectionalEpsilonMachine(MealyHMM):
             plus_dist = symbolic_distribution(plus_outcomes, plus_pmf)
             minus_dist = symbolic_distribution(minus_outcomes, minus_pmf)
             joint_dist = symbolic_distribution(joint_outcomes, joint_pmf)
-            return (
-                dit.shannon.entropy(plus_dist)
-                + dit.shannon.entropy(minus_dist)
-                - dit.shannon.entropy(joint_dist)
-            )
+            return dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist)
         plus_dist = dit.Distribution(plus_outcomes, plus_pmf)
         minus_dist = dit.Distribution(minus_outcomes, minus_pmf)
         joint_dist = dit.Distribution(joint_outcomes, joint_pmf)
-        return float(
-            dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist)
-        )
+        return float(dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist))
 
     def statistical_complexity(self) -> Any:
         """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""

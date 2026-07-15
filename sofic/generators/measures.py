@@ -127,7 +127,6 @@ def _entropy_rate_from_transitions(
         is_positive_mass,
         is_symbolic,
         simplify_prob,
-        sum_probs,
     )
 
     symbolic = pi.dtype == object or has_symbolic(pi.ravel())
@@ -171,8 +170,8 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
     """
     from sofic.generators.hmm_inference import _emission_transition_tensors
     from sofic.generators.prob import (
-        as_prob,
         array_sum,
+        as_prob,
         has_symbolic,
         is_positive_mass,
         is_symbolic,
@@ -202,10 +201,7 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
         label = dit_state_label(state)
         for symbol, matrix in joint.items():
             row_mass = as_prob(pi[i]) * array_sum(matrix[i])
-            if symbolic or is_symbolic(row_mass):
-                row_mass = simplify_prob(row_mass)
-            else:
-                row_mass = float(row_mass)
+            row_mass = simplify_prob(row_mass) if symbolic or is_symbolic(row_mass) else float(row_mass)
             if not is_positive_mass(row_mass):
                 continue
             outcomes.append((label, symbol))
@@ -225,9 +221,7 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
             outcomes,
             [simplify_prob(as_prob(p) / as_prob(total)) for p in probs],
         )
-        return simplify_prob(
-            as_prob(dit.shannon.entropy(joint_dist)) - as_prob(dit.shannon.entropy(state_dist))
-        )
+        return simplify_prob(as_prob(dit.shannon.entropy(joint_dist)) - as_prob(dit.shannon.entropy(state_dist)))
     joint_dist = dit.Distribution(outcomes, [float(p) / float(total) for p in probs])
     return float(dit.shannon.entropy(joint_dist) - dit.shannon.entropy(state_dist))
 
