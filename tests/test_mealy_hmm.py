@@ -2,10 +2,10 @@
 
 import pytest
 
-from pensive.exceptions import StochasticValidationError, UnifilarityError
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.mealy import MealyHMM
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.exceptions import StochasticValidationError, UnifilarityError
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.mealy import MealyHMM
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _mealy_hmm() -> MealyHMM:
@@ -35,7 +35,7 @@ def test_to_mealy_returns_self():
 
 
 def test_mixed_state_presentation_on_mealy_hmm():
-    from pensive.generators.mixed_state import MixedStatePresentation
+    from sofic.generators.mixed_state import MixedStatePresentation
 
     msp = _mealy_hmm().mixed_state_presentation()
     assert isinstance(msp, MixedStatePresentation)

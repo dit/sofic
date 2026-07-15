@@ -1,5 +1,5 @@
 .. generative_models.rst
-.. py:module:: pensive.generators.minimal_generative_model
+.. py:module:: sofic.generators.minimal_generative_model
 
 *****************
 Generative Models
@@ -7,9 +7,9 @@ Generative Models
 
 The statistical complexity :math:`C_\mu = \H{S^+}` is the cost of *prediction*:
 the memory a unifilar (ε-machine) presentation must carry. A process can often
-be *generated* with less memory by a non-unifilar machine. ``pensive`` builds
+be *generated* with less memory by a non-unifilar machine. ``sofic`` builds
 these minimal generators from a
-:class:`~pensive.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine`,
+:class:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine`,
 each realizing a different **common information** between the forward causal
 state :math:`S^+` and the reverse causal state :math:`S^-`.
 
@@ -38,13 +38,13 @@ sit in a fixed order:
   This captures only the conserved "core" (phase / ergodic structure) and is
   often trivial for mixing processes.
 
-Each returns a (generally non-unifilar) :class:`~pensive.generators.mealy.MealyHMM`
+Each returns a (generally non-unifilar) :class:`~sofic.generators.mealy.MealyHMM`
 subclass whose ``generative_complexity()`` is the corresponding common
 information, and which reproduces the source process.
 
 .. code-block:: python
 
-   from pensive.examples import golden_mean_bidirectional
+   from sofic.examples import golden_mean_bidirectional
 
    bidir = golden_mean_bidirectional(0.5)
 
@@ -56,8 +56,8 @@ information, and which reproduces the source process.
 
 The optimizers mirror the corresponding ``dit`` common-information routines and
 require ``dit`` (a core dependency). The convenience methods
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.minimal_generative_model`
-and friends on an :class:`~pensive.generators.epsilon_machine.EpsilonMachine`
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.minimal_generative_model`
+and friends on an :class:`~sofic.generators.epsilon_machine.EpsilonMachine`
 build the bidirectional presentation first.
 
 API

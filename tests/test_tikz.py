@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.automata.dfa import DFA
-from pensive.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
-from pensive.viz.tikz import compile_tikz, draw_tikz, model_to_tikz
+from sofic.automata.dfa import DFA
+from sofic.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
+from sofic.viz.tikz import compile_tikz, draw_tikz, model_to_tikz
 
 
 def _dfa() -> DFA:
@@ -40,7 +40,7 @@ def test_dfa_tikz_symbol_only():
 
 
 def test_sofic_dyck_tikz_marks_matched_edges():
-    from pensive.examples import sofic_dyck_nondeterminizable_shift
+    from sofic.examples import sofic_dyck_nondeterminizable_shift
 
     tikz = model_to_tikz(sofic_dyck_nondeterminizable_shift())
 
@@ -60,7 +60,7 @@ def test_bidirectional_tikz_uses_edge_labels():
 
 
 def test_loop_avoids_outgoing_corridor():
-    from pensive.viz._tikz_layout import plan_loop_styles
+    from sofic.viz._tikz_layout import plan_loop_styles
 
     positions = {"A": (0.0, 2.0), "B": (0.0, -2.0)}
     grouped = {
@@ -73,9 +73,9 @@ def test_loop_avoids_outgoing_corridor():
 
 
 def test_msp_self_loop_avoids_reciprocal_edge():
-    from pensive.examples.epsilon_machines import golden_mean
-    from pensive.viz._names import node_name
-    from pensive.viz.tikz import model_to_tikz
+    from sofic.examples.epsilon_machines import golden_mean
+    from sofic.viz._names import node_name
+    from sofic.viz.tikz import model_to_tikz
 
     msp = golden_mean(0.5).mixed_state_presentation()
     a_state = next(state for state in msp.states() if msp.causal_state(state) == "A")
@@ -87,8 +87,8 @@ def test_msp_self_loop_avoids_reciprocal_edge():
 
 
 def test_reciprocal_edges_bend_same_direction():
-    from pensive.examples.epsilon_machines import golden_mean_forward
-    from pensive.viz._tikz_layout import edge_style
+    from sofic.examples.epsilon_machines import golden_mean_forward
+    from sofic.viz._tikz_layout import edge_style
 
     assert edge_style("A", "B", parallel_index=0, total_parallel=1, has_reverse=True) == "bend left"
     assert edge_style("B", "A", parallel_index=0, total_parallel=1, has_reverse=True) == "bend left"
@@ -103,7 +103,7 @@ def test_reciprocal_edges_bend_same_direction():
 def test_graphviz_layout_spreads_nodes():
     graphviz = pytest.importorskip("graphviz")
     del graphviz
-    from pensive.viz._tikz_layout import layout_graphviz
+    from sofic.viz._tikz_layout import layout_graphviz
 
     coords = layout_graphviz(golden_mean_bidirectional(0.5), style="paper")
     positions = []
@@ -119,8 +119,8 @@ def test_graphviz_layout_spreads_nodes():
 
 
 def test_mixed_state_presentation_tikz_compiles():
-    from pensive.examples.epsilon_machines import golden_mean
-    from pensive.viz._tikz_compile import find_executable
+    from sofic.examples.epsilon_machines import golden_mean
+    from sofic.viz._tikz_compile import find_executable
 
     if find_executable("pdflatex") is None:
         pytest.skip("pdflatex not available")
@@ -136,8 +136,8 @@ def test_mixed_state_presentation_tikz_compiles():
 
 
 def test_bidirectional_tikz_png():
-    from pensive.viz._tikz_compile import find_executable
-    from pensive.viz.tikz import model_to_tikz_image
+    from sofic.viz._tikz_compile import find_executable
+    from sofic.viz.tikz import model_to_tikz_image
 
     if find_executable("pdflatex") is None:
         pytest.skip("pdflatex not available")
@@ -179,7 +179,7 @@ def test_standalone_document_includes_preamble():
 
 
 def test_epsilon_machine_tikz_fillcolor():
-    from pensive.examples.epsilon_machines import golden_mean_forward
+    from sofic.examples.epsilon_machines import golden_mean_forward
 
     tikz = model_to_tikz(golden_mean_forward(0.5))
     assert "fill=honeydew" in tikz

@@ -1,5 +1,5 @@
 .. bidirectional_epsilon_machine.rst
-.. py:module:: pensive.generators.bidirectional_epsilon_machine
+.. py:module:: sofic.generators.bidirectional_epsilon_machine
 
 ***************************
 Bidirectional ε-Machine
@@ -14,7 +14,7 @@ causal states :math:`(S^+, S^-)` :cite:`Ellison2011`.
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean_bidirectional
+   In [1]: from sofic.examples import golden_mean_bidirectional
 
    In [2]: bidir = golden_mean_bidirectional(0.5)
 
@@ -119,7 +119,7 @@ follows from the determinism of the forward transition function.
 
 .. ipython::
 
-   In [13]: from pensive.examples import butterfly_process
+   In [13]: from sofic.examples import butterfly_process
 
    In [14]: bidir = butterfly_process().to_bidirectional()
 

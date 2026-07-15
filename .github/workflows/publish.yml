@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
-          built=$(ls dist/pensive-*.tar.gz | sed -E 's|.*/pensive-(.+)\.tar\.gz|\1|')
+          built=$(ls dist/sofic-*.tar.gz | sed -E 's|.*/sofic-(.+)\.tar\.gz|\1|')
           echo "tag=$tag built=$built"
           [ "$tag" = "$built" ] || { echo "::error::Built version $built != tag $tag"; exit 1; }
 
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/pensive
+      url: https://pypi.org/p/sofic
     permissions:
       id-token: write
       contents: write

@@ -5,7 +5,7 @@ The easiest way to install is:
 
 .. code-block:: bash
 
-   pip install pensive
+   pip install sofic
 
 This pulls in ``dit`` (and thus the information-theoretic measures) as a core
 dependency. Optional extras add visualization, Bayesian backends, and the
@@ -13,19 +13,19 @@ development toolchain:
 
 .. code-block:: bash
 
-   pip install "pensive[viz]"    # Graphviz diagrams
-   pip install "pensive[bayes]"  # PyMC/ArviZ backends for Bayesian inference
-   pip install "pensive[dev]"    # tests, linting, docs, and all extras
+   pip install "sofic[viz]"    # Graphviz diagrams
+   pip install "sofic[bayes]"  # PyMC/ArviZ backends for Bayesian inference
+   pip install "sofic[dev]"    # tests, linting, docs, and all extras
 
 For development, we recommend `uv <https://docs.astral.sh/uv/>`_:
 
 .. code-block:: bash
 
-   git clone https://github.com/dit/pensive.git
-   cd pensive
+   git clone https://github.com/dit/sofic.git
+   cd sofic
    uv sync --extra dev
 
-This installs ``pensive`` in editable mode with all development dependencies.
+This installs ``sofic`` in editable mode with all development dependencies.
 
 **Testing**
 

@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from pensive.examples import (
+from sofic.examples import (
     ellison_fig9_forward,
     ellison_fig9_reverse,
     ellison_fig15_bidirectional,
@@ -16,11 +16,11 @@ from pensive.examples import (
     golden_mean_reverse,
     tent_map_misiurewicz_bidirectional,
 )
-from pensive.generators.bidirectional_construction import infer_reverse_epsilon_machine
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.reversal import time_reverse_stochastic
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.generators.bidirectional_construction import infer_reverse_epsilon_machine
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.reversal import time_reverse_stochastic
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def test_bidirectional_reversible_coin():
@@ -69,7 +69,7 @@ def test_from_forward_golden_mean_forward_three_states():
 def test_from_forward_golden_mean_shift_three_states():
     import networkx as nx
 
-    from pensive.examples import golden_mean
+    from sofic.examples import golden_mean
 
     forward = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_forward(forward)
@@ -256,7 +256,7 @@ def test_nemo_bidirectional_selects_true_recurrent_component():
     pytest.importorskip("dit")
     import networkx as nx
 
-    from pensive.examples import nemo_process
+    from sofic.examples import nemo_process
 
     forward = nemo_process(0.5, 0.5)
     bidir = forward.to_bidirectional()
@@ -288,7 +288,7 @@ def test_nemo_bidirectional_selects_true_recurrent_component():
 
 def test_bidirectional_tent_map_fig8_edges():
     """Supplement Fig.~8 topology with symbolic ``1/2`` and ``a/(a+1)`` weights."""
-    from pensive.examples.epsilon_machines import _tent_map_misiurewicz_fig8_edges, tent_map_misiurewicz_a
+    from sofic.examples.epsilon_machines import _tent_map_misiurewicz_fig8_edges, tent_map_misiurewicz_a
 
     a = tent_map_misiurewicz_a()
     half = 0.5

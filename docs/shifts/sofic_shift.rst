@@ -1,5 +1,5 @@
 .. sofic_shift.rst
-.. py:module:: pensive.shifts.sofic
+.. py:module:: sofic.shifts.sofic
 
 ***********
 Sofic Shift
@@ -17,4 +17,4 @@ API
 .. autoclass:: SoficShift
    :members: topological_entropy, parry_measure, topological_anatomy
 
-.. autofunction:: pensive.shifts.tmc_construction.topological_entropy
+.. autofunction:: sofic.shifts.tmc_construction.topological_entropy

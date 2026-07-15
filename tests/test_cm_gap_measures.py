@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import even_process, fair_coin, golden_mean
-from pensive.generators.directional_flow import (
+from sofic.examples import even_process, fair_coin, golden_mean
+from sofic.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
     transfer_entropy,
 )
-from pensive.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.epsilon_machine import EpsilonMachine
 
 
 def test_causal_irreversibility_even_process_is_zero():
@@ -68,7 +68,7 @@ def test_independent_pair_has_zero_transfer_entropy():
 
 def test_information_flow_measures_on_independent_pair():
     pytest.importorskip("dit")
-    from pensive.generators.directional_flow import (
+    from sofic.generators.directional_flow import (
         intrinsic_information_flow,
         shared_information_flow,
         synergistic_information_flow,

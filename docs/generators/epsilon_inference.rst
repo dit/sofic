@@ -1,12 +1,12 @@
 .. epsilon_inference.rst
-.. py:module:: pensive.generators.epsilon_inference
+.. py:module:: sofic.generators.epsilon_inference
 
 **************************
 ε-Machine inference
 **************************
 
 Sample-based reconstruction of ε-machines from observed symbol sequences.
-This complements the **oracle** path :func:`~pensive.generators.epsilon_construction.build_epsilon_machine`,
+This complements the **oracle** path :func:`~sofic.generators.epsilon_construction.build_epsilon_machine`,
 which merges probabilistically equivalent states in a *given* generator.
 
 Two algorithms are implemented:
@@ -20,8 +20,8 @@ Quick start
 .. code-block:: python
 
    import numpy as np
-   from pensive.examples import even_process
-   from pensive.generators.epsilon_machine import EpsilonMachine
+   from sofic.examples import even_process
+   from sofic.generators.epsilon_machine import EpsilonMachine
 
    rng = np.random.default_rng(0)
    oracle = even_process(0.5)
@@ -58,7 +58,7 @@ numerical tolerance for finite-sample estimates.
 Unified entry point
 ===================
 
-Use :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.from_sequence` to
+Use :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_sequence` to
 dispatch to CSSR or subtree merging (see :doc:`epsilon_machine`).
 
 Related inference methods (not yet implemented)

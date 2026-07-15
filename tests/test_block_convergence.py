@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import even_process, fair_coin, golden_mean, noisy_random_phase_slip
-from pensive.generators.block_convergence import block_caekl
+from sofic.examples import even_process, fair_coin, golden_mean, noisy_random_phase_slip
+from sofic.generators.block_convergence import block_caekl
 
 
 def test_fair_coin_block_convergence_independent():

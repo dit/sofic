@@ -1,5 +1,5 @@
 .. nfa.rst
-.. py:module:: pensive.automata.nfa
+.. py:module:: sofic.automata.nfa
 
 ***
 NFA
@@ -11,7 +11,7 @@ languages :cite:`RabinScott1959,HopcroftUllman1979`.
 
 .. ipython::
 
-   In [1]: from pensive.automata import NFA, determinize
+   In [1]: from sofic.automata import NFA, determinize
 
    In [2]: nfa = NFA(
       ...:     input_alphabet=frozenset({0, 1}),

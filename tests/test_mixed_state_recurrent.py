@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples.epsilon_machines import golden_mean
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.mixed_state import MixedState, MixedStatePresentation
-from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
+from sofic.examples.epsilon_machines import golden_mean
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.mixed_state import MixedState, MixedStatePresentation
+from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
 
 def test_to_recurrent_returns_epsilon_machine_for_pure_recurrent_msp():

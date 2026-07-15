@@ -1,8 +1,8 @@
 Documentation:
-   https://pensive.readthedocs.io
+   https://sofic.readthedocs.io
 
 Repository:
-   https://github.com/dit/pensive
+   https://github.com/dit/sofic
 
 Dependencies:
    * Python 3.11+
@@ -15,11 +15,11 @@ Dependencies:
 Optional Dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``graphviz`` (``pensive[viz]``): Graphviz diagram rendering in terminals and Jupyter
-* ``pymc``, ``arviz`` (``pensive[bayes]``): PyMC/ArviZ backends for Bayesian inference
-* ``pytest``, ``hypothesis``, ``graphviz`` (``pensive[test]``): test-suite dependencies
-* ``sphinx``, ``ipython``, ``matplotlib`` (``pensive[docs]``): documentation build
-* ``pensive[dev]``: linting, type checking, docs, and all of the above
+* ``graphviz`` (``sofic[viz]``): Graphviz diagram rendering in terminals and Jupyter
+* ``pymc``, ``arviz`` (``sofic[bayes]``): PyMC/ArviZ backends for Bayesian inference
+* ``pytest``, ``hypothesis``, ``graphviz`` (``sofic[test]``): test-suite dependencies
+* ``sphinx``, ``ipython``, ``matplotlib`` (``sofic[docs]``): documentation build
+* ``sofic[dev]``: linting, type checking, docs, and all of the above
 
 License:
    BSD 3-Clause, see LICENSE.txt for details.

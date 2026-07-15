@@ -7,8 +7,8 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 from hypothesis.errors import Unsatisfiable
 
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.testing.strategies import epsilon_machines
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.testing.strategies import epsilon_machines
 
 THREE_STATE_ALPHABET = (0, 1, 2)
 THREE_BY_THREE_POOL = 32

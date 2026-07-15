@@ -1,5 +1,5 @@
 .. properties.rst
-.. py:module:: pensive.properties
+.. py:module:: sofic.properties
 
 **********
 Properties
@@ -12,7 +12,7 @@ finite automata, symbolic dynamics, and computational mechanics
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean; from pensive.properties import is_unifilar_emissions
+   In [1]: from sofic.examples import golden_mean; from sofic.properties import is_unifilar_emissions
 
    In [2]: eps = golden_mean(0.5)
 

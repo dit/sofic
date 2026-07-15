@@ -1,5 +1,5 @@
 .. markov_chain.rst
-.. py:module:: pensive.generators.markov
+.. py:module:: sofic.generators.markov
 
 ***********
 MarkovChain
@@ -11,7 +11,7 @@ with states. Finite-state Markov-chain terminology follows standard treatments
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean_markov
+   In [1]: from sofic.examples import golden_mean_markov
 
    In [2]: chain = golden_mean_markov(0.5)
 

@@ -1,7 +1,7 @@
-"""Smoke tests for the pensive package."""
+"""Smoke tests for the sofic package."""
 
-import pensive
+import sofic
 
 
 def test_import():
-    assert pensive.__version__
+    assert sofic.__version__

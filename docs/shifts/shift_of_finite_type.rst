@@ -1,5 +1,5 @@
 .. shift_of_finite_type.rst
-.. py:module:: pensive.shifts.sft
+.. py:module:: sofic.shifts.sft
 
 *********************
 Shift of Finite Type
@@ -10,7 +10,7 @@ alphabet, following standard symbolic-dynamics terminology :cite:`LindMarcus1995
 
 .. ipython::
 
-   In [1]: from pensive.shifts import ShiftOfFiniteType
+   In [1]: from sofic.shifts import ShiftOfFiniteType
 
    In [2]: sft = ShiftOfFiniteType.from_forbidden_words(
       ...:     forbidden={(1, 1)},
@@ -25,4 +25,4 @@ API
 .. autoclass:: ShiftOfFiniteType
    :members: from_forbidden_words, from_presentation
 
-.. autofunction:: pensive.shifts.sft_construction.from_forbidden_words
+.. autofunction:: sofic.shifts.sft_construction.from_forbidden_words

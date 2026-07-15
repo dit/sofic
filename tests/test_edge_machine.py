@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import fair_coin, golden_mean
-from pensive.generators.edge_machine import ATTR_EDGE_SOURCE, ATTR_EDGE_TARGET, hmm_to_edge_machine
-from pensive.generators.mealy import MealyHMM
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.examples import fair_coin, golden_mean
+from sofic.generators.edge_machine import ATTR_EDGE_SOURCE, ATTR_EDGE_TARGET, hmm_to_edge_machine
+from sofic.generators.mealy import MealyHMM
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _count_labeled_transitions(hmm) -> int:

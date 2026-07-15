@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import (
+from sofic.examples import (
     bernoulli,
     butterfly_process,
     even_process,
@@ -15,7 +15,7 @@ from pensive.examples import (
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_information_expected,
 )
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 
 def test_fair_coin_predicted_information_near_zero():
@@ -238,8 +238,8 @@ def test_tent_map_misiurewicz_bidirectional_regression():
 
 def test_tent_forward_matches_generator_path():
     pytest.importorskip("dit")
-    from pensive.examples.epsilon_machines import tent_map_misiurewicz_hmm
-    from pensive.generators.epsilon_machine import EpsilonMachine
+    from sofic.examples.epsilon_machines import tent_map_misiurewicz_hmm
+    from sofic.generators.epsilon_machine import EpsilonMachine
 
     forward = tent_map_misiurewicz_forward()
     from_hmm = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())

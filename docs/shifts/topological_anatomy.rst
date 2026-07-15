@@ -1,5 +1,5 @@
 .. topological_anatomy.rst
-.. py:module:: pensive.shifts.topological_anatomy
+.. py:module:: sofic.shifts.topological_anatomy
 
 *******************************
 Topological Information Anatomy
@@ -30,7 +30,7 @@ anatomy is closed-form (requires ``dit``).
 
 Pipeline: put the presentation in right-resolving (unifilar) form (Fischer cover
 :cite:`Fischer1975` when needed), build the Parry chain from the Perron data,
-minimize to the causal :class:`~pensive.generators.epsilon_machine.EpsilonMachine`,
+minimize to the causal :class:`~sofic.generators.epsilon_machine.EpsilonMachine`,
 and read its bidirectional anatomy.
 
 Two shifts with the *same* :math:`h_\mathrm{top} = \log_2\varphi` can have
@@ -40,7 +40,7 @@ entropy across both parts, while the sofic even shift is purely bound
 
 .. ipython::
 
-   In [1]: from pensive.shifts import SoficShift
+   In [1]: from sofic.shifts import SoficShift
 
    In [2]: gm = SoficShift(symbol_alphabet=frozenset({0, 1}))
 
@@ -67,16 +67,16 @@ entropy across both parts, while the sofic even shift is purely bound
    Out[10]: 0.5527864045001022
 
 The parts add up to :math:`h_\mathrm{top}`, which equals
-:meth:`~pensive.shifts.sofic.SoficShift.topological_entropy` divided by
+:meth:`~sofic.shifts.sofic.SoficShift.topological_entropy` divided by
 :math:`\ln 2` on a right-resolving presentation.
 
 API
 ===
 
-.. autoclass:: pensive.shifts.sofic.SoficShift
+.. autoclass:: sofic.shifts.sofic.SoficShift
    :members: parry_measure, topological_anatomy
    :noindex:
 
-.. autofunction:: pensive.shifts.topological_anatomy.topological_anatomy
+.. autofunction:: sofic.shifts.topological_anatomy.topological_anatomy
 
-.. autofunction:: pensive.shifts.topological_anatomy.parry_measure_sofic
+.. autofunction:: sofic.shifts.topological_anatomy.parry_measure_sofic

@@ -11,21 +11,21 @@ pytest.importorskip("dit")
 
 import sympy as sp
 
-from pensive.examples.epsilon_machines import (
+from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_a,
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_hmm,
     tent_map_misiurewicz_information_expected,
 )
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.prob import (
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.prob import (
     SymbolConstraints,
     canonical_prob_key,
     is_symbolic,
     probs_equal,
 )
-from pensive.generators.words import hmm_word_probability
+from sofic.generators.words import hmm_word_probability
 
 
 def test_symbolic_edge_probabilities_preserved():

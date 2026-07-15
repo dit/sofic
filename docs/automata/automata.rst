@@ -4,7 +4,7 @@
 Automata
 ********
 
-The :mod:`pensive.automata` package provides finite automata, transducers, and
+The :mod:`sofic.automata` package provides finite automata, transducers, and
 regular-language algebra. The finite-automata foundations follow the classical
 DFA/NFA and regular-language literature :cite:`RabinScott1959,HopcroftUllman1979`.
 

@@ -9,11 +9,11 @@ from typing import Any
 import numpy as np
 import pytest
 
-from pensive.examples.epsilon_machines import bernoulli, even_process, golden_mean
-from pensive.generators.epsilon_inference import cssr, subtree_merge
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.hmm_inference import sample
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.examples.epsilon_machines import bernoulli, even_process, golden_mean
+from sofic.generators.epsilon_inference import cssr, subtree_merge
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.hmm_inference import sample
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _transition_signature(hmm: EpsilonMachine) -> dict[Hashable, tuple[tuple[Any, Hashable, float], ...]]:

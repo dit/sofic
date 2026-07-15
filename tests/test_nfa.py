@@ -1,6 +1,6 @@
 """Tests for NFA and epsilon closure."""
 
-from pensive.automata.nfa import NFA
+from sofic.automata.nfa import NFA
 
 
 def _nfa_with_epsilon() -> NFA:

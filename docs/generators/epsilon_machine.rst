@@ -1,5 +1,5 @@
 .. epsilon_machine.rst
-.. py:module:: pensive.generators.epsilon_machine
+.. py:module:: sofic.generators.epsilon_machine
 
 ***********
 ε-Machine
@@ -17,7 +17,7 @@ Build from an HMM via partition refinement:
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean
+   In [1]: from sofic.examples import golden_mean
 
    In [2]: eps = golden_mean(0.5)
 
@@ -69,14 +69,14 @@ API
 .. autoclass:: EpsilonMachine
    :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, block_entropy_estimates, plot_block_entropy_diagram, block_convergence_diagram, block_convergence_estimates, plot_block_convergence_diagram, caekl_block_information, caekl_rate, caekl_intercept, caekl_rate_converged, approximate_entropy_rate, approximate_excess_entropy, approximate_information_anatomy, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, caekl_causal_information, crypticity, bidirectional_crypticity, causal_irreversibility, stored_information_decomposition, transient_information, oracular_information, gauge_information, predictability_gain, structural_information, thermodynamic_depth, spectral_complexity, markov_order, is_markov, cryptic_order, is_exactly_synchronizable
 
-.. autoclass:: pensive.generators.block_entropy.BlockEntropyDiagram
+.. autoclass:: sofic.generators.block_entropy.BlockEntropyDiagram
    :members: plot, transient_information
-.. autoclass:: pensive.generators.block_entropy.BlockEntropyEstimates
+.. autoclass:: sofic.generators.block_entropy.BlockEntropyEstimates
    :members: information_anatomy
 
-.. autoclass:: pensive.generators.block_convergence.BlockConvergenceDiagram
+.. autoclass:: sofic.generators.block_convergence.BlockConvergenceDiagram
    :members: plot, validate_identities
    :no-index:
-.. autoclass:: pensive.generators.block_convergence.BlockConvergenceEstimates
+.. autoclass:: sofic.generators.block_convergence.BlockConvergenceEstimates
    :members: information_anatomy
    :no-index:

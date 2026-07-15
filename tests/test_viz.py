@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.automata.dfa import DFA
-from pensive.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
-from pensive.generators.markov import MarkovChain
-from pensive.graph import ATTR_PROB
-from pensive.viz._context import viz_context
-from pensive.viz._format import (
+from sofic.automata.dfa import DFA
+from sofic.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
+from sofic.generators.markov import MarkovChain
+from sofic.graph import ATTR_PROB
+from sofic.viz._context import viz_context
+from sofic.viz._format import (
     format_belief,
     format_distribution,
     format_prob_label,
     format_prob_rational,
     format_state,
 )
-from pensive.viz._tikz_format import format_state_tikz_node
-from pensive.viz.graphviz import model_to_graphviz
-from pensive.viz.tikz import model_to_tikz
+from sofic.viz._tikz_format import format_state_tikz_node
+from sofic.viz.graphviz import model_to_graphviz
+from sofic.viz.tikz import model_to_tikz
 
 graphviz = pytest.importorskip("graphviz")
 
@@ -77,7 +77,7 @@ def test_model_to_graphviz_contains_states_and_edges():
 
 
 def test_sofic_dyck_graphviz_marks_matched_edges():
-    from pensive.examples import sofic_dyck_nondeterminizable_shift
+    from sofic.examples import sofic_dyck_nondeterminizable_shift
 
     source = model_to_graphviz(sofic_dyck_nondeterminizable_shift()).source
 
@@ -185,7 +185,7 @@ def test_repr_png_method():
 def test_find_executable_discovers_mactex_without_path():
     import os
 
-    from pensive.viz._tikz_compile import find_executable
+    from sofic.viz._tikz_compile import find_executable
 
     mactex = "/Library/TeX/texbin/pdflatex"
     if not os.path.isfile(mactex):
@@ -213,7 +213,7 @@ def test_repr_mimebundle_without_graphviz(monkeypatch):
 
 
 def test_epsilon_machine_recurrent_states_colored():
-    from pensive.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
+    from sofic.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
 
     forward = model_to_graphviz(golden_mean_forward(0.5)).source
     assert "honeydew" in forward
@@ -224,7 +224,7 @@ def test_epsilon_machine_recurrent_states_colored():
 
 
 def test_msp_state_fillcolors():
-    from pensive.examples.epsilon_machines import golden_mean
+    from sofic.examples.epsilon_machines import golden_mean
 
     source = model_to_graphviz(golden_mean(0.5).mixed_state_presentation()).source
     assert "mistyrose" in source

@@ -55,7 +55,7 @@ Exact vs estimated rates
 ------------------------
 
 James (2011) curves ``H``, ``T``, ``R``, ``B``, ``Q``, and ``W`` satisfy block
-identities checked by :meth:`~pensive.generators.block_convergence.BlockConvergenceDiagram.validate_identities`.
+identities checked by :meth:`~sofic.generators.block_convergence.BlockConvergenceDiagram.validate_identities`.
 When a bidirectional ε-machine is available, the promoted rates ``h_μ``,
 ``ρ_μ``, ``b_μ``, and ``r_μ`` are **exact** (from the step distribution); see
 :doc:`information_anatomy`.
@@ -64,7 +64,7 @@ The CAEKL curve ``J(ℓ)`` is separate: for each ``ℓ`` it is **exact** given t
 ε-machine word distribution and ``dit``'s partition-minimization definition of
 CAEKL.  There is no bidirectional closed form analogous to ``ρ_μ = I[X₀:S⁺₀]``.
 The extensive rate ``j_μ`` is promoted from finite differences ``J(ℓ)-J(ℓ-1)``;
-when :attr:`~pensive.generators.block_convergence.BlockConvergenceEstimates.caekl_rate_converged`
+when :attr:`~sofic.generators.block_convergence.BlockConvergenceEstimates.caekl_rate_converged`
 is ``True``, that rate is certified from a stable affine tail.
 
 Multivariate ordering :cite:`chan2015multivariate` gives ``J(ℓ) ≤ B(ℓ) ≤ T(ℓ)``
@@ -74,7 +74,7 @@ has ``h_μ = 1`` and ``j_μ = 0``).
 
 CAEKL partition minimization costs grow quickly with ``ℓ`` (Bell-number partitions);
 pass ``max_caekl_length`` to
-:func:`~pensive.generators.block_convergence.block_convergence_estimates`
+:func:`~sofic.generators.block_convergence.block_convergence_estimates`
 to cap how far ``J(ℓ)`` is computed when ``max_length`` is large.
 
 Example
@@ -82,7 +82,7 @@ Example
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean, even_process, noisy_random_phase_slip
+   In [1]: from sofic.examples import golden_mean, even_process, noisy_random_phase_slip
 
    In [2]: eps = golden_mean(0.5)
 
@@ -107,16 +107,16 @@ Example
 API
 ---
 
-.. autofunction:: pensive.generators.block_convergence.block_caekl
+.. autofunction:: sofic.generators.block_convergence.block_caekl
 
-.. autofunction:: pensive.generators.block_convergence.block_convergence_diagram
+.. autofunction:: sofic.generators.block_convergence.block_convergence_diagram
 
-.. autofunction:: pensive.generators.block_convergence.block_convergence_estimates
+.. autofunction:: sofic.generators.block_convergence.block_convergence_estimates
 
-.. autofunction:: pensive.generators.block_convergence.plot_block_convergence_diagram
+.. autofunction:: sofic.generators.block_convergence.plot_block_convergence_diagram
 
-.. autoclass:: pensive.generators.block_convergence.BlockConvergenceDiagram
+.. autoclass:: sofic.generators.block_convergence.BlockConvergenceDiagram
    :members: plot, validate_identities, j_mu, J_inf, caekl_rate_converged
 
-.. autoclass:: pensive.generators.block_convergence.BlockConvergenceEstimates
+.. autoclass:: sofic.generators.block_convergence.BlockConvergenceEstimates
    :members: information_anatomy

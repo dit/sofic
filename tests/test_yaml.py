@@ -5,12 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.automata.atomaton import Atomaton
-from pensive.automata.dfa import DFA
-from pensive.automata.nfa import NFA
-from pensive.automata.nwa import NestedWordAutomaton
-from pensive.automata.transducers import MealyMachine, MooreMachine
-from pensive.automata.vpa import (
+from sofic.automata.atomaton import Atomaton
+from sofic.automata.dfa import DFA
+from sofic.automata.nfa import NFA
+from sofic.automata.nwa import NestedWordAutomaton
+from sofic.automata.transducers import MealyMachine, MooreMachine
+from sofic.automata.vpa import (
     CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
     CompositeVisiblyPushdownAutomaton,
@@ -19,16 +19,16 @@ from pensive.automata.vpa import (
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
 )
-from pensive.examples.epsilon_machines import bernoulli, golden_mean
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.markov import MarkovChain
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
-from pensive.generators.nmachine import NMachine
-from pensive.generators.pfa import ProbabilisticFiniteAutomaton
-from pensive.generators.quasi_realization import QuasiRealization
-from pensive.generators.stack_hmm import HiddenMarkovStackModel
-from pensive.graph import (
+from sofic.examples.epsilon_machines import bernoulli, golden_mean
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.generators.markov import MarkovChain
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.moore import MooreHMM
+from sofic.generators.nmachine import NMachine
+from sofic.generators.pfa import ProbabilisticFiniteAutomaton
+from sofic.generators.quasi_realization import QuasiRealization
+from sofic.generators.stack_hmm import HiddenMarkovStackModel
+from sofic.graph import (
     ATTR_EMISSION,
     ATTR_KIND,
     ATTR_OUTPUT,
@@ -40,12 +40,12 @@ from pensive.graph import (
     KIND_INTERNAL,
     KIND_RETURN,
 )
-from pensive.serialization import model_from_yaml, model_to_dict
-from pensive.shifts.markov_dyck import MarkovDyckShift
-from pensive.shifts.sft import ShiftOfFiniteType
-from pensive.shifts.sofic import SoficShift
-from pensive.shifts.sofic_dyck import SoficDyckShift
-from pensive.shifts.tmc import TopologicalMarkovChain
+from sofic.serialization import model_from_yaml, model_to_dict
+from sofic.shifts.markov_dyck import MarkovDyckShift
+from sofic.shifts.sft import ShiftOfFiniteType
+from sofic.shifts.sofic import SoficShift
+from sofic.shifts.sofic_dyck import SoficDyckShift
+from sofic.shifts.tmc import TopologicalMarkovChain
 
 
 def _round_trip(model):

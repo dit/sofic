@@ -1,5 +1,5 @@
 .. transition_graph.rst
-.. py:module:: pensive.core
+.. py:module:: sofic.core
    :no-index:
 
 ****************
@@ -7,12 +7,12 @@ TransitionGraph
 ****************
 
 :class:`TransitionGraph` wraps a :class:`networkx.MultiDiGraph` with a thin API
-for adding states, adding transitions, and iterating edges. All ``pensive``
+for adding states, adding transitions, and iterating edges. All ``sofic``
 models store their structure in a ``TransitionGraph``.
 
 .. ipython::
 
-   In [1]: from pensive.core import TransitionGraph, ATTR_EMISSION, ATTR_PROB
+   In [1]: from sofic.core import TransitionGraph, ATTR_EMISSION, ATTR_PROB
 
    In [2]: g = TransitionGraph()
 

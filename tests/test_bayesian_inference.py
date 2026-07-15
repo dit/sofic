@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.examples.processes import SNS, Even
-from pensive.inference.bayesian import (
+from sofic.examples.processes import SNS, Even
+from sofic.inference.bayesian import (
     BayesianInferenceError,
     InferEM,
     InferMC,

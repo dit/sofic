@@ -1,5 +1,5 @@
 .. probabilistic_finite_automaton.rst
-.. py:module:: pensive.generators.pfa
+.. py:module:: sofic.generators.pfa
 
 *******************************
 Probabilistic Finite Automaton

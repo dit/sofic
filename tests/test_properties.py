@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.automata.dfa import DFA
-from pensive.automata.nfa import NFA
-from pensive.automata.transducers import MealyMachine
-from pensive.automata.unifilar import UnifilarAutomaton
-from pensive.examples.epsilon_machines import ellison_fig15_bidirectional, even_process, golden_mean
-from pensive.exceptions import NonDeterministicError, UnifilarityError
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.markov import MarkovChain
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_SYMBOL, EPSILON
-from pensive.shifts.sofic import SoficShift
+from sofic.automata.dfa import DFA
+from sofic.automata.nfa import NFA
+from sofic.automata.transducers import MealyMachine
+from sofic.automata.unifilar import UnifilarAutomaton
+from sofic.examples.epsilon_machines import ellison_fig15_bidirectional, even_process, golden_mean
+from sofic.exceptions import NonDeterministicError, UnifilarityError
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.markov import MarkovChain
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.moore import MooreHMM
+from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_SYMBOL, EPSILON
+from sofic.shifts.sofic import SoficShift
 
 
 def _dfa() -> DFA:

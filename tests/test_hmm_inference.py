@@ -5,10 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.examples import fair_coin
-from pensive.generators.hmm_inference import backward, forward, log_likelihood, sample, viterbi
-from pensive.generators.mealy import MealyHMM
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.examples import fair_coin
+from sofic.generators.hmm_inference import backward, forward, log_likelihood, sample, viterbi
+from sofic.generators.mealy import MealyHMM
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def test_forward_coin_initial_and_likelihood():

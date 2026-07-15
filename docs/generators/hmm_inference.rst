@@ -1,5 +1,5 @@
 .. hmm_inference.rst
-.. py:module:: pensive.generators.hmm_inference
+.. py:module:: sofic.generators.hmm_inference
 
 *************
 HMM Inference
@@ -10,13 +10,13 @@ Forward-backward, Viterbi decoding, and sampling for hidden Markov models
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean
+   In [1]: from sofic.examples import golden_mean
 
    In [2]: eps = golden_mean(0.5)
 
    In [3]: obs = [0, 1, 0, 0, 1]
 
-   In [4]: from pensive.generators.hmm_inference import forward, viterbi, sample
+   In [4]: from sofic.generators.hmm_inference import forward, viterbi, sample
 
    In [5]: alpha = forward(eps, obs)
 

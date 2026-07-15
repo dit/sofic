@@ -1,5 +1,5 @@
 .. nmachine.rst
-.. py:module:: pensive.generators.nmachine
+.. py:module:: sofic.generators.nmachine
 
 *********
 n-Machine
@@ -16,5 +16,5 @@ API
 .. autoclass:: NMachine
    :members: from_epsilon_machine, collision_entropy, process_negativity
 
-.. autofunction:: pensive.generators.nmachine_construction.build_nmachine
-.. autofunction:: pensive.generators.nmachine_construction.coarse_grained_distribution
+.. autofunction:: sofic.generators.nmachine_construction.build_nmachine
+.. autofunction:: sofic.generators.nmachine_construction.coarse_grained_distribution

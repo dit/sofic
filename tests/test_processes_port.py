@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-import pensive.examples.processes as processes
-from pensive.automata.transducers import MealyMachine
-from pensive.generators.base import HiddenMarkovModel
-from pensive.graph import EPSILON
+import sofic.examples.processes as processes
+from sofic.automata.transducers import MealyMachine
+from sofic.generators.base import HiddenMarkovModel
+from sofic.graph import EPSILON
 
 
 def test_cmpy_process_constructor_names_are_exported():

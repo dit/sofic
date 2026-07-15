@@ -2,13 +2,13 @@
 
 import pytest
 
-from pensive.examples import bernoulli, fair_coin, golden_mean
-from pensive.generators.markov import MarkovChain
-from pensive.generators.moore import MooreHMM
-from pensive.generators.nmachine import NMachine
-from pensive.generators.pfa import ProbabilisticFiniteAutomaton
-from pensive.generators.quasi_realization import QuasiRealization
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
+from sofic.examples import bernoulli, fair_coin, golden_mean
+from sofic.generators.markov import MarkovChain
+from sofic.generators.moore import MooreHMM
+from sofic.generators.nmachine import NMachine
+from sofic.generators.pfa import ProbabilisticFiniteAutomaton
+from sofic.generators.quasi_realization import QuasiRealization
+from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
 
 
 def _mealy_like_pfa() -> ProbabilisticFiniteAutomaton:

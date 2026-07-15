@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.automata.transducers import MealyMachine, MooreMachine
-from pensive.exceptions import InfiniteTransductionError
-from pensive.graph import ATTR_OUTPUT, ATTR_SYMBOL, EPSILON
+from sofic.automata.transducers import MealyMachine, MooreMachine
+from sofic.exceptions import InfiniteTransductionError
+from sofic.graph import ATTR_OUTPUT, ATTR_SYMBOL, EPSILON
 
 
 def _mealy() -> MealyMachine:

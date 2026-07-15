@@ -1,5 +1,5 @@
 .. edge_machine.rst
-.. py:module:: pensive.generators.edge_machine
+.. py:module:: sofic.generators.edge_machine
 
 *************
 Edge Machine
@@ -12,7 +12,7 @@ computational mechanics :cite:`Rabiner1989,Crutchfield1994`.
 
 .. ipython::
 
-   In [1]: from pensive.examples import tent_map_misiurewicz_hmm
+   In [1]: from sofic.examples import tent_map_misiurewicz_hmm
 
    In [2]: edge = tent_map_misiurewicz_hmm().to_edge_machine()
 

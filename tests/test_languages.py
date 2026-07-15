@@ -1,9 +1,9 @@
 """Tests for regular-language wrappers and quotients."""
 
-from pensive.automata.dfa import DFA
-from pensive.automata.languages.base import AutomatonLanguage, ExplicitLanguage, as_language
-from pensive.automata.languages.quotients import left_quotient, right_quotient
-from pensive.automata.languages.residuals import is_composed_residual
+from sofic.automata.dfa import DFA
+from sofic.automata.languages.base import AutomatonLanguage, ExplicitLanguage, as_language
+from sofic.automata.languages.quotients import left_quotient, right_quotient
+from sofic.automata.languages.residuals import is_composed_residual
 
 
 def _simple_dfa() -> DFA:
@@ -66,7 +66,7 @@ def test_is_composed_residual():
 
 
 def test_atoms_from_dfa():
-    from pensive.automata.languages.atoms import atoms
+    from sofic.automata.languages.atoms import atoms
 
     dfa = _simple_dfa()
     result = atoms(AutomatonLanguage(dfa))

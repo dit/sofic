@@ -1,7 +1,7 @@
 """Tests for SoficShift."""
 
-from pensive.graph import ATTR_SYMBOL
-from pensive.shifts.sofic import SoficShift
+from sofic.graph import ATTR_SYMBOL
+from sofic.shifts.sofic import SoficShift
 
 
 def test_validate():

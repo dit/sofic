@@ -1,11 +1,11 @@
 .. dyck_enumeration.rst
-.. py:module:: pensive.shifts.dyck_enumeration
+.. py:module:: sofic.shifts.dyck_enumeration
 
 ****************
 Dyck Enumeration
 ****************
 
-Small :class:`~pensive.shifts.sofic_dyck.SoficDyckShift` topologies can be
+Small :class:`~sofic.shifts.sofic_dyck.SoficDyckShift` topologies can be
 enumerated exhaustively via a canonical string encoding, analogous to the
 topological ε-machine enumeration of :doc:`../generators/topological_epsilon_enumeration`
 and finitary-process enumeration :cite:`Johnson2010,BealBlockeletDima2015`.
@@ -17,7 +17,7 @@ unique canonical string, so the iterators emit each shift exactly once.
 
 .. code-block:: python
 
-   from pensive.shifts import iter_sofic_dyck_topologies, count_dyck_graph_strings
+   from sofic.shifts import iter_sofic_dyck_topologies, count_dyck_graph_strings
 
    n = count_dyck_graph_strings(n=1, call_symbols=("a",), return_symbols=("A",))
 

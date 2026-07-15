@@ -1,7 +1,7 @@
 """Tests for observation tables."""
 
-from pensive.automata.languages.base import AutomatonLanguage
-from pensive.automata.observation import ObservationTable
+from sofic.automata.languages.base import AutomatonLanguage
+from sofic.automata.observation import ObservationTable
 
 
 def test_defaults():

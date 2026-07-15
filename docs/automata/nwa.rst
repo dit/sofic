@@ -1,5 +1,5 @@
 .. nwa.rst
-.. py:module:: pensive.automata.nwa
+.. py:module:: sofic.automata.nwa
 
 *********************
 Nested Word Automata
@@ -8,7 +8,7 @@ Nested Word Automata
 :class:`NestedWordAutomaton` recognizes nested words: finite words whose input
 also carries a call, return, or internal role for each position and an explicit
 call-return matching relation. This differs from
-:class:`~pensive.automata.vpa.VisiblyPushdownAutomaton`, where the alphabet
+:class:`~sofic.automata.vpa.VisiblyPushdownAutomaton`, where the alphabet
 partition itself determines which positions are calls and returns. Nested words,
 nested-word automata, and visibly pushdown languages are introduced by Alur and
 Madhusudan :cite:`AlurMadhusudan2009`.
@@ -22,7 +22,7 @@ Constructor sketch
 
 .. code-block:: python
 
-   from pensive.automata import NestedWord, NestedWordAutomaton
+   from sofic.automata import NestedWord, NestedWordAutomaton
 
    nwa = NestedWordAutomaton(
        call_alphabet=frozenset({"("}),
@@ -62,4 +62,4 @@ API
 .. autoclass:: NestedWordAutomaton
    :members: add_call_transition, add_return_transition, add_internal_transition, recognizes, recognizes_visible, from_vpa, to_vpa
 
-.. autofunction:: pensive.automata.nwa_simulation.recognizes_nwa
+.. autofunction:: sofic.automata.nwa_simulation.recognizes_nwa

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import pensive.examples.processes as processes
-from pensive.automata.transducer_operations import compose_tg, compose_tt, transduce_generator
+import sofic.examples.processes as processes
+from sofic.automata.transducer_operations import compose_tg, compose_tt, transduce_generator
 
 
 def test_bitflip_composed_with_bitflip_is_identity():

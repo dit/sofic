@@ -1,5 +1,5 @@
 .. quasi_realization.rst
-.. py:module:: pensive.generators.quasi_realization
+.. py:module:: sofic.generators.quasi_realization
 
 *****************
 Quasi-Realization
@@ -16,6 +16,6 @@ API
 .. autoclass:: QuasiRealization
 .. autoclass:: QuasiStochasticModel
 
-.. autofunction:: pensive.generators.quasi_inference.transition_matrices
-.. autofunction:: pensive.generators.quasi_inference.stationary_quasidistribution
-.. autofunction:: pensive.generators.quasi_inference.word_probability
+.. autofunction:: sofic.generators.quasi_inference.transition_matrices
+.. autofunction:: sofic.generators.quasi_inference.stationary_quasidistribution
+.. autofunction:: sofic.generators.quasi_inference.word_probability

@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from pensive.generators.nmachine import NMachine
-from pensive.generators.quasi_realization import QuasiRealization
-from pensive.graph import ATTR_EMISSION, ATTR_QUASIPROB
+from sofic.generators.nmachine import NMachine
+from sofic.generators.quasi_realization import QuasiRealization
+from sofic.graph import ATTR_EMISSION, ATTR_QUASIPROB
 
 
 def _nmachine() -> NMachine:

@@ -1,13 +1,13 @@
 """Tests for generator conversions."""
 
-from pensive.automata.dfa import DFA
-from pensive.automata.nfa import NFA
-from pensive.generators.base import HiddenMarkovModel
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
-from pensive.generators.pfa import ProbabilisticFiniteAutomaton
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_SYMBOL
-from pensive.shifts.sofic import SoficShift
+from sofic.automata.dfa import DFA
+from sofic.automata.nfa import NFA
+from sofic.generators.base import HiddenMarkovModel
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.moore import MooreHMM
+from sofic.generators.pfa import ProbabilisticFiniteAutomaton
+from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_SYMBOL
+from sofic.shifts.sofic import SoficShift
 
 
 def _golden_mean_support_hmm() -> MealyHMM:

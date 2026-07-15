@@ -1,5 +1,5 @@
 .. unifilar_automaton.rst
-.. py:module:: pensive.automata.unifilar
+.. py:module:: sofic.automata.unifilar
 
 ******************
 Unifilar Automaton

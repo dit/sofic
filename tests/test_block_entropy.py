@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 from hypothesis import given, settings
 
-from pensive.examples import fair_coin, golden_mean
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
-from pensive.testing.strategies import epsilon_machines
+from sofic.examples import fair_coin, golden_mean
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
+from sofic.testing.strategies import epsilon_machines
 
 
 def test_fair_coin_block_entropy_diagram_is_linear():

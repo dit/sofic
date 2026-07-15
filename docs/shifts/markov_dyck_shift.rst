@@ -1,12 +1,12 @@
 .. markov_dyck_shift.rst
-.. py:module:: pensive.shifts.markov_dyck
+.. py:module:: sofic.shifts.markov_dyck
 
 *****************
 Markov-Dyck Shift
 *****************
 
 A :class:`MarkovDyckShift` is the Markov-Dyck specialization of
-:class:`~pensive.shifts.sofic_dyck.SoficDyckShift`. It can be built from a
+:class:`~sofic.shifts.sofic_dyck.SoficDyckShift`. It can be built from a
 matrix or from a directed graph, with graph constructors for both edge-type and
 vertex-type Markov-Dyck shifts :cite:`Matsumoto2014`.
 

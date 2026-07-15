@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.moore import MooreHMM
-from pensive.graph import ATTR_EMISSION_DIST, ATTR_PROB
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.moore import MooreHMM
+from sofic.graph import ATTR_EMISSION_DIST, ATTR_PROB
 
 
 def _moore_hmm() -> MooreHMM:

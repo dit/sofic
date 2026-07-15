@@ -6,8 +6,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from pensive.examples import golden_mean_forward, golden_mean_reverse
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.examples import golden_mean_forward, golden_mean_reverse
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 
 @given(p=st.floats(min_value=0.05, max_value=0.95))

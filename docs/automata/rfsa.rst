@@ -1,5 +1,5 @@
 .. rfsa.rst
-.. py:module:: pensive.automata.rfsa
+.. py:module:: sofic.automata.rfsa
 
 ***
 RFSA
