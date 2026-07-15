@@ -10,6 +10,15 @@ import numpy as np
 
 from pensive.exceptions import StochasticValidationError
 from pensive.generators.mealy import MealyHMM
+from pensive.generators.prob import (
+    as_prob,
+    has_symbolic,
+    is_positive_mass,
+    is_symbolic,
+    is_zero,
+    simplify_prob,
+    sum_probs,
+)
 from pensive.graph import TransitionGraph
 
 
@@ -17,18 +26,26 @@ from pensive.graph import TransitionGraph
 class MixedState:
     """A normalized belief distribution over presentation basis states."""
 
-    belief: tuple[float, ...]
+    belief: tuple[Any, ...]
 
     @classmethod
     def from_vector(
         cls,
-        vector: Sequence[float] | np.ndarray,
+        vector: Sequence[Any] | np.ndarray,
         *,
         decimals: int = 12,
         atol: float = 1e-12,
     ) -> MixedState | None:
         """Return a canonical mixed state, or ``None`` if the vector has no mass."""
-        array = np.asarray(vector, dtype=float)
+        flat = list(np.asarray(vector, dtype=object).ravel())
+        if has_symbolic(flat):
+            total = sum_probs(flat)
+            if is_zero(total, atol=atol):
+                return None
+            normalized = tuple(simplify_prob(as_prob(value) / total) for value in flat)
+            return cls(normalized)
+
+        array = np.asarray([float(value) for value in flat], dtype=float)
         total = float(array.sum())
         if total <= atol:
             return None
@@ -42,16 +59,29 @@ class MixedState:
         return cls(rounded)
 
     def as_array(self) -> np.ndarray:
+        if has_symbolic(self.belief):
+            array = np.empty(len(self.belief), dtype=object)
+            for i, value in enumerate(self.belief):
+                array[i] = value
+            return array
         return np.asarray(self.belief, dtype=float)
+
+    def is_symbolic(self) -> bool:
+        return has_symbolic(self.belief)
 
 
 def is_pure_mixed_state(
-    state: MixedState | Sequence[float],
+    state: MixedState | Sequence[Any],
     *,
     atol: float = 1e-9,
 ) -> bool:
     """Return whether ``state`` is a vertex of the belief simplex."""
     belief = state.belief if isinstance(state, MixedState) else tuple(state)
+    if has_symbolic(belief):
+        positives = [value for value in belief if is_positive_mass(value, atol=atol)]
+        from pensive.generators.prob import probs_equal
+
+        return len(positives) == 1 and probs_equal(sum_probs(belief), 1)
     positives = [value for value in belief if value > atol]
     return len(positives) == 1 and np.isclose(sum(belief), 1.0, atol=atol)
 
@@ -61,7 +91,7 @@ def pure_state_index(state: MixedState, *, atol: float = 1e-9) -> int | None:
     if not is_pure_mixed_state(state, atol=atol):
         return None
     for index, value in enumerate(state.belief):
-        if value > atol:
+        if is_positive_mass(value, atol=atol):
             return index
     return None
 
@@ -70,6 +100,8 @@ def mixed_state_entropy(state: MixedState, *, atol: float = 1e-12) -> float:
     """Shannon entropy of a mixed state in bits."""
     from pensive.generators.stochastic import shannon_entropy
 
+    if state.is_symbolic():
+        raise NotImplementedError("mixed_state_entropy is numeric-only; evaluate beliefs first")
     return shannon_entropy(state.as_array(), atol=atol)
 
 
@@ -136,6 +168,7 @@ class MixedStatePresentation(MealyHMM):
                     )
 
         initial_distribution = self._recurrent_initial_distribution(keep, state_map)
+        constraints = getattr(self, "symbol_constraints", None)
         if is_epsilon_machine:
             from pensive.generators.epsilon_machine import EpsilonMachine
 
@@ -143,6 +176,7 @@ class MixedStatePresentation(MealyHMM):
                 graph=graph,
                 initial_distribution=initial_distribution,
                 observation_alphabet=self.observation_alphabet,
+                symbol_constraints=constraints,
             )
             recurrent.validate()
             return recurrent
@@ -151,6 +185,7 @@ class MixedStatePresentation(MealyHMM):
             graph=graph,
             initial_distribution=initial_distribution,
             observation_alphabet=self.observation_alphabet,
+            symbol_constraints=constraints,
         )
         recurrent.validate_stochastic()
         recurrent._check_unifilar()
@@ -172,21 +207,31 @@ class MixedStatePresentation(MealyHMM):
         self,
         keep: frozenset[MixedState],
         state_map: Mapping[MixedState, Hashable],
-    ) -> dict[Hashable, float]:
+    ) -> dict[Hashable, Any]:
+        from pensive.generators.prob import simplify_prob
+
         idx = self.reindex()
         stationary = self.stationary_distribution()
-        initial: dict[Hashable, float] = {}
+        initial: dict[Hashable, Any] = {}
+        symbolic = stationary.dtype == object or has_symbolic(stationary.ravel())
         for state in keep:
-            mass = float(stationary[idx.index(state)])
-            if mass > 0.0:
-                label = state_map[state]
-                initial[label] = initial.get(label, 0.0) + mass
+            mass = stationary[idx.index(state)]
+            if not is_positive_mass(mass):
+                continue
+            label = state_map[state]
+            if label in initial:
+                initial[label] = simplify_prob(as_prob(initial[label]) + as_prob(mass))
+            else:
+                initial[label] = as_prob(mass)
         if not initial:
             raise StochasticValidationError("recurrent component has no positive stationary mass")
-        total = sum(initial.values())
-        return {state: mass / total for state, mass in initial.items()}
+        total = sum_probs(initial.values())
+        if symbolic or is_symbolic(total):
+            return {state: simplify_prob(as_prob(mass) / total) for state, mass in initial.items()}
+        total_f = float(total)
+        return {state: float(mass) / total_f for state, mass in initial.items()}
 
-    def belief(self, state: MixedState) -> tuple[float, ...]:
+    def belief(self, state: MixedState) -> tuple[Any, ...]:
         return state.belief
 
     def causal_state(self, state: MixedState) -> Hashable | None:

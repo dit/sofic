@@ -11,6 +11,18 @@ import numpy as np
 from pensive.exceptions import StochasticValidationError
 from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from pensive.generators.epsilon_machine import EpsilonMachine
+from pensive.generators.prob import (
+    as_prob,
+    has_symbolic,
+    is_positive_mass,
+    is_symbolic,
+    is_zero,
+    probs_equal,
+    row_sums_to_one,
+    simplify_prob,
+    sum_probs,
+    zeros,
+)
 from pensive.generators.reversal import time_reverse_stochastic
 from pensive.generators.stationary import (
     stationary_distribution_from_transition,
@@ -57,7 +69,7 @@ def _build_eq15_graph(
 ) -> TransitionGraph:
     """Build the provisional Eq. (15) graph before pruning transient joint states."""
     reverse_states = sorted(rev_time.states(), key=repr)
-    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, float]]] = defaultdict(list)
+    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, Any]]] = defaultdict(list)
 
     for alpha in sorted(forward.states(), key=repr):
         for gamma in reverse_states:
@@ -66,13 +78,13 @@ def _build_eq15_graph(
                 continue
             for transition in forward.graph.out_transitions(alpha):
                 symbol = transition.data.get(ATTR_EMISSION)
-                prob_forward = float(transition.data.get(ATTR_PROB, 0.0))
-                if symbol is None or prob_forward <= 0.0:
+                prob_forward = as_prob(transition.data.get(ATTR_PROB, 0.0))
+                if symbol is None or not is_positive_mass(prob_forward):
                     continue
                 beta = transition.target
                 for delta in reverse_states:
                     tex = _reverse_tex_probability(rev_time, gamma, delta, symbol)
-                    if tex <= 0.0:
+                    if not is_positive_mass(tex):
                         continue
                     raw[source].append(((beta, delta), symbol, tex))
 
@@ -80,7 +92,7 @@ def _build_eq15_graph(
 
 
 def _graph_from_raw(
-    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, float]]],
+    raw: dict[tuple[Hashable, Hashable], list[tuple[tuple[Hashable, Hashable], Any, Any]]],
 ) -> TransitionGraph:
     graph = TransitionGraph()
     registry: dict[tuple[Hashable, Hashable], tuple[Hashable, Hashable]] = {}
@@ -97,14 +109,22 @@ def _graph_from_raw(
             continue
         source = _intern(source)
         graph.add_state(source)
-        aggregated: dict[tuple[tuple[Hashable, Hashable], Any], float] = defaultdict(float)
+        aggregated: dict[tuple[tuple[Hashable, Hashable], Any], Any] = {}
         for target, symbol, weight in entries:
-            aggregated[(_intern(target), symbol)] += weight
-        total = sum(aggregated.values())
-        if total <= 0.0:
+            key = (_intern(target), symbol)
+            if key in aggregated:
+                aggregated[key] = sum_probs([aggregated[key], weight])
+            else:
+                aggregated[key] = as_prob(weight)
+        total = sum_probs(aggregated.values())
+        if not is_positive_mass(total):
             continue
+        symbolic = is_symbolic(total) or has_symbolic(aggregated.values())
         for (target, symbol), weight in aggregated.items():
-            prob = _clean_probability(weight / total)
+            if symbolic:
+                prob = _clean_probability(simplify_prob(as_prob(weight) / as_prob(total)))
+            else:
+                prob = _clean_probability(float(weight) / float(total))
             graph.add_transition(
                 source,
                 target,
@@ -113,7 +133,9 @@ def _graph_from_raw(
     return graph
 
 
-def _clean_probability(probability: float) -> float:
+def _clean_probability(probability: Any) -> Any:
+    if is_symbolic(probability):
+        return simplify_prob(probability)
     rounded = round(float(probability), 15)
     if np.isclose(probability, rounded, rtol=0.0, atol=1e-15):
         return rounded
@@ -125,16 +147,18 @@ def _reverse_tex_probability(
     gamma: Hashable,
     delta: Hashable,
     symbol: Any,
-) -> float:
+) -> Any:
     """T̃_x(γ, δ) from the time-reversed reverse ε-machine (Eq. 18)."""
-    total = 0.0
+    masses: list[Any] = []
     for transition in rev_time.graph.out_transitions(gamma):
         if transition.data.get(ATTR_EMISSION) != symbol:
             continue
         if transition.target != delta:
             continue
-        total += float(transition.data.get(ATTR_PROB, 0.0))
-    return total
+        masses.append(as_prob(transition.data.get(ATTR_PROB, 0.0)))
+    if not masses:
+        return 0.0
+    return sum_probs(masses)
 
 
 def _prune_to_stationary_support(
@@ -143,7 +167,7 @@ def _prune_to_stationary_support(
     reverse: EpsilonMachine,
     *,
     tol: float = 1e-12,
-) -> tuple[TransitionGraph, dict[tuple[Hashable, Hashable], float]]:
+) -> tuple[TransitionGraph, dict[tuple[Hashable, Hashable], Any]]:
     """Drop transient joint states and return a margin-matching stationary joint π."""
     states = list(graph.states())
     if not states:
@@ -191,7 +215,8 @@ def _compatible_pairs(
 
 def _forward_emits(forward: EpsilonMachine, state: Hashable, symbol: Any) -> bool:
     return any(
-        transition.data.get(ATTR_EMISSION) == symbol and float(transition.data.get(ATTR_PROB, 0.0)) > 0.0
+        transition.data.get(ATTR_EMISSION) == symbol
+        and is_positive_mass(as_prob(transition.data.get(ATTR_PROB, 0.0)))
         for transition in forward.graph.out_transitions(state)
     )
 
@@ -214,7 +239,7 @@ def _joint_pi_on_pair_subset(
     pairs: list[tuple[Hashable, Hashable]],
     *,
     tol: float = 1e-12,
-) -> dict[tuple[Hashable, Hashable], float] | None:
+) -> dict[tuple[Hashable, Hashable], Any] | None:
     """Stationary joint π over a closed joint-state component, or ``None`` if unavailable.
 
     The joint stationary distribution is the normalized left eigenvector (eigenvalue
@@ -228,16 +253,26 @@ def _joint_pi_on_pair_subset(
     states = sorted(pairs, key=repr)
     index = {state: i for i, state in enumerate(states)}
     n = len(states)
-    matrix = np.zeros((n, n), dtype=float)
+    edge_probs = [
+        as_prob(transition.data.get(ATTR_PROB, 0.0))
+        for state in states
+        for transition in graph.out_transitions(state)
+    ]
+    symbolic = has_symbolic(edge_probs)
+    matrix = zeros((n, n), symbolic=symbolic)
     for state in states:
         row = index[state]
         for transition in graph.out_transitions(state):
             column = index.get(transition.target)
             if column is None:
                 continue
-            matrix[row, column] += float(transition.data.get(ATTR_PROB, 0.0))
+            matrix[row, column] = as_prob(matrix[row, column]) + as_prob(transition.data.get(ATTR_PROB, 0.0))
 
-    if not np.allclose(matrix.sum(axis=1), 1.0, atol=1e-9):
+    if symbolic:
+        for row in range(n):
+            if not row_sums_to_one([as_prob(matrix[row, j]) for j in range(n)]):
+                return None
+    elif not np.allclose(matrix.sum(axis=1), 1.0, atol=1e-9):
         return None
 
     try:
@@ -245,7 +280,14 @@ def _joint_pi_on_pair_subset(
     except (StochasticValidationError, ValueError):
         return None
 
-    joint = {states[i]: float(pi[i]) for i in range(n) if pi[i] > tol}
+    if symbolic:
+        joint = {
+            states[i]: simplify_prob(as_prob(pi[i]))
+            for i in range(n)
+            if is_positive_mass(pi[i])
+        }
+    else:
+        joint = {states[i]: float(pi[i]) for i in range(n) if float(pi[i]) > tol}
     return joint or None
 
 
@@ -260,7 +302,7 @@ def _undirected_components(
 
 def _anatomy_gap_for_joint(
     graph: TransitionGraph,
-    joint: dict[tuple[Hashable, Hashable], float],
+    joint: dict[tuple[Hashable, Hashable], Any],
     forward: EpsilonMachine,
     reverse: EpsilonMachine,
 ) -> float:
@@ -279,20 +321,46 @@ def _anatomy_gap_for_joint(
         r_mu = provisional.ephemeral_information()
     except (ImportError, StochasticValidationError, ValueError):
         return float("inf")
-    return abs(b_mu + r_mu - h_mu)
+
+    if is_symbolic(h_mu) or is_symbolic(b_mu) or is_symbolic(r_mu):
+        import sympy as sp
+
+        gap = sp.simplify(sp.sympify(b_mu) + sp.sympify(r_mu) - sp.sympify(h_mu))
+        return 0.0 if gap == 0 else float("inf")
+    return abs(float(b_mu) + float(r_mu) - float(h_mu))
 
 
-def _stationary_state_probabilities(machine: EpsilonMachine) -> dict[Hashable, float]:
+def _stationary_state_probabilities(machine: EpsilonMachine) -> dict[Hashable, Any]:
     """Stationary causal-state distribution of ``machine`` keyed by state label."""
     index = machine.reindex()
     pi = machine.stationary_distribution()
+    symbolic = pi.dtype == object or has_symbolic(pi.ravel())
+    if symbolic:
+        return {state: simplify_prob(as_prob(pi[i])) for i, state in enumerate(index.states)}
     return {state: float(pi[i]) for i, state in enumerate(index.states)}
 
 
+def _abs_marginal_error(left: Any, right: Any) -> float:
+    """Absolute marginal deviation (exact sympy simplify, else numeric)."""
+    if probs_equal(left, right):
+        return 0.0
+    if is_symbolic(left) or is_symbolic(right):
+        import sympy as sp
+
+        simplified = sp.simplify(sp.Abs(sp.sympify(left) - sp.sympify(right)))
+        if getattr(simplified, "free_symbols", None):
+            return float("inf")
+        try:
+            return abs(float(simplified))
+        except (TypeError, ValueError):
+            return float("inf")
+    return abs(float(left) - float(right))
+
+
 def _joint_marginal_mismatch(
-    joint: dict[tuple[Hashable, Hashable], float],
-    pi_plus: dict[Hashable, float],
-    pi_minus: dict[Hashable, float],
+    joint: dict[tuple[Hashable, Hashable], Any],
+    pi_plus: dict[Hashable, Any],
+    pi_minus: dict[Hashable, Any],
 ) -> float:
     """Max abs deviation of ``joint``'s marginals from the target stationary marginals.
 
@@ -301,17 +369,23 @@ def _joint_marginal_mismatch(
     distributions.  Spurious closed sub-cycles (e.g. the all-``0`` period-3 cycle
     of the Nemo process) violate this and are rejected by the selector below.
     """
-    forward_marginal: dict[Hashable, float] = defaultdict(float)
-    reverse_marginal: dict[Hashable, float] = defaultdict(float)
+    forward_marginal: dict[Hashable, Any] = {}
+    reverse_marginal: dict[Hashable, Any] = {}
     for (alpha, gamma), mass in joint.items():
-        forward_marginal[alpha] += mass
-        reverse_marginal[gamma] += mass
+        forward_marginal[alpha] = sum_probs([forward_marginal.get(alpha, 0), mass])
+        reverse_marginal[gamma] = sum_probs([reverse_marginal.get(gamma, 0), mass])
 
     error = 0.0
     for state in set(pi_plus) | set(forward_marginal):
-        error = max(error, abs(forward_marginal.get(state, 0.0) - pi_plus.get(state, 0.0)))
+        error = max(
+            error,
+            _abs_marginal_error(forward_marginal.get(state, 0), pi_plus.get(state, 0)),
+        )
     for state in set(pi_minus) | set(reverse_marginal):
-        error = max(error, abs(reverse_marginal.get(state, 0.0) - pi_minus.get(state, 0.0)))
+        error = max(
+            error,
+            _abs_marginal_error(reverse_marginal.get(state, 0), pi_minus.get(state, 0)),
+        )
     return error
 
 
@@ -322,7 +396,7 @@ def _joint_pi_minimum_support(
     *,
     tol: float = 1e-12,
     marginal_tol: float = 1e-6,
-) -> dict[tuple[Hashable, Hashable], float]:
+) -> dict[tuple[Hashable, Hashable], Any]:
     """Pick the closed undirected component that is the true bidirectional class.
 
     The joint π on each component is the general HMM stationary distribution (left
@@ -346,7 +420,7 @@ def _joint_pi_minimum_support(
         key=lambda component: (len(component), sorted(component, key=repr)),
     )
 
-    candidates: list[tuple[float, float, int, dict[tuple[Hashable, Hashable], float]]] = []
+    candidates: list[tuple[float, float, int, dict[tuple[Hashable, Hashable], Any]]] = []
     for component in components:
         component_pairs = [pair for pair in pairs if pair in component]
         joint = _joint_pi_on_pair_subset(graph, component_pairs, tol=tol)
@@ -359,7 +433,11 @@ def _joint_pi_minimum_support(
     if not candidates:
         return {}
 
-    matching = [candidate for candidate in candidates if candidate[0] <= marginal_tol]
+    all_symbolic = all(has_symbolic(candidate[3].values()) for candidate in candidates)
+    if all_symbolic:
+        matching = [candidate for candidate in candidates if candidate[0] == 0.0]
+    else:
+        matching = [candidate for candidate in candidates if candidate[0] <= marginal_tol]
     if matching:
         best = min(matching, key=lambda candidate: (candidate[1], candidate[2]))
     else:
@@ -404,20 +482,23 @@ def _relabel_epsilon_machine(
         graph.add_state(mapping[state], **attrs)
     for state in machine.states():
         outgoing = list(machine.graph.out_transitions(state))
-        merged: dict[tuple[Hashable, Any], float] = {}
+        merged: dict[tuple[Hashable, Any], Any] = {}
         for transition in outgoing:
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
             emission = transition.data.get(ATTR_EMISSION)
             key = (mapping[transition.target], emission)
-            merged[key] = merged.get(key, 0.0) + prob
+            if key in merged:
+                merged[key] = sum_probs([merged[key], prob])
+            else:
+                merged[key] = prob
         merged = normalize_row_weights(merged)
         source = mapping[state]
         for (target, emission), prob in merged.items():
-            attrs = {ATTR_PROB: prob}
+            attrs = {ATTR_PROB: as_prob(prob)}
             if emission is not None:
                 attrs[ATTR_EMISSION] = emission
             graph.add_transition(source, target, **attrs)
-    initial = {mapping[state]: prob for state, prob in machine.initial_distribution.items()}
+    initial = {mapping[state]: as_prob(prob) for state, prob in machine.initial_distribution.items()}
     eps = EpsilonMachine(
         graph=graph,
         initial_distribution=initial,
@@ -480,8 +561,8 @@ def _recurrent_support(graph: TransitionGraph, *, tol: float = 1e-12) -> set[tup
             if not outgoing:
                 changed = True
                 continue
-            total = sum(float(t.data.get(ATTR_PROB, 0.0)) for t in outgoing)
-            if not np.isclose(total, 1.0, atol=1e-9):
+            probs = [as_prob(t.data.get(ATTR_PROB, 0.0)) for t in outgoing]
+            if not row_sums_to_one(probs):
                 changed = True
                 continue
             next_keep.add(state)
@@ -489,19 +570,23 @@ def _recurrent_support(graph: TransitionGraph, *, tol: float = 1e-12) -> set[tup
     return keep
 
 
-def joint_distribution(bidir: BidirectionalEpsilonMachine) -> dict[tuple[Hashable, Hashable], float]:
+def joint_distribution(bidir: BidirectionalEpsilonMachine) -> dict[tuple[Hashable, Hashable], Any]:
     """Return π(α, γ) = P(S⁺ = α, S⁻ = γ) under the bidirectional stationary distribution."""
     if bidir._joint_pi is not None:
         return dict(bidir._joint_pi)
 
     idx = bidir.reindex()
     pi = stationary_distribution_hmm(bidir)
-    joint: dict[tuple[Hashable, Hashable], float] = {}
+    symbolic = pi.dtype == object or has_symbolic(pi.ravel())
+    joint: dict[tuple[Hashable, Hashable], Any] = {}
     for index, state in enumerate(idx.states):
         alpha, gamma = state
-        mass = float(pi[index])
-        if mass > 0.0:
-            joint[(alpha, gamma)] = mass
+        mass = as_prob(pi[index])
+        if symbolic:
+            if is_positive_mass(mass):
+                joint[(alpha, gamma)] = simplify_prob(mass)
+        elif float(mass) > 0.0:
+            joint[(alpha, gamma)] = float(mass)
     return joint
 
 
@@ -520,18 +605,21 @@ def bidirectional_step_distribution(bidir: BidirectionalEpsilonMachine) -> Any:
 
     joint = joint_distribution(bidir)
     outcomes: list[tuple[Any, ...]] = []
-    probs: list[float] = []
+    probs: list[Any] = []
     for (alpha, gamma), mass in joint.items():
-        if mass <= 0.0:
+        if not is_positive_mass(mass):
             continue
         for transition in bidir.graph.out_transitions((alpha, gamma)):
             symbol = transition.data.get(ATTR_EMISSION)
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
-            if symbol is None or prob <= 0.0:
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
+            if symbol is None or not is_positive_mass(prob):
                 continue
             beta, delta = transition.target
-            weight = mass * prob
-            if weight <= 0.0:
+            if has_symbolic([mass, prob]):
+                weight = simplify_prob(as_prob(mass) * as_prob(prob))
+            else:
+                weight = float(mass) * float(prob)
+            if not is_positive_mass(weight):
                 continue
             outcomes.append((alpha, gamma, symbol, beta, delta))
             probs.append(weight)
@@ -539,8 +627,15 @@ def bidirectional_step_distribution(bidir: BidirectionalEpsilonMachine) -> Any:
     if not probs:
         raise StochasticValidationError("bidirectional step distribution is empty")
 
-    total = sum(probs)
-    return dit.Distribution(outcomes, [p / total for p in probs])
+    total = sum_probs(probs)
+    if has_symbolic(probs) or is_symbolic(total):
+        from dit.symbolic import symbolic_distribution
+
+        return symbolic_distribution(
+            outcomes,
+            [simplify_prob(as_prob(p) / as_prob(total)) for p in probs],
+        )
+    return dit.Distribution(outcomes, [float(p) / float(total) for p in probs])
 
 
 def _require_dit_for_step():
@@ -567,11 +662,15 @@ def _marginalize_to_epsilon(
     joint = joint_distribution(bidir)
     side = bidir.forward_machine if project_forward else bidir.reverse_machine
     coord = 0 if project_forward else 1
+    symbolic = has_symbolic(joint.values())
 
-    pi_marginal: dict[Hashable, float] = {}
+    pi_marginal: dict[Hashable, Any] = {}
     for pair, mass in joint.items():
         state = pair[coord]
-        pi_marginal[state] = pi_marginal.get(state, 0.0) + mass
+        if state in pi_marginal:
+            pi_marginal[state] = sum_probs([pi_marginal[state], mass])
+        else:
+            pi_marginal[state] = as_prob(mass)
 
     graph = TransitionGraph()
     for state in side.states():
@@ -584,29 +683,37 @@ def _marginalize_to_epsilon(
             else:
                 graph.add_state(state)
 
-    weights: dict[tuple[Hashable, Hashable, Any], float] = {}
+    weights: dict[tuple[Hashable, Hashable, Any], Any] = {}
     for pair, mass in joint.items():
         source = pair[coord]
-        pi_source = pi_marginal.get(source, 0.0)
-        if mass <= 0.0 or pi_source <= 0.0:
+        pi_source = pi_marginal.get(source, 0)
+        if not is_positive_mass(mass) or is_zero(pi_source):
             continue
         for transition in side.graph.out_transitions(source):
             symbol = transition.data.get(ATTR_EMISSION)
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
-            if symbol is None or prob <= 0.0:
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
+            if symbol is None or not is_positive_mass(prob):
                 continue
             key = (source, transition.target, symbol)
-            weights[key] = weights.get(key, 0.0) + mass * prob / pi_source
+            contribution = (
+                simplify_prob(as_prob(mass) * as_prob(prob) / as_prob(pi_source))
+                if symbolic or has_symbolic([mass, prob, pi_source])
+                else float(mass) * float(prob) / float(pi_source)
+            )
+            if key in weights:
+                weights[key] = sum_probs([weights[key], contribution])
+            else:
+                weights[key] = contribution
 
     for (source, target, symbol), prob in weights.items():
-        if prob <= 0.0:
+        if not is_positive_mass(prob):
             continue
         existing = [
             t for t in graph.out_transitions(source) if t.data.get(ATTR_EMISSION) == symbol and t.target == target
         ]
         if existing:
             continue
-        graph.add_transition(source, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+        graph.add_transition(source, target, **{ATTR_PROB: as_prob(prob), ATTR_EMISSION: symbol})
 
     eps = EpsilonMachine(
         graph=graph,

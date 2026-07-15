@@ -407,6 +407,7 @@ class EpsilonMachine(MealyHMM):
 
 
 def _row_normalized_presentation(hmm: MealyHMM) -> EpsilonMachine:
+    from pensive.generators.prob import as_prob, simplify_prob
     from pensive.generators.stochastic import normalize_row_weights
     from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
@@ -415,15 +416,18 @@ def _row_normalized_presentation(hmm: MealyHMM) -> EpsilonMachine:
         graph.add_state(state)
     for state in hmm.states():
         outgoing = list(hmm.graph.out_transitions(state))
-        merged: dict[tuple[Hashable, Any], float] = {}
+        merged: dict[tuple[Hashable, Any], Any] = {}
         for transition in outgoing:
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
             emission = transition.data.get(ATTR_EMISSION)
             key = (transition.target, emission)
-            merged[key] = merged.get(key, 0.0) + prob
+            if key in merged:
+                merged[key] = simplify_prob(as_prob(merged[key]) + as_prob(prob))
+            else:
+                merged[key] = prob
         merged = normalize_row_weights(merged)
         for (target, emission), prob in merged.items():
-            attrs = {ATTR_PROB: prob}
+            attrs = {ATTR_PROB: as_prob(prob)}
             if emission is not None:
                 attrs[ATTR_EMISSION] = emission
             graph.add_transition(state, target, **attrs)

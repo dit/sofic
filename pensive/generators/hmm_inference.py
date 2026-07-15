@@ -20,14 +20,20 @@ def _emission_transition_tensors_from_mealy(
     hmm: Any,
 ) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
     """Return initial vector ``pi`` and symbol -> joint transition matrices."""
+    from pensive.generators.prob import as_prob, has_symbolic, zeros
+
     idx = hmm.reindex()
     n = len(idx)
-    pi = np.zeros(n, dtype=float)
+    edge_probs = [transition.data.get(ATTR_PROB, 0.0) for transition in hmm.transitions()]
+    init_probs = list(hmm.initial_distribution.values())
+    symbolic = has_symbolic(edge_probs) or has_symbolic(init_probs)
+
+    pi = zeros((n,), symbolic=symbolic)
     for state, mass in hmm.initial_distribution.items():
-        pi[idx.index(state)] = float(mass)
+        pi[idx.index(state)] = as_prob(mass)
 
     symbols: set[Any] = set(hmm.observation_alphabet)
-    joint: dict[Any, np.ndarray] = {symbol: np.zeros((n, n), dtype=float) for symbol in symbols}
+    joint: dict[Any, np.ndarray] = {symbol: zeros((n, n), symbolic=symbolic) for symbol in symbols}
 
     for transition in hmm.transitions():
         emission = transition.data.get(ATTR_EMISSION)
@@ -35,7 +41,7 @@ def _emission_transition_tensors_from_mealy(
             continue
         i = idx.index(transition.source)
         j = idx.index(transition.target)
-        joint[emission][i, j] += float(transition.data.get(ATTR_PROB, 0.0))
+        joint[emission][i, j] = as_prob(joint[emission][i, j]) + as_prob(transition.data.get(ATTR_PROB, 0.0))
     return pi, joint
 
 
@@ -58,13 +64,15 @@ def _stationary_emission_tensors(
     indexing; it falls back to the initial vector only when no stationary law can be
     found (e.g. a degenerate generator).
     """
+    from pensive.generators.prob import zeros
     from pensive.generators.stationary import stationary_distribution_from_transition
 
     pi_initial, joint = _emission_transition_tensors(hmm)
     n = len(pi_initial)
     if n == 0:
         return pi_initial, joint
-    transition = np.zeros((n, n), dtype=float)
+    symbolic = pi_initial.dtype == object or any(matrix.dtype == object for matrix in joint.values())
+    transition = zeros((n, n), symbolic=symbolic)
     for matrix in joint.values():
         transition = transition + matrix
     try:

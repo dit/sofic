@@ -32,11 +32,17 @@ class MealyHMM(HiddenMarkovModel):
     """
 
     def add_transition(self, source: Hashable, target: Hashable, symbol: Any, prob: float, **attrs: Any) -> int:
-        """Add an edge carrying joint emission probability ``P(target, symbol | source)``."""
+        """Add an edge carrying joint emission probability ``P(target, symbol | source)``.
+
+        ``prob`` may be a Python float or an exact sympy expression (see
+        :mod:`pensive.generators.prob`).
+        """
+        from pensive.generators.prob import as_prob
+
         return self.graph.add_transition(
             source,
             target,
-            **{ATTR_EMISSION: symbol, ATTR_PROB: float(prob), **attrs},
+            **{ATTR_EMISSION: symbol, ATTR_PROB: as_prob(prob), **attrs},
         )
 
     def validate_stochastic(self) -> None:

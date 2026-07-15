@@ -8,12 +8,22 @@ from typing import Any
 
 import numpy as np
 
+from pensive.exceptions import StochasticValidationError
 from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.mixed_state import (
     MixedState,
     MixedStatePresentation,
     is_pure_mixed_state,
+)
+from pensive.generators.prob import (
+    as_prob,
+    has_symbolic,
+    is_positive_mass,
+    matvec,
+    simplify_prob,
+    sum_probs,
+    zeros,
 )
 from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
@@ -25,23 +35,23 @@ def _terminal_recurrent_states(graph: TransitionGraph) -> frozenset[Any]:
 def _resolve_initial_belief(
     hmm: HiddenMarkovModel,
     basis: tuple[Hashable, ...],
-    initial_mixed_state: MixedState | Mapping[Hashable, float] | Sequence[float] | None,
+    initial_mixed_state: MixedState | Mapping[Hashable, Any] | Sequence[Any] | None,
 ) -> MixedState:
     if initial_mixed_state is None:
-        pi = hmm.stationary_distribution()
-        vector = pi
+        vector = hmm.stationary_distribution()
     elif isinstance(initial_mixed_state, MixedState):
         vector = initial_mixed_state.as_array()
     elif isinstance(initial_mixed_state, Mapping):
         index = {state: i for i, state in enumerate(basis)}
-        vector = np.zeros(len(basis), dtype=float)
+        symbolic = has_symbolic(initial_mixed_state.values())
+        vector = zeros((len(basis),), symbolic=symbolic)
         for state, mass in initial_mixed_state.items():
-            vector[index[state]] = float(mass)
+            vector[index[state]] = as_prob(mass)
     else:
-        vector = np.asarray(initial_mixed_state, dtype=float)
+        vector = np.asarray(initial_mixed_state, dtype=object if has_symbolic(initial_mixed_state) else float)
 
-    if vector.shape != (len(basis),):
-        raise ValueError(f"initial belief has length {vector.shape[0]}, expected {len(basis)}")
+    if len(np.asarray(vector).ravel()) != len(basis):
+        raise ValueError(f"initial belief has length {len(np.asarray(vector).ravel())}, expected {len(basis)}")
     mixed = MixedState.from_vector(vector)
     if mixed is None:
         raise ValueError("initial mixed state has zero total mass")
@@ -51,7 +61,8 @@ def _resolve_initial_belief(
 def build_mixed_state_presentation(
     hmm: HiddenMarkovModel,
     *,
-    initial_mixed_state: MixedState | Mapping[Hashable, float] | Sequence[float] | None = None,
+    initial_mixed_state: MixedState | Mapping[Hashable, Any] | Sequence[Any] | None = None,
+    max_states: int = 10_000,
 ) -> MixedStatePresentation:
     """Enumerate the mixed-state presentation of ``hmm``.
 
@@ -60,6 +71,13 @@ def build_mixed_state_presentation(
     Ellison, Mahoney & Crutchfield (J. Stat. Phys. 2009), Sec. VIII.2.
 
     Any Mealy-style HMM (joint edge emissions) is accepted; unifilarity is not required.
+    Probabilities may be floats or exact sympy expressions.
+
+    Parameters
+    ----------
+    max_states
+        Safety cap on enumerated beliefs (symbolic machines can otherwise grow
+        without bound when successor beliefs fail to identify).
     """
     if isinstance(hmm, MixedStatePresentation):
         raise TypeError("cannot build a mixed-state presentation from another mixed-state presentation")
@@ -67,6 +85,8 @@ def build_mixed_state_presentation(
         raise TypeError(f"mixed-state presentation requires a MealyHMM, not {type(hmm)!r}")
 
     from pensive.generators.hmm_inference import _emission_transition_tensors
+
+    constraints = getattr(hmm, "symbol_constraints", None)
 
     idx = hmm.reindex()
     basis = idx.states
@@ -82,6 +102,14 @@ def build_mixed_state_presentation(
         existing = discovered.get(state)
         if existing is not None:
             return existing
+        for known in discovered:
+            if _beliefs_equal(known, state, constraints=constraints):
+                discovered[state] = known
+                return known
+        if len(discovered) >= max_states:
+            raise StochasticValidationError(
+                f"mixed-state presentation exceeded max_states={max_states}"
+            )
         discovered[state] = state
         graph.add_state(state)
         queue.append(state)
@@ -94,9 +122,9 @@ def build_mixed_state_presentation(
         row = eta.as_array()
         for symbol in symbols:
             matrix = joint[symbol]
-            mass = row @ matrix
-            probability = float(mass.sum())
-            if probability <= 0.0:
+            mass = matvec(row, matrix)
+            probability = simplify_prob(sum_probs(mass.tolist()))
+            if not is_positive_mass(probability):
                 continue
             successor = MixedState.from_vector(mass)
             if successor is None:
@@ -105,12 +133,15 @@ def build_mixed_state_presentation(
             graph.add_transition(
                 eta,
                 successor,
-                **{ATTR_PROB: probability, ATTR_EMISSION: symbol},
+                **{ATTR_PROB: as_prob(probability), ATTR_EMISSION: symbol},
             )
 
-    pure_states = frozenset(state for state in discovered if is_pure_mixed_state(state))
-    recurrent_states = _terminal_recurrent_states(graph)
-    reachable = frozenset(discovered)
+    pure_states = frozenset(state for state in discovered.values() if is_pure_mixed_state(state))
+    unique_states = frozenset(discovered.values())
+    recurrent_states = _terminal_recurrent_states(graph) & unique_states
+    if not recurrent_states:
+        recurrent_states = _terminal_recurrent_states(graph)
+    reachable = frozenset(discovered.values())
     transient_states = reachable - recurrent_states
 
     return MixedStatePresentation(
@@ -118,8 +149,20 @@ def build_mixed_state_presentation(
         basis_states=basis,
         initial_mixed_state=eta0,
         pure_states=pure_states,
-        recurrent_states=recurrent_states,
-        transient_states=transient_states,
-        initial_distribution={eta0: 1.0},
+        recurrent_states=frozenset(recurrent_states),
+        transient_states=frozenset(transient_states),
+        initial_distribution={eta0: as_prob(1)},
         observation_alphabet=hmm.observation_alphabet,
+        symbol_constraints=constraints,
+    )
+
+
+def _beliefs_equal(left: MixedState, right: MixedState, *, constraints: Any = None) -> bool:
+    from pensive.generators.prob import probs_equal
+
+    if len(left.belief) != len(right.belief):
+        return False
+    return all(
+        probs_equal(a, b, constraints=constraints)
+        for a, b in zip(left.belief, right.belief, strict=True)
     )

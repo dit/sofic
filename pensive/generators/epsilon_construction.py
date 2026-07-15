@@ -19,21 +19,34 @@ from pensive.generators.base import HiddenMarkovModel
 from pensive.generators.epsilon_machine import EpsilonMachine
 from pensive.generators.mealy import MealyHMM
 from pensive.generators.mixed_state import MixedStatePresentation
+from pensive.generators.prob import (
+    array_sum,
+    as_prob,
+    canonical_prob_key,
+    has_symbolic,
+    is_positive_mass,
+    is_zero,
+    simplify_prob,
+    sum_probs,
+)
 from pensive.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 from pensive.states import sequential_labels
 
-TransitionSignature = tuple[tuple[Any, int, float], ...]
+TransitionSignature = tuple[tuple[Any, int, Any], ...]
 
 
 def build_epsilon_machine(hmm: HiddenMarkovModel) -> EpsilonMachine:
     hmm = hmm.to_mealy()
     presentation = _unifilar_presentation(hmm)
     stationary = presentation.stationary_distribution()
-    if stationary.sum() <= 0.0:
+    if is_zero(array_sum(stationary)):
         raise StochasticValidationError("generator must have a stationary distribution")
 
-    partitions = _refine_probabilistic_partitions(presentation)
-    return _quotient_machine(presentation, partitions, stationary)
+    constraints = getattr(presentation, "symbol_constraints", None) or getattr(
+        hmm, "symbol_constraints", None
+    )
+    partitions = _refine_probabilistic_partitions(presentation, constraints=constraints)
+    return _quotient_machine(presentation, partitions, stationary, constraints=constraints)
 
 
 def _unifilar_presentation(hmm: MealyHMM) -> MealyHMM:
@@ -45,7 +58,11 @@ def _unifilar_presentation(hmm: MealyHMM) -> MealyHMM:
     return hmm
 
 
-def _refine_probabilistic_partitions(hmm: MealyHMM) -> list[set[Any]]:
+def _refine_probabilistic_partitions(
+    hmm: MealyHMM,
+    *,
+    constraints: Any = None,
+) -> list[set[Any]]:
     """Hopcroft-style refinement on probabilistic transition signatures."""
     partitions: list[set[Any]] = [set(hmm.states())]
     changed = True
@@ -54,7 +71,7 @@ def _refine_probabilistic_partitions(hmm: MealyHMM) -> list[set[Any]]:
         state_to_block = _state_to_block_index(partitions)
         new_partitions: list[set[Any]] = []
         for block in partitions:
-            subblocks = _split_block(hmm, block, state_to_block)
+            subblocks = _split_block(hmm, block, state_to_block, constraints=constraints)
             if len(subblocks) > 1:
                 changed = True
             new_partitions.extend(subblocks)
@@ -74,11 +91,13 @@ def _split_block(
     hmm: MealyHMM,
     block: set[Any],
     state_to_block: dict[Any, int],
+    *,
+    constraints: Any = None,
 ) -> list[set[Any]]:
     """Split a block when states disagree on labeled successor blocks."""
     futures: dict[TransitionSignature, set[Any]] = defaultdict(set)
     for state in block:
-        futures[_transition_signature(hmm, state, state_to_block)].add(state)
+        futures[_transition_signature(hmm, state, state_to_block, constraints=constraints)].add(state)
     return list(futures.values())
 
 
@@ -86,17 +105,20 @@ def _transition_signature(
     hmm: MealyHMM,
     state: Any,
     state_to_block: dict[Any, int],
+    *,
+    constraints: Any = None,
 ) -> TransitionSignature:
-    triples: list[tuple[Any, int, float]] = []
+    triples: list[tuple[Any, int, Any]] = []
     for transition in hmm.graph.out_transitions(state):
         emission = transition.data.get(ATTR_EMISSION)
         if emission is None:
             continue
+        prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
         triples.append(
             (
                 emission,
                 state_to_block[transition.target],
-                float(transition.data.get(ATTR_PROB, 0.0)),
+                canonical_prob_key(prob, constraints),
             )
         )
     return tuple(sorted(triples, key=repr))
@@ -106,6 +128,8 @@ def _quotient_machine(
     hmm: MealyHMM,
     partitions: list[set[Any]],
     stationary: np.ndarray,
+    *,
+    constraints: Any = None,
 ) -> EpsilonMachine:
     state_map: dict[Any, int] = {}
     for index, block in enumerate(partitions):
@@ -126,28 +150,50 @@ def _quotient_machine(
             if emission is None:
                 continue
             target = label_for_index[state_map[transition.target]]
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
             graph.add_transition(
                 source,
                 target,
                 **{ATTR_PROB: prob, ATTR_EMISSION: emission},
             )
 
-    initial = np.zeros(len(partitions), dtype=float)
-    for state, mass in hmm.initial_distribution.items():
-        initial[state_map[state]] += float(mass)
-    if initial.sum() <= 0.0:
-        idx = hmm.reindex()
-        for state, mass in zip(idx.states, stationary, strict=False):
+    symbolic = stationary.dtype == object or has_symbolic(stationary.ravel())
+    if symbolic:
+        import sympy as sp
+
+        initial = [sp.Integer(0)] * len(partitions)
+        for state, mass in hmm.initial_distribution.items():
+            initial[state_map[state]] = simplify_prob(as_prob(initial[state_map[state]]) + as_prob(mass))
+        if is_zero(sum_probs(initial)):
+            idx = hmm.reindex()
+            for state, mass in zip(idx.states, stationary, strict=False):
+                initial[state_map[state]] = simplify_prob(
+                    as_prob(initial[state_map[state]]) + as_prob(mass)
+                )
+        total = sum_probs(initial)
+        initial_dist = {
+            label_for_index[i]: simplify_prob(as_prob(initial[i]) / total)
+            for i in range(len(partitions))
+            if is_positive_mass(initial[i])
+        }
+    else:
+        initial = np.zeros(len(partitions), dtype=float)
+        for state, mass in hmm.initial_distribution.items():
             initial[state_map[state]] += float(mass)
-    initial /= initial.sum()
+        if initial.sum() <= 0.0:
+            idx = hmm.reindex()
+            for state, mass in zip(idx.states, stationary, strict=False):
+                initial[state_map[state]] += float(mass)
+        initial /= initial.sum()
+        initial_dist = {
+            label_for_index[i]: float(initial[i]) for i in range(len(partitions)) if initial[i] > 0.0
+        }
 
     eps = EpsilonMachine(
         graph=graph,
-        initial_distribution={
-            label_for_index[i]: float(initial[i]) for i in range(len(partitions)) if initial[i] > 0.0
-        },
+        initial_distribution=initial_dist,
         observation_alphabet=hmm.observation_alphabet,
+        symbol_constraints=constraints,
     )
     eps.validate()
     return eps

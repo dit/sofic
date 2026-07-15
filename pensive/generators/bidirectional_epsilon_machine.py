@@ -22,6 +22,13 @@ def _require_dit():
     return require_dit("entropy measures")
 
 
+def _measure_value(dist: Any, value: Any) -> Any:
+    """Return a dit measure result as Expr when ``dist`` is symbolic, else float."""
+    if hasattr(dist, "is_symbolic") and dist.is_symbolic():
+        return value
+    return float(value)
+
+
 class BidirectionalEpsilonMachine(MealyHMM):
     """Non-unifilar generator over joint causal states (S⁺, S⁻).
 
@@ -39,7 +46,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
     forward_machine: EpsilonMachine
     reverse_machine: EpsilonMachine
-    _joint_pi: dict[tuple[Hashable, Hashable], float] | None = None
+    _joint_pi: dict[tuple[Hashable, Hashable], Any] | None = None
 
     def __init__(
         self,
@@ -65,7 +72,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return is_unifilar_emissions(self)
 
-    def entropy_rate(self) -> float:
+    def entropy_rate(self) -> Any:
         """Process entropy rate h_μ (same as the forward ε-machine)."""
         return self.forward_machine.entropy_rate()
 
@@ -91,7 +98,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         reverse = infer_reverse_epsilon_machine(forward)
         return cls.from_pair(forward, reverse)
 
-    def joint_distribution(self) -> dict[tuple[Hashable, Hashable], float]:
+    def joint_distribution(self) -> dict[tuple[Hashable, Hashable], Any]:
         if self._joint_pi is not None:
             return dict(self._joint_pi)
         from pensive.generators.bidirectional_construction import joint_distribution
@@ -113,38 +120,40 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return bidirectional_step_distribution(self)
 
-    def predicted_information(self) -> float:
+    def predicted_information(self) -> Any:
         """ρ_μ = I[X₀ : S⁺₀] — predicted information rate (James et al., 2013)."""
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(dit.shannon.mutual_information(dist, [_STEP_X_0], [_STEP_S_PLUS_0]))
+        return _measure_value(dist, dit.shannon.mutual_information(dist, [_STEP_X_0], [_STEP_S_PLUS_0]))
 
-    def bound_information(self) -> float:
+    def bound_information(self) -> Any:
         """b_μ = I[X₀ : S⁻₁ | S⁺₀] — bound information rate (James et al., 2013)."""
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(dist, [_STEP_X_0], [_STEP_S_PLUS_0])
             - dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_X_0],
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def ephemeral_information(self) -> float:
+    def ephemeral_information(self) -> Any:
         """r_μ = H[X₀ | S⁺₀, S⁻₁] — ephemeral information rate (James et al., 2013)."""
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_X_0],
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def structural_ephemeral_information(self) -> float:
+    def structural_ephemeral_information(self) -> Any:
         """r_μ^struct = H[S⁺₁ | S⁺₀, S⁻₁] — structural (branching) part of r_μ.
 
         The next forward causal state S⁺₁ is a deterministic function of S⁺₀ and
@@ -160,15 +169,16 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_S_PLUS_1],
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def parallel_edge_information(self) -> float:
+    def parallel_edge_information(self) -> Any:
         """r_μ^par = H[X₀ | S⁺₀, S⁺₁, S⁻₁] — parallel-edge (gauge) part of r_μ.
 
         Once the source S⁺₀ and destination S⁺₁ forward causal states are both
@@ -182,15 +192,16 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_X_0],
                 [_STEP_S_PLUS_0, _STEP_S_PLUS_1, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def bound_structural_information(self) -> float:
+    def bound_structural_information(self) -> Any:
         """b_μ^struct = I[S⁺₁ : S⁻₁ | S⁺₀] — structural (branching) part of b_μ.
 
         Companion to :meth:`structural_ephemeral_information`: the transition
@@ -203,16 +214,17 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(dist, [_STEP_S_PLUS_1], [_STEP_S_PLUS_0])
             - dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_S_PLUS_1],
                 [_STEP_S_PLUS_0, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def bound_parallel_edge_information(self) -> float:
+    def bound_parallel_edge_information(self) -> Any:
         """b_μ^par = I[X₀ : S⁻₁ | S⁺₀, S⁺₁] — parallel-edge (gauge) part of b_μ.
 
         Companion to :meth:`parallel_edge_information`: the output-relabeling
@@ -226,16 +238,17 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """
         dit = _require_dit()
         dist = self.step_distribution()
-        return float(
+        return _measure_value(
+            dist,
             dit.shannon.conditional_entropy(dist, [_STEP_X_0], [_STEP_S_PLUS_0, _STEP_S_PLUS_1])
             - dit.shannon.conditional_entropy(
                 dist,
                 [_STEP_X_0],
                 [_STEP_S_PLUS_0, _STEP_S_PLUS_1, _STEP_S_MINUS_1],
-            )
+            ),
         )
 
-    def caekl_causal_information(self) -> float:
+    def caekl_causal_information(self) -> Any:
         """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual information among past, present, and future.
 
         Chan-AlBashabsheh-Ebrahimi-Kaced-Liu multivariate mutual information
@@ -249,30 +262,51 @@ class BidirectionalEpsilonMachine(MealyHMM):
         from dit.multivariate import caekl_mutual_information
 
         dist = self.step_distribution()
-        return float(caekl_mutual_information(dist, rvs=[[_STEP_S_PLUS_0], [_STEP_X_0], [_STEP_S_MINUS_1]]))
+        return _measure_value(
+            dist,
+            caekl_mutual_information(dist, rvs=[[_STEP_S_PLUS_0], [_STEP_X_0], [_STEP_S_MINUS_1]]),
+        )
 
-    def excess_entropy(self) -> float:
+    def excess_entropy(self) -> Any:
         """Exact excess entropy E = I[S⁺; S⁻] from the bidirectional joint distribution."""
         dit = _require_dit()
         joint = self.joint_distribution()
         if not joint:
             return 0.0
 
-        pi_plus: dict[Any, float] = {}
-        pi_minus: dict[Any, float] = {}
+        from pensive.generators.prob import as_prob, has_symbolic, sum_probs
+
+        pi_plus: dict[Any, Any] = {}
+        pi_minus: dict[Any, Any] = {}
         for (alpha, gamma), mass in joint.items():
-            pi_plus[alpha] = pi_plus.get(alpha, 0.0) + mass
-            pi_minus[gamma] = pi_minus.get(gamma, 0.0) + mass
+            pi_plus[alpha] = sum_probs([pi_plus.get(alpha, 0), mass])
+            pi_minus[gamma] = sum_probs([pi_minus.get(gamma, 0), mass])
 
         plus_outcomes = list(pi_plus.keys())
         minus_outcomes = list(pi_minus.keys())
-        plus_dist = dit.Distribution(plus_outcomes, [pi_plus[s] for s in plus_outcomes])
-        minus_dist = dit.Distribution(minus_outcomes, [pi_minus[s] for s in minus_outcomes])
         joint_outcomes = list(joint.keys())
-        joint_dist = dit.Distribution(joint_outcomes, [joint[outcome] for outcome in joint_outcomes])
-        return float(dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist))
+        plus_pmf = [as_prob(pi_plus[s]) for s in plus_outcomes]
+        minus_pmf = [as_prob(pi_minus[s]) for s in minus_outcomes]
+        joint_pmf = [as_prob(joint[outcome]) for outcome in joint_outcomes]
+        if has_symbolic(joint_pmf):
+            from dit.symbolic import symbolic_distribution
 
-    def statistical_complexity(self) -> float:
+            plus_dist = symbolic_distribution(plus_outcomes, plus_pmf)
+            minus_dist = symbolic_distribution(minus_outcomes, minus_pmf)
+            joint_dist = symbolic_distribution(joint_outcomes, joint_pmf)
+            return (
+                dit.shannon.entropy(plus_dist)
+                + dit.shannon.entropy(minus_dist)
+                - dit.shannon.entropy(joint_dist)
+            )
+        plus_dist = dit.Distribution(plus_outcomes, plus_pmf)
+        minus_dist = dit.Distribution(minus_outcomes, minus_pmf)
+        joint_dist = dit.Distribution(joint_outcomes, joint_pmf)
+        return float(
+            dit.shannon.entropy(plus_dist) + dit.shannon.entropy(minus_dist) - dit.shannon.entropy(joint_dist)
+        )
+
+    def statistical_complexity(self) -> Any:
         """C± = H[S⁺, S⁻] under the bidirectional stationary distribution."""
         dit = _require_dit()
         joint = self.joint_distribution()
@@ -280,9 +314,15 @@ class BidirectionalEpsilonMachine(MealyHMM):
             return 0.0
         outcomes = list(joint.keys())
         probs = [joint[outcome] for outcome in outcomes]
+        from pensive.generators.prob import has_symbolic
+
+        if has_symbolic(probs):
+            from dit.symbolic import symbolic_distribution
+
+            return dit.shannon.entropy(symbolic_distribution(outcomes, probs))
         return float(dit.shannon.entropy(dit.Distribution(outcomes, probs)))
 
-    def crypticity(self) -> float:
+    def crypticity(self) -> Any:
         """χ = C± − E for a bidirectional presentation."""
         return self.statistical_complexity() - self.excess_entropy()
 
@@ -314,7 +354,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """C_g = H[G] for the minimal generative model."""
         return self.minimal_generative_model(**kwargs).generative_complexity()
 
-    def information_anatomy(self) -> dict[str, float]:
+    def information_anatomy(self) -> dict[str, Any]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, and the structural/gauge refinement.
 
         The ``*_structural`` / ``*_gauge`` keys split the ephemeral (r_μ) and

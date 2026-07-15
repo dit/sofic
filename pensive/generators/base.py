@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pensive.automata.dfa import DFA
     from pensive.automata.nfa import NFA
     from pensive.generators.mealy import MealyHMM
+    from pensive.generators.prob import SymbolConstraints
     from pensive.shifts.sofic import SoficShift
 
 
@@ -21,20 +22,34 @@ class StochasticModel(StateMachine):
     """Generator with a probability distribution over initial states."""
 
     initial_distribution: dict[Hashable, float]
+    symbol_constraints: SymbolConstraints | None
 
-    def __init__(self, initial_distribution: Mapping[Hashable, float] | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        initial_distribution: Mapping[Hashable, float] | None = None,
+        *,
+        symbol_constraints: SymbolConstraints | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.initial_distribution = dict(initial_distribution or {})
+        self.symbol_constraints = symbol_constraints
 
     def validate(self) -> None:
         self.validate_stochastic()
 
     def validate_stochastic(self) -> None:
-        total = sum(self.initial_distribution.values())
-        if not np.isclose(total, 1.0):
+        from pensive.generators.prob import is_symbolic, row_sums_to_one
+
+        probs = list(self.initial_distribution.values())
+        if probs and not row_sums_to_one(probs):
+            total = sum(probs)
             raise StochasticValidationError(f"initial distribution sums to {total}, not 1")
         for state, prob in self.initial_distribution.items():
-            if prob < 0:
+            if is_symbolic(prob):
+                if getattr(prob, "is_negative", None) is True:
+                    raise StochasticValidationError(f"negative initial probability at {state!r}")
+            elif prob < 0:
                 raise StochasticValidationError(f"negative initial probability at {state!r}")
             self._require(self.graph.has_state(state), f"unknown initial state {state!r}")
 

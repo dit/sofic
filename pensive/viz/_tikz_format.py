@@ -49,9 +49,9 @@ def format_state_tikz_node(state: Any) -> str:
     return label.replace(",", "{,}")
 
 
-def format_belief_tikz_node(belief: Sequence[float]) -> str:
+def format_belief_tikz_node(belief: Sequence[Any]) -> str:
     """LaTeX-safe belief simplex label for TikZ node text (μ implied)."""
-    parts = [format_prob_latex(float(value)) for value in belief]
+    parts = [format_prob_latex(value) for value in belief]
     return rf"$\scriptstyle({', '.join(parts)})$"
 
 
@@ -59,32 +59,48 @@ def format_symbol_latex(symbol: Any) -> str:
     return _labels.format_symbol(symbol, escape=_latex_arg, epsilon=r"\varepsilon")
 
 
-def format_prob_latex(value: float, *, precision: int = 3) -> str:
-    """Format a probability for Vaucanson edge labels."""
-    if value <= 0.0:
+def format_prob_latex(value: Any, *, precision: int = 3) -> str:
+    """Format a probability for Vaucanson edge labels (float or sympy Expr)."""
+    try:
+        from pensive.generators.prob import is_symbolic, simplify_prob
+    except ImportError:  # pragma: no cover
+        is_symbolic = lambda _v: False  # noqa: E731
+        simplify_prob = lambda v: v  # noqa: E731
+
+    if is_symbolic(value):
+        simplified = simplify_prob(value)
+        try:
+            import sympy as sp
+
+            return latex_escape(sp.latex(simplified))
+        except Exception:
+            return latex_escape(str(simplified))
+
+    numeric = float(value)
+    if numeric <= 0.0:
         return "0"
-    if value >= 1.0:
+    if numeric >= 1.0:
         return "1"
-    if abs(value - 0.5) < _TWO_DIGIT_RATIONAL_ATOL:
+    if abs(numeric - 0.5) < _TWO_DIGIT_RATIONAL_ATOL:
         return r"\half"
-    frac = two_digit_rational(value)
+    frac = two_digit_rational(numeric)
     if frac is not None:
         if frac.numerator == frac.denominator:
             return "1"
         return rf"\nicefrac{{{frac.numerator}}}{{{frac.denominator}}}"
-    return latex_escape(f"{value:.{precision}g}")
+    return latex_escape(f"{numeric:.{precision}g}")
 
 
 def format_symbol_macro(symbol: Any) -> str:
     return rf"\Symbol{{{format_symbol_latex(symbol)}}}"
 
 
-def format_edge_latex(symbol: Any, prob: float) -> str:
+def format_edge_latex(symbol: Any, prob: Any) -> str:
     """Return ``$\\Edge{sym}{prob}$`` math content."""
     return rf"$\Edge{{{format_symbol_latex(symbol)}}}{{{format_prob_latex(prob)}}}$"
 
 
-def format_tedge_latex(forward: Any, reverse: Any, prob: float) -> str:
+def format_tedge_latex(forward: Any, reverse: Any, prob: Any) -> str:
     """Return ``$\\TEdge{f}{r}{prob}$`` math content."""
     return (
         rf"$\TEdge{{{format_symbol_latex(forward)}}}"

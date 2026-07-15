@@ -240,14 +240,22 @@ def transition_matrix(
     ordered = list(states) if states is not None else list(model.states())
     index = {state: i for i, state in enumerate(ordered)}
     n = len(ordered)
-    matrix = np.zeros((n, n), dtype=float)
+    from pensive.generators.prob import as_prob, has_symbolic, zeros
+
+    edge_probs = []
+    for state in ordered:
+        for transition in model.graph.out_transitions(state):
+            if transition.target in index:
+                edge_probs.append(transition.data.get(attr, 0.0))
+    symbolic = has_symbolic(edge_probs)
+    matrix = zeros((n, n), symbolic=symbolic)
     for state in ordered:
         i = index[state]
         for transition in model.graph.out_transitions(state):
             j = index.get(transition.target)
             if j is None:
                 continue
-            matrix[i, j] += float(transition.data.get(attr, 0.0))
+            matrix[i, j] = as_prob(matrix[i, j]) + as_prob(transition.data.get(attr, 0.0))
     return matrix, ordered
 
 

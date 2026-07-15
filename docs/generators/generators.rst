@@ -33,6 +33,7 @@ Computational mechanics
    mixed_state_presentation
    edge_machine
    information_anatomy
+   symbolic_hmm
    generative_models
    directional_flow
    alternative_complexity

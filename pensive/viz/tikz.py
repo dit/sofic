@@ -89,17 +89,17 @@ def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
 
     if style == STYLE_PROB_ONLY:
         prob = part_value(spec, PART_PROB)
-        return rf"${format_prob_latex(float(prob))}$" if prob is not None else ""
+        return rf"${format_prob_latex(prob)}$" if prob is not None else ""
 
     if style == STYLE_EDGE:
         label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
         value = part_value(spec, PART_PROB, PART_QUASIPROB)
         if label_symbol is not None and value is not None:
-            return format_edge_latex(label_symbol, float(value))
+            return format_edge_latex(label_symbol, value)
         if label_symbol is not None:
             return format_symbol_only_latex(label_symbol)
         if value is not None:
-            return rf"${format_prob_latex(float(value))}$"
+            return rf"${format_prob_latex(value)}$"
         return ""
 
     if style == STYLE_VPA:
@@ -137,11 +137,11 @@ def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
     label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
     prob = part_value(spec, PART_PROB)
     if label_symbol is not None and prob is not None:
-        return format_edge_latex(label_symbol, float(prob))
+        return format_edge_latex(label_symbol, prob)
     if label_symbol is not None:
         return format_symbol_only_latex(label_symbol)
     if prob is not None:
-        return rf"${format_prob_latex(float(prob))}$"
+        return rf"${format_prob_latex(prob)}$"
     return ""
 
 

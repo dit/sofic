@@ -32,7 +32,7 @@ from pensive.viz._edge import (
 from pensive.viz._format import (
     format_belief,
     format_distribution,
-    format_prob_rational,
+    format_prob_label,
     format_state,
     format_symbol,
 )
@@ -103,7 +103,7 @@ def _render_dot_part(part: EdgePart) -> str:
     if part.kind == PART_MATCH_TAG:
         return str(part.value)
     if part.kind in (PART_PROB, PART_QUASIPROB):
-        return format_prob_rational(float(part.value))
+        return format_prob_label(part.value)
     # symbol / emission / output
     return format_symbol(part.value)
 
@@ -144,7 +144,13 @@ def _recurrence_fill_sets(
     if isinstance(model, (EpsilonMachine, BidirectionalEpsilonMachine)):
         recurrent = model.graph.terminal_recurrent_states()
         if isinstance(model, BidirectionalEpsilonMachine):
-            starts = {state for state, mass in model.joint_distribution().items() if float(mass) > _RECURRENCE_ATOL}
+            from pensive.generators.prob import is_positive_mass
+
+            starts = {
+                state
+                for state, mass in model.joint_distribution().items()
+                if is_positive_mass(mass, atol=_RECURRENCE_ATOL)
+            }
             if not starts:
                 starts = set(model.states())
         elif initial_states:
@@ -227,11 +233,11 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
         if annotate_stationary_mass and isinstance(model, StochasticModel):
             dist = getattr(model, "initial_distribution", {})
             if state in dist:
-                extras.append(f"π={format_prob_rational(float(dist[state]))}")
+                extras.append(f"π={format_prob_label(dist[state])}")
         elif annotate_stationary_mass and isinstance(model, QuasiStochasticModel):
             quasidist = getattr(model, "initial_quasidistribution", {})
             if state in quasidist:
-                extras.append(f"π={format_prob_rational(float(quasidist[state]))}")
+                extras.append(f"π={format_prob_label(quasidist[state])}")
         state_labels[state] = _edge_state_label_with_attrs(attrs) or _state_label_with_attrs(state, attrs, extras)
 
     transient_fill, recurrent_fill = _recurrence_fill_sets(model, initial_states=initial_states)

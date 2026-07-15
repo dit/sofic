@@ -33,11 +33,14 @@ from pensive.states import sequential_labels
 def _stationary_distribution(
     states: Sequence[Hashable],
     symbol_matrices: Mapping[Any, np.ndarray],
-) -> dict[Hashable, float]:
+) -> dict[Hashable, Any]:
+    from pensive.generators.prob import as_prob, has_symbolic
     from pensive.generators.stationary import stationary_distribution_from_transition
 
     transition = sum(symbol_matrices.values())
     pi = stationary_distribution_from_transition(transition)
+    if pi.dtype == object or has_symbolic(pi.ravel()):
+        return {states[i]: as_prob(pi[i]) for i in range(len(states))}
     return {states[i]: float(pi[i]) for i in range(len(states))}
 
 
@@ -46,19 +49,26 @@ def from_symbol_matrices(
     symbols: Sequence[Any],
     matrices: Mapping[Any, np.ndarray],
     *,
-    initial_distribution: Mapping[Hashable, float] | None = None,
+    initial_distribution: Mapping[Hashable, Any] | None = None,
 ) -> EpsilonMachine:
     """Build an ε-machine from edge-labeled transition matrices ``T^(x)``.
 
     ``matrices[x][i, j]`` is ``Pr(S' = states[j], X = x | S = states[i])``.
+    Entries may be floats or exact sympy expressions.
     """
+    from pensive.generators.prob import as_prob, has_symbolic, is_positive_mass
+
     state_list = tuple(states)
     symbol_list = tuple(symbols)
     index = {state: i for i, state in enumerate(state_list)}
-    arrays = {symbol: np.asarray(matrix, dtype=float) for symbol, matrix in matrices.items()}
-    for symbol, matrix in arrays.items():
-        if matrix.shape != (len(state_list), len(state_list)):
-            raise ValueError(f"matrix for symbol {symbol!r} has shape {matrix.shape}")
+    flat_entries = [entry for matrix in matrices.values() for entry in np.asarray(matrix, dtype=object).ravel()]
+    symbolic = has_symbolic(flat_entries)
+    arrays = {}
+    for symbol, matrix in matrices.items():
+        arr = np.asarray(matrix, dtype=object if symbolic else float)
+        if arr.shape != (len(state_list), len(state_list)):
+            raise ValueError(f"matrix for symbol {symbol!r} has shape {arr.shape}")
+        arrays[symbol] = arr
 
     pi = (
         dict(initial_distribution) if initial_distribution is not None else _stationary_distribution(state_list, arrays)
@@ -75,8 +85,8 @@ def from_symbol_matrices(
             i = index[source]
             for target in state_list:
                 j = index[target]
-                prob = float(matrix[i, j])
-                if prob <= 0.0:
+                prob = as_prob(matrix[i, j])
+                if not is_positive_mass(prob):
                     continue
                 eps.graph.add_transition(
                     source,
@@ -404,74 +414,116 @@ def ellison_fig9_forward() -> EpsilonMachine:
     )
 
 
-def tent_map_misiurewicz_a() -> float:
-    """Misiurewicz parameter ``a`` for the tent map (James et al., 2013, Eq. 12)."""
+def tent_map_misiurewicz_a(symbolic: bool = False):
+    """Misiurewicz parameter ``a`` for the tent map (James et al., 2013, Eq. 12).
+
+    With ``symbolic=True``, return the exact sympy expression
+    ``α + 2/(3α)`` where ``α = (1 + sqrt(19/27))**(1/3)``.
+    """
+    if symbolic:
+        import sympy as sp
+
+        alpha = (1 + sp.sqrt(sp.Rational(19, 27))) ** sp.Rational(1, 3)
+        return sp.simplify(alpha + 2 / (3 * alpha))
     alpha = (math.sqrt(19 / 27) + 1) ** (1 / 3)
     return alpha + 2 / (3 * alpha)
 
 
 def tent_map_misiurewicz_fig7_symbol_matrices(
-    a: float | None = None,
+    a: Any | None = None,
 ) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
     """Return Fig.~7 ε-machine symbol matrices for the tent map at parameter ``a``.
 
     James, Burke & Crutchfield, *Chaos Forgets and Remembers* (2013), supplement
     Fig.~7.  State ``A`` emits only ``1``; ``D`` has a nontrivial ``0`` branch to
-    ``C`` and a ``1`` self-loop.
+    ``C`` and a ``1`` self-loop.  When ``a`` is a sympy expression the matrices
+    use object dtype with exact entries.
     """
+    from pensive.generators.prob import is_symbolic, zeros
+
     if a is None:
         a = tent_map_misiurewicz_a()
     states = ("A", "B", "C", "D")
+    symbolic = is_symbolic(a)
     denom = 2 * a**2 + 4 * a + 2
-    t0 = np.zeros((4, 4), dtype=float)
-    t1 = np.zeros((4, 4), dtype=float)
+    t0 = zeros((4, 4), symbolic=symbolic)
+    t1 = zeros((4, 4), symbolic=symbolic)
     # Topology from supplement Fig. 7.
-    t1[0, 1] = 1.0  # A → B on 1
+    t1[0, 1] = 1 if symbolic else 1.0  # A → B on 1
     t0[1, 2] = (a + 2) / (2 * a + 2)  # B → C on 0
     t1[1, 0] = a / (2 * a + 2)  # B → A on 1
-    t0[2, 0] = 1.0 / (a + 2)  # C → A on 0
+    t0[2, 0] = 1 / (a + 2) if symbolic else 1.0 / (a + 2)  # C → A on 0
     t1[2, 3] = (a + 1) / (a + 2)  # C → D on 1
     t0[3, 2] = (a**2 + 2 * a) / denom  # D → C on 0
     t1[3, 3] = (a**2 + 2 * a + 2) / denom  # D → D on 1
     return states, (0, 1), {0: t0, 1: t1}
 
 
-def tent_map_misiurewicz_forward(a: float | None = None) -> EpsilonMachine:
+def tent_map_misiurewicz_forward(a: Any | None = None) -> EpsilonMachine:
     """Forward ε-machine for tent-map symbolic dynamics at the Misiurewicz point."""
     states, symbols, matrices = tent_map_misiurewicz_fig7_symbol_matrices(a)
     return from_symbol_matrices(states, symbols, matrices)
 
 
-def tent_map_misiurewicz_hmm(a: float | None = None) -> MealyHMM:
-    """Non-unifilar HMM from supplement Fig.~6 (right) before ε-machine minimization."""
-    from pensive.generators.mealy import MealyHMM
+def tent_map_misiurewicz_hmm(a: Any | None = None) -> MealyHMM:
+    """Non-unifilar HMM from supplement Fig.~6 (right).
+
+    James, Burke & Crutchfield, *Chaos Forgets and Remembers* (2013), supplement
+    Fig.~6 (right): generating partition overlaid on the Markov-partition chain.
+    Non-unifilar at ``A`` (two ``0`` outs) and ``D`` (three ``1`` outs).
+    :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.from_hmm` recovers
+    the Fig.~7 ε-machine.
+    """
+    from pensive.generators.prob import as_prob, is_symbolic
 
     if a is None:
         a = tent_map_misiurewicz_a()
-    # State B emits 0 or 1; state D emits only 1.  Row masses are joint P(target, symbol | state).
-    p_b0 = (a + 2) / (2 * a + 2)
-    p_b1 = a / (2 * a + 2)
+    symbolic = is_symbolic(a)
+    if symbolic:
+        import sympy as sp
+
+        half = sp.Rational(1, 2)
+        one = sp.Integer(1)
+        inv_a1 = 1 / (a + 1)
+        half_a_a1 = a / (2 * (a + 1))
+    else:
+        half = 0.5
+        one = 1.0
+        inv_a1 = 1.0 / (a + 1.0)
+        half_a_a1 = a / (2.0 * (a + 1.0))
+
     hmm = MealyHMM(observation_alphabet=frozenset({0, 1}))
     for state in ("A", "B", "C", "D"):
         hmm.graph.add_state(state)
     edges = [
-        ("A", "B", 0, 0.5),
-        ("A", "C", 0, 0.5),
-        ("B", "A", 0, p_b0),
-        ("B", "D", 1, p_b1),
-        ("C", "A", 1, 0.5),
-        ("C", "B", 1, 0.5),
-        ("D", "C", 1, 1.0),
+        ("A", "B", 0, half),
+        ("A", "C", 0, half),
+        ("B", "D", 0, one),
+        ("C", "D", 1, one),
+        ("D", "A", 1, inv_a1),
+        ("D", "B", 1, half_a_a1),
+        ("D", "C", 1, half_a_a1),
     ]
     for source, target, symbol, prob in edges:
-        hmm.graph.add_transition(
-            source,
-            target,
-            **{ATTR_PROB: float(prob), ATTR_EMISSION: symbol},
-        )
-    idx = hmm.reindex()
+        hmm.add_transition(source, target, symbol, as_prob(prob))
+
+    if symbolic:
+        # The Misiurewicz parameter is the real root of ``a**3 - 2*a - 2`` (James,
+        # Burke & Crutchfield, 2013, Eq. 12; the Cardano form ``alpha + 2/(3 alpha)``
+        # returned by ``tent_map_misiurewicz_a(symbolic=True)``).  Carrying this
+        # minimal polynomial lets ``EpsilonMachine.from_hmm`` recognize the two
+        # mixed states that coincide only under the constraint and recover the
+        # 4-state Fig.~7 machine.
+        from pensive.generators.prob import SymbolConstraints
+
+        hmm.symbol_constraints = SymbolConstraints([a**3 - 2 * a - 2])
+
     pi = hmm.stationary_distribution()
-    hmm.initial_distribution = {idx.state(i): float(pi[i]) for i in range(len(idx.states))}
+    idx = hmm.reindex()
+    if pi.dtype == object or symbolic:
+        hmm.initial_distribution = {idx.state(i): as_prob(pi[i]) for i in range(len(idx.states))}
+    else:
+        hmm.initial_distribution = {idx.state(i): float(pi[i]) for i in range(len(idx.states))}
     return hmm
 
 
@@ -511,13 +563,15 @@ def _tent_map_misiurewicz_fig8_joint_state(
 
 
 def _tent_map_misiurewicz_fig8_edges(
-    a: float,
-) -> list[tuple[tuple[str, str], tuple[str, str], int, float]]:
+    a: Any,
+) -> list[tuple[tuple[str, str], tuple[str, str], int, Any]]:
     """Directed edges for supplement Fig.~8 with reverse states relabeled E--H.
 
     Joint labels use ``S⁺:S⁻`` from James et al. (2013), supplement Fig.~8.
     Edge probabilities are the figure's ``1/2`` and ``a/(a+1)`` templates.
     """
+    from pensive.generators.prob import is_symbolic
+
     relabel = _tent_map_misiurewicz_fig8_reverse_relabel()
     name = {
         "BA": ("B", "A"),
@@ -529,18 +583,27 @@ def _tent_map_misiurewicz_fig8_edges(
         "DB": ("D", "B"),
         "DC": ("D", "C"),
     }
-    half = 0.5
-    inv_a1 = 1.0 / (a + 1.0)
-    frac_a1 = a / (a + 1.0)
+    if is_symbolic(a):
+        import sympy as sp
+
+        half = sp.Rational(1, 2)
+        inv_a1 = 1 / (a + 1)
+        frac_a1 = a / (a + 1)
+        one = sp.Integer(1)
+    else:
+        half = 0.5
+        inv_a1 = 1.0 / (a + 1.0)
+        frac_a1 = a / (a + 1.0)
+        one = 1.0
     edge_specs = [
-        ("BA", "CC", 0, 1.0),
+        ("BA", "CC", 0, one),
         ("CC", "AB", 0, half),
         ("CC", "DB", 1, half),
         ("AB", "BA", 1, inv_a1),
         ("AB", "BC", 1, frac_a1),
         ("BC", "AB", 1, half),
         ("BC", "CB", 0, half),
-        ("DA", "CC", 0, 1.0),
+        ("DA", "CC", 0, one),
         ("DB", "DA", 1, inv_a1),
         ("DB", "DC", 1, frac_a1),
         ("DC", "DB", 1, half),
@@ -548,7 +611,7 @@ def _tent_map_misiurewicz_fig8_edges(
         ("CB", "DC", 1, frac_a1),
         ("CB", "DA", 1, inv_a1),
     ]
-    edges: list[tuple[tuple[str, str], tuple[str, str], int, float]] = []
+    edges: list[tuple[tuple[str, str], tuple[str, str], int, Any]] = []
     for row, target, symbol, prob in edge_specs:
         source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
         dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
@@ -558,67 +621,90 @@ def _tent_map_misiurewicz_fig8_edges(
 
 def _stationary_distribution_from_joint_graph(
     graph: TransitionGraph,
-) -> dict[tuple[str, str], float]:
+) -> dict[tuple[str, str], Any]:
+    from pensive.generators.prob import as_prob, has_symbolic, zeros
+    from pensive.generators.stationary import stationary_distribution_from_transition
+
     states = list(graph.states())
     if not states:
         return {}
     index = {state: position for position, state in enumerate(states)}
-    transition = np.zeros((len(states), len(states)), dtype=float)
+    edge_probs = [t.data.get(ATTR_PROB, 0.0) for t in graph.transitions()]
+    symbolic = has_symbolic(edge_probs)
+    transition = zeros((len(states), len(states)), symbolic=symbolic)
     for transition_edge in graph.transitions():
         source = index[transition_edge.source]
         target = index[transition_edge.target]
-        transition[source, target] += float(transition_edge.data.get(ATTR_PROB, 0.0))
+        transition[source, target] = as_prob(transition[source, target]) + as_prob(
+            transition_edge.data.get(ATTR_PROB, 0.0)
+        )
+    if symbolic:
+        pi = stationary_distribution_from_transition(transition)
+        return {states[position]: as_prob(pi[position]) for position in range(len(states))}
     stationary = np.ones(len(states), dtype=float) / len(states)
     for _ in range(20_000):
-        stationary = stationary @ transition
+        stationary = stationary @ np.asarray(transition, dtype=float)
     return {states[position]: float(stationary[position]) for position in range(len(states))}
 
 
 def _project_bidirectional_side(
     graph: TransitionGraph,
-    joint_pi: Mapping[tuple[str, str], float],
+    joint_pi: Mapping[tuple[str, str], Any],
     *,
     project_forward: bool,
     future_symbols: Mapping[str, Any] | None = None,
 ) -> EpsilonMachine:
     """Marginalize a hand-built bidirectional graph to an ε-machine presentation."""
+    from pensive.generators.prob import (
+        as_prob,
+        is_positive_mass,
+        simplify_prob,
+    )
+
     coordinate = 0 if project_forward else 1
-    marginal: dict[str, float] = {}
+    marginal: dict[str, Any] = {}
     for pair, mass in joint_pi.items():
         side_state = pair[coordinate]
-        marginal[side_state] = marginal.get(side_state, 0.0) + float(mass)
+        if side_state in marginal:
+            marginal[side_state] = simplify_prob(as_prob(marginal[side_state]) + as_prob(mass))
+        else:
+            marginal[side_state] = as_prob(mass)
 
     side_graph = TransitionGraph()
     for state, mass in marginal.items():
-        if mass <= 0.0:
+        if not is_positive_mass(mass):
             continue
         attrs: dict[str, Any] = {}
         if future_symbols is not None and state in future_symbols:
             attrs[ATTR_FUTURE_SYMBOL] = future_symbols[state]
         side_graph.add_state(state, **attrs)
 
-    aggregated: dict[tuple[str, str, Any], float] = {}
+    aggregated: dict[tuple[str, str, Any], Any] = {}
     for pair, mass in joint_pi.items():
         source = pair[coordinate]
-        source_mass = marginal.get(source, 0.0)
-        if mass <= 0.0 or source_mass <= 0.0:
+        source_mass = marginal.get(source, 0)
+        if not is_positive_mass(mass) or not is_positive_mass(source_mass):
             continue
         for transition in graph.out_transitions(pair):
             symbol = transition.data.get(ATTR_EMISSION)
-            prob = float(transition.data.get(ATTR_PROB, 0.0))
-            if symbol is None or prob <= 0.0:
+            prob = as_prob(transition.data.get(ATTR_PROB, 0.0))
+            if symbol is None or not is_positive_mass(prob):
                 continue
             target_state = transition.target[coordinate]
             key = (source, target_state, symbol)
-            aggregated[key] = aggregated.get(key, 0.0) + mass * prob / source_mass
+            contrib = simplify_prob(as_prob(mass) * as_prob(prob) / as_prob(source_mass))
+            if key in aggregated:
+                aggregated[key] = simplify_prob(as_prob(aggregated[key]) + contrib)
+            else:
+                aggregated[key] = contrib
 
     for (source, target, symbol), prob in aggregated.items():
-        if prob <= 0.0:
+        if not is_positive_mass(prob):
             continue
         side_graph.add_transition(
             source,
             target,
-            **{ATTR_PROB: prob, ATTR_EMISSION: symbol},
+            **{ATTR_PROB: as_prob(prob), ATTR_EMISSION: symbol},
         )
 
     eps = EpsilonMachine(
@@ -630,15 +716,16 @@ def _project_bidirectional_side(
     return eps
 
 
-def tent_map_misiurewicz_bidirectional_fig8(a: float | None = None):
+def tent_map_misiurewicz_bidirectional_fig8(a: Any | None = None):
     """Hand-built supplement Fig.~8 bidirectional ε-machine."""
     from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+    from pensive.generators.prob import as_prob, is_symbolic
 
     if a is None:
         a = tent_map_misiurewicz_a()
     forward = tent_map_misiurewicz_forward(a)
     graph = TransitionGraph()
-    for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(float(a)):
+    for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(a):
         if not graph.has_state(source):
             graph.add_state(source)
         if not graph.has_state(target):
@@ -646,7 +733,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: float | None = None):
         graph.add_transition(
             source,
             target,
-            **{ATTR_PROB: prob, ATTR_EMISSION: symbol},
+            **{ATTR_PROB: as_prob(prob), ATTR_EMISSION: symbol},
         )
     joint_pi = _stationary_distribution_from_joint_graph(graph)
     reverse_raw = _project_bidirectional_side(
@@ -655,12 +742,17 @@ def tent_map_misiurewicz_bidirectional_fig8(a: float | None = None):
         project_forward=False,
         future_symbols={"E": 0, "F": 1, "G": 1, "H": -1},
     )
-    try:
-        reverse = EpsilonMachine.from_hmm(reverse_raw)
-    except Exception:
+    if is_symbolic(a):
         from pensive.generators.epsilon_machine import _row_normalized_presentation
 
         reverse = _row_normalized_presentation(reverse_raw)
+    else:
+        try:
+            reverse = EpsilonMachine.from_hmm(reverse_raw)
+        except Exception:
+            from pensive.generators.epsilon_machine import _row_normalized_presentation
+
+            reverse = _row_normalized_presentation(reverse_raw)
     _annotate_tent_map_misiurewicz_reverse_future_symbols(reverse)
     bidir = BidirectionalEpsilonMachine(
         graph=graph,
@@ -679,14 +771,31 @@ def tent_map_misiurewicz_bidirectional(a: float | None = None):
     return tent_map_misiurewicz_bidirectional_fig8(a)
 
 
-def tent_map_misiurewicz_information_expected(a: float | None = None) -> dict[str, float]:
-    """Closed-form anatomy rates from James et al. (2013), supplement."""
+def tent_map_misiurewicz_information_expected(a: Any | None = None) -> dict[str, Any]:
+    """Closed-form anatomy rates from James et al. (2013), supplement.
+
+    Returns floats when ``a`` is numeric, or sympy expressions when ``a`` is
+    symbolic.  The ephemeral rate is
+    ``r_μ = (1/4)*(3 - 2/(a+1) - 4/(a+2) + 9/(2a+3))``.
+    """
+    from pensive.generators.prob import is_symbolic
+
     if a is None:
         a = tent_map_misiurewicz_a()
+    if is_symbolic(a):
+        import sympy as sp
+
+        h_mu = sp.log(a, 2)
+        r_mu = sp.Rational(1, 4) * (3 - 2 / (a + 1) - 4 / (a + 2) + 9 / (2 * a + 3))
+        b_mu = sp.simplify(h_mu - r_mu)
+        return {
+            "bound_mu": b_mu,
+            "ephemeral_mu": sp.simplify(r_mu),
+            "entropy_rate": h_mu,
+        }
     h_mu = math.log2(a)
-    # Supplement closed form for I[X₀ : S⁻₁ | S⁺₀] (bound rate b_μ).
-    b_mu = h_mu - 0.25 * (3.0 - 2.0 / (a + 1) - 4.0 / (a + 2) + 9.0 / (2 * a + 3))
-    r_mu = h_mu - b_mu
+    r_mu = 0.25 * (3.0 - 2.0 / (a + 1) - 4.0 / (a + 2) + 9.0 / (2 * a + 3))
+    b_mu = h_mu - r_mu
     return {
         "bound_mu": b_mu,
         "ephemeral_mu": r_mu,

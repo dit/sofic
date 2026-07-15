@@ -9,7 +9,13 @@ from pensive.examples.epsilon_machines import golden_mean, golden_mean_bidirecti
 from pensive.generators.markov import MarkovChain
 from pensive.graph import ATTR_PROB
 from pensive.viz._context import viz_context
-from pensive.viz._format import format_belief, format_distribution, format_prob_rational, format_state
+from pensive.viz._format import (
+    format_belief,
+    format_distribution,
+    format_prob_label,
+    format_prob_rational,
+    format_state,
+)
 from pensive.viz._tikz_format import format_state_tikz_node
 from pensive.viz.graphviz import model_to_graphviz
 from pensive.viz.tikz import model_to_tikz
@@ -261,3 +267,13 @@ def test_bidirectional_transition_endpoints_use_registered_nodes():
         dst = right.split("[", 1)[0].strip().strip('"')
         assert src in node_ids
         assert dst in node_ids
+
+
+def test_format_prob_label_symbolic():
+    pytest.importorskip("sympy")
+    import sympy as sp
+
+    a = sp.symbols("a", positive=True)
+    assert format_prob_label(sp.Rational(1, 2)) == "1/2"
+    assert "a" in format_prob_label(a / (a + 1))
+    assert format_prob_label(0.5) == "1/2"

@@ -48,16 +48,42 @@ def format_prob_rational(value: float, *, precision: int = 3) -> str:
     return format_prob(value, precision=precision)
 
 
-def format_distribution(dist: Mapping[Any, float], *, precision: int = 3) -> str:
+def format_prob_label(value: Any, *, precision: int = 3) -> str:
+    """Format a probability for Graphviz edge/π labels (float or sympy Expr)."""
+    try:
+        from pensive.generators.prob import is_symbolic, simplify_prob
+    except ImportError:  # pragma: no cover
+
+        def is_symbolic(_v: Any) -> bool:
+            return False
+
+        def simplify_prob(v: Any) -> Any:
+            return v
+
+    if is_symbolic(value):
+        simplified = simplify_prob(value)
+        try:
+            import sympy as sp
+
+            text = sp.sstr(simplified)
+        except Exception:
+            text = str(simplified)
+        return dot_escape(text)
+    return format_prob_rational(float(value), precision=precision)
+
+
+def format_distribution(dist: Mapping[Any, Any], *, precision: int = 3) -> str:
     parts = [
-        f"{format_symbol(symbol)}:{format_prob_rational(prob, precision=precision)}"
+        f"{format_symbol(symbol)}:{format_prob_label(prob, precision=precision)}"
         for symbol, prob in sorted(dist.items(), key=str)
     ]
     return ", ".join(parts)
 
 
-def format_belief(belief: Sequence[float], *, rational: bool = True) -> str:
+def format_belief(belief: Sequence[Any], *, rational: bool = True) -> str:
     """Compact simplex label for a mixed-state belief vector."""
-    formatter = format_prob_rational if rational else format_prob
-    parts = [formatter(float(value)) for value in belief]
+    if rational:
+        parts = [format_prob_label(value) for value in belief]
+    else:
+        parts = [format_prob(float(value)) for value in belief]
     return f"μ=({', '.join(parts)})"

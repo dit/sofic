@@ -34,6 +34,13 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
    In [6]: anatomy = bidir.information_anatomy()
 
+Symbolic probabilities
+======================
+
+Transition probabilities may be sympy expressions. The same anatomy methods then
+return exact expressions; see :doc:`symbolic_hmm` for the Chaos Forgets
+appendix walkthrough.
+
 API
 ===
 

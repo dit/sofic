@@ -242,13 +242,9 @@ def test_tent_forward_matches_generator_path():
     from pensive.generators.epsilon_machine import EpsilonMachine
 
     forward = tent_map_misiurewicz_forward()
-    try:
-        from_hmm = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())
-    except Exception:
-        pytest.skip("Fig. 6 HMM does not yet yield a valid ε-machine via from_hmm")
-    if from_hmm.entropy_rate() != pytest.approx(forward.entropy_rate(), abs=1e-3):
-        pytest.xfail("Fig. 6 HMM does not yet yield a valid ε-machine via from_hmm")
-    assert from_hmm.entropy_rate() == pytest.approx(forward.entropy_rate(), abs=1e-3)
+    from_hmm = EpsilonMachine.from_hmm(tent_map_misiurewicz_hmm())
+    assert from_hmm.entropy_rate() == pytest.approx(forward.entropy_rate(), abs=1e-9)
+    assert len(list(from_hmm.states())) == len(list(forward.states()))
 
 
 def test_epsilon_machine_anatomy_matches_bidirectional():
