@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.markov import MarkovChain
-from pensive.graph import ATTR_PROB
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.markov import MarkovChain
+from sofic.graph import ATTR_PROB
 
 
 def _chain() -> MarkovChain:

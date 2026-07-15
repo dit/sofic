@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.examples import fair_coin
-from pensive.examples.processes import Even, EvenRedundant
-from pensive.inference.bayesian import (
+from sofic.examples import fair_coin
+from sofic.examples.processes import Even, EvenRedundant
+from sofic.inference.bayesian import (
     InferEM,
     ModelComparisonEM,
     machine_diversity,
@@ -123,7 +123,7 @@ def test_posterior_mean_and_monte_carlo_same_order_of_magnitude():
 
 def test_infer_em_posterior_mean_word_distribution_matches_machine():
     pytest.importorskip("dit")
-    from pensive.inference.bayesian.diversity import posterior_mean_word_distribution
+    from sofic.inference.bayesian.diversity import posterior_mean_word_distribution
 
     data = list("1111101100")
     posterior = InferEM(Even(), data)

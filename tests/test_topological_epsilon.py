@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.automata.idfa import (
+from sofic.automata.idfa import (
     MISSING_TRANSITION,
     count_accessible_idfa,
     first_idfa_string,
@@ -13,9 +13,9 @@ from pensive.automata.idfa import (
     unrank_idfa_string,
     validate_idfa_string,
 )
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.synchronization import graph_from_epsilon_machine
-from pensive.generators.topological_epsilon_enumeration import (
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.synchronization import graph_from_epsilon_machine
+from sofic.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     epsilon_machine_to_idfa_string,
     idfa_string_to_epsilon_machine,
@@ -125,6 +125,6 @@ def test_accessible_idfa_count_grows() -> None:
 
 
 def count_icdfa_placeholder(k: int, n: int) -> int:
-    from pensive.automata.icdfa import count_icdfa_empty
+    from sofic.automata.icdfa import count_icdfa_empty
 
     return count_icdfa_empty(k, n)

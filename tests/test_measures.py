@@ -2,7 +2,7 @@
 
 import pytest
 
-from pensive.examples.epsilon_machines import (
+from sofic.examples.epsilon_machines import (
     bernoulli,
     butterfly_process,
     fair_coin,
@@ -10,12 +10,12 @@ from pensive.examples.epsilon_machines import (
     golden_mean_reverse,
     golden_mean_shift_parry,
 )
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.moore import MooreHMM
-from pensive.generators.nmachine import NMachine
-from pensive.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
-from pensive.shifts.tmc import TopologicalMarkovChain
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.moore import MooreHMM
+from sofic.generators.nmachine import NMachine
+from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
+from sofic.shifts.tmc import TopologicalMarkovChain
 
 pytest.importorskip("dit")
 
@@ -53,7 +53,7 @@ def test_state_distribution_matches_stationary_vector():
 
 def test_state_distribution_edge_machine_tuple_states_roundtrip():
     """Edge-machine states are tuples; state_distribution must encode them losslessly."""
-    from pensive.generators.edge_machine import parse_edge_state_label
+    from sofic.generators.edge_machine import parse_edge_state_label
 
     edge = fair_coin().to_edge_machine()
     dist = edge.state_distribution()

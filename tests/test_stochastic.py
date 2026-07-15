@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.stochastic import assert_stochastic_rows, normalize_row_weights
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.stochastic import assert_stochastic_rows, normalize_row_weights
 
 
 def test_normalize_row_weights():

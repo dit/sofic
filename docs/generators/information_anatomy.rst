@@ -16,7 +16,7 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
 .. ipython::
 
-   In [1]: from pensive.examples import tent_map_misiurewicz_bidirectional
+   In [1]: from sofic.examples import tent_map_misiurewicz_bidirectional
 
    In [2]: bidir = tent_map_misiurewicz_bidirectional()
 
@@ -44,13 +44,13 @@ appendix walkthrough.
 API
 ===
 
-Use :meth:`~pensive.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.information_anatomy`
-on bidirectional models. :class:`~pensive.generators.epsilon_machine.EpsilonMachine`
+Use :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.information_anatomy`
+on bidirectional models. :class:`~sofic.generators.epsilon_machine.EpsilonMachine`
 also exposes these quantities by building its bidirectional presentation.
 
 When that construction is unavailable, use
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.approximate_information_anatomy`
-or :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.block_convergence_estimates`.
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.approximate_information_anatomy`
+or :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.block_convergence_estimates`.
 These finite-block estimates do not replace the exact bidirectional quantities;
 they report the current block-length approximation to ``h_mu``, ``E``,
 ``rho_mu``, ``b_mu``, ``r_mu``, ``q_mu``, ``w_mu``, block coinformation, CAEKL,
@@ -71,7 +71,7 @@ semi-infinite past and future, keeping the quantity finite:
 
 .. ipython::
 
-   In [1]: from pensive.examples import tent_map_misiurewicz_bidirectional
+   In [1]: from sofic.examples import tent_map_misiurewicz_bidirectional
 
    In [2]: bidir = tent_map_misiurewicz_bidirectional()
 
@@ -88,11 +88,11 @@ CAEKL rate ``j_μ``
 
 The block CAEKL curve ``J(ℓ)`` and its asymptotic rate ``j_μ`` are documented in
 :doc:`block_convergence`.  Per-block values ``J(ℓ)`` are exact from
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_block_information`;
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.caekl_block_information`;
 ``j_μ`` is **not** a single-step bidirectional quantity like ``ρ_μ``.  When the
 affine tail of ``J(ℓ)`` stabilizes,
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_rate_converged`
-returns ``True`` and :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.caekl_rate`
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.caekl_rate_converged`
+returns ``True`` and :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.caekl_rate`
 is exact.  Multivariate ordering yields ``j_μ ≤ b_μ ≤ ρ_μ``; ``j_μ`` is not
 determined by ``h_μ`` alone.
 
@@ -100,15 +100,15 @@ Causal irreversibility and stored information
 =============================================
 
 Time-asymmetric stored information is available via
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.causal_irreversibility`
-and :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.stored_information_decomposition`
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.causal_irreversibility`
+and :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.stored_information_decomposition`
 :cite:`Crutchfield2009,Ellison2009`.
 
 Finite-block convergence scalars — transient, oracular, gauge, and predictability-gain
-information — are exposed as :meth:`~pensive.generators.epsilon_machine.EpsilonMachine.transient_information`,
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.oracular_information`,
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.gauge_information`, and
-:meth:`~pensive.generators.epsilon_machine.EpsilonMachine.predictability_gain`.
+information — are exposed as :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.transient_information`,
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.oracular_information`,
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.gauge_information`, and
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.predictability_gain`.
 
 Topological anatomy
 ===================

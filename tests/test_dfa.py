@@ -4,10 +4,10 @@ import re
 
 import pytest
 
-from pensive.automata import automaton_to_regex
-from pensive.automata.dfa import DFA
-from pensive.exceptions import NonDeterministicError
-from pensive.graph import EPSILON
+from sofic.automata import automaton_to_regex
+from sofic.automata.dfa import DFA
+from sofic.exceptions import NonDeterministicError
+from sofic.graph import EPSILON
 
 
 def _dfa() -> DFA:

@@ -1,5 +1,5 @@
 .. synchronization.rst
-.. py:module:: pensive.generators.synchronization
+.. py:module:: sofic.generators.synchronization
 
 ***************
 Synchronization
@@ -10,7 +10,7 @@ cryptic order :math:`k_\chi` from ε-machine graph structure alone.
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean
+   In [1]: from sofic.examples import golden_mean
 
    In [2]: eps = golden_mean(0.5)
 
@@ -25,7 +25,7 @@ cryptic order :math:`k_\chi` from ε-machine graph structure alone.
 API
 ===
 
-.. autofunction:: pensive.generators.synchronization.markov_order_from_graph
-.. autofunction:: pensive.generators.synchronization.cryptic_order_from_graph
-.. autofunction:: pensive.generators.synchronization.is_exactly_synchronizable
-.. autofunction:: pensive.generators.synchronization.graph_from_epsilon_machine
+.. autofunction:: sofic.generators.synchronization.markov_order_from_graph
+.. autofunction:: sofic.generators.synchronization.cryptic_order_from_graph
+.. autofunction:: sofic.generators.synchronization.is_exactly_synchronizable
+.. autofunction:: sofic.generators.synchronization.graph_from_epsilon_machine

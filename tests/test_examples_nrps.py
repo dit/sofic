@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import even_process, golden_mean, noisy_random_phase_slip
-from pensive.examples.processes import NRPS
+from sofic.examples import even_process, golden_mean, noisy_random_phase_slip
+from sofic.examples.processes import NRPS
 
 
 def test_nrps_alias_matches_canonical_constructor():

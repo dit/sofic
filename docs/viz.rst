@@ -1,5 +1,5 @@
 .. viz.rst
-.. py:module:: pensive.viz
+.. py:module:: sofic.viz
 
 *************
 Visualization
@@ -12,18 +12,18 @@ Every model can be rendered as a diagram, either through `Graphviz
 Graphviz
 ========
 
-Call :meth:`~pensive.core.StateMachine.draw` or
-:meth:`~pensive.core.StateMachine.to_graphviz` on any model when Graphviz is
-installed (``pip install pensive[viz]`` plus the system ``graphviz`` binary):
+Call :meth:`~sofic.core.StateMachine.draw` or
+:meth:`~sofic.core.StateMachine.to_graphviz` on any model when Graphviz is
+installed (``pip install sofic[viz]`` plus the system ``graphviz`` binary):
 
 .. code-block:: python
 
-   from pensive.examples import golden_mean
+   from sofic.examples import golden_mean
 
    eps = golden_mean(0.5)
    eps.draw()                 # write / view a rendered diagram
    dot = eps.to_graphviz()    # a graphviz.Digraph for further styling
-   svg = pensive.viz.model_to_svg(eps)
+   svg = sofic.viz.model_to_svg(eps)
 
 Models implement Jupyter display via ``_repr_mimebundle_``, so simply
 evaluating a model in a notebook shows its diagram when Graphviz is available.
@@ -35,7 +35,7 @@ For publication-quality figures, emit TikZ source or a compiled image:
 
 .. code-block:: python
 
-   from pensive.examples import golden_mean
+   from sofic.examples import golden_mean
 
    eps = golden_mean(0.5)
    tikz = eps.to_tikz()               # a LaTeX/TikZ fragment

@@ -1,5 +1,5 @@
 .. observation_table.rst
-.. py:module:: pensive.automata.observation
+.. py:module:: sofic.automata.observation
 
 *****************
 Observation Table
@@ -15,6 +15,6 @@ API
 
 .. autoclass:: ObservationTable
 
-.. autofunction:: pensive.automata.canonical_extraction.observation_to_canonical_rfsa
-.. autofunction:: pensive.automata.canonical_extraction.observation_to_atomaton
-.. autofunction:: pensive.automata.canonical_extraction.observation_to_minimal_dfa
+.. autofunction:: sofic.automata.canonical_extraction.observation_to_canonical_rfsa
+.. autofunction:: sofic.automata.canonical_extraction.observation_to_atomaton
+.. autofunction:: sofic.automata.canonical_extraction.observation_to_minimal_dfa

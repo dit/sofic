@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from pensive.automata.nfa import NFA
-from pensive.generators.markov import MarkovChain
-from pensive.graph import ATTR_PROB, ATTR_SYMBOL, TransitionGraph
-from pensive.operations import reverse as reverse_model
-from pensive.shifts.sofic import SoficShift
+from sofic.automata.nfa import NFA
+from sofic.generators.markov import MarkovChain
+from sofic.graph import ATTR_PROB, ATTR_SYMBOL, TransitionGraph
+from sofic.operations import reverse as reverse_model
+from sofic.shifts.sofic import SoficShift
 
 
 def test_transition_graph_reverse():
@@ -95,8 +95,8 @@ def test_operations_reverse_dispatches():
 
 
 def test_mealy_hmm_reverse():
-    from pensive.generators.mealy import MealyHMM
-    from pensive.graph import ATTR_EMISSION, ATTR_PROB
+    from sofic.generators.mealy import MealyHMM
+    from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
     hmm = MealyHMM(
         initial_distribution={"q0": 1.0},

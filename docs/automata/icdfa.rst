@@ -1,5 +1,5 @@
 .. icdfa.rst
-.. py:module:: pensive.automata.icdfa
+.. py:module:: sofic.automata.icdfa
 
 *****
 ICDFA
@@ -23,7 +23,7 @@ API
 .. autofunction:: count_icdfa
 .. autofunction:: count_icdfa_empty
 
-.. autofunction:: pensive.automata.idfa.iter_idfa_strings
-.. autofunction:: pensive.automata.idfa.rank_idfa_string
-.. autofunction:: pensive.automata.idfa.unrank_idfa_string
-.. autofunction:: pensive.automata.idfa.count_accessible_idfa
+.. autofunction:: sofic.automata.idfa.iter_idfa_strings
+.. autofunction:: sofic.automata.idfa.rank_idfa_string
+.. autofunction:: sofic.automata.idfa.unrank_idfa_string
+.. autofunction:: sofic.automata.idfa.count_accessible_idfa

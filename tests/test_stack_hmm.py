@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.stack_hmm import HiddenMarkovStackModel
-from pensive.shifts.sofic_dyck import SoficDyckShift
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.stack_hmm import HiddenMarkovStackModel
+from sofic.shifts.sofic_dyck import SoficDyckShift
 
 
 def _dyck2(*, allow_empty_stack_returns: bool = True) -> HiddenMarkovStackModel:

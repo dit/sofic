@@ -1,5 +1,5 @@
 .. conversions.rst
-.. py:module:: pensive.generators.conversions
+.. py:module:: sofic.generators.conversions
 
 ***********
 Conversions

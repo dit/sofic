@@ -1,8 +1,8 @@
 """Tests for átomaton skeletons."""
 
-from pensive.automata.atomaton import Atomaton, MaximizedPrimeAtomaton
-from pensive.automata.dfa import DFA
-from pensive.automata.rfsa import CanonicalRFSA
+from sofic.automata.atomaton import Atomaton, MaximizedPrimeAtomaton
+from sofic.automata.dfa import DFA
+from sofic.automata.rfsa import CanonicalRFSA
 
 
 def test_atomaton_validate():

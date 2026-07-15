@@ -5,7 +5,7 @@ import math
 import pytest
 from hypothesis import given, settings
 
-from pensive.examples.epsilon_machines import (
+from sofic.examples.epsilon_machines import (
     bernoulli,
     butterfly_process,
     golden_mean,
@@ -14,34 +14,34 @@ from pensive.examples.epsilon_machines import (
     phase_slip_backtrack,
     restricted_golden_mean,
 )
-from pensive.generators.synchronization import graph_from_epsilon_machine, markov_order_from_graph
-from pensive.serialization import model_from_yaml
-from pensive.testing.strategies import epsilon_machines
+from sofic.generators.synchronization import graph_from_epsilon_machine, markov_order_from_graph
+from sofic.serialization import model_from_yaml
+from sofic.testing.strategies import epsilon_machines
 
 INFINITE_ORDER_EPSILON_MACHINE_YAML = """
-schema: pensive.model
+schema: sofic.model
 version: 1
-class: pensive.generators.epsilon_machine.EpsilonMachine
+class: sofic.generators.epsilon_machine.EpsilonMachine
 graph:
   nodes:
   - id: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items: []
   - id: 1
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items: []
   - id: 2
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items: []
   edges:
   - source: 0
     target: 1
     key: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: prob
         value: 0.5
@@ -51,7 +51,7 @@ graph:
     target: 2
     key: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: prob
         value: 0.5
@@ -61,7 +61,7 @@ graph:
     target: 0
     key: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: prob
         value: 0.5
@@ -71,7 +71,7 @@ graph:
     target: 2
     key: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: prob
         value: 0.5
@@ -81,18 +81,18 @@ graph:
     target: 0
     key: 0
     attrs:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: prob
         value: 1.0
       - key: emission
         value: 1
 metadata:
-  __pensive_type__: dict
+  __sofic_type__: dict
   items:
   - key: initial_distribution
     value:
-      __pensive_type__: dict
+      __sofic_type__: dict
       items:
       - key: 0
         value: 0.44444444444444464

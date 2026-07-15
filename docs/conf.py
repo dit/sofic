@@ -1,6 +1,6 @@
 import os
 
-import pensive
+import sofic
 
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
@@ -28,7 +28,7 @@ ipython_execlines = [
     "import numpy as np",
     "np.set_printoptions(legacy='1.25')",
     "np.random.seed(0)",
-    "import pensive",
+    "import sofic",
 ]
 ipython_savefig_dir = "images/"
 ipython_warning_is_error = False
@@ -37,15 +37,15 @@ templates_path = ["_templates"]
 source_suffix = ".rst"
 master_doc = "index"
 
-project = "pensive"
-copyright = "2026, pensive contributors"  # noqa: A001
-version = pensive.__version__
-release = pensive.__version__
+project = "sofic"
+copyright = "2026, sofic contributors"  # noqa: A001
+version = sofic.__version__
+release = sofic.__version__
 
 exclude_patterns = ["_build"]
 add_module_names = False
 pygments_style = "sphinx"
-modindex_common_prefix = ["pensive."]
+modindex_common_prefix = ["sofic."]
 todo_include_todos = not on_rtd
 
 # -- Math macros (single source of truth for HTML and PDF) ---------------------
@@ -70,7 +70,7 @@ mathjax3_config = {"tex": {"macros": _MACROS}}
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-htmlhelp_basename = "pensivedoc"
+htmlhelp_basename = "soficdoc"
 
 _LATEX_RENEW = {"H"}
 
@@ -99,18 +99,18 @@ latex_elements = {
 }
 
 latex_documents = [
-    ("index", "pensive.tex", "pensive Documentation", "pensive Contributors", "manual"),
+    ("index", "sofic.tex", "sofic Documentation", "sofic Contributors", "manual"),
 ]
 
-man_pages = [("index", "pensive", "pensive Documentation", ["pensive Contributors"], 1)]
+man_pages = [("index", "sofic", "sofic Documentation", ["sofic Contributors"], 1)]
 
 texinfo_documents = [
     (
         "index",
-        "pensive",
-        "pensive Documentation",
-        "pensive Contributors",
-        "pensive",
+        "sofic",
+        "sofic Documentation",
+        "sofic Contributors",
+        "sofic",
         "Stochastic symbol generators in Python.",
         "Science",
     ),

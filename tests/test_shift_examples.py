@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples import (
+from sofic.examples import (
     dyck_shift_order,
     motzkin_shift,
     sofic_dyck_fig1_shift,
     sofic_dyck_nondeterminizable_shift,
     sofic_dyck_zeta_example_shift,
 )
-from pensive.shifts.sofic_dyck import SoficDyckShift
+from sofic.shifts.sofic_dyck import SoficDyckShift
 
 
 @pytest.mark.parametrize(

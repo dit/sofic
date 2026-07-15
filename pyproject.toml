@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 # ── Project metadata (PEP 621) ──────────────────────────────────────────
 
 [project]
-name = "pensive"
+name = "sofic"
 dynamic = ["version"]
 description = "Python package for hidden Markov models, symbolic dynamics, finite state machines, and stochastic symbol generators."
 readme = "README.rst"
@@ -35,9 +35,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dit/pensive"
-Repository = "https://github.com/dit/pensive"
-Documentation = "https://pensive.readthedocs.io"
+Homepage = "https://github.com/dit/sofic"
+Repository = "https://github.com/dit/sofic"
+Documentation = "https://sofic.readthedocs.io"
 
 [project.optional-dependencies]
 test = [
@@ -56,10 +56,11 @@ docs = [
     "sphinxcontrib-bibtex",
     "ipython",
     "matplotlib",
+    "sofic[symbolic]",
 ]
 dev = [
-    "pensive[test,viz]",
-    "pensive[docs]",
+    "sofic[test,viz]",
+    "sofic[docs]",
     "ruff",
     "ty",
 ]
@@ -87,20 +88,20 @@ source = "vcs"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "pensive/",
+    "sofic/",
     "tests/",
     "README.rst",
     "LICENSE.txt",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["pensive"]
+packages = ["sofic"]
 
 # ── Pytest ───────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov=pensive",
+    "--cov=sofic",
     "--cov-report=term-missing",
     "--numprocesses=auto",
     "--durations=25",
@@ -120,7 +121,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["pensive"]
+source = ["sofic"]
 omit = [
     "*/tests/*",
 ]
@@ -180,10 +181,10 @@ ignore = [
 "test_*.py" = ["N817", "S101"]
 "__init__.py" = ["F401", "F403"]
 # PEP 695 type-parameter syntax requires Python 3.12+; keep TypeVar for 3.11.
-"pensive/automata/_config_simulation.py" = ["UP047"]
+"sofic/automata/_config_simulation.py" = ["UP047"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pensive"]
+known-first-party = ["sofic"]
 
 # ── ty (type checking) ──────────────────────────────────────────────────
 
@@ -195,6 +196,8 @@ python-version = "3.13"
 allowed-unresolved-imports = [
     "pymc",
     "pymc.**",
+    "sympy",
+    "sympy.**",
 ]
 
 [tool.ty.rules]
@@ -215,7 +218,7 @@ no-matching-overload = "warn"
 possibly-unresolved-reference = "warn"
 
 [tool.ty.src]
-include = ["pensive/", "tests/"]
+include = ["sofic/", "tests/"]
 
 [[tool.ty.overrides]]
 include = ["tests/**"]

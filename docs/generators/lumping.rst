@@ -1,5 +1,5 @@
 .. lumping.rst
-.. py:module:: pensive.generators.lumping
+.. py:module:: sofic.generators.lumping
 
 *******
 Lumping
@@ -25,7 +25,7 @@ The common value is the lumped transition probability
 
 Hidden Markov models impose the condition per emitted symbol so that the lumped
 model generates the same observed process. A
-:class:`~pensive.generators.mealy.MealyHMM` with joint edge law
+:class:`~sofic.generators.mealy.MealyHMM` with joint edge law
 :math:`P(t, o \mid s)` is lumpable when
 
 .. math::
@@ -33,18 +33,18 @@ model generates the same observed process. A
    \sum_{t \in B_j} P(t, o \mid s) = \sum_{t \in B_j} P(t, o \mid s')
    \qquad \text{for all } s, s' \in B_i,\; \text{all symbols } o,
 
-while a :class:`~pensive.generators.moore.MooreHMM` additionally requires the
+while a :class:`~sofic.generators.moore.MooreHMM` additionally requires the
 state emission law :math:`P(o \mid s)` to be identical across each block.
 
 :func:`is_lumpable` tests the condition and :func:`lump` builds the coarse model,
-raising :class:`~pensive.exceptions.LumpabilityError` for a non-lumpable
+raising :class:`~sofic.exceptions.LumpabilityError` for a non-lumpable
 partition unless ``check=False``. Because lumping can destroy unifilarity, an
-:class:`~pensive.generators.epsilon_machine.EpsilonMachine` lumps to a plain
+:class:`~sofic.generators.epsilon_machine.EpsilonMachine` lumps to a plain
 ``MealyHMM``.
 
 .. ipython::
 
-   In [1]: from pensive import MarkovChain
+   In [1]: from sofic import MarkovChain
 
    In [2]: chain = MarkovChain(initial_distribution={"A": 1.0})
 

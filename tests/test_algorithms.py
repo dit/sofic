@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from pensive.automata.algorithms import (
+from sofic.automata.algorithms import (
     complete,
     determinize,
     equivalent,
@@ -14,10 +14,10 @@ from pensive.automata.algorithms import (
     reverse,
     trim,
 )
-from pensive.automata.dfa import DFA
-from pensive.automata.languages.base import AutomatonLanguage
-from pensive.automata.languages.operations import reverse as reverse_language
-from pensive.automata.nfa import NFA
+from sofic.automata.dfa import DFA
+from sofic.automata.languages.base import AutomatonLanguage
+from sofic.automata.languages.operations import reverse as reverse_language
+from sofic.automata.nfa import NFA
 
 
 def _epsilon_nfa() -> NFA:

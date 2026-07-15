@@ -4,8 +4,8 @@
 Inference
 *********
 
-The :mod:`pensive.inference` package infers stochastic generators from data.
-Its Bayesian core (:mod:`pensive.inference.bayesian`) implements exact
+The :mod:`sofic.inference` package infers stochastic generators from data.
+Its Bayesian core (:mod:`sofic.inference.bayesian`) implements exact
 conjugate **Dirichlet–multinomial** structural inference for Markov chains,
 ε-machines, and stack HMMs, following the Bayesian structural inference
 programme of Strelioff & Crutchfield :cite:`Strelioff2014`.
@@ -15,12 +15,12 @@ of Dirichlet distributions, one per transition row, so the marginal likelihood
 (model evidence) is available in closed form. Model comparison then ranks a set
 of candidate topologies — Markov orders, unifilar ε-machines, or stack
 topologies — by their posterior probabilities, with no sampling required.
-Optional `PyMC <https://www.pymc.io/>`_ backends (``pip install pensive[bayes]``)
+Optional `PyMC <https://www.pymc.io/>`_ backends (``pip install sofic[bayes]``)
 expose the same models for full posterior sampling.
 
 The historical names ``InferMC`` and ``InferEM`` are retained as aliases for
-:class:`~pensive.inference.bayesian.markov.MarkovChainPosterior` and
-:class:`~pensive.inference.bayesian.epsilon.EpsilonMachinePosterior`.
+:class:`~sofic.inference.bayesian.markov.MarkovChainPosterior` and
+:class:`~sofic.inference.bayesian.epsilon.EpsilonMachinePosterior`.
 
 .. note::
 

@@ -1,5 +1,5 @@
 .. atomaton.rst
-.. py:module:: pensive.automata.atomaton
+.. py:module:: sofic.automata.atomaton
 
 ********
 Átomaton

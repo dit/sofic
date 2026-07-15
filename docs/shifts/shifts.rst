@@ -4,7 +4,7 @@
 Shifts
 ******
 
-The :mod:`pensive.shifts` package provides symbolic dynamics: shifts of finite
+The :mod:`sofic.shifts` package provides symbolic dynamics: shifts of finite
 type, Sofic shifts, Dyck shifts, topological Markov chains, and covers
 :cite:`LindMarcus1995`.
 

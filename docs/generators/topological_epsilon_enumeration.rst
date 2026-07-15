@@ -1,5 +1,5 @@
 .. topological_epsilon_enumeration.rst
-.. py:module:: pensive.generators.topological_epsilon_enumeration
+.. py:module:: sofic.generators.topological_epsilon_enumeration
 
 ****************************************
 Topological ε-Machine Enumeration

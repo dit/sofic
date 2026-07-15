@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.graph import ATTR_SYMBOL
-from pensive.shifts.covers import LeftFischerCover, LeftKriegerCover, RightFischerCover, RightKriegerCover
-from pensive.shifts.sofic import SoficShift
+from sofic.graph import ATTR_SYMBOL
+from sofic.shifts.covers import LeftFischerCover, LeftKriegerCover, RightFischerCover, RightKriegerCover
+from sofic.shifts.sofic import SoficShift
 
 
 def _golden_mean() -> SoficShift:

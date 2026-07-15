@@ -2,8 +2,8 @@
 
 import pytest
 
-from pensive.automata.dfa import DFA
-from pensive.automata.vpa import (
+from sofic.automata.dfa import DFA
+from sofic.automata.vpa import (
     CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
@@ -11,8 +11,8 @@ from pensive.automata.vpa import (
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
 )
-from pensive.exceptions import NonDeterministicError, PensiveValidationError
-from pensive.graph import ATTR_KIND, ATTR_STACK_SYMBOL, ATTR_SYMBOL, KIND_CALL, KIND_INTERNAL, KIND_RETURN
+from sofic.exceptions import NonDeterministicError, SoficValidationError
+from sofic.graph import ATTR_KIND, ATTR_STACK_SYMBOL, ATTR_SYMBOL, KIND_CALL, KIND_INTERNAL, KIND_RETURN
 
 
 def _vpa() -> VisiblyPushdownAutomaton:
@@ -198,7 +198,7 @@ def test_sevpa_validate_and_reject_bad_stack_symbol():
     bad = sevpa.copy()
     bad.stack_alphabet = frozenset({("wrong", "c"), ("m", "c")})
     bad.graph.add_transition("m", "e", **{ATTR_KIND: KIND_CALL, ATTR_SYMBOL: "c", ATTR_STACK_SYMBOL: ("wrong", "c")})
-    with pytest.raises((PensiveValidationError, NonDeterministicError)):
+    with pytest.raises((SoficValidationError, NonDeterministicError)):
         bad.validate()
 
 

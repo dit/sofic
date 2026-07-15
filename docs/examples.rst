@@ -1,11 +1,11 @@
 .. examples.rst
-.. py:module:: pensive.examples
+.. py:module:: sofic.examples
 
 ********
 Examples
 ********
 
-The :mod:`pensive.examples` module is a catalog of canonical ε-machines,
+The :mod:`sofic.examples` module is a catalog of canonical ε-machines,
 symbolic shifts, and related generators from the computational mechanics and
 symbolic dynamics literature.
 
@@ -67,16 +67,16 @@ figures:
 Process library
 ---------------
 
-In addition to the curated ε-machines above, :mod:`pensive.examples.processes`
+In addition to the curated ε-machines above, :mod:`sofic.examples.processes`
 ports a large library of parametrized process factories (``GoldenMean``,
 ``Even``, ``Nemo``, ``IID``, ``Ising``, ``Ehrenfest``, the periodic and
 ``Misiurewicz`` families, and many more). Each is a function that returns a
-generator, defaulting to an :class:`~pensive.generators.epsilon_machine.EpsilonMachine`
+generator, defaulting to an :class:`~sofic.generators.epsilon_machine.EpsilonMachine`
 but accepting a ``machine_type`` argument:
 
 .. ipython::
 
-   In [1]: from pensive.examples import GoldenMean, Even, Nemo
+   In [1]: from sofic.examples import GoldenMean, Even, Nemo
 
    In [2]: gm = GoldenMean(bias=0.5)
 
@@ -90,25 +90,25 @@ parametrized tests and sweeps:
 
 .. ipython::
 
-   In [4]: from pensive.examples import processes
+   In [4]: from sofic.examples import processes
 
    In [5]: len(processes.process_list) > 0
    Out[5]: True
 
 A parallel set of transducer factories (``BitFlip``, ``Parity``, ``Delay``,
 ``BinaryChannel``, …) lives alongside the processes and produces
-:class:`~pensive.automata.transducers.MealyMachine` instances.
+:class:`~sofic.automata.transducers.MealyMachine` instances.
 
-Symbolic-shift examples (:mod:`pensive.examples.shifts`) provide the
+Symbolic-shift examples (:mod:`sofic.examples.shifts`) provide the
 sofic-Dyck factories listed above; access them via
-``from pensive.examples import dyck_shift_order`` or the ``shifts`` module.
+``from sofic.examples import dyck_shift_order`` or the ``shifts`` module.
 
 Example
 -------
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean, even_process, bernoulli
+   In [1]: from sofic.examples import golden_mean, even_process, bernoulli
 
    In [2]: for factory in (golden_mean, even_process, bernoulli):
       ...:     model = factory(0.5)

@@ -1,7 +1,7 @@
 """Tests for shifts of finite type."""
 
-from pensive.graph import ATTR_SYMBOL, TransitionGraph
-from pensive.shifts.sft import ShiftOfFiniteType
+from sofic.graph import ATTR_SYMBOL, TransitionGraph
+from sofic.shifts.sft import ShiftOfFiniteType
 
 
 def test_from_presentation():

@@ -1,20 +1,20 @@
 .. stack_inference.rst
-.. py:module:: pensive.generators.stack_inference
+.. py:module:: sofic.generators.stack_inference
 
 *********************
 Stack-HMM Inference
 *********************
 
 Inference routines that reconstruct a
-:class:`~pensive.generators.stack_hmm.HiddenMarkovStackModel` from sequences
-over a :class:`~pensive.automata.papni.DyckAlphabet`. These extend the
+:class:`~sofic.generators.stack_hmm.HiddenMarkovStackModel` from sequences
+over a :class:`~sofic.automata.papni.DyckAlphabet`. These extend the
 finite-state inference of :doc:`epsilon_inference` with visibly pushdown stack
 semantics :cite:`BealBlockeletDima2015`.
 
 Two families are provided:
 
 * **Topology known.** Given a
-  :class:`~pensive.shifts.sofic_dyck.SoficDyckShift` presentation,
+  :class:`~sofic.shifts.sofic_dyck.SoficDyckShift` presentation,
   :func:`fit_stack_hmm_mle` estimates smoothed maximum-likelihood transition
   weights from a sample.
 * **Topology unknown.** :func:`stack_cssr` and :func:`stack_subtree_merge`
@@ -27,8 +27,8 @@ Two families are provided:
 
 .. code-block:: python
 
-   from pensive.automata import DyckAlphabet
-   from pensive.generators import stack_cssr
+   from sofic.automata import DyckAlphabet
+   from sofic.generators import stack_cssr
 
    alphabet = DyckAlphabet(
        call_alphabet=frozenset({"("}),

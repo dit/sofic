@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from pensive.examples.epsilon_machines import bernoulli, even_process, golden_mean
-from pensive.generators.mixed_state import MixedState, MixedStatePresentation, mixed_state_entropy
-from pensive.generators.mixed_state_construction import build_mixed_state_presentation
-from pensive.viz.graphviz import model_to_graphviz
+from sofic.examples.epsilon_machines import bernoulli, even_process, golden_mean
+from sofic.generators.mixed_state import MixedState, MixedStatePresentation, mixed_state_entropy
+from sofic.generators.mixed_state_construction import build_mixed_state_presentation
+from sofic.viz.graphviz import model_to_graphviz
 
 graphviz = pytest.importorskip("graphviz")
 
@@ -70,8 +70,8 @@ def test_mixed_state_canonicalization_merges_near_duplicates():
 
 
 def test_msp_deduplicates_canonical_beliefs():
-    from pensive.generators.mealy import MealyHMM
-    from pensive.graph import ATTR_EMISSION, ATTR_PROB
+    from sofic.generators.mealy import MealyHMM
+    from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
     hmm = MealyHMM(observation_alphabet=frozenset({0, 1}))
     for state in ("A", "B"):

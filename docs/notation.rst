@@ -4,20 +4,20 @@
 Notation
 ********
 
-``pensive`` is a scientific tool, and much of this documentation uses
+``sofic`` is a scientific tool, and much of this documentation uses
 mathematical expressions for computational mechanics and information theory.
 
 Graph-backed models
 ===================
 
-Every model in ``pensive`` is a :class:`~pensive.core.StateMachine`: a labeled
+Every model in ``sofic`` is a :class:`~sofic.core.StateMachine`: a labeled
 directed multigraph with typed node and edge attributes.
 
 * **States** are hashable labels (strings, integers, tuples, etc.).
 * **Transitions** are directed edges with attribute dictionaries.
 * **Alphabets** depend on model type: input symbols, emissions, or outputs.
 
-Edge attribute keys (from :mod:`pensive.core`) include:
+Edge attribute keys (from :mod:`sofic.core`) include:
 
 * ``ATTR_SYMBOL`` — input symbol on automaton edges
 * ``ATTR_EMISSION`` — emitted symbol on generator edges
@@ -49,7 +49,7 @@ Information anatomy satisfies :math:`h_\mu = b_\mu + r_\mu`
 Generative complexity and common information
 ============================================
 
-Alongside the *predictive* complexity :math:`C_\mu = \H{S^+}`, ``pensive``
+Alongside the *predictive* complexity :math:`C_\mu = \H{S^+}`, ``sofic``
 computes *generative* complexities: the minimal state entropy of a (possibly
 non-unifilar) generator of the process. Each corresponds to a common
 information between the forward and reverse causal states :math:`S^+` and
@@ -67,22 +67,22 @@ See :doc:`generators/generative_models`.
 Directional information flow
 ============================
 
-For bivariate generators emitting paired symbols :math:`(X, Y)`, ``pensive``
+For bivariate generators emitting paired symbols :math:`(X, Y)`, ``sofic``
 computes transfer entropy :cite:`Schreiber2000`, directed information, and the
 intrinsic/shared/synergistic decomposition of information flow. See
 :doc:`generators/directional_flow`.
 
 Information-theoretic quantities require ``dit`` :cite:`James2018`, which is a
-core dependency of ``pensive``.
+core dependency of ``sofic``.
 
 Unifilarity
 ===========
 
 The word **unifilar** appears in two contexts:
 
-* :class:`~pensive.automata.unifilar.UnifilarAutomaton` — right-resolving on
+* :class:`~sofic.automata.unifilar.UnifilarAutomaton` — right-resolving on
   **input symbols** (formal language theory).
-* :class:`~pensive.generators.epsilon_machine.EpsilonMachine` — row-unifilar on
+* :class:`~sofic.generators.epsilon_machine.EpsilonMachine` — row-unifilar on
   **emissions** (computational mechanics / causal states).
 
 These are distinct predicates; an ε-machine is unifilar in the generator sense.

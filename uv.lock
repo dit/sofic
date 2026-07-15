@@ -1400,109 +1400,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pensive"
-source = { editable = "." }
-dependencies = [
-    { name = "dit" },
-    { name = "networkx" },
-    { name = "numpy" },
-    { name = "pyyaml" },
-    { name = "scipy" },
-]
-
-[package.optional-dependencies]
-bayes = [
-    { name = "arviz", version = "0.23.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "arviz", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pymc", version = "5.28.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pymc", version = "6.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-]
-dev = [
-    { name = "graphviz" },
-    { name = "hypothesis", extra = ["numpy"] },
-    { name = "ipython" },
-    { name = "matplotlib" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-sugar" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinx-rtd-theme" },
-    { name = "sphinxcontrib-bibtex" },
-    { name = "ty" },
-]
-docs = [
-    { name = "ipython" },
-    { name = "matplotlib" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinx-rtd-theme" },
-    { name = "sphinxcontrib-bibtex" },
-]
-symbolic = [
-    { name = "dit", extra = ["symbolic"] },
-    { name = "sympy" },
-]
-test = [
-    { name = "graphviz" },
-    { name = "hypothesis", extra = ["numpy"] },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-sugar" },
-    { name = "pytest-xdist" },
-]
-viz = [
-    { name = "graphviz" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "arviz", marker = "extra == 'bayes'" },
-    { name = "dit", specifier = ">=2.2" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.2" },
-    { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
-    { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
-    { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0" },
-    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.0" },
-    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'dev'" },
-    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'" },
-    { name = "ipython", marker = "extra == 'dev'" },
-    { name = "ipython", marker = "extra == 'docs'" },
-    { name = "matplotlib", marker = "extra == 'dev'" },
-    { name = "matplotlib", marker = "extra == 'docs'" },
-    { name = "networkx", specifier = ">=2.6" },
-    { name = "numpy", specifier = ">=1.22" },
-    { name = "pymc", marker = "extra == 'bayes'", specifier = ">=5" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'test'" },
-    { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
-    { name = "pytest-rerunfailures", marker = "extra == 'test'" },
-    { name = "pytest-sugar", marker = "extra == 'dev'" },
-    { name = "pytest-sugar", marker = "extra == 'test'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'test'" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scipy", specifier = ">=1.7" },
-    { name = "sphinx", marker = "extra == 'dev'" },
-    { name = "sphinx", marker = "extra == 'docs'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
-    { name = "sympy", marker = "extra == 'symbolic'", specifier = ">=1.12" },
-    { name = "ty", marker = "extra == 'dev'" },
-]
-provides-extras = ["bayes", "dev", "docs", "symbolic", "test", "viz"]
-
-[[package]]
 name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2162,6 +2059,117 @@ sdist = { url = "https://files.pythonhosted.org/packages/43/f8/0a71edf031f03c40d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4c/07/2ebca9b11fb9be7340a818d8d6f63feaebb146be2c4afbd6061701d6df6e/snowballstemmer-3.1.1-py3-none-any.whl", hash = "sha256:7e207fa178741da09cdee59d3ecec3827ad5f92b1fc5c9ff3755b639f71f5752", size = 104164, upload-time = "2026-06-03T00:56:38.614Z" },
 ]
+
+[[package]]
+name = "sofic"
+source = { editable = "." }
+dependencies = [
+    { name = "dit" },
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+]
+
+[package.optional-dependencies]
+bayes = [
+    { name = "arviz", version = "0.23.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "arviz", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pymc", version = "5.28.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "pymc", version = "6.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+dev = [
+    { name = "dit", extra = ["symbolic"] },
+    { name = "graphviz" },
+    { name = "hypothesis", extra = ["numpy"] },
+    { name = "ipython" },
+    { name = "matplotlib" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-rerunfailures" },
+    { name = "pytest-sugar" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sphinx-rtd-theme" },
+    { name = "sphinxcontrib-bibtex" },
+    { name = "sympy" },
+    { name = "ty" },
+]
+docs = [
+    { name = "dit", extra = ["symbolic"] },
+    { name = "ipython" },
+    { name = "matplotlib" },
+    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sphinx-rtd-theme" },
+    { name = "sphinxcontrib-bibtex" },
+    { name = "sympy" },
+]
+symbolic = [
+    { name = "dit", extra = ["symbolic"] },
+    { name = "sympy" },
+]
+test = [
+    { name = "graphviz" },
+    { name = "hypothesis", extra = ["numpy"] },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-rerunfailures" },
+    { name = "pytest-sugar" },
+    { name = "pytest-xdist" },
+]
+viz = [
+    { name = "graphviz" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arviz", marker = "extra == 'bayes'" },
+    { name = "dit", specifier = ">=2.2" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.2" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.2" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.2" },
+    { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
+    { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
+    { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.0" },
+    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'dev'" },
+    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'" },
+    { name = "ipython", marker = "extra == 'dev'" },
+    { name = "ipython", marker = "extra == 'docs'" },
+    { name = "matplotlib", marker = "extra == 'dev'" },
+    { name = "matplotlib", marker = "extra == 'docs'" },
+    { name = "networkx", specifier = ">=2.6" },
+    { name = "numpy", specifier = ">=1.22" },
+    { name = "pymc", marker = "extra == 'bayes'", specifier = ">=5" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
+    { name = "pytest-rerunfailures", marker = "extra == 'test'" },
+    { name = "pytest-sugar", marker = "extra == 'dev'" },
+    { name = "pytest-sugar", marker = "extra == 'test'" },
+    { name = "pytest-xdist", marker = "extra == 'dev'" },
+    { name = "pytest-xdist", marker = "extra == 'test'" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scipy", specifier = ">=1.7" },
+    { name = "sphinx", marker = "extra == 'dev'" },
+    { name = "sphinx", marker = "extra == 'docs'" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
+    { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'" },
+    { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'" },
+    { name = "sympy", marker = "extra == 'dev'", specifier = ">=1.12" },
+    { name = "sympy", marker = "extra == 'docs'", specifier = ">=1.12" },
+    { name = "sympy", marker = "extra == 'symbolic'", specifier = ">=1.12" },
+    { name = "ty", marker = "extra == 'dev'" },
+]
+provides-extras = ["bayes", "dev", "docs", "symbolic", "test", "viz"]
 
 [[package]]
 name = "sortedcontainers"

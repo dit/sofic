@@ -1,12 +1,12 @@
 .. state_machine.rst
-.. py:module:: pensive.core
+.. py:module:: sofic.core
 
 *************
 StateMachine
 *************
 
 :class:`StateMachine` is the abstract base class for every graph-backed model in
-``pensive``. Subclasses implement :meth:`~StateMachine.validate` to enforce
+``sofic``. Subclasses implement :meth:`~StateMachine.validate` to enforce
 structural and semantic invariants.
 
 Common operations
@@ -16,7 +16,7 @@ Build a model, validate it, and inspect its graph:
 
 .. ipython::
 
-   In [1]: from pensive.examples import golden_mean
+   In [1]: from sofic.examples import golden_mean
 
    In [2]: eps = golden_mean(0.5)
 
@@ -34,7 +34,7 @@ Reverse the transition graph:
 
 .. ipython::
 
-   In [7]: from pensive.operations import reverse
+   In [7]: from sofic.operations import reverse
 
    In [8]: rev = reverse(eps)
 
@@ -52,7 +52,7 @@ For HMM-style generators, emitted alphabets are inferred from graph emissions
 when loading YAML. Initial distributions remain serialized because they are not
 determined by the transition graph in general.
 
-Jupyter notebooks display models as Graphviz SVG when ``pensive[viz]`` is
+Jupyter notebooks display models as Graphviz SVG when ``sofic[viz]`` is
 installed (see :doc:`../viz`).
 
 API
@@ -63,4 +63,4 @@ API
 
 .. autoclass:: StateIndex
 
-.. autofunction:: pensive.operations.reverse
+.. autofunction:: sofic.operations.reverse

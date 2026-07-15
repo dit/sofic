@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.exceptions import PensiveValidationError
-from pensive.graph import KIND_CALL, KIND_INTERNAL, KIND_RETURN
-from pensive.shifts.sofic_dyck import SoficDyckShift
+from sofic.exceptions import SoficValidationError
+from sofic.graph import KIND_CALL, KIND_INTERNAL, KIND_RETURN
+from sofic.shifts.sofic_dyck import SoficDyckShift
 
 
 def _dyck2() -> SoficDyckShift:
@@ -72,7 +72,7 @@ def test_validate_rejects_missing_matched_edge():
     call_ref = next(iter(call for call, _return in shift.matched_edges))
     shift.matched_edges = frozenset({(call_ref, ("missing", "missing", 0))})
 
-    with pytest.raises(PensiveValidationError, match="missing"):
+    with pytest.raises(SoficValidationError, match="missing"):
         shift.validate()
 
 
@@ -88,14 +88,14 @@ def test_validate_rejects_matched_internal_edge():
     shift.add_return_transition("q", "q", "r")
     shift.add_matched_pair(call, internal)
 
-    with pytest.raises(PensiveValidationError, match="not a return"):
+    with pytest.raises(SoficValidationError, match="not a return"):
         shift.validate()
 
 
 def test_validate_rejects_bad_role_alphabet():
     shift = SoficDyckShift(call_alphabet=frozenset({"x"}), return_alphabet=frozenset({"x"}))
 
-    with pytest.raises(PensiveValidationError, match="disjoint"):
+    with pytest.raises(SoficValidationError, match="disjoint"):
         shift.validate()
 
 

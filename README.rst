@@ -1,8 +1,8 @@
 =======
-pensive
+sofic
 =======
 
-``pensive`` is a Python package for hidden Markov models, symbolic dynamics,
+``sofic`` is a Python package for hidden Markov models, symbolic dynamics,
 finite state machines, and other stochastic symbol generators.
 
 Basic Information
@@ -11,12 +11,12 @@ Basic Information
 Documentation
 ~~~~~~~~~~~~~~
 
-https://pensive.readthedocs.io
+https://sofic.readthedocs.io
 
 Repository
 ~~~~~~~~~~
 
-https://github.com/dit/pensive
+https://github.com/dit/sofic
 
 Dependencies
 ~~~~~~~~~~~~
@@ -35,8 +35,8 @@ Clone the repository and install development dependencies with ``uv``:
 
 .. code-block:: bash
 
-   git clone https://github.com/dit/pensive.git
-   cd pensive
+   git clone https://github.com/dit/sofic.git
+   cd sofic
    uv sync --extra dev
 
 Run tests with ``uv run pytest``. See the ``generalinfo`` page in the Sphinx
@@ -47,7 +47,7 @@ Introduction
 
 Many natural and engineered processes produce sequences of symbols whose
 statistics are governed by latent structure: hidden states, transition rules,
-or algebraic constraints on allowed paths. ``pensive`` collects algorithms and
+or algebraic constraints on allowed paths. ``sofic`` collects algorithms and
 data structures for representing, simulating, and analyzing such generators
 behind a single, composable Python API.
 
@@ -56,15 +56,15 @@ construction, validation, simulation, visualization, (de)serialization, and a
 large library of structural and information-theoretic measures. The three
 main families are:
 
-* **Stochastic generators** (``pensive.generators``) — Markov chains, hidden
+* **Stochastic generators** (``sofic.generators``) — Markov chains, hidden
   Markov models (Moore and Mealy presentations), ε-machines, probabilistic
   finite automata, mixed-state presentations, and quasiprobabilistic
   generators. These assign probabilities to sequences.
-* **Finite automata** (``pensive.automata``) — DFAs, NFAs, transducers
+* **Finite automata** (``sofic.automata``) — DFAs, NFAs, transducers
   (Mealy/Moore machines), regular languages, Büchi automata, visibly pushdown
   and nested-word automata, and residual finite-state automata. These recognize
   or transform languages.
-* **Symbolic shifts** (``pensive.shifts``) — shifts of finite type, sofic
+* **Symbolic shifts** (``sofic.shifts``) — shifts of finite type, sofic
   shifts, topological Markov chains, and Dyck/sofic-Dyck shifts. These describe
   the *support* (set of allowed sequences) of a process.
 
@@ -77,15 +77,15 @@ Installation
 
 .. code-block:: bash
 
-   pip install pensive
+   pip install sofic
 
 Optional extras:
 
-* ``pensive[viz]`` — Graphviz diagrams in terminals and Jupyter
-* ``pensive[bayes]`` — PyMC/ArviZ backends for Bayesian inference
-* ``pensive[test]`` — pytest, hypothesis, and graphviz for the test suite
-* ``pensive[docs]`` — Sphinx, IPython, and matplotlib for the docs
-* ``pensive[dev]`` — linting, type checking, docs, and all of the above
+* ``sofic[viz]`` — Graphviz diagrams in terminals and Jupyter
+* ``sofic[bayes]`` — PyMC/ArviZ backends for Bayesian inference
+* ``sofic[test]`` — pytest, hypothesis, and graphviz for the test suite
+* ``sofic[docs]`` — Sphinx, IPython, and matplotlib for the docs
+* ``sofic[dev]`` — linting, type checking, docs, and all of the above
 
 Quickstart
 ----------
@@ -102,7 +102,7 @@ Stochastic generators
 
 .. code-block:: python
 
-   from pensive import MarkovChain
+   from sofic import MarkovChain
 
    mc = MarkovChain(initial_distribution={"sunny": 0.5, "rainy": 0.5})
    mc.add_transition("sunny", "sunny", 0.9)
@@ -120,7 +120,7 @@ states and ``P(target | source)`` on edges:
 
 .. code-block:: python
 
-   from pensive import MooreHMM
+   from sofic import MooreHMM
 
    moore = MooreHMM(
        observation_alphabet=frozenset({"H", "T"}),
@@ -144,7 +144,7 @@ states and ``P(target | source)`` on edges:
 
 .. code-block:: python
 
-   from pensive import MealyHMM
+   from sofic import MealyHMM
 
    gm = MealyHMM(
        observation_alphabet=frozenset({0, 1}),
@@ -159,8 +159,8 @@ states and ``P(target | source)`` on edges:
    gm.is_unifilar()              # True
    gm.word_probability([1, 0, 1])  # 0.1667
 
-Many canonical models ship in ``pensive.examples``, so the golden mean is
-also just ``from pensive.examples import golden_mean; gm = golden_mean(0.5)``.
+Many canonical models ship in ``sofic.examples``, so the golden mean is
+also just ``from sofic.examples import golden_mean; gm = golden_mean(0.5)``.
 
 **ε-machine** — the minimal unifilar (causal-state) presentation of a stationary
 process. Build one from any HMM, from an observed sequence, or directly, and
@@ -168,7 +168,7 @@ read off computational-mechanics quantities:
 
 .. code-block:: python
 
-   from pensive import EpsilonMachine
+   from sofic import EpsilonMachine
 
    eps = EpsilonMachine.from_hmm(gm)          # minimize an HMM presentation
    # eps = EpsilonMachine.from_sequence(data, method="cssr", Lmax=4)  # infer
@@ -187,7 +187,7 @@ be checked as you go):
 
 .. code-block:: python
 
-   from pensive import DFA
+   from sofic import DFA
 
    dfa = DFA(
        input_alphabet=frozenset({"a", "b"}),
@@ -212,7 +212,7 @@ when you need one:
 
 .. code-block:: python
 
-   from pensive import NFA
+   from sofic import NFA
 
    nfa = NFA(
        input_alphabet=frozenset({"a", "b"}),
@@ -233,7 +233,7 @@ inverts bits:
 
 .. code-block:: python
 
-   from pensive import MealyMachine
+   from sofic import MealyMachine
 
    inv = MealyMachine(
        input_alphabet=frozenset({"0", "1"}),
@@ -258,7 +258,7 @@ forbidden words. The golden-mean shift forbids ``11``:
 
 .. code-block:: python
 
-   from pensive import ShiftOfFiniteType
+   from sofic import ShiftOfFiniteType
 
    sft = ShiftOfFiniteType.from_forbidden_words(
        {("1", "1")},
@@ -276,7 +276,7 @@ topological entropy or extract the measure of maximal entropy:
 .. code-block:: python
 
    import numpy as np
-   from pensive import TopologicalMarkovChain
+   from sofic import TopologicalMarkovChain
 
    tmc = TopologicalMarkovChain.from_adjacency(
        np.array([[1, 1], [1, 0]], dtype=float),   # golden-mean adjacency
@@ -292,7 +292,7 @@ NFA). This is the even shift (even-length runs of ``0`` between ``1``\ s):
 
 .. code-block:: python
 
-   from pensive import SoficShift
+   from sofic import SoficShift
 
    even = SoficShift(symbol_alphabet=frozenset({0, 1}))
    even.add_transition("even", "even", 0)
@@ -342,7 +342,7 @@ Every model can also be round-tripped through YAML:
 
    text = eps.to_yaml()
    restored = EpsilonMachine.from_yaml(text)
-   # or: pensive.model_to_yaml(eps) / pensive.model_from_yaml(text)
+   # or: sofic.model_to_yaml(eps) / sofic.model_from_yaml(text)
 
 Information anatomy (advanced)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -352,7 +352,7 @@ transient-information anatomy of a process (James, Burke & Crutchfield, 2013):
 
 .. code-block:: python
 
-   from pensive.examples import golden_mean_bidirectional, tent_map_misiurewicz_bidirectional
+   from sofic.examples import golden_mean_bidirectional, tent_map_misiurewicz_bidirectional
 
    bidir = golden_mean_bidirectional(0.5)
    bidir.statistical_complexity()   # 1.5850 bits  (C±)
@@ -366,4 +366,4 @@ transient-information anatomy of a process (James, Burke & Crutchfield, 2013):
 License
 -------
 
-``pensive`` is distributed under the BSD 3-Clause License; see ``LICENSE.txt``.
+``sofic`` is distributed under the BSD 3-Clause License; see ``LICENSE.txt``.

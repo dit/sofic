@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from hypothesis import given, settings
 
-from pensive.automata.icdfa import dfa_to_icdfa_string
-from pensive.testing.strategies import dfas, epsilon_machines
+from sofic.automata.icdfa import dfa_to_icdfa_string
+from sofic.testing.strategies import dfas, epsilon_machines
 
 
 @given(dfa=dfas(max_states=3))

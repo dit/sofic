@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from pensive.exceptions import LumpabilityError
-from pensive.generators.lumping import is_lumpable, lump, normalize_partition
-from pensive.generators.markov import MarkovChain
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.moore import MooreHMM
-from pensive.properties import transition_matrix
+from sofic.exceptions import LumpabilityError
+from sofic.generators.lumping import is_lumpable, lump, normalize_partition
+from sofic.generators.markov import MarkovChain
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.moore import MooreHMM
+from sofic.properties import transition_matrix
 
 
 def _symmetric_chain() -> MarkovChain:
@@ -161,7 +161,7 @@ def test_custom_labels_mapping():
 
 
 def test_unsupported_type_raises():
-    from pensive.automata.nfa import NFA
+    from sofic.automata.nfa import NFA
 
     nfa = NFA(initial_states={"q0"}, accepting_states={"q0"})
     nfa.graph.add_state("q0")
@@ -189,7 +189,7 @@ def test_mealy_not_lumpable():
 
 
 def test_epsilon_machine_lumps_to_plain_mealy():
-    from pensive.examples import golden_mean
+    from sofic.examples import golden_mean
 
     eps = golden_mean(0.5)
     partition = [{state} for state in eps.states()]

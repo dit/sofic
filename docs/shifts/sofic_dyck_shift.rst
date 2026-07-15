@@ -1,5 +1,5 @@
 .. sofic_dyck_shift.rst
-.. py:module:: pensive.shifts.sofic_dyck
+.. py:module:: sofic.shifts.sofic_dyck
 
 ****************
 Sofic-Dyck Shift
@@ -23,6 +23,6 @@ API
 
 .. autofunction:: transition_ref
 
-.. autofunction:: pensive.shifts.dyck_algorithms.is_admissible_word
+.. autofunction:: sofic.shifts.dyck_algorithms.is_admissible_word
 
-.. autofunction:: pensive.shifts.dyck_algorithms.admissible_words
+.. autofunction:: sofic.shifts.dyck_algorithms.admissible_words

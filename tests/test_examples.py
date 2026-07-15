@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.examples import (
+from sofic.examples import (
     alternating_biased_coins,
     bernoulli,
     butterfly_process,
@@ -19,8 +19,8 @@ from pensive.examples import (
     nemo_process,
     restricted_golden_mean,
 )
-from pensive.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
-from pensive.shifts.tmc import TopologicalMarkovChain
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.shifts.tmc import TopologicalMarkovChain
 
 
 @pytest.mark.parametrize(

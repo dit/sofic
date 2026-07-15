@@ -2,8 +2,8 @@
 
 import pytest
 
-from pensive.graph import ATTR_MULTIPLICITY, ATTR_SYMBOL
-from pensive.shifts.tmc import TopologicalMarkovChain
+from sofic.graph import ATTR_MULTIPLICITY, ATTR_SYMBOL
+from sofic.shifts.tmc import TopologicalMarkovChain
 
 
 def _tmc() -> TopologicalMarkovChain:

@@ -1,13 +1,13 @@
 .. exceptions.rst
-.. py:module:: pensive.exceptions
+.. py:module:: sofic.exceptions
 
 **********
 Exceptions
 **********
 
-``pensive`` raises typed exceptions when models fail validation:
+``sofic`` raises typed exceptions when models fail validation:
 
-* :class:`PensiveValidationError` — general structural or semantic failure
+* :class:`SoficValidationError` — general structural or semantic failure
 * :class:`NonDeterministicError` — DFA determinism violated
 * :class:`StochasticValidationError` — invalid probability masses
 * :class:`UnifilarityError` — unifilarity invariant violated
@@ -16,8 +16,8 @@ Exceptions
 API
 ===
 
-.. autoclass:: PensiveError
-.. autoclass:: PensiveValidationError
+.. autoclass:: SoficError
+.. autoclass:: SoficValidationError
 .. autoclass:: NonDeterministicError
 .. autoclass:: StochasticValidationError
 .. autoclass:: UnifilarityError

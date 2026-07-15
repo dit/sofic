@@ -1,11 +1,11 @@
 .. algorithms.rst
-.. py:module:: pensive.automata.algorithms
+.. py:module:: sofic.automata.algorithms
 
 **********
 Algorithms
 **********
 
-Standard automata operations on :class:`~pensive.automata.base.LabeledAutomaton`
+Standard automata operations on :class:`~sofic.automata.base.LabeledAutomaton`
 instances. The implementations cover subset construction, DFA equivalence and
 minimization, Brzozowski double reversal, Moore refinement, Hopcroft refinement,
 and state-elimination conversion to regular expressions
@@ -13,7 +13,7 @@ and state-elimination conversion to regular expressions
 
 .. ipython::
 
-   In [1]: from pensive.automata import DFA, trim, minimize, equivalent
+   In [1]: from sofic.automata import DFA, trim, minimize, equivalent
 
    In [2]: dfa = DFA(
       ...:     input_alphabet=frozenset({0}),
@@ -43,6 +43,6 @@ API
 .. autofunction:: minimize_moore
 .. autofunction:: minimize_brzozowski
 .. autofunction:: equivalent
-.. autofunction:: pensive.automata.regex.automaton_to_regex
+.. autofunction:: sofic.automata.regex.automaton_to_regex
 
 .. autodata:: MinimizationAlgorithm

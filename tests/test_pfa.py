@@ -2,9 +2,9 @@
 
 import pytest
 
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.pfa import ProbabilisticFiniteAutomaton
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.pfa import ProbabilisticFiniteAutomaton
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _pfa() -> ProbabilisticFiniteAutomaton:

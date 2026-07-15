@@ -11,21 +11,21 @@ pytest.importorskip("dit")
 
 import sympy as sp
 
-from pensive.examples.epsilon_machines import (
+from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_a,
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_hmm,
     tent_map_misiurewicz_information_expected,
 )
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.prob import (
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.prob import (
     SymbolConstraints,
     canonical_prob_key,
     is_symbolic,
     probs_equal,
 )
-from pensive.generators.words import hmm_word_probability
+from sofic.generators.words import hmm_word_probability
 
 
 def test_symbolic_edge_probabilities_preserved():
@@ -140,15 +140,9 @@ def test_symbolic_fig8_matches_numeric_anatomy():
     num = tent_map_misiurewicz_bidirectional(a_num)
     expected = tent_map_misiurewicz_information_expected(a_num)
 
-    assert float(sym.ephemeral_information().subs(a, a_num)) == pytest.approx(
-        num.ephemeral_information(), abs=1e-10
-    )
-    assert float(sym.bound_information().subs(a, a_num)) == pytest.approx(
-        num.bound_information(), abs=1e-10
-    )
-    assert float(sym.entropy_rate().subs(a, a_num)) == pytest.approx(
-        expected["entropy_rate"], abs=1e-10
-    )
+    assert float(sym.ephemeral_information().subs(a, a_num)) == pytest.approx(num.ephemeral_information(), abs=1e-10)
+    assert float(sym.bound_information().subs(a, a_num)) == pytest.approx(num.bound_information(), abs=1e-10)
+    assert float(sym.entropy_rate().subs(a, a_num)) == pytest.approx(expected["entropy_rate"], abs=1e-10)
     assert expected["entropy_rate"] == pytest.approx(math.log2(a_num), abs=1e-12)
 
 

@@ -1,5 +1,5 @@
 .. dfa.rst
-.. py:module:: pensive.automata.dfa
+.. py:module:: sofic.automata.dfa
 
 ***
 DFA
@@ -11,7 +11,7 @@ and no ε-transitions, following the standard finite-automata model
 
 .. ipython::
 
-   In [1]: from pensive.automata import DFA
+   In [1]: from sofic.automata import DFA
 
    In [2]: dfa = DFA(
       ...:     input_alphabet=frozenset({0, 1}),

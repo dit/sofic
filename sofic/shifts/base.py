@@ -1,0 +1,49 @@
+"""Symbolic dynamical systems base class."""
+
+from __future__ import annotations
+
+from collections.abc import Hashable, Iterator
+from typing import Any, Self
+
+from sofic.base import StateMachine
+from sofic.graph import ATTR_SYMBOL
+
+
+class SymbolicModel(StateMachine):
+    """Labeled transition system for shift presentations."""
+
+    symbol_alphabet: frozenset[Any]
+
+    def __init__(self, symbol_alphabet: frozenset[Any] | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.symbol_alphabet = symbol_alphabet if symbol_alphabet is not None else frozenset()
+
+    def add_transition(self, source: Hashable, target: Hashable, symbol: Any, **attrs: Any) -> int:
+        """Add a labeled transition in the shift presentation."""
+        return self.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol, **attrs})
+
+    def validate(self) -> None:
+        for transition in self.transitions():
+            symbol = transition.data.get(ATTR_SYMBOL)
+            if symbol is not None:
+                self._require(symbol in self.symbol_alphabet, f"symbol {symbol!r} not in alphabet")
+
+    def factor_language(self, length: int) -> Iterator[tuple[Any, ...]]:
+        from sofic.shifts.algorithms import factor_language
+
+        yield from factor_language(self, length)
+
+    def words_of_length(self, length: int) -> Iterator[tuple[Any, ...]]:
+        """Yield distinct factor words of exactly ``length`` symbols."""
+        yield from self.factor_language(length)
+
+    def is_unifilar(self) -> bool:
+        """Return whether this presentation is right-resolving (unifilar)."""
+        from sofic.properties import is_unifilar_symbols
+
+        return is_unifilar_symbols(self)
+
+    def trim_transient(self) -> Self:
+        from sofic.shifts.algorithms import trim_transient
+
+        return trim_transient(self)

@@ -1,8 +1,8 @@
 """Tests for NL* learning."""
 
-from pensive.automata.dfa import DFA
-from pensive.automata.languages.base import AutomatonLanguage
-from pensive.automata.learning import learn_maximized_prime_atomaton
+from sofic.automata.dfa import DFA
+from sofic.automata.languages.base import AutomatonLanguage
+from sofic.automata.learning import learn_maximized_prime_atomaton
 
 
 def _teacher_dfa() -> AutomatonLanguage:

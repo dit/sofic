@@ -2,10 +2,10 @@
 
 import pytest
 
-from pensive.exceptions import QuasiStochasticValidationError
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.nmachine import NMachine
-from pensive.graph import ATTR_EMISSION, ATTR_PROB, ATTR_QUASIPROB
+from sofic.exceptions import QuasiStochasticValidationError
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.nmachine import NMachine
+from sofic.graph import ATTR_EMISSION, ATTR_PROB, ATTR_QUASIPROB
 
 
 def _nmachine() -> NMachine:

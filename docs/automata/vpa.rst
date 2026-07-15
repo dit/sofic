@@ -1,5 +1,5 @@
 .. vpa.rst
-.. py:module:: pensive.automata.vpa
+.. py:module:: sofic.automata.vpa
 
 *************************
 Visibly Pushdown Automata
@@ -109,4 +109,4 @@ API
 
 .. autoclass:: CanonicalVisiblyPushdownAutomaton
 
-.. autofunction:: pensive.automata.vpa_simulation.recognizes_vpa
+.. autofunction:: sofic.automata.vpa_simulation.recognizes_vpa

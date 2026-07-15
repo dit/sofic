@@ -2,8 +2,8 @@
 
 import pytest
 
-from pensive.automata.buchi import BuchiAutomaton
-from pensive.graph import ATTR_SYMBOL
+from sofic.automata.buchi import BuchiAutomaton
+from sofic.graph import ATTR_SYMBOL
 
 
 def _accepting_loop_ba() -> BuchiAutomaton:

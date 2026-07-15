@@ -7,11 +7,11 @@ from math import log2
 import numpy as np
 import pytest
 
-from pensive.exceptions import UnifilarityError
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.shifts.sofic import SoficShift
-from pensive.shifts.tmc import TopologicalMarkovChain
-from pensive.shifts.topological_anatomy import _right_resolving
+from sofic.exceptions import UnifilarityError
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.shifts.sofic import SoficShift
+from sofic.shifts.tmc import TopologicalMarkovChain
+from sofic.shifts.topological_anatomy import _right_resolving
 
 PHI = (1.0 + 5.0**0.5) / 2.0
 LOG2_PHI = log2(PHI)

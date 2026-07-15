@@ -4,8 +4,8 @@ import networkx as nx
 import numpy as np
 import pytest
 
-from pensive.graph import KIND_CALL, KIND_RETURN, TransitionGraph
-from pensive.shifts.markov_dyck import MarkovDyckShift
+from sofic.graph import KIND_CALL, KIND_RETURN, TransitionGraph
+from sofic.shifts.markov_dyck import MarkovDyckShift
 
 
 def _call(label):

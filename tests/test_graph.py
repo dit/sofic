@@ -1,6 +1,6 @@
 """Tests for TransitionGraph and Transition."""
 
-from pensive.graph import (
+from sofic.graph import (
     ATTR_PROB,
     ATTR_SYMBOL,
     EPSILON,

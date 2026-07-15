@@ -1,5 +1,5 @@
 .. buchi.rst
-.. py:module:: pensive.automata.buchi
+.. py:module:: sofic.automata.buchi
 
 *****************
 Büchi Automata
@@ -14,5 +14,5 @@ API
 .. autoclass:: BuchiAutomaton
    :members: accepts_lasso, accepts_omega
 
-.. autofunction:: pensive.automata.buchi_simulation.accepts_lasso_buchi
-.. autofunction:: pensive.automata.buchi_simulation.accepts_omega_buchi
+.. autofunction:: sofic.automata.buchi_simulation.accepts_lasso_buchi
+.. autofunction:: sofic.automata.buchi_simulation.accepts_omega_buchi

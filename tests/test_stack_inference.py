@@ -5,22 +5,22 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pensive.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni, papni_encode
-from pensive.automata.rpni import learn_dfa_rpni
-from pensive.examples.shifts import dyck_shift_order, motzkin_shift
-from pensive.generators.epsilon_inference import cssr
-from pensive.generators.stack_hmm import HiddenMarkovStackModel
-from pensive.generators.stack_inference import (
+from sofic.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni, papni_encode
+from sofic.automata.rpni import learn_dfa_rpni
+from sofic.examples.shifts import dyck_shift_order, motzkin_shift
+from sofic.generators.epsilon_inference import cssr
+from sofic.generators.stack_hmm import HiddenMarkovStackModel
+from sofic.generators.stack_inference import (
     fit_stack_hmm_mle,
     learn_stack_hmm_papni,
     stack_cssr,
     stack_subtree_merge,
 )
-from pensive.inference.bayesian.stack_hmm import (
+from sofic.inference.bayesian.stack_hmm import (
     ModelComparisonStackHMM,
     StackHMMPosterior,
 )
-from pensive.shifts.dyck_enumeration import (
+from sofic.shifts.dyck_enumeration import (
     count_dyck_graph_strings,
     dyck_graph_string_to_shift,
     iter_sofic_dyck_topologies,
@@ -37,7 +37,7 @@ def _balanced_dyck_alphabet() -> DyckAlphabet:
 
 
 def _uniform_probabilities(shift):
-    from pensive.shifts.sofic_dyck import transition_ref
+    from sofic.shifts.sofic_dyck import transition_ref
 
     refs = [transition_ref(transition) for transition in shift.transitions()]
     return {ref: 1.0 / len(refs) for ref in refs}
@@ -203,7 +203,7 @@ def test_benchmark_passive_paths(method: str):
                 inferred.add_return_transition("s0", "s0", symbol, prob)
             else:
                 inferred.add_internal_transition("s0", "s0", symbol, prob)
-        from pensive.graph import KIND_CALL, KIND_RETURN
+        from sofic.graph import KIND_CALL, KIND_RETURN
 
         for call in inferred.transitions():
             if call.data.get("kind") != KIND_CALL:

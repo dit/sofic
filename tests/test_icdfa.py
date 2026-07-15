@@ -6,8 +6,8 @@ import itertools
 
 import pytest
 
-from pensive.automata.dfa import DFA
-from pensive.automata.icdfa import (
+from sofic.automata.dfa import DFA
+from sofic.automata.icdfa import (
     ICDFAEnumerationError,
     _upper_bound_at,
     count_flag_sequences,

@@ -1,5 +1,5 @@
 .. directional_flow.rst
-.. py:module:: pensive.generators.directional_flow
+.. py:module:: sofic.generators.directional_flow
 
 *******************
 Directional flow

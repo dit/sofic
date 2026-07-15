@@ -1,11 +1,11 @@
 .. stack_hmm.rst
-.. py:module:: pensive.inference.bayesian.stack_hmm
+.. py:module:: sofic.inference.bayesian.stack_hmm
 
 ********************
 Stack-HMM Inference
 ********************
 
-Bayesian inference for :class:`~pensive.generators.stack_hmm.HiddenMarkovStackModel`
+Bayesian inference for :class:`~sofic.generators.stack_hmm.HiddenMarkovStackModel`
 topologies. As with the finite-state case, the posterior over the transition
 probabilities *enabled by each stack configuration* factorizes into Dirichlet
 rows, so evidence and posterior-mean models are closed-form
@@ -14,7 +14,7 @@ generally infinite, counting uses a bounded ``max_stack_depth``.
 
 .. code-block:: python
 
-   from pensive.inference.bayesian import StackHMMPosterior
+   from sofic.inference.bayesian import StackHMMPosterior
 
    post = StackHMMPosterior(topology, data=data, max_stack_depth=8)
    post.log_evidence()
@@ -24,7 +24,7 @@ Model comparison
 ================
 
 :class:`ModelComparisonStackHMM` ranks enumerated stack topologies (for example
-those produced by :func:`~pensive.shifts.dyck_enumeration.iter_sofic_dyck_topologies`)
+those produced by :func:`~sofic.shifts.dyck_enumeration.iter_sofic_dyck_topologies`)
 by conjugate marginal likelihood.
 
 API

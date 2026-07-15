@@ -1,10 +1,10 @@
 """Tests for epsilon machine construction."""
 
-from pensive.examples.epsilon_machines import ellison_fig9_forward, golden_mean
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.mealy import MealyHMM
-from pensive.generators.reversal import time_reverse_stochastic
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.examples.epsilon_machines import ellison_fig9_forward, golden_mean
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.reversal import time_reverse_stochastic
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def _unifilar_mealy() -> MealyHMM:
@@ -60,10 +60,10 @@ def test_from_hmm_via_msp_on_nonunifilar_reverse():
 def test_row_normalized_presentation_fallback():
     from unittest.mock import patch
 
-    from pensive.examples import golden_mean_forward
-    from pensive.exceptions import UnifilarityError
-    from pensive.generators.epsilon_machine import _row_normalized_presentation
-    from pensive.generators.reversal import time_reverse_stochastic
+    from sofic.examples import golden_mean_forward
+    from sofic.exceptions import UnifilarityError
+    from sofic.generators.epsilon_machine import _row_normalized_presentation
+    from sofic.generators.reversal import time_reverse_stochastic
 
     forward = golden_mean_forward(0.5)
     rev_hmm = time_reverse_stochastic(forward)

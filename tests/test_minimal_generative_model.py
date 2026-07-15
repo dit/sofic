@@ -8,16 +8,16 @@ from itertools import product
 import numpy as np
 import pytest
 
-from pensive.examples.epsilon_machines import bernoulli, from_symbol_matrices, golden_mean_bidirectional
-from pensive.exceptions import StochasticValidationError
-from pensive.generators.epsilon_machine import EpsilonMachine
-from pensive.generators.minimal_generative_model import (
+from sofic.examples.epsilon_machines import bernoulli, from_symbol_matrices, golden_mean_bidirectional
+from sofic.exceptions import StochasticValidationError
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.minimal_generative_model import (
     MinimalGenerativeModel,
     _auxiliary_state_channel,
     _model_from_channel,
     _reproduction_error,
 )
-from pensive.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 pytest.importorskip("dit")
 
@@ -259,7 +259,7 @@ def test_nemo_minimal_generative_model_reproduces_process():
     here; the reproduction guard falls back to the deterministic functional
     realization, which is isomorphic to the forward epsilon-machine.
     """
-    from pensive.examples import nemo_process
+    from sofic.examples import nemo_process
 
     process = nemo_process(0.5, 0.5)
     mgm = process.minimal_generative_model(niter=2, rng=np.random.default_rng(0))
@@ -273,8 +273,8 @@ def test_nemo_minimal_generative_model_reproduces_process():
 
 def test_ensure_reproducing_falls_back_to_functional_channel():
     """A deliberately non-reproducing channel is replaced by the functional fallback."""
-    from pensive.examples import nemo_process
-    from pensive.generators.minimal_generative_model import (
+    from sofic.examples import nemo_process
+    from sofic.generators.minimal_generative_model import (
         _ensure_reproducing,
         _normalized_joint_distribution,
     )

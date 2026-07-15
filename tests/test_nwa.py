@@ -2,10 +2,10 @@
 
 import pytest
 
-from pensive.automata.nwa import NestedWord, NestedWordAutomaton
-from pensive.automata.vpa import VisiblyPushdownAutomaton
-from pensive.exceptions import PensiveValidationError
-from pensive.graph import (
+from sofic.automata.nwa import NestedWord, NestedWordAutomaton
+from sofic.automata.vpa import VisiblyPushdownAutomaton
+from sofic.exceptions import SoficValidationError
+from sofic.graph import (
     ATTR_KIND,
     ATTR_STACK_SYMBOL,
     ATTR_SYMBOL,
@@ -41,7 +41,7 @@ def _visible(symbols: tuple[str, ...]) -> NestedWord:
 
 
 def test_nested_word_rejects_crossing_matches():
-    with pytest.raises(PensiveValidationError):
+    with pytest.raises(SoficValidationError):
         NestedWord(
             symbols=("a", "b", "c", "d"),
             kinds=(KIND_CALL, KIND_CALL, KIND_RETURN, KIND_RETURN),
@@ -50,7 +50,7 @@ def test_nested_word_rejects_crossing_matches():
 
 
 def test_nested_word_rejects_bad_call_return_pair():
-    with pytest.raises(PensiveValidationError):
+    with pytest.raises(SoficValidationError):
         NestedWord(
             symbols=("a", "b"),
             kinds=(KIND_CALL, KIND_INTERNAL),
