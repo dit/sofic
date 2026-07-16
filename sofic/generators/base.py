@@ -128,6 +128,55 @@ class HiddenMarkovModel(StochasticModel):
 
         return viterbi(self, observations)
 
+    def smooth(self, observations: Sequence[Any]) -> np.ndarray:
+        """Return fixed-interval smoothed marginals ``gamma[t, s]``."""
+        from sofic.generators.hmm_inference import smooth
+
+        return smooth(self, observations)
+
+    def two_slice_marginals(self, observations: Sequence[Any]) -> np.ndarray:
+        """Return two-slice smoothed marginals ``xi[t, i, j]``."""
+        from sofic.generators.hmm_inference import two_slice_marginals
+
+        return two_slice_marginals(self, observations)
+
+    def baum_welch(
+        self,
+        sequences: Any,
+        *,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        estimate_initial: bool = True,
+    ) -> tuple[MealyHMM, list[float]]:
+        """Fit parameters by Baum-Welch EM, returning ``(fitted_model, loglik_trace)``."""
+        from sofic.generators.hmm_inference import baum_welch
+
+        return baum_welch(
+            self,
+            sequences,
+            max_iter=max_iter,
+            tol=tol,
+            estimate_initial=estimate_initial,
+        )
+
+    def score(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
+        """Return the log-likelihood gradient (Fisher identity) over edge parameters."""
+        from sofic.generators.hmm_inference import score
+
+        return score(self, observations)
+
+    def observed_information(self, observations: Sequence[Any]) -> np.ndarray:
+        """Return the observed information matrix (Louis' identity)."""
+        from sofic.generators.hmm_inference import observed_information
+
+        return observed_information(self, observations)
+
+    def standard_errors(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
+        """Return asymptotic standard errors of the free edge parameters."""
+        from sofic.generators.hmm_inference import standard_errors
+
+        return standard_errors(self, observations)
+
     def to_mealy(self) -> MealyHMM:
         """Return an equivalent Mealy-style presentation."""
         raise NotImplementedError(f"{type(self).__name__} must implement to_mealy()")

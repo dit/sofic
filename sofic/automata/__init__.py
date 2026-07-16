@@ -1,6 +1,25 @@
 """Finite automata and transducers."""
 
 # ``atomaton`` is an intentional pun on atomic automaton.
+from sofic.automata.active import (
+    EquivalenceOracle,
+    ExhaustiveEquivalenceOracle,
+    FunctionMealyOracle,
+    FunctionMembershipOracle,
+    LanguageMembershipOracle,
+    MealyEquivalenceOracle,
+    MealyExhaustiveEquivalenceOracle,
+    MealyMembershipOracle,
+    MembershipOracle,
+    RandomWalkEquivalenceOracle,
+    TransducerOutputOracle,
+    learn_dfa_from_language,
+    learn_dfa_lstar,
+    learn_dfa_ttt,
+    learn_mealy_from_transducer,
+    learn_mealy_lstar,
+)
+from sofic.automata.alergia import learn_pfa_alergia
 from sofic.automata.algorithms import (
     MinimizationAlgorithm,
     complete,
@@ -13,6 +32,8 @@ from sofic.automata.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAto
 from sofic.automata.base import LabeledAutomaton
 from sofic.automata.buchi import BuchiAutomaton
 from sofic.automata.dfa import DFA
+from sofic.automata.dfasat import learn_dfa_sat
+from sofic.automata.edsm import learn_dfa_edsm
 from sofic.automata.icdfa import (
     ICDFAString,
     count_flag_sequences,
@@ -87,6 +108,17 @@ __all__ = [
     "AtomicAutomaton",
     "AutomatonLanguage",
     "BuchiAutomaton",
+    "EquivalenceOracle",
+    "ExhaustiveEquivalenceOracle",
+    "FunctionMealyOracle",
+    "FunctionMembershipOracle",
+    "LanguageMembershipOracle",
+    "MealyEquivalenceOracle",
+    "MealyExhaustiveEquivalenceOracle",
+    "MealyMembershipOracle",
+    "MembershipOracle",
+    "RandomWalkEquivalenceOracle",
+    "TransducerOutputOracle",
     "CallDrivenAutomaton",
     "CanonicalVisiblyPushdownAutomaton",
     "CanonicalRFSA",
@@ -141,7 +173,15 @@ __all__ = [
     "last_icdfa_empty_string",
     "MISSING_TRANSITION",
     "kleene_star_vpa",
+    "learn_dfa_edsm",
+    "learn_dfa_from_language",
+    "learn_dfa_lstar",
     "learn_dfa_rpni",
+    "learn_dfa_sat",
+    "learn_dfa_ttt",
+    "learn_mealy_from_transducer",
+    "learn_mealy_lstar",
+    "learn_pfa_alergia",
     "learn_sofic_dyck_shift_papni",
     "minimize",
     "next_flags",

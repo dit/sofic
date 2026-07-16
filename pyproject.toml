@@ -71,6 +71,9 @@ bayes = [
     "arviz",
     "pymc>=5",
 ]
+sat = [
+    "python-sat>=1.8",
+]
 symbolic = [
     "sympy>=1.12",
     "dit[symbolic]>=2.2",
@@ -198,6 +201,8 @@ allowed-unresolved-imports = [
     "pymc.**",
     "sympy",
     "sympy.**",
+    "pysat",
+    "pysat.**",
 ]
 
 [tool.ty.rules]

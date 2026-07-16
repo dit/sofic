@@ -1,8 +1,15 @@
-"""Forward/backward/Viterbi and sampling for hidden Markov models."""
+"""Inference for hidden Markov models.
+
+Forward/backward/Viterbi decoding and sampling, plus the Cappe, Moulines &
+Ryden (2005) toolbox: fixed-interval smoothing (one- and two-slice marginals),
+Baum-Welch EM parameter re-estimation, and the score / observed information via
+the Fisher and Louis identities.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections import defaultdict
+from collections.abc import Hashable, Iterable, Sequence
 from typing import Any
 
 import numpy as np
@@ -165,6 +172,25 @@ def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: boo
     return beta
 
 
+def _backward_scaled(joint: dict[Any, np.ndarray], obs: list[Any], n_states: int) -> np.ndarray:
+    """Per-row-normalized backward messages from precomputed transition tensors.
+
+    ``beta_hat[t]`` sums to one; the per-row scaling constants cancel against the
+    forward scaling when the smoothed posterior is renormalized. Shares tensors
+    with the forward pass so smoothing and EM avoid recomputing them.
+    """
+    beta = np.zeros((len(obs) + 1, n_states), dtype=float)
+    beta[len(obs)] = 1.0
+    for t in range(len(obs) - 1, -1, -1):
+        matrix = joint.get(obs[t])
+        row = beta[t + 1] if matrix is None else matrix @ beta[t + 1]
+        beta[t] = 0.0 if matrix is None else row
+        total = float(beta[t].sum())
+        if total > 0.0:
+            beta[t] = beta[t] / total
+    return beta
+
+
 def log_likelihood(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> float:
     """Natural-log likelihood ``log P(observations)``.
 
@@ -176,6 +202,400 @@ def log_likelihood(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> float
     if not np.all(np.isfinite(log_scales)):
         return float("-inf")
     return float(log_scales.sum())
+
+
+def smooth(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
+    r"""Return fixed-interval smoothed marginals ``gamma[t, s]``.
+
+    ``gamma[t, s] = P(X_t = s \mid Y_{0:n-1})`` for ``t = 0, ..., n`` (there are
+    ``n + 1`` hidden states behind ``n`` edge emissions). Computed as the
+    per-row-renormalized product of the scaled forward and backward messages, the
+    forward-backward smoother of Cappe, Moulines & Ryden (2005, Section 3.2).
+    Rows for observation sequences of zero probability are returned as zeros.
+    """
+    pi, joint = _emission_transition_tensors(hmm)
+    obs = list(observations)
+    n_states = len(pi)
+    alpha_hat, log_scales = _forward_scaled(pi, joint, obs)
+    if not np.all(np.isfinite(log_scales)):
+        return np.zeros((len(obs) + 1, n_states), dtype=float)
+    beta_hat = _backward_scaled(joint, obs, n_states)
+    gamma = alpha_hat * beta_hat
+    row_sums = gamma.sum(axis=1, keepdims=True)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        gamma = np.where(row_sums > 0.0, gamma / row_sums, 0.0)
+    return gamma
+
+
+def two_slice_marginals(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
+    r"""Return two-slice smoothed marginals ``xi[t, i, j]``.
+
+    ``xi[t, i, j] = P(X_t = i, X_{t+1} = j \mid Y_{0:n-1})`` for ``t = 0, ..., n-1``,
+    where the transition at index ``t`` emits ``Y_t`` (Cappe, Moulines & Ryden,
+    2005, Section 3.2). Marginalizing over ``j`` recovers ``gamma[t]`` for
+    ``t < n``. Returns an all-zero tensor for zero-probability sequences.
+    """
+    pi, joint = _emission_transition_tensors(hmm)
+    obs = list(observations)
+    n_states = len(pi)
+    xi = np.zeros((len(obs), n_states, n_states), dtype=float)
+    alpha_hat, log_scales = _forward_scaled(pi, joint, obs)
+    if not np.all(np.isfinite(log_scales)):
+        return xi
+    beta_hat = _backward_scaled(joint, obs, n_states)
+    for t, symbol in enumerate(obs):
+        matrix = joint.get(symbol)
+        if matrix is None:
+            continue
+        block = alpha_hat[t][:, None] * matrix * beta_hat[t + 1][None, :]
+        total = float(block.sum())
+        if total > 0.0:
+            xi[t] = block / total
+    return xi
+
+
+def _expected_edge_counts(
+    pi: np.ndarray,
+    joint: dict[Any, np.ndarray],
+    obs: list[Any],
+) -> tuple[dict[tuple[int, Any, int], float], np.ndarray, np.ndarray, float]:
+    r"""Expected sufficient statistics for one observation sequence.
+
+    Returns ``(edge_counts, source_totals, gamma0, loglik)`` where
+
+    - ``edge_counts[(i, symbol, j)]`` is
+      :math:`\sum_t P(X_t = i, Y_t = symbol, X_{t+1} = j \mid Y)`, the expected
+      number of uses of edge ``i --symbol--> j``;
+    - ``source_totals[i] = \sum_{t=0}^{n-1} P(X_t = i \mid Y)`` is the expected
+      number of transitions out of state ``i`` (the Baum-Welch denominator);
+    - ``gamma0`` is the smoothed marginal of the initial state ``X_0``;
+    - ``loglik`` is the natural-log likelihood of the sequence.
+
+    Only edges present in ``joint`` (structural support) receive mass, so the
+    statistics preserve the model topology.
+    """
+    n_states = len(pi)
+    alpha_hat, log_scales = _forward_scaled(pi, joint, obs)
+    if not np.all(np.isfinite(log_scales)):
+        return {}, np.zeros(n_states), np.zeros(n_states), float("-inf")
+    beta_hat = _backward_scaled(joint, obs, n_states)
+    edge_counts: dict[tuple[int, Any, int], float] = {}
+    source_totals = np.zeros(n_states, dtype=float)
+    for t, symbol in enumerate(obs):
+        matrix = joint.get(symbol)
+        if matrix is None:
+            continue
+        block = alpha_hat[t][:, None] * matrix * beta_hat[t + 1][None, :]
+        total = float(block.sum())
+        if total <= 0.0:
+            continue
+        block = block / total
+        source_totals += block.sum(axis=1)
+        for i, j in np.argwhere(block > 0.0):
+            key = (int(i), symbol, int(j))
+            edge_counts[key] = edge_counts.get(key, 0.0) + float(block[i, j])
+    g0 = alpha_hat[0] * beta_hat[0]
+    s0 = float(g0.sum())
+    gamma0 = g0 / s0 if s0 > 0.0 else np.zeros(n_states)
+    return edge_counts, source_totals, gamma0, float(log_scales.sum())
+
+
+def _as_sequence_list(sequences: Iterable[Any]) -> list[list[Any]]:
+    """Normalize ``sequences`` to a list of observation sequences.
+
+    Accepts either a single flat observation sequence (e.g. ``[0, 1, 0]``) or an
+    iterable of sequences (e.g. ``[[0, 1], [1, 0]]``). A single sequence is
+    detected when its first element is not itself a non-string sequence.
+    """
+    seqs = list(sequences)
+    if not seqs:
+        return []
+    first = seqs[0]
+    if isinstance(first, (list, tuple)) and not isinstance(first, (str, bytes)):
+        return [list(seq) for seq in seqs]
+    return [seqs]
+
+
+def baum_welch(
+    hmm: HiddenMarkovModel,
+    sequences: Iterable[Any],
+    *,
+    max_iter: int = 100,
+    tol: float = 1e-6,
+    estimate_initial: bool = True,
+) -> tuple[Any, list[float]]:
+    r"""Fit HMM parameters by Baum-Welch (EM) expectation-maximization.
+
+    Re-estimates the Mealy joint edge law
+    :math:`A_o[i, j] = P(X_{t+1} = j, O = o \mid X_t = i)` and (optionally) the
+    initial distribution from data, holding the transition-graph topology fixed:
+    structurally absent edges receive zero expected count and stay absent, so the
+    fitted model generates the same sofic shift as ``hmm``. This is the EM
+    algorithm for probabilistic functions of finite Markov chains of Baum, Petrie,
+    Soules & Weiss and Cappe, Moulines & Ryden (2005, Chapter 10); see also
+    Rabiner (1989).
+
+    ``sequences`` may be a single observation sequence or an iterable of
+    sequences (several sequences are needed to identify the initial distribution;
+    Cappe, Moulines & Ryden, 2005, Section 10.1). Unifilarity is *not* preserved,
+    so the fit is returned as a plain :class:`~sofic.generators.mealy.MealyHMM`.
+
+    Returns ``(fitted_model, loglik_trace)`` where ``loglik_trace`` is the
+    non-decreasing sequence of total natural-log likelihoods observed before each
+    parameter update.
+    """
+    from sofic.generators.mealy import MealyHMM
+
+    mealy = hmm.to_mealy()
+    idx = mealy.reindex()
+    n_states = len(idx)
+    states = [idx.state(i) for i in range(n_states)]
+    alphabet = frozenset(mealy.observation_alphabet)
+    seqs = _as_sequence_list(sequences)
+
+    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    support = {
+        (i, symbol, j)
+        for symbol, matrix in joint.items()
+        for i in range(n_states)
+        for j in range(n_states)
+        if matrix[i, j] > 0.0
+    }
+
+    loglik_trace: list[float] = []
+    prev_ll: float | None = None
+    for _iteration in range(max_iter):
+        total_edge_counts: dict[tuple[int, Any, int], float] = defaultdict(float)
+        total_source = np.zeros(n_states, dtype=float)
+        gamma0_sum = np.zeros(n_states, dtype=float)
+        total_ll = 0.0
+        for obs in seqs:
+            edge_counts, source_totals, gamma0, loglik = _expected_edge_counts(pi, joint, obs)
+            if not np.isfinite(loglik):
+                continue
+            for key, value in edge_counts.items():
+                total_edge_counts[key] += value
+            total_source += source_totals
+            gamma0_sum += gamma0
+            total_ll += loglik
+        loglik_trace.append(total_ll)
+        if prev_ll is not None and abs(total_ll - prev_ll) < tol:
+            break
+        prev_ll = total_ll
+
+        new_joint = {symbol: np.zeros((n_states, n_states), dtype=float) for symbol in joint}
+        for (i, symbol, j), count in total_edge_counts.items():
+            if total_source[i] > 0.0:
+                new_joint[symbol][i, j] = count / total_source[i]
+        for i in range(n_states):
+            if total_source[i] <= 0.0:
+                for symbol in joint:
+                    new_joint[symbol][i, :] = joint[symbol][i, :]
+        joint = new_joint
+        if estimate_initial:
+            mass = float(gamma0_sum.sum())
+            if mass > 0.0:
+                pi = gamma0_sum / mass
+
+    fitted = MealyHMM(
+        initial_distribution={states[i]: float(pi[i]) for i in range(n_states) if pi[i] > 0.0},
+        observation_alphabet=alphabet,
+    )
+    for state in states:
+        fitted.graph.add_state(state)
+    for i, symbol, j in sorted(support, key=lambda edge: (edge[0], str(edge[1]), edge[2])):
+        prob = float(joint[symbol][i, j])
+        if prob > 0.0:
+            fitted.add_transition(states[i], states[j], symbol, prob)
+    fitted.validate()
+    return fitted, loglik_trace
+
+
+def score(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
+    r"""Return the score (gradient of the log-likelihood) via the Fisher identity.
+
+    For each edge ``i --o--> j``, returns
+    :math:`\partial \log P(Y) / \partial A_o[i, j] = E[N_{i,o,j} \mid Y] / A_o[i, j]`,
+    where ``N`` is the (unobserved) edge-use count. This is Fisher's identity,
+    ``\nabla \log L(\theta) = E[\nabla \log f(X, Y; \theta) \mid Y]`` (Cappe,
+    Moulines & Ryden, 2005, Section 10.2.3), evaluated in the raw (unconstrained)
+    joint-edge parameters. Keys are ``(source, symbol, target)`` state labels.
+    """
+    mealy = hmm.to_mealy()
+    idx = mealy.reindex()
+    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    edge_counts, _source_totals, _gamma0, loglik = _expected_edge_counts(pi, joint, list(observations))
+    if not np.isfinite(loglik):
+        raise ValueError("observations have zero probability under the model; score is undefined")
+    result: dict[tuple[Hashable, Any, Hashable], float] = {}
+    n_states = len(pi)
+    for symbol, matrix in joint.items():
+        for i in range(n_states):
+            for j in range(n_states):
+                prob = float(matrix[i, j])
+                if prob > 0.0:
+                    count = edge_counts.get((i, symbol, j), 0.0)
+                    result[(idx.state(i), symbol, idx.state(j))] = count / prob
+    return result
+
+
+def _free_parameterization(
+    joint: dict[Any, np.ndarray],
+    n_states: int,
+) -> tuple[list[tuple[int, Any, int]], list[tuple[int, Any, int]], list[int]]:
+    """Build the free multinomial parameterization of the joint edge law.
+
+    Each source state whose outgoing edges number ``k >= 2`` contributes ``k - 1``
+    free parameters (its last edge in canonical order is the reference). Returns
+    ``(free_edges, reference_by_param, source_by_param)``: the edge for each free
+    parameter, the reference edge of its source block, and the source-state index.
+    """
+    free_edges: list[tuple[int, Any, int]] = []
+    reference_by_param: list[tuple[int, Any, int]] = []
+    source_by_param: list[int] = []
+    for i in range(n_states):
+        out_edges = sorted(
+            ((i, symbol, j) for symbol, matrix in joint.items() for j in range(n_states) if matrix[i, j] > 0.0),
+            key=lambda edge: (str(edge[1]), edge[2]),
+        )
+        if len(out_edges) < 2:
+            continue
+        reference = out_edges[-1]
+        for edge in out_edges[:-1]:
+            free_edges.append(edge)
+            reference_by_param.append(reference)
+            source_by_param.append(i)
+    return free_edges, reference_by_param, source_by_param
+
+
+def observed_information(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
+    r"""Return the observed information matrix via Louis' identity.
+
+    The observed information ``J = -\partial^2 \log L / \partial\theta^2`` for the
+    free multinomial parameters of the joint edge law is obtained from Louis'
+    (1982) identity,
+
+    .. math:: J = E[-\partial^2 \ell_c \mid Y] - \operatorname{Cov}(\partial \ell_c \mid Y),
+
+    where :math:`\ell_c` is the complete-data log-likelihood (Cappe, Moulines &
+    Ryden, 2005, Section 10.2.3). The complete-data information ``B`` follows from
+    the expected edge counts; the conditional covariance of the complete-data
+    score is computed exactly by a forward smoothing recursion for the first and
+    second moments of the additive score functional. The matrix is ordered by
+    :func:`free_parameter_labels`; an empty ``(0, 0)`` matrix is returned when the
+    model has no free parameters.
+    """
+    mealy = hmm.to_mealy()
+    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    obs = list(observations)
+    n_states = len(pi)
+
+    free_edges, reference_by_param, source_by_param = _free_parameterization(joint, n_states)
+    d = len(free_edges)
+    if d == 0:
+        return np.zeros((0, 0), dtype=float)
+
+    edge_counts, _source_totals, _gamma0, loglik = _expected_edge_counts(pi, joint, obs)
+    if not np.isfinite(loglik):
+        raise ValueError("observations have zero probability under the model; information is undefined")
+
+    prob_of = {edge: float(joint[edge[1]][edge[0], edge[2]]) for edge in set(free_edges) | set(reference_by_param)}
+
+    # Complete-data information B = E[-d^2 l_c | Y], block-diagonal by source state.
+    complete_information = np.zeros((d, d), dtype=float)
+    for p in range(d):
+        ref_p = reference_by_param[p]
+        count_ref = edge_counts.get(ref_p, 0.0)
+        ref_term = count_ref / prob_of[ref_p] ** 2
+        for q in range(d):
+            if source_by_param[p] != source_by_param[q]:
+                continue
+            value = ref_term
+            if p == q:
+                edge_p = free_edges[p]
+                value += edge_counts.get(edge_p, 0.0) / prob_of[edge_p] ** 2
+            complete_information[p, q] = value
+
+    # Per-transition score contribution s(edge) as a d-vector (sparse per source block).
+    edge_score: dict[tuple[int, Any, int], np.ndarray] = {}
+    for p, edge in enumerate(free_edges):
+        edge_score.setdefault(edge, np.zeros(d))[p] += 1.0 / prob_of[edge]
+    for p, ref in enumerate(reference_by_param):
+        edge_score.setdefault(ref, np.zeros(d))[p] += -1.0 / prob_of[ref]
+    zero_d = np.zeros(d)
+
+    # Forward smoothing recursion for E[S | Y] and E[S S^T | Y] of the additive
+    # complete-data score functional S = sum_t s(edge_t).
+    alpha_hat, _log_scales = _forward_scaled(pi, joint, obs)
+    first = np.zeros((n_states, d), dtype=float)
+    second = np.zeros((n_states, d, d), dtype=float)
+    for t, symbol in enumerate(obs):
+        matrix = joint.get(symbol)
+        if matrix is None:
+            continue
+        weight = alpha_hat[t][:, None] * matrix  # weight[i, k] = P(X_t=i, X_{t+1}=k, Y_t | Y_{0:t-1})
+        denom = weight.sum(axis=0)
+        new_first = np.zeros((n_states, d), dtype=float)
+        new_second = np.zeros((n_states, d, d), dtype=float)
+        for k in range(n_states):
+            if denom[k] <= 0.0:
+                continue
+            for i in range(n_states):
+                if weight[i, k] <= 0.0:
+                    continue
+                retro = weight[i, k] / denom[k]  # P(X_t=i | X_{t+1}=k, Y_{0:t})
+                s_vec = edge_score.get((i, symbol, k), zero_d)
+                first_i = first[i]
+                combined = first_i + s_vec
+                new_first[k] += retro * combined
+                cross = np.outer(first_i, s_vec)
+                new_second[k] += retro * (second[i] + cross + cross.T + np.outer(s_vec, s_vec))
+        first, second = new_first, new_second
+
+    phi_final = alpha_hat[len(obs)]
+    expected_score = phi_final @ first
+    expected_outer = np.einsum("k,kpq->pq", phi_final, second)
+    score_covariance = expected_outer - np.outer(expected_score, expected_score)
+    return complete_information - score_covariance
+
+
+def free_parameter_labels(hmm: HiddenMarkovModel) -> list[tuple[Hashable, Any, Hashable]]:
+    """Return the ``(source, symbol, target)`` label for each free parameter.
+
+    The order matches the rows and columns of :func:`observed_information` and the
+    entries of :func:`standard_errors`.
+    """
+    mealy = hmm.to_mealy()
+    idx = mealy.reindex()
+    _pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    free_edges, _reference, _source = _free_parameterization(joint, len(idx))
+    return [(idx.state(i), symbol, idx.state(j)) for i, symbol, j in free_edges]
+
+
+def standard_errors(
+    hmm: HiddenMarkovModel,
+    observations: Sequence[Any],
+) -> dict[tuple[Hashable, Any, Hashable], float]:
+    r"""Return asymptotic standard errors of the free edge parameters.
+
+    Standard errors are ``sqrt(diag(J^{-1}))`` where ``J`` is the
+    :func:`observed_information` matrix (Cappe, Moulines & Ryden, 2005,
+    Section 10.2.3). Uses the Moore-Penrose pseudoinverse when ``J`` is singular;
+    a non-positive variance estimate (numerically unidentified parameter) yields
+    ``nan``. Keyed by the labels from :func:`free_parameter_labels`.
+    """
+    labels = free_parameter_labels(hmm)
+    information = observed_information(hmm, observations)
+    if information.shape[0] == 0:
+        return {}
+    try:
+        covariance = np.linalg.inv(information)
+    except np.linalg.LinAlgError:
+        covariance = np.linalg.pinv(information)
+    variances = np.diag(covariance)
+    with np.errstate(invalid="ignore"):
+        errors = np.where(variances > 0.0, np.sqrt(variances), np.nan)
+    return dict(zip(labels, (float(value) for value in errors), strict=True))
 
 
 def _log_probabilities(values: np.ndarray) -> np.ndarray:

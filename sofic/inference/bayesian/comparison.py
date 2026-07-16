@@ -100,6 +100,7 @@ class ModelComparisonEM:
         from sofic.inference.bayesian.epsilon import EpsilonMachinePosterior
 
         self.beta = float(beta)
+        self.data = data
         self.em_dict: dict[str, EpsilonMachinePosterior] = {}
         self.numMachines = 0
         self.possMachines = 0
@@ -135,6 +136,34 @@ class ModelComparisonEM:
         weights = np.array([probs[name] for name in names], dtype=float)
         choice = names[int(generator.choice(len(names), p=weights))]
         return self.em_dict[choice].generate_sample(rng=generator)
+
+    def information_criteria(self, *, include_initial: bool = False) -> dict[str, Any]:
+        """Score every candidate topology with classical information criteria.
+
+        Fits each topology's posterior-mean parameters and scores it against the
+        stored data with :func:`sofic.inference.model_selection.score_model`,
+        returning a mapping ``name -> ModelScores``. This is a frequentist
+        alternative to the Bayesian :meth:`model_probabilities` (AIC/AICc/BIC/MDL,
+        lower is better). Requires ``data`` to have been supplied.
+        """
+        from sofic.inference.model_selection import score_model
+
+        if self.data is None:
+            raise BayesianInferenceError("information criteria require data")
+        scores: dict[str, Any] = {}
+        for name, posterior in self.em_dict.items():
+            machine = posterior.posterior_mean_machine()
+            if machine is None:
+                continue
+            scores[name] = score_model(machine, self.data, include_initial=include_initial)
+        return scores
+
+    def best_by_information_criterion(self, criterion: str = "bic", *, include_initial: bool = False) -> str | None:
+        """Return the topology name minimizing ``criterion`` (``aic``/``aicc``/``bic``/``mdl``)."""
+        scores = self.information_criteria(include_initial=include_initial)
+        if not scores:
+            return None
+        return min(scores, key=lambda name: scores[name].value(criterion))
 
     def machine_diversity(self) -> float:
         """Shannon entropy (bits) of the topology posterior weights.

@@ -23,6 +23,7 @@ from sofic.inference.bayesian.diversity import (
     word_distribution_to_pmf,
 )
 from sofic.inference.bayesian.epsilon import DirichletDistributionEM, EpsilonMachinePosterior, InferEM
+from sofic.inference.bayesian.hdp_hmm import HDPHMMPosterior, infer_hdp_hmm
 from sofic.inference.bayesian.markov import DirichletPriorMC, InferMC, MarkovChainPosterior
 from sofic.inference.bayesian.stack_hmm import (
     DirichletDistributionStackHMM,
@@ -42,6 +43,8 @@ __all__ = [
     "DirichletDistributionStackHMM",
     "DirichletPriorMC",
     "EpsilonMachinePosterior",
+    "HDPHMMPosterior",
+    "infer_hdp_hmm",
     "InferEM",
     "InferMC",
     "MarkovChainPosterior",
