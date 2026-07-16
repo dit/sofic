@@ -306,6 +306,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.automata.nfa import NFA
     from sofic.automata.nwa import NestedWordAutomaton
     from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+    from sofic.automata.subsequential import SubsequentialTransducer, WeightedFiniteStateTransducer
     from sofic.automata.transducers import MealyMachine, MooreMachine
     from sofic.automata.unifilar import UnifilarAutomaton
     from sofic.automata.vpa import (
@@ -320,6 +321,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from sofic.generators.epsilon_machine import EpsilonMachine
+    from sofic.generators.epsilon_transducer import EpsilonTransducer
     from sofic.generators.markov import MarkovChain
     from sofic.generators.mealy import MealyHMM
     from sofic.generators.mixed_state import MixedStatePresentation
@@ -334,10 +336,12 @@ def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.shifts.sft import ShiftOfFiniteType
     from sofic.shifts.sofic import SoficShift
     from sofic.shifts.sofic_dyck import SoficDyckShift
+    from sofic.shifts.sofic_relation import SoficRelation
     from sofic.shifts.tmc import TopologicalMarkovChain
 
     labeled = ("input_alphabet", "initial_states", "accepting_states")
     transducer = ("input_alphabet", "output_alphabet", "initial_states")
+    epsilon_transducer = ("input_alphabet", "output_alphabet", "initial_states", "initial_distribution")
     symbolic = ("symbol_alphabet",)
     stochastic = ("initial_distribution",)
     hidden = ("initial_distribution",)
@@ -389,6 +393,9 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(CanonicalRFSA, labeled),
         _spec(MealyMachine, transducer),
         _spec(MooreMachine, transducer),
+        _spec(EpsilonTransducer, epsilon_transducer),
+        _spec(SubsequentialTransducer, (*transducer, "final_output")),
+        _spec(WeightedFiniteStateTransducer, (*transducer, "semiring")),
         _spec(NestedWordAutomaton, nwa),
         _spec(VisiblyPushdownAutomaton, vpa),
         _spec(DeterministicVisiblyPushdownAutomaton, vpa),
@@ -431,6 +438,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(QuasiRealization, (*quasi, "pi", "tau", "symbol_maps")),
         _spec(SymbolicModel, symbolic),
         _spec(SoficShift, symbolic),
+        _spec(SoficRelation, symbolic),
         _spec(TopologicalMarkovChain, symbolic),
         _spec(ShiftOfFiniteType, (*symbolic, "_forbidden_words", "_has_forbidden_word_spec"), builder="sft"),
         _spec(SoficDyckShift, dyck),

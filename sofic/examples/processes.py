@@ -1361,6 +1361,20 @@ def GME(create_using: Any = None) -> MealyMachine:
     )
 
 
+def BinaryChannelET(p: float = 0.1, q: float = 0.2) -> Any:
+    """Memoryless binary channel as its minimal (single-state) ε-transducer."""
+    from sofic.generators.epsilon_transducer import EpsilonTransducer
+
+    return EpsilonTransducer.from_channel(BinaryChannel(p, q))
+
+
+def GMtoEvenET() -> Any:
+    """Golden-mean-to-even map as an ε-transducer (Barnett & Crutchfield 2015)."""
+    from sofic.generators.epsilon_transducer import EpsilonTransducer
+
+    return EpsilonTransducer.from_channel(GMtoEven())
+
+
 processes = [
     "ABC",
     "BandMerging",
@@ -1431,12 +1445,17 @@ transducers = [
     "Parity",
     "GME",
 ]
+epsilon_transducers = [
+    "BinaryChannelET",
+    "GMtoEvenET",
+]
 
 process_list = [globals()[name] for name in processes]
 process_list.extend(globals()[name] for name in nonergodic_generators)
 transducer_list = [globals()[name] for name in transducers]
+epsilon_transducer_list = [globals()[name] for name in epsilon_transducers]
 
-__all__ = processes + nonergodic_generators + transducers
+__all__ = processes + nonergodic_generators + transducers + epsilon_transducers
 __all__ += [
     "AFC",
     "AFC2",
@@ -1463,6 +1482,8 @@ __all__ += [
     "process_list",
     "transducers",
     "transducer_list",
+    "epsilon_transducers",
+    "epsilon_transducer_list",
     "_BMC_param_get_a_range",
     "_BMC_param_get_b_range",
     "_BMC_param_check_a_range",

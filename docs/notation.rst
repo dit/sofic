@@ -64,6 +64,26 @@ information between the forward and reverse causal states :math:`S^+` and
 
 See :doc:`generators/generative_models`.
 
+Channels and ε-transducers
+==========================
+
+A channel transforms an input process :math:`X` into an output process
+:math:`Y`. Its minimal unifilar presentation is the ε-transducer
+:math:`(X, Y, S, T)` :cite:`Barnett2015`, with causal states :math:`S` and the
+conditional-symbol transition law
+
+.. math::
+
+   T(y, s' \mid s, x) = \p{Y_0 = y,\, S_1 = s' \mid S_0 = s,\, X_0 = x}.
+
+Channel structural quantities are defined relative to a driving input process:
+the **channel statistical complexity** :math:`\H{S}` under the induced
+stationary causal-state law, the **driven entropy rate** of the output process,
+and the input-to-output directed information / transfer entropy of the driven
+joint process. The same object appears as a weighted finite-state transducer
+(automata) and, dropping probabilities, as a sofic relation or sliding block
+code (symbolic dynamics) :cite:`Mohri2009,LindMarcus1995,Nasu1995`.
+
 Directional information flow
 ============================
 

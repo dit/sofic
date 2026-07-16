@@ -9,7 +9,7 @@ import networkx as nx
 import numpy as np
 
 from sofic.base import StateMachine
-from sofic.graph import ATTR_EMISSION, ATTR_PROB, ATTR_SYMBOL, EPSILON
+from sofic.graph import ATTR_EMISSION, ATTR_OUTPUT, ATTR_PROB, ATTR_SYMBOL, EPSILON
 
 
 def is_unifilar_labeled(
@@ -82,6 +82,63 @@ def is_deterministic_markov(chain: StateMachine) -> bool:
 def is_deterministic_transducer(tr: StateMachine) -> bool:
     """At most one transition per (state, input symbol)."""
     return is_unifilar_symbols(tr)
+
+
+def is_unifilar_transducer(tr: StateMachine) -> bool:
+    """Causal (joint) unifilarity: each ``(state, input, output)`` has at most one successor.
+
+    This is the transducer analog of :func:`is_unifilar_emissions`: appending an
+    observed input-output pair ``(x, y)`` determines the next causal state, as in
+    the ε-transducer of Barnett & Crutchfield (2015).
+    """
+    seen: set[tuple[Hashable, Any, Any]] = set()
+    for transition in tr.transitions():
+        symbol = transition.data.get(ATTR_SYMBOL)
+        if symbol is EPSILON:
+            continue
+        key = (transition.source, symbol, transition.data.get(ATTR_OUTPUT))
+        if key in seen:
+            return False
+        seen.add(key)
+    return True
+
+
+def is_counifilar_transducer(tr: StateMachine) -> bool:
+    """Co-unifilar: each ``(target, input, output)`` identifies a unique source."""
+    seen: dict[tuple[Hashable, Any, Any], Hashable] = {}
+    for transition in tr.transitions():
+        symbol = transition.data.get(ATTR_SYMBOL)
+        if symbol is EPSILON:
+            continue
+        key = (transition.target, symbol, transition.data.get(ATTR_OUTPUT))
+        source = seen.get(key)
+        if source is not None and source != transition.source:
+            return False
+        seen[key] = transition.source
+    return True
+
+
+def is_sequential_transducer(tr: Any) -> bool:
+    """Input-deterministic (sequential) transducer: single initial state, no ε
+    input, and at most one outgoing edge per ``(state, input)``."""
+    initial = getattr(tr, "initial_states", frozenset())
+    if len(initial) > 1:
+        return False
+    seen: set[tuple[Hashable, Any]] = set()
+    for transition in tr.transitions():
+        symbol = transition.data.get(ATTR_SYMBOL)
+        if symbol is EPSILON:
+            return False
+        key = (transition.source, symbol)
+        if key in seen:
+            return False
+        seen.add(key)
+    return True
+
+
+def is_subsequential_transducer(tr: Any) -> bool:
+    """Sequential transducer equipped with a per-state final-output function."""
+    return is_sequential_transducer(tr) and getattr(tr, "final_output", None) is not None
 
 
 def is_irreducible(model: StateMachine) -> bool:

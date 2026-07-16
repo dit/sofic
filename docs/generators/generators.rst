@@ -28,6 +28,7 @@ Computational mechanics
    :maxdepth: 1
 
    epsilon_machine
+   epsilon_transducer
    block_convergence
    bidirectional_epsilon_machine
    mixed_state_presentation
@@ -56,6 +57,7 @@ Inference
 
    hmm_inference
    epsilon_inference
+   epsilon_transducer_inference
    stack_inference
 
 Advanced

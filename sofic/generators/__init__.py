@@ -4,6 +4,10 @@ from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel, Stoch
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.block_convergence import BlockConvergenceDiagram, BlockConvergenceEstimates
 from sofic.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
+from sofic.generators.channel_measures import (
+    channel_statistical_complexity,
+    driven_entropy_rate,
+)
 from sofic.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
@@ -14,6 +18,7 @@ from sofic.generators.directional_flow import (
 )
 from sofic.generators.epsilon_inference import cssr, subtree_merge
 from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.epsilon_transducer import EpsilonTransducer
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
 from sofic.generators.markov import MarkovChain
 from sofic.generators.mealy import MealyHMM
@@ -58,7 +63,10 @@ __all__ = [
     "BlockConvergenceDiagram",
     "BlockConvergenceEstimates",
     "EpsilonMachine",
+    "EpsilonTransducer",
     "LumpabilityError",
+    "channel_statistical_complexity",
+    "driven_entropy_rate",
     "cssr",
     "is_lumpable",
     "lump",

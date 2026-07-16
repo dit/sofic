@@ -178,6 +178,34 @@ class MealyMachine(Transducer):
 
         return transduce_generator(self, generator, **kwargs)
 
+    def to_sofic_relation(self) -> Any:
+        """Return the topological support as a product-alphabet sofic relation."""
+        from sofic.shifts.sofic_relation import SoficRelation
+
+        return SoficRelation.from_transducer(self)
+
+    def to_textile_system(self) -> Any:
+        """Return this transducer as a textile system (Nasu 1995)."""
+        from sofic.shifts.textile import TextileSystem
+
+        return TextileSystem.from_transducer(self)
+
+    def to_wfst(self, *, semiring: str = "probability") -> Any:
+        """Return this transducer as a weighted finite-state transducer."""
+        from sofic.automata.subsequential import WeightedFiniteStateTransducer
+
+        return WeightedFiniteStateTransducer.from_transducer(self, semiring=semiring)
+
+    def to_sliding_block_code(self, *, max_window: int = 4) -> Any:
+        """Return the sliding block code realized by this transducer, if it is one.
+
+        Requires deterministic (right-resolving) outputs with a finite window;
+        raises :class:`ValueError` otherwise (e.g. for stochastic channels).
+        """
+        from sofic.shifts.textile import TextileSystem
+
+        return TextileSystem.from_transducer(self).induced_code(max_window=max_window)
+
     def labeled_transition_matrices(
         self,
         node_ordering: Sequence[Hashable] | None = None,

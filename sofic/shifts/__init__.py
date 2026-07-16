@@ -17,8 +17,11 @@ from sofic.shifts.dyck_enumeration import (
 )
 from sofic.shifts.markov_dyck import MarkovDyckShift
 from sofic.shifts.sft import ShiftOfFiniteType
+from sofic.shifts.sliding_block_code import SlidingBlockCode, full_shift
 from sofic.shifts.sofic import SoficShift
 from sofic.shifts.sofic_dyck import SoficDyckShift
+from sofic.shifts.sofic_relation import SoficRelation
+from sofic.shifts.textile import TextileSystem
 from sofic.shifts.tmc import TopologicalMarkovChain
 
 __all__ = [
@@ -33,9 +36,13 @@ __all__ = [
     "RightFischerCover",
     "RightKriegerCover",
     "ShiftOfFiniteType",
+    "SlidingBlockCode",
     "SoficShift",
     "shift_to_dyck_graph_string",
     "SoficDyckShift",
+    "SoficRelation",
     "SymbolicModel",
+    "TextileSystem",
     "TopologicalMarkovChain",
+    "full_shift",
 ]

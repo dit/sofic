@@ -76,6 +76,10 @@ from sofic.automata.papni import (
 from sofic.automata.regex import automaton_to_regex
 from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from sofic.automata.rpni import learn_dfa_rpni
+from sofic.automata.subsequential import (
+    SubsequentialTransducer,
+    WeightedFiniteStateTransducer,
+)
 from sofic.automata.transducer_operations import (
     ERROR_STATE,
     ERROR_SYMBOL,
@@ -142,8 +146,10 @@ __all__ = [
     "RegularLanguage",
     "ResidualFiniteStateAutomaton",
     "SingleEntryVisiblyPushdownAutomaton",
+    "SubsequentialTransducer",
     "Transducer",
     "UnifilarAutomaton",
+    "WeightedFiniteStateTransducer",
     "VisiblyPushdownAutomaton",
     "automaton_to_regex",
     "cartesian_product_gg",

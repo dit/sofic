@@ -25,6 +25,7 @@ Transducers and unifilar automata
    :maxdepth: 1
 
    transducers
+   subsequential
    unifilar_automaton
 
 Languages
