@@ -15,4 +15,4 @@ API
 ===
 
 .. autoclass:: UnifilarAutomaton
-   :members: markov_order, cryptic_order
+   :members: markov_order, cryptic_order, reset_threshold, synchronizing_word, is_exactly_synchronizable, is_asymptotically_synchronizable, is_definite

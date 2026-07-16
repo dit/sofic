@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sofic.shifts.base import SymbolicModel
 
@@ -55,7 +55,57 @@ class SoficShift(SymbolicModel):
 
         return cryptic_order_from_graph(graph_from_sofic_shift(self))
 
+    def reset_threshold(self) -> int | float:
+        """Reset threshold: shortest synchronizing (reset) word length.
+
+        The complement of :meth:`markov_order`; ``math.inf`` when not exactly
+        synchronizable. For the Cerny bound (complete automata only) see Volkov
+        (2008).
+        """
+        from sofic.generators.synchronization import graph_from_sofic_shift, reset_threshold_from_graph
+
+        return reset_threshold_from_graph(graph_from_sofic_shift(self))
+
+    def synchronizing_word(self) -> list[Any] | None:
+        """Return a shortest synchronizing word, or ``None`` if not exactly synchronizable.
+
+        The list of symbols has length :meth:`reset_threshold` (Travers &
+        Crutchfield, arXiv:1008.4182).
+        """
+        from sofic.generators.synchronization import graph_from_sofic_shift, shortest_synchronizing_word_from_graph
+
+        return shortest_synchronizing_word_from_graph(graph_from_sofic_shift(self))
+
     def is_exactly_synchronizable(self) -> bool:
+        """Return whether this presentation is exactly synchronizable.
+
+        True iff a finite synchronizing word exists (the reset threshold is
+        finite; Travers & Crutchfield, arXiv:1008.4182). Strictly weaker than
+        finite Markov order: see :meth:`is_definite`.
+        """
         from sofic.generators.synchronization import graph_from_sofic_shift, is_exactly_synchronizable
 
         return is_exactly_synchronizable(graph_from_sofic_shift(self))
+
+    def is_asymptotically_synchronizable(self) -> bool:
+        """Return whether this presentation is asymptotically synchronizable.
+
+        True for every finite-state ε-machine (Travers & Crutchfield,
+        arXiv:1008.4182); theorem-backed rather than computed.
+        """
+        from sofic.generators.synchronization import (
+            graph_from_sofic_shift,
+            is_asymptotically_synchronizable_from_graph,
+        )
+
+        return is_asymptotically_synchronizable_from_graph(graph_from_sofic_shift(self))
+
+    def is_definite(self) -> bool:
+        """Return whether this presentation is a definite automaton (finite Markov order).
+
+        Definiteness (Perles-Rabin-Shamir) means the state is fixed by the last
+        ``R`` symbols. Implies :meth:`is_exactly_synchronizable`.
+        """
+        from sofic.generators.synchronization import graph_from_sofic_shift, is_definite_from_graph
+
+        return is_definite_from_graph(graph_from_sofic_shift(self))

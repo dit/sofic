@@ -27,8 +27,7 @@ def _all_words(alphabet, max_length):
 
 def _max_word_error(model, learned, alphabet, max_length=6):
     return max(
-        abs(model.word_probability(word) - learned.word_probability(word))
-        for word in _all_words(alphabet, max_length)
+        abs(model.word_probability(word) - learned.word_probability(word)) for word in _all_words(alphabet, max_length)
     )
 
 

@@ -15,6 +15,6 @@ API
 ===
 
 .. autoclass:: SoficShift
-   :members: topological_entropy, parry_measure, topological_anatomy
+   :members: topological_entropy, parry_measure, topological_anatomy, markov_order, cryptic_order, reset_threshold, synchronizing_word, is_exactly_synchronizable, is_asymptotically_synchronizable, is_definite
 
 .. autofunction:: sofic.shifts.tmc_construction.topological_entropy

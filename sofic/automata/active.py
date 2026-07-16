@@ -246,9 +246,7 @@ def _build_dfa_from_rows(
             target = representatives[row(state + (symbol,))]
             dfa.add_transition(state, target, symbol)
     dfa.initial_states = frozenset({representatives[row(())]})
-    dfa.accepting_states = frozenset(
-        state for signature, state in representatives.items() if signature[0]
-    )
+    dfa.accepting_states = frozenset(state for signature, state in representatives.items() if signature[0])
     dfa.validate()
     return dfa
 
