@@ -267,6 +267,57 @@ def test_bound_information_is_time_reversal_symmetric(name: str):
     assert bidir.reverse_bound_structural_information() == pytest.approx(b_mu, abs=1e-9)
 
 
+@pytest.mark.parametrize("name", _FIVE_VARIABLE_NAMES)
+def test_internal_markov_entropy_rate_anatomy_identities(name: str):
+    """h_μ^imc = H[S⁺₁|S⁺₀] = b_μ + r_fwd + r_joint = h_μ − r_rev − r_gauge."""
+    pytest.importorskip("dit")
+    import dit
+
+    bidir = _five_variable_processes()[name]
+    dist = bidir.step_distribution()
+
+    h_fwd = bidir.internal_markov_entropy_rate()
+    h_rev = bidir.reverse_internal_markov_entropy_rate()
+    b_mu = bidir.bound_information()
+    r_fwd = bidir.forward_only_structural_ephemeral()
+    r_rev = bidir.reverse_only_structural_ephemeral()
+    r_joint = bidir.joint_structural_ephemeral()
+    r_gauge = bidir.pure_gauge_information()
+    h_mu = bidir.entropy_rate()
+
+    # Direct definition and the two anatomy decompositions.
+    assert h_fwd == pytest.approx(float(dit.shannon.conditional_entropy(dist, [3], [0])), abs=1e-9)
+    assert h_rev == pytest.approx(float(dit.shannon.conditional_entropy(dist, [1], [4])), abs=1e-9)
+    assert h_fwd == pytest.approx(b_mu + r_fwd + r_joint, abs=1e-9)
+    assert h_rev == pytest.approx(b_mu + r_rev + r_joint, abs=1e-9)
+    assert h_mu - h_fwd == pytest.approx(r_rev + r_gauge, abs=1e-9)
+    assert h_mu - h_rev == pytest.approx(r_fwd + r_gauge, abs=1e-9)
+    # The forward/reverse gap is exactly the arrow-of-time asymmetry.
+    assert h_fwd - h_rev == pytest.approx(r_fwd - r_rev, abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    "name,symmetric",
+    [
+        ("golden_mean", True),
+        ("even", True),
+        ("nemo", True),
+        ("nrps", False),
+        ("butterfly", False),
+    ],
+)
+def test_internal_markov_rate_arrow_of_time(name: str, symmetric: bool):
+    """The forward/reverse internal rates coincide iff r_fwd = r_rev."""
+    pytest.importorskip("dit")
+    bidir = _five_variable_processes()[name]
+    h_fwd = bidir.internal_markov_entropy_rate()
+    h_rev = bidir.reverse_internal_markov_entropy_rate()
+    if symmetric:
+        assert h_fwd == pytest.approx(h_rev, abs=1e-9)
+    else:
+        assert abs(h_fwd - h_rev) > 1e-6
+
+
 def test_golden_mean_ephemeral_is_pure_joint():
     """Golden mean: the single branch is resolved by *both* time directions (r_joint)."""
     pytest.importorskip("dit")

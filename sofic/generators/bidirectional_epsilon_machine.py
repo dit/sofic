@@ -436,6 +436,54 @@ class BidirectionalEpsilonMachine(MealyHMM):
             ),
         )
 
+    def internal_markov_entropy_rate(self) -> Any:
+        """h_μ^imc = H[S⁺₁ | S⁺₀] — entropy rate of the internal (causal-state) chain.
+
+        The ε-machine's causal states form a stationary Markov chain; this is its
+        entropy rate. By forward unifilarity (S⁺₁ = φ⁺(S⁺₀, X₀)) it equals
+        I[X₀ : S⁺₁ | S⁺₀] — the present randomness that *changes the next forward
+        state* — and decomposes through the anatomy as
+
+            h_μ^imc = b_μ + r_μ^fwd + r_μ^joint = h_μ − r_μ^rev − r_μ^gauge,
+
+        i.e. the process entropy rate with the parallel-edge (pure output
+        relabeling) randomness removed.
+
+        This is **not** time-reversal symmetric in general. The reverse
+        causal-state chain rate :meth:`reverse_internal_markov_entropy_rate`
+        differs by r_μ^fwd − r_μ^rev — the arrow-of-time asymmetry — and the two
+        coincide exactly when r_μ^fwd = r_μ^rev (e.g. the golden mean, even
+        process and Nemo, but not the noisy random phase slip or the butterfly).
+
+        Refinement of the information anatomy (:cite:`James2011`); no separate
+        canonical source.
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return _measure_value(
+            dist,
+            dit.shannon.conditional_entropy(dist, [_STEP_S_PLUS_1], [_STEP_S_PLUS_0]),
+        )
+
+    def reverse_internal_markov_entropy_rate(self) -> Any:
+        """h̄_μ^imc = H[S⁻₀ | S⁻₁] — entropy rate of the reverse causal-state chain.
+
+        Time-reversed mirror of :meth:`internal_markov_entropy_rate`. By reverse
+        unifilarity (S⁻₀ = φ⁻(S⁻₁, X₀)) it equals I[X₀ : S⁻₀ | S⁻₁] and
+
+            h̄_μ^imc = b_μ + r_μ^rev + r_μ^joint = h_μ − r_μ^fwd − r_μ^gauge.
+
+        Equals :meth:`internal_markov_entropy_rate` iff r_μ^fwd = r_μ^rev; the
+        difference h_μ^imc − h̄_μ^imc = r_μ^fwd − r_μ^rev is an arrow-of-time
+        diagnostic (:cite:`jurgens2026taxonomy`; James et al., 2013).
+        """
+        dit = _require_dit()
+        dist = self.step_distribution()
+        return _measure_value(
+            dist,
+            dit.shannon.conditional_entropy(dist, [_STEP_S_MINUS_0], [_STEP_S_MINUS_1]),
+        )
+
     def caekl_causal_information(self) -> Any:
         """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual information among past, present, and future.
 
@@ -579,7 +627,11 @@ class BidirectionalEpsilonMachine(MealyHMM):
           ``r̄_μ^struct = r_μ^rev + r_μ^joint`` (key
           ``ephemeral_structural_reverse``);
         * the reverse-time bound mirror ``b̄_μ``, ``b̄_μ^struct`` and the
-          Theorem-A′ gauge residual ``b̄_μ^gauge`` (≈ 0).
+          Theorem-A′ gauge residual ``b̄_μ^gauge`` (≈ 0);
+        * the internal (causal-state) Markov-chain entropy rates
+          ``h_μ^imc = H[S⁺₁ | S⁺₀]`` (key ``internal_markov_rate``) and its
+          reverse ``H[S⁻₀ | S⁻₁]`` (key ``internal_markov_rate_reverse``), whose
+          difference ``r_μ^fwd − r_μ^rev`` is an arrow-of-time diagnostic.
 
         These atoms map onto the fourteen measures of the prediction taxonomy of
         :cite:`jurgens2026taxonomy`; the structural/gauge (unifilarity) reading is
@@ -596,6 +648,34 @@ class BidirectionalEpsilonMachine(MealyHMM):
                 "bound_reverse": self.reverse_bound_information(),
                 "bound_structural_reverse": self.reverse_bound_structural_information(),
                 "bound_gauge_reverse": self.reverse_bound_gauge_information(),
+                "internal_markov_rate": self.internal_markov_entropy_rate(),
+                "internal_markov_rate_reverse": self.reverse_internal_markov_entropy_rate(),
             }
         )
         return anatomy
+
+    def information_diagram(self, *, show_zero: bool = False, tol: float = 1e-9) -> Any:
+        """The five-variable information-anatomy I-diagram over the step joint.
+
+        Returns an :class:`~sofic.generators.information_diagram.InformationDiagram`:
+        the ``2⁵ − 1 = 31`` signed I-measure atoms of ``Pr(S⁺₀, S⁻₀, X₀, S⁺₁, S⁻₁)``
+        (:cite:`yeung1991new`), each classified into an anatomy role and laid out
+        in a fixed order, with the named totals ``r_μ``, ``b_μ``, ``σ_μ``, ``ρ_μ``
+        and ``h_μ``. Unifilarity collapses the four ephemeral atoms onto single
+        diagram atoms, so the anatomy of :cite:`James2011` reads off the diagram
+        directly. See :func:`sofic.viz.plot_information_diagram` to draw it.
+        """
+        from sofic.generators.information_diagram import information_diagram
+
+        return information_diagram(self, show_zero=show_zero, tol=tol)
+
+    def plot_information_diagram(self, **kwargs: Any) -> Any:
+        """Draw :meth:`information_diagram` as a colour-coded UpSet plot.
+
+        Thin wrapper over :func:`sofic.viz.plot_information_diagram`; keyword
+        arguments (``show_zero``, ``role_colors``, ``annotate``, ``title``,
+        ``figsize``) are forwarded. Requires the optional ``sofic[viz]`` extra.
+        """
+        from sofic.viz.idiagram import plot_information_diagram
+
+        return plot_information_diagram(self, **kwargs)

@@ -96,6 +96,116 @@ time-reversal invariance :math:`\bar b_\mu = b_\mu` :cite:`James2011`.
    In [5]: anatomy["ephemeral_pure_gauge"]
    Out[5]: 0.08333333333333333
 
+Internal Markov-chain entropy rate
+==================================
+
+The causal states of the ε-machine form a stationary Markov chain; its entropy
+rate is :math:`h_\mu^{\text{imc}} = \H{S^+_1 \mid S^+_0}`.  By forward
+unifilarity this equals :math:`\I{X_0 : S^+_1 \mid S^+_0}` — the present
+randomness that *changes the next causal state* — so it is the process entropy
+rate with the parallel-edge (pure output relabeling) randomness removed:
+
+.. math::
+
+   h_\mu^{\text{imc}} = \H{S^+_1 \mid S^+_0}
+       = b_\mu + r_\mu^{\text{fwd}} + r_\mu^{\text{joint}}
+       = h_\mu - r_\mu^{\text{rev}} - r_\mu^{\text{gauge}}
+
+The reverse causal-state chain has its own rate
+:math:`\bar h_\mu^{\text{imc}} = \H{S^-_0 \mid S^-_1} = b_\mu +
+r_\mu^{\text{rev}} + r_\mu^{\text{joint}}`.  These are **not** equal in general:
+the gap :math:`h_\mu^{\text{imc}} - \bar h_\mu^{\text{imc}} = r_\mu^{\text{fwd}}
+- r_\mu^{\text{rev}}` is an arrow-of-time diagnostic, vanishing exactly when the
+forward and reverse structural ephemeral branches match.
+
+.. ipython::
+
+   In [1]: from sofic.examples import nemo_process, NRPS
+
+   In [2]: nemo = nemo_process().to_bidirectional()
+
+   # Reversible branching (r_fwd == r_rev): the two chain rates agree.
+   In [3]: round(nemo.internal_markov_entropy_rate(), 6), round(nemo.reverse_internal_markov_entropy_rate(), 6)
+   Out[3]: (0.5, 0.5)
+
+   In [4]: nrps = NRPS().to_bidirectional()
+
+   # An arrow of time (r_fwd != r_rev): forward and reverse chain rates differ.
+   In [5]: round(nrps.internal_markov_entropy_rate(), 6), round(nrps.reverse_internal_markov_entropy_rate(), 6)
+   Out[5]: (0.333333, 0.5)
+
+Information diagram (UpSet plot)
+================================
+
+The signed I-measure :cite:`yeung1991new` of the five random variables
+:math:`(S^+_0, S^-_0, X_0, S^+_1, S^-_1)` has :math:`2^5 - 1 = 31` atoms; each is
+the conditional co-information of the "inside" variables given the rest and
+equals one region of the five-set information diagram.  Because the presentation
+is unifilar in both time directions, the four ephemeral atoms collapse onto
+*single* diagram atoms, so the anatomy is read directly off the diagram:
+
+.. math::
+
+   r_\mu = \underbrace{\H{X_0 \mid \dots}}_{a_{\{X_0\}}}
+         + \underbrace{a_{\{X_0, S^+_1\}}}_{r_\mu^{\text{fwd}}}
+         + \underbrace{a_{\{S^-_0, X_0\}}}_{r_\mu^{\text{rev}}}
+         + \underbrace{a_{\{S^-_0, X_0, S^+_1\}}}_{r_\mu^{\text{joint}}},
+   \qquad
+   \sigma_\mu = \I{S^+_0 : S^-_1 \mid X_0}
+
+Here :math:`b_\mu` is the sum of atoms with :math:`X_0` and :math:`S^-_1` inside
+and :math:`S^+_0` outside, and the elusive information :math:`\sigma_\mu`
+:cite:`ara2016elusive` is the past↔future information that bypasses the present.
+
+:meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.information_diagram`
+returns an
+:class:`~sofic.generators.information_diagram.InformationDiagram`: the atoms in a
+fixed *role* order (never sorted by value), each tagged with its anatomy role,
+plus the named ``totals``.
+
+.. ipython::
+
+   In [1]: from sofic.examples import golden_mean
+
+   In [2]: diagram = golden_mean().information_diagram()
+
+   @doctest float
+   In [3]: diagram.totals["r_mu"]
+   Out[3]: 0.459147917027245
+
+   @doctest float
+   In [4]: diagram.totals["b_mu"]
+   Out[4]: 0.20751874963942196
+
+   In [5]: [(atom.symbol or atom.conditional_expression) for atom in diagram.atoms]
+
+Each atom is named two ways. ``atom.conditional_expression`` gives its exact
+I-measure as a conditional co-information (e.g. ``I[X₀:S⁺₁|S⁺₀,S⁻₀,S⁻₁]``).
+``atom.symbol`` gives a friendly ``{zone} {branch}`` anatomy tag for every
+present-containing and elusive atom — the *zone* names the anatomy quantity
+(``rμ`` ephemeral, ``bμ`` bound, ``ρμ`` predictive present·past, ``cμ`` the
+present·past·future co-information core, ``σμ`` elusive) and the *branch* names
+the next-state involvement (``gauge`` neither, ``fwd`` :math:`S^+_1`, ``rev``
+:math:`S^-_0`, ``joint`` both), mirroring the four ephemeral atoms. Pure
+state-structure atoms have no symbol. This makes sum rules legible directly:
+``bμ fwd + bμ joint`` = :math:`b_\mu` while ``bμ gauge + bμ rev`` = 0
+(Theorem A), and the four ``rμ`` atoms partition :math:`r_\mu`.
+
+:func:`sofic.viz.plot_information_diagram` (also
+:meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.plot_information_diagram`,
+requires the optional ``sofic[viz]`` extra) renders the diagram as a colour-coded
+UpSet plot :cite:`lex2014upset`: one signed bar per atom (negative
+co-information atoms dip below zero), a dot-matrix of variable membership below,
+each atom **named** by both its ``{zone} {branch}`` anatomy tag and its
+conditional co-information, and a colour per role so the components of
+:math:`r_\mu`, :math:`b_\mu` and :math:`\sigma_\mu` are immediately legible
+(pass ``label_atoms=False`` to drop the per-column names)::
+
+   from sofic.examples import nemo_process
+
+   fig = nemo_process().plot_information_diagram()
+   fig.savefig("nemo_anatomy.png", dpi=150, bbox_inches="tight")
+
 Symbolic probabilities
 ======================
 

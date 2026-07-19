@@ -202,6 +202,22 @@ class EpsilonMachine(MealyHMM):
         """Full five-variable anatomy: four-atom ephemeral partition + reverse bound mirror."""
         return self.to_bidirectional().five_variable_anatomy()
 
+    def internal_markov_entropy_rate(self) -> float:
+        """h_μ^imc = H[S⁺₁ | S⁺₀] — entropy rate of the internal (causal-state) chain."""
+        return self.to_bidirectional().internal_markov_entropy_rate()
+
+    def reverse_internal_markov_entropy_rate(self) -> float:
+        """h̄_μ^imc = H[S⁻₀ | S⁻₁] — entropy rate of the reverse causal-state chain."""
+        return self.to_bidirectional().reverse_internal_markov_entropy_rate()
+
+    def information_diagram(self, *, show_zero: bool = False, tol: float = 1e-9) -> Any:
+        """Five-variable information-anatomy I-diagram (31 atoms) over the step joint."""
+        return self.to_bidirectional().information_diagram(show_zero=show_zero, tol=tol)
+
+    def plot_information_diagram(self, **kwargs: Any) -> Any:
+        """Draw the five-variable information anatomy as a colour-coded UpSet plot."""
+        return self.to_bidirectional().plot_information_diagram(**kwargs)
+
     def caekl_causal_information(self) -> float:
         """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual info among past, present, and future causal states."""
         return self.to_bidirectional().caekl_causal_information()
