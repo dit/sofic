@@ -154,6 +154,26 @@ class EpsilonMachine(MealyHMM):
         """r_μ^par = H[X₀ | S⁺₀, S⁺₁, S⁻₁] — parallel-edge (gauge) part of r_μ."""
         return self.to_bidirectional().parallel_edge_information()
 
+    def reverse_structural_ephemeral_information(self) -> float:
+        """r̄_μ^struct = H[S⁻₀ | S⁺₀, S⁻₁] — reverse structural (branching) part of r_μ."""
+        return self.to_bidirectional().reverse_structural_ephemeral_information()
+
+    def forward_only_structural_ephemeral(self) -> float:
+        """r_μ^fwd = H[S⁺₁ | S⁺₀, S⁻₁, S⁻₀] — forward-only ephemeral branch."""
+        return self.to_bidirectional().forward_only_structural_ephemeral()
+
+    def reverse_only_structural_ephemeral(self) -> float:
+        """r_μ^rev = H[S⁻₀ | S⁺₀, S⁻₁, S⁺₁] — reverse-only ephemeral branch."""
+        return self.to_bidirectional().reverse_only_structural_ephemeral()
+
+    def joint_structural_ephemeral(self) -> float:
+        """r_μ^joint = I[S⁺₁ : S⁻₀ | S⁺₀, S⁻₁] — joint ephemeral branch."""
+        return self.to_bidirectional().joint_structural_ephemeral()
+
+    def pure_gauge_information(self) -> float:
+        """r_μ^gauge = H[X₀ | S⁺₀, S⁻₁, S⁺₁, S⁻₀] — pure-gauge ephemeral branch."""
+        return self.to_bidirectional().pure_gauge_information()
+
     def bound_structural_information(self) -> float:
         """b_μ^struct = I[S⁺₁ : S⁻₁ | S⁺₀] — structural (branching) part of b_μ."""
         return self.to_bidirectional().bound_structural_information()
@@ -162,9 +182,25 @@ class EpsilonMachine(MealyHMM):
         """b_μ^par = I[X₀ : S⁻₁ | S⁺₀, S⁺₁] — parallel-edge (gauge) part of b_μ."""
         return self.to_bidirectional().bound_parallel_edge_information()
 
+    def reverse_bound_information(self) -> float:
+        """b̄_μ = I[X₀ : S⁺₀ | S⁻₁] — reverse (retrodictive) bound information (= b_μ)."""
+        return self.to_bidirectional().reverse_bound_information()
+
+    def reverse_bound_structural_information(self) -> float:
+        """b̄_μ^struct = I[S⁻₀ : S⁺₀ | S⁻₁] — structural part of the reverse bound."""
+        return self.to_bidirectional().reverse_bound_structural_information()
+
+    def reverse_bound_gauge_information(self) -> float:
+        """b̄_μ^gauge = I[X₀ : S⁺₀ | S⁻₁, S⁻₀] — reverse bound-gauge (Theorem A′, ≈ 0)."""
+        return self.to_bidirectional().reverse_bound_gauge_information()
+
     def information_anatomy(self) -> dict[str, float]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
         return self.to_bidirectional().information_anatomy()
+
+    def five_variable_anatomy(self) -> dict[str, float]:
+        """Full five-variable anatomy: four-atom ephemeral partition + reverse bound mirror."""
+        return self.to_bidirectional().five_variable_anatomy()
 
     def caekl_causal_information(self) -> float:
         """J[S⁺₀ : X₀ : S⁻₁] — CAEKL mutual info among past, present, and future causal states."""

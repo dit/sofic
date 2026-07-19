@@ -5,12 +5,14 @@ from __future__ import annotations
 import pytest
 
 from sofic.examples import (
+    NRPS,
     bernoulli,
     butterfly_process,
     even_process,
     fair_coin,
     golden_mean_forward,
     golden_mean_reverse,
+    nemo_process,
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_information_expected,
@@ -182,6 +184,196 @@ def test_epsilon_machine_refinement_delegates_to_bidirectional():
     assert forward.bound_parallel_edge_information() == pytest.approx(
         bidir.bound_parallel_edge_information(), abs=1e-12
     )
+
+
+# --- five-variable anatomy: four-atom ephemeral partition + reverse bound mirror ---
+
+
+def _five_variable_processes():
+    """Bidirectional presentations spanning the ephemeral-motif zoo."""
+    return {
+        "bernoulli_half": bernoulli(0.5).to_bidirectional(),
+        "bernoulli_biased": bernoulli(0.3).to_bidirectional(),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
+        "even": even_process(0.5).to_bidirectional(),
+        "butterfly": butterfly_process().to_bidirectional(),
+        "nemo": nemo_process().to_bidirectional(),
+        "nrps": NRPS().to_bidirectional(),
+        "tent": tent_map_misiurewicz_bidirectional(),
+    }
+
+
+_FIVE_VARIABLE_NAMES = [
+    "bernoulli_half",
+    "bernoulli_biased",
+    "golden_mean",
+    "even",
+    "butterfly",
+    "nemo",
+    "nrps",
+    "tent",
+]
+
+
+@pytest.mark.parametrize("name", _FIVE_VARIABLE_NAMES)
+def test_ephemeral_four_atom_partition_sums_to_r_mu(name: str):
+    """r_μ = r_μ^fwd + r_μ^rev + r_μ^joint + r_μ^gauge, all non-negative."""
+    pytest.importorskip("dit")
+    bidir = _five_variable_processes()[name]
+
+    r_fwd = bidir.forward_only_structural_ephemeral()
+    r_rev = bidir.reverse_only_structural_ephemeral()
+    r_joint = bidir.joint_structural_ephemeral()
+    r_gauge = bidir.pure_gauge_information()
+
+    for atom in (r_fwd, r_rev, r_joint, r_gauge):
+        assert atom >= -1e-9
+    assert r_fwd + r_rev + r_joint + r_gauge == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+
+
+@pytest.mark.parametrize("name", _FIVE_VARIABLE_NAMES)
+def test_four_atoms_refine_coarse_structural_gauge(name: str):
+    """The four atoms regroup into the coarse structural/gauge and reverse splits."""
+    pytest.importorskip("dit")
+    bidir = _five_variable_processes()[name]
+
+    r_fwd = bidir.forward_only_structural_ephemeral()
+    r_rev = bidir.reverse_only_structural_ephemeral()
+    r_joint = bidir.joint_structural_ephemeral()
+    r_gauge = bidir.pure_gauge_information()
+
+    # r_μ^struct = r_fwd + r_joint ; r_μ^par = r_rev + r_gauge.
+    assert r_fwd + r_joint == pytest.approx(bidir.structural_ephemeral_information(), abs=1e-9)
+    assert r_rev + r_gauge == pytest.approx(bidir.parallel_edge_information(), abs=1e-9)
+    # Reverse structural ephemeral r̄_μ^struct = r_rev + r_joint (time-reversed mirror).
+    assert r_rev + r_joint == pytest.approx(bidir.reverse_structural_ephemeral_information(), abs=1e-9)
+
+
+@pytest.mark.parametrize("name", _FIVE_VARIABLE_NAMES)
+def test_theorem_a_prime_reverse_bound_gauge_vanishes(name: str):
+    """Theorem A′: I[X₀ : S⁺₀ | S⁻₁, S⁻₀] = 0 — the reverse bound has no gauge part."""
+    pytest.importorskip("dit")
+    bidir = _five_variable_processes()[name]
+    assert bidir.reverse_bound_gauge_information() == pytest.approx(0.0, abs=1e-9)
+
+
+@pytest.mark.parametrize("name", _FIVE_VARIABLE_NAMES)
+def test_bound_information_is_time_reversal_symmetric(name: str):
+    """b̄_μ = b_μ, and by Theorem A′ the reverse bound is entirely structural."""
+    pytest.importorskip("dit")
+    bidir = _five_variable_processes()[name]
+    b_mu = bidir.bound_information()
+    assert bidir.reverse_bound_information() == pytest.approx(b_mu, abs=1e-9)
+    assert bidir.reverse_bound_structural_information() == pytest.approx(b_mu, abs=1e-9)
+
+
+def test_golden_mean_ephemeral_is_pure_joint():
+    """Golden mean: the single branch is resolved by *both* time directions (r_joint)."""
+    pytest.importorskip("dit")
+    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5))
+    r_mu = bidir.ephemeral_information()
+    assert bidir.joint_structural_ephemeral() == pytest.approx(r_mu, abs=1e-9)
+    assert bidir.joint_structural_ephemeral() == pytest.approx(0.459147917, abs=1e-6)
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.pure_gauge_information() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_nrps_ephemeral_is_pure_reverse_arrow_of_time():
+    """NRPS: forward-only ephemeral vanishes while reverse-only does not — an arrow of time."""
+    pytest.importorskip("dit")
+    bidir = NRPS().to_bidirectional()
+    r_mu = bidir.ephemeral_information()
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(r_mu, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(1.0 / 6.0, abs=1e-9)
+    # Forward and reverse structural ephemeral rates disagree: r_μ^struct = 0 ≠ r̄_μ^struct.
+    assert bidir.structural_ephemeral_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.reverse_structural_ephemeral_information() == pytest.approx(1.0 / 6.0, abs=1e-9)
+
+
+def test_nemo_four_atoms_pinned():
+    """Nemo populates the forward, reverse, and gauge atoms but not the joint one."""
+    pytest.importorskip("dit")
+    bidir = nemo_process().to_bidirectional()
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(1.0 / 6.0, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(1.0 / 6.0, abs=1e-9)
+    assert bidir.joint_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.pure_gauge_information() == pytest.approx(1.0 / 12.0, abs=1e-9)
+
+
+def test_butterfly_ephemeral_is_forward_plus_gauge():
+    """Butterfly: forward-branching plus parallel-edge relabeling, no reverse/joint atom."""
+    pytest.importorskip("dit")
+    bidir = butterfly_process().to_bidirectional()
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(2.25, abs=1e-9)
+    assert bidir.pure_gauge_information() == pytest.approx(0.75, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.joint_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_fair_coin_ephemeral_is_pure_gauge_atom():
+    """Fair coin: every ephemeral bit is the transient pure-gauge atom."""
+    pytest.importorskip("dit")
+    bidir = BidirectionalEpsilonMachine.from_pair(fair_coin(), fair_coin())
+    assert bidir.pure_gauge_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+    assert bidir.pure_gauge_information() == pytest.approx(1.0, abs=1e-9)
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.reverse_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.joint_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_five_variable_anatomy_exposes_atoms_matching_methods():
+    """five_variable_anatomy() carries the four ephemeral atoms + reverse bound mirror."""
+    pytest.importorskip("dit")
+    bidir = nemo_process().to_bidirectional()
+    anatomy = bidir.five_variable_anatomy()
+
+    assert anatomy["ephemeral_forward"] == pytest.approx(bidir.forward_only_structural_ephemeral(), abs=1e-12)
+    assert anatomy["ephemeral_reverse"] == pytest.approx(bidir.reverse_only_structural_ephemeral(), abs=1e-12)
+    assert anatomy["ephemeral_joint"] == pytest.approx(bidir.joint_structural_ephemeral(), abs=1e-12)
+    assert anatomy["ephemeral_pure_gauge"] == pytest.approx(bidir.pure_gauge_information(), abs=1e-12)
+    assert anatomy["ephemeral_structural_reverse"] == pytest.approx(
+        bidir.reverse_structural_ephemeral_information(), abs=1e-12
+    )
+    assert anatomy["bound_reverse"] == pytest.approx(bidir.reverse_bound_information(), abs=1e-12)
+    assert anatomy["bound_structural_reverse"] == pytest.approx(bidir.reverse_bound_structural_information(), abs=1e-12)
+    assert anatomy["bound_gauge_reverse"] == pytest.approx(bidir.reverse_bound_gauge_information(), abs=1e-12)
+
+    # The four atoms sum to r_μ, and the coarse anatomy keys are still present.
+    four = (
+        anatomy["ephemeral_forward"]
+        + anatomy["ephemeral_reverse"]
+        + anatomy["ephemeral_joint"]
+        + anatomy["ephemeral_pure_gauge"]
+    )
+    assert four == pytest.approx(anatomy["ephemeral_mu"], abs=1e-9)
+    assert anatomy["ephemeral_structural"] == pytest.approx(bidir.structural_ephemeral_information(), abs=1e-12)
+
+
+def test_epsilon_machine_five_variable_delegates_to_bidirectional():
+    """EpsilonMachine forwards the five-variable accessors to its bidirectional presentation."""
+    pytest.importorskip("dit")
+    forward = golden_mean_forward(0.5)
+    bidir = forward.to_bidirectional()
+
+    assert forward.forward_only_structural_ephemeral() == pytest.approx(
+        bidir.forward_only_structural_ephemeral(), abs=1e-12
+    )
+    assert forward.reverse_only_structural_ephemeral() == pytest.approx(
+        bidir.reverse_only_structural_ephemeral(), abs=1e-12
+    )
+    assert forward.joint_structural_ephemeral() == pytest.approx(bidir.joint_structural_ephemeral(), abs=1e-12)
+    assert forward.pure_gauge_information() == pytest.approx(bidir.pure_gauge_information(), abs=1e-12)
+    assert forward.reverse_structural_ephemeral_information() == pytest.approx(
+        bidir.reverse_structural_ephemeral_information(), abs=1e-12
+    )
+    assert forward.reverse_bound_information() == pytest.approx(bidir.reverse_bound_information(), abs=1e-12)
+    assert forward.reverse_bound_structural_information() == pytest.approx(
+        bidir.reverse_bound_structural_information(), abs=1e-12
+    )
+    assert forward.reverse_bound_gauge_information() == pytest.approx(bidir.reverse_bound_gauge_information(), abs=1e-12)
+    assert forward.five_variable_anatomy() == pytest.approx(bidir.five_variable_anatomy(), abs=1e-12)
 
 
 def test_tent_map_misiurewicz_closed_form():

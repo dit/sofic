@@ -34,6 +34,68 @@ predicted, bound, and ephemeral components :cite:`James2013`:
 
    In [6]: anatomy = bidir.information_anatomy()
 
+Structural / gauge refinement
+=============================
+
+Unifilarity of the forward ε-machine makes the next forward causal state a
+deterministic function of the present, :math:`S^+_1 = \phi^+(S^+_0, X_0)`. This
+splits the ephemeral and bound rates by whether the present randomness *changes
+the next causal state* (structural) or merely *relabels the output on a fixed
+transition* (gauge) :cite:`jurgens2026taxonomy,James2013`:
+
+.. math::
+
+   r_\mu = \underbrace{\H{S^+_1 \mid S^+_0, S^-_1}}_{r_\mu^{\text{struct}}}
+         + \underbrace{\H{X_0 \mid S^+_0, S^+_1, S^-_1}}_{r_\mu^{\text{gauge}}},
+   \qquad
+   b_\mu = \underbrace{\I{S^+_1 : S^-_1 \mid S^+_0}}_{b_\mu^{\text{struct}}}
+         + \underbrace{\I{X_0 : S^-_1 \mid S^+_0, S^+_1}}_{b_\mu^{\text{gauge}}}
+
+The bound gauge term vanishes identically (Theorem A: once the source and
+destination forward states are fixed, the present says nothing more about the
+future), so :math:`b_\mu = b_\mu^{\text{struct}}`.
+
+Five-variable anatomy
+=====================
+
+Adding the previous reverse causal state :math:`S^-_0 = \phi^-(S^-_1, X_0)` gives
+the full joint :math:`\Pr(S^+_0, S^-_0, X_0, S^+_1, S^-_1)` and refines the
+ephemeral rate into a symmetric four-atom partition, all non-negative
+:cite:`jurgens2026taxonomy`:
+
+.. math::
+
+   r_\mu = \underbrace{\H{S^+_1 \mid S^+_0, S^-_1, S^-_0}}_{r_\mu^{\text{fwd}}}
+         + \underbrace{\H{S^-_0 \mid S^+_0, S^-_1, S^+_1}}_{r_\mu^{\text{rev}}}
+         + \underbrace{\I{S^+_1 : S^-_0 \mid S^+_0, S^-_1}}_{r_\mu^{\text{joint}}}
+         + \underbrace{\H{X_0 \mid S^+_0, S^-_1, S^+_1, S^-_0}}_{r_\mu^{\text{gauge}}}
+
+These regroup as :math:`r_\mu^{\text{struct}} = r_\mu^{\text{fwd}} +
+r_\mu^{\text{joint}}` and :math:`r_\mu^{\text{par}} = r_\mu^{\text{rev}} +
+r_\mu^{\text{gauge}}`, and the reverse structural ephemeral rate is
+:math:`\bar r_\mu^{\text{struct}} = r_\mu^{\text{rev}} + r_\mu^{\text{joint}}`.
+The reverse-time bound mirror obeys Theorem A′ (its gauge part
+:math:`\I{X_0 : S^+_0 \mid S^-_1, S^-_0}` vanishes) and reproduces the
+time-reversal invariance :math:`\bar b_\mu = b_\mu` :cite:`James2011`.
+
+.. ipython::
+
+   In [1]: from sofic.examples import nemo_process
+
+   In [2]: anatomy = nemo_process().five_variable_anatomy()
+
+   @doctest float
+   In [3]: anatomy["ephemeral_forward"]
+   Out[3]: 0.16666666666666666
+
+   @doctest float
+   In [4]: anatomy["ephemeral_reverse"]
+   Out[4]: 0.16666666666666666
+
+   @doctest float
+   In [5]: anatomy["ephemeral_pure_gauge"]
+   Out[5]: 0.08333333333333333
+
 Symbolic probabilities
 ======================
 
