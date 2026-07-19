@@ -6,7 +6,7 @@ output?") and **equivalence** ("is my hypothesis correct, and if not, give a
 counterexample"). This module provides
 
 * oracle protocols (:class:`MembershipOracle`, :class:`EquivalenceOracle` and
-  their Mealy analogues) with adapters over pensive models,
+  their Mealy analogues) with adapters over sofic models,
 * Angluin's **L\*** :cite:`Angluin1987` for :class:`~sofic.automata.dfa.DFA` and
   its Mealy variant :cite:`Shahbaz2009`, both using the Rivest-Schapire
   counterexample analysis :cite:`RivestSchapire1993`, and
@@ -91,7 +91,7 @@ class FunctionMembershipOracle:
 
 
 class LanguageMembershipOracle:
-    """Membership over any pensive model exposing ``recognizes`` or ``__contains__``.
+    """Membership over any sofic model exposing ``recognizes`` or ``__contains__``.
 
     Works with :class:`~sofic.automata.dfa.DFA`, :class:`~sofic.automata.nfa.NFA`,
     átomata, and any :class:`~sofic.automata.languages.base.RegularLanguage`. For
@@ -581,7 +581,7 @@ def learn_dfa_from_language(
     max_length: int = 12,
     max_rounds: int = 100,
 ) -> DFA:
-    """Learn a DFA for a pensive language model using a bounded exhaustive teacher.
+    """Learn a DFA for a sofic language model using a bounded exhaustive teacher.
 
     ``target`` is any model accepted by :class:`LanguageMembershipOracle` (a DFA,
     NFA, átomaton, or :class:`~sofic.automata.languages.base.RegularLanguage`);

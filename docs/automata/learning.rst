@@ -25,7 +25,7 @@ Active learning (L\*, TTT, Mealy)
 TTT family :cite:`KearnsVazirani1994,Isberner2014` for
 :class:`~sofic.automata.dfa.DFA`, plus the Mealy variant of L\*
 :cite:`Shahbaz2009`; all use Rivest-Schapire counterexample analysis
-:cite:`RivestSchapire1993`. Oracles adapt pensive models: a
+:cite:`RivestSchapire1993`. Oracles adapt sofic models: a
 :class:`~sofic.automata.active.LanguageMembershipOracle` wraps any model exposing
 ``recognizes`` / ``__contains__`` (a :class:`~sofic.automata.dfa.DFA`, NFA,
 átomaton, or ``model.to_support_dfa()`` for a sofic shift or ε-machine), and the
