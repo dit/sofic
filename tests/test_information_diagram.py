@@ -15,6 +15,8 @@ from sofic.examples import (
 )
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.information_diagram import (
+    GENERICALLY_NONZERO,
+    JURGENS_LABELS,
     ROLE_ORDER,
     IDiagramAtom,
     InformationDiagram,
@@ -180,69 +182,98 @@ def test_atom_conditional_expression_and_symbol():
     assert joint.conditional_expression == "I[S⁻₀:X₀:S⁺₁|S⁺₀,S⁻₁]"
     assert joint.symbol == "rμ joint"
 
-    # Bound atoms now carry a bμ zone symbol; the branch is the next-state split.
-    bound = IDiagramAtom(indices=(2, 4), variables=("X₀", "S⁻₁"), value=0.1, role="bound")
+    bound = IDiagramAtom(indices=(2, 4), variables=("X₀", "S⁻₁"), value=0.1, role="b_plus")
     assert bound.conditional_expression == "I[X₀:S⁻₁|S⁺₀,S⁻₀,S⁺₁]"
-    assert bound.symbol == "bμ gauge"
+    assert bound.symbol == "b⁺μ gauge"
+    assert bound.jurgens_label == "†b⁺μ gauge"
 
     full = IDiagramAtom(
         indices=(0, 1, 2, 3, 4),
         variables=("S⁺₀", "S⁻₀", "X₀", "S⁺₁", "S⁻₁"),
         value=0.0,
-        role="shared",
+        role="q_mu",
     )
     assert full.conditional_expression == "I[S⁺₀:S⁻₀:X₀:S⁺₁:S⁻₁]"
-    assert full.symbol == "cμ joint"
+    assert full.symbol == "qμ joint"
+    assert full.jurgens_label == "qμ"
+
+    chi = IDiagramAtom(indices=(0,), variables=("S⁺₀",), value=0.3, role="chi_plus")
+    assert chi.symbol == "χ⁺ transient"
+    assert chi.jurgens_label == "t.χ⁺"
 
 
 def test_zone_branch_symbols_cover_every_anatomy_atom():
-    """Each present-containing / elusive atom gets a ``{zone} {branch}`` name;
-    pure state-structure atoms get none. Spot-check one atom per zone×branch."""
+    """Each anatomy atom gets a ``{zone} {branch}`` name; leftover structure none."""
     cases = {
-        # ephemeral: X₀ only, split by next-states
         (2,): "rμ gauge",
         (2, 3): "rμ fwd",
         (1, 2): "rμ rev",
         (1, 2, 3): "rμ joint",
-        # bound: X₀·S⁻₁ (present ∩ future ∖ past)
-        (2, 4): "bμ gauge",
-        (2, 3, 4): "bμ fwd",
-        (1, 2, 4): "bμ rev",
-        (1, 2, 3, 4): "bμ joint",
-        # predictive: X₀·S⁺₀ (present ∩ past ∖ future)
-        (0, 2): "ρμ gauge",
-        (0, 2, 3): "ρμ fwd",
-        (0, 1, 2): "ρμ rev",
-        (0, 1, 2, 3): "ρμ joint",
-        # co-information core: X₀·S⁺₀·S⁻₁ (present ∩ past ∩ future)
-        (0, 2, 4): "cμ gauge",
-        (0, 2, 3, 4): "cμ fwd",
-        (0, 1, 2, 4): "cμ rev",
-        (0, 1, 2, 3, 4): "cμ joint",
-        # elusive: S⁺₀·S⁻₁ without the present
+        (2, 4): "b⁺μ gauge",
+        (2, 3, 4): "b⁺μ fwd",
+        (1, 2, 4): "b⁺μ rev",
+        (1, 2, 3, 4): "b⁺μ joint",
+        (0, 2): "b⁻μ gauge",
+        (0, 2, 3): "b⁻μ fwd",
+        (0, 1, 2): "b⁻μ rev",
+        (0, 1, 2, 3): "b⁻μ joint",
+        (0, 2, 4): "qμ gauge",
+        (0, 2, 3, 4): "qμ fwd",
+        (0, 1, 2, 4): "qμ rev",
+        (0, 1, 2, 3, 4): "qμ joint",
         (0, 4): "σμ gauge",
         (0, 3, 4): "σμ fwd",
         (0, 1, 4): "σμ rev",
         (0, 1, 3, 4): "σμ joint",
+        (0,): "χ⁺ transient",
+        (0, 3): "χ⁺ persistent",
+        (4,): "χ⁻ transient",
+        (1, 4): "χ⁻ persistent",
     }
     for indices, expected in cases.items():
         atom = IDiagramAtom(indices=indices, variables=(), value=0.0, role="")
         assert atom.symbol == expected, indices
 
-    # pure state-structure atoms (present absent, and not the elusive S⁺₀·S⁻₁ pattern)
-    for indices in [(0,), (3,), (0, 3), (1, 4), (3, 4)]:
+    # Leftover structure (unifilarity zeros with no past/future anatomy role).
+    for indices in [(3,), (1,)]:
         atom = IDiagramAtom(indices=indices, variables=(), value=0.0, role="")
         assert atom.symbol is None, indices
 
 
+def test_jurgens_labels_match_table_ii():
+    """Every Table II membership set carries its taxonomy label."""
+    for indices, label in JURGENS_LABELS.items():
+        atom = IDiagramAtom(indices=indices, variables=(), value=0.0, role="")
+        assert atom.jurgens_label == label
+
+
 def test_theorem_a_visible_in_bound_zone_symbols():
-    """bμ = bμ fwd + bμ joint (structural); bμ gauge + bμ rev = 0 (Theorem A)."""
+    """bμ = b⁺μ fwd + b⁺μ joint; b⁺μ gauge + b⁺μ rev = 0 (Theorem A)."""
     pytest.importorskip("dit")
     diagram = information_diagram(_processes()["nemo"], show_zero=True)
     by_symbol = {a.symbol: a.value_float() for a in diagram.atoms}
     b_mu = diagram.totals["b_mu"]
-    assert by_symbol["bμ fwd"] + by_symbol["bμ joint"] == pytest.approx(float(b_mu), abs=1e-9)
-    assert by_symbol["bμ gauge"] + by_symbol["bμ rev"] == pytest.approx(0.0, abs=1e-9)
+    assert by_symbol["b⁺μ fwd"] + by_symbol["b⁺μ joint"] == pytest.approx(float(b_mu), abs=1e-9)
+    assert by_symbol["b⁺μ gauge"] + by_symbol["b⁺μ rev"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_nemo_has_twenty_nonzero_atoms():
+    """Independent check: nemo realises 13 Table II atoms + 7 cancelling extras."""
+    pytest.importorskip("dit")
+    diagram = information_diagram(_processes()["nemo"], atoms="process")
+    assert len(diagram.atoms) == 20
+    table_ii = {a.indices for a in diagram.atoms if a.indices in JURGENS_LABELS}
+    extras = {a.indices for a in diagram.atoms if a.indices not in JURGENS_LABELS}
+    assert len(table_ii) == 13  # p.r±μ is zero for nemo
+    assert len(extras) == 7
+
+
+def test_generic_mode_retains_twenty_one_atoms():
+    """atoms='generic' keeps the 21 generically nonzero membership sets."""
+    pytest.importorskip("dit")
+    diagram = information_diagram(bernoulli(0.5), atoms="generic")
+    assert len(diagram.atoms) == len(GENERICALLY_NONZERO) == 21
+    assert {a.indices for a in diagram.atoms} == set(GENERICALLY_NONZERO)
 
 
 def test_every_plotted_atom_has_a_name():

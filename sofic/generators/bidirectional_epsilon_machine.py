@@ -654,27 +654,35 @@ class BidirectionalEpsilonMachine(MealyHMM):
         )
         return anatomy
 
-    def information_diagram(self, *, show_zero: bool = False, tol: float = 1e-9) -> Any:
+    def information_diagram(
+        self,
+        *,
+        show_zero: bool = False,
+        atoms: str | None = None,
+        tol: float = 1e-9,
+    ) -> Any:
         """The five-variable information-anatomy I-diagram over the step joint.
 
         Returns an :class:`~sofic.generators.information_diagram.InformationDiagram`:
         the ``2⁵ − 1 = 31`` signed I-measure atoms of ``Pr(S⁺₀, S⁻₀, X₀, S⁺₁, S⁻₁)``
         (:cite:`yeung1991new`), each classified into an anatomy role and laid out
-        in a fixed order, with the named totals ``r_μ``, ``b_μ``, ``σ_μ``, ``ρ_μ``
-        and ``h_μ``. Unifilarity collapses the four ephemeral atoms onto single
-        diagram atoms, so the anatomy of :cite:`James2011` reads off the diagram
-        directly. See :func:`sofic.viz.plot_information_diagram` to draw it.
+        in a fixed order, with the named totals ``r_μ``, ``b⁺_μ``, ``b⁻_μ``,
+        ``q_μ``, ``σ_μ``, ``χ⁺``, ``χ⁻``. Pass ``atoms="generic"`` to retain the
+        21 generically nonzero membership sets (Table II's 14 plus 7 cancelling
+        extras), or ``atoms="all"`` for every Yeung atom. See
+        :func:`sofic.viz.plot_information_diagram` to draw it.
         """
         from sofic.generators.information_diagram import information_diagram
 
-        return information_diagram(self, show_zero=show_zero, tol=tol)
+        return information_diagram(self, show_zero=show_zero, atoms=atoms, tol=tol)
 
     def plot_information_diagram(self, **kwargs: Any) -> Any:
         """Draw :meth:`information_diagram` as a colour-coded UpSet plot.
 
         Thin wrapper over :func:`sofic.viz.plot_information_diagram`; keyword
-        arguments (``show_zero``, ``role_colors``, ``annotate``, ``title``,
-        ``figsize``) are forwarded. Requires the optional ``sofic[viz]`` extra.
+        arguments (``atoms``, ``show_zero``, ``role_colors``, ``annotate``,
+        ``title``, ``figsize``) are forwarded. Requires the optional
+        ``sofic[viz]`` extra.
         """
         from sofic.viz.idiagram import plot_information_diagram
 

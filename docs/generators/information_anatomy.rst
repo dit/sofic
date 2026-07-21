@@ -179,31 +179,28 @@ plus the named ``totals``.
 
    In [5]: [(atom.symbol or atom.conditional_expression) for atom in diagram.atoms]
 
-Each atom is named two ways. ``atom.conditional_expression`` gives its exact
-I-measure as a conditional co-information (e.g. ``I[X₀:S⁺₁|S⁺₀,S⁻₀,S⁻₁]``).
-``atom.symbol`` gives a friendly ``{zone} {branch}`` anatomy tag for every
-present-containing and elusive atom — the *zone* names the anatomy quantity
-(``rμ`` ephemeral, ``bμ`` bound, ``ρμ`` predictive present·past, ``cμ`` the
-present·past·future co-information core, ``σμ`` elusive) and the *branch* names
-the next-state involvement (``gauge`` neither, ``fwd`` :math:`S^+_1`, ``rev``
-:math:`S^-_0`, ``joint`` both), mirroring the four ephemeral atoms. Pure
-state-structure atoms have no symbol. This makes sum rules legible directly:
-``bμ fwd + bμ joint`` = :math:`b_\mu` while ``bμ gauge + bμ rev`` = 0
-(Theorem A), and the four ``rμ`` atoms partition :math:`r_\mu`.
+Each atom carries three names. ``atom.conditional_expression`` is the exact
+I-measure (e.g. ``I[X₀:S⁺₁|S⁺₀,S⁻₀,S⁻₁]``). ``atom.symbol`` is a
+``{zone} {branch}`` tag (``rμ`` / ``b⁺μ`` / ``b⁻μ`` / ``qμ`` / ``σμ`` /
+``χ⁺`` / ``χ⁻`` × gauge/fwd/rev/joint, or transient/persistent for crypticity).
+``atom.jurgens_label`` is the :cite:`jurgens2026taxonomy` Table II name when the
+membership set is one of their fourteen atoms, or a ``†``-marked extra for the
+seven cancelling partners omitted from Table II (Theorem A / A′ splits). Pass
+``atoms="generic"`` to retain all 21 generically nonzero membership sets, or
+``atoms="all"`` for every Yeung atom of the 31.
 
 :func:`sofic.viz.plot_information_diagram` (also
 :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.plot_information_diagram`,
 requires the optional ``sofic[viz]`` extra) renders the diagram as a colour-coded
-UpSet plot :cite:`lex2014upset`: one signed bar per atom (negative
-co-information atoms dip below zero), a dot-matrix of variable membership below,
-each atom **named** by both its ``{zone} {branch}`` anatomy tag and its
-conditional co-information, and a colour per role so the components of
-:math:`r_\mu`, :math:`b_\mu` and :math:`\sigma_\mu` are immediately legible
-(pass ``label_atoms=False`` to drop the per-column names)::
+UpSet plot :cite:`lex2014upset`: one signed bar per atom, a membership
+dot-matrix below, Jurgens labels on the ticks, and aggregate colours —
+red :math:`r_\mu`, dark green :math:`b^+_\mu`, light green :math:`b^-_\mu`,
+purple :math:`q_\mu`, blue :math:`\sigma_\mu`, orange :math:`\chi^+`, amber
+:math:`\chi^-`::
 
    from sofic.examples import nemo_process
 
-   fig = nemo_process().plot_information_diagram()
+   fig = nemo_process().plot_information_diagram(atoms="process")
    fig.savefig("nemo_anatomy.png", dpi=150, bbox_inches="tight")
 
 Symbolic probabilities
