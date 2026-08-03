@@ -284,7 +284,7 @@ def test_every_plotted_atom_has_a_name():
 
 
 def test_plot_information_diagram_smoke():
-    """The UpSet plot builds a two-panel figure with one bar per atom."""
+    """The UpSet plot builds a three-panel figure (legend strip + bars + matrix)."""
     pytest.importorskip("dit")
     mpl = pytest.importorskip("matplotlib")
     mpl.use("Agg")
@@ -299,8 +299,9 @@ def test_plot_information_diagram_smoke():
     fig = plot_information_diagram(bidir, title="nemo")
     try:
         assert isinstance(fig, Figure)
-        assert len(fig.axes) == 2
-        bars = [p for p in fig.axes[0].patches if isinstance(p, Rectangle)]
+        assert len(fig.axes) == 3
+        # axes: [0] legend strip, [1] bar chart, [2] UpSet matrix
+        bars = [p for p in fig.axes[1].patches if isinstance(p, Rectangle)]
         assert len(bars) == n_atoms
     finally:
         plt.close(fig)

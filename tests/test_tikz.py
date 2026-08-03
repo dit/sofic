@@ -86,8 +86,13 @@ def test_msp_self_loop_avoids_reciprocal_edge():
     assert "loop above" not in a_loop_lines[0]
 
 
+def test_edge_label_pos_is_emitted():
+    tikz = model_to_tikz(golden_mean_forward(0.5), edge_label_pos=1 / 3)
+    assert "pos=0.333333" in tikz
+    assert "fill=white" in tikz
+
+
 def test_reciprocal_edges_bend_same_direction():
-    from sofic.examples.epsilon_machines import golden_mean_forward
     from sofic.viz._tikz_layout import edge_style
 
     assert edge_style("A", "B", parallel_index=0, total_parallel=1, has_reverse=True) == "bend left"
