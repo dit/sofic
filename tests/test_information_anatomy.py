@@ -423,7 +423,9 @@ def test_epsilon_machine_five_variable_delegates_to_bidirectional():
     assert forward.reverse_bound_structural_information() == pytest.approx(
         bidir.reverse_bound_structural_information(), abs=1e-12
     )
-    assert forward.reverse_bound_gauge_information() == pytest.approx(bidir.reverse_bound_gauge_information(), abs=1e-12)
+    assert forward.reverse_bound_gauge_information() == pytest.approx(
+        bidir.reverse_bound_gauge_information(), abs=1e-12
+    )
     assert forward.five_variable_anatomy() == pytest.approx(bidir.five_variable_anatomy(), abs=1e-12)
 
 

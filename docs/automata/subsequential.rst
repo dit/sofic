@@ -1,9 +1,9 @@
 .. subsequential.rst
 .. py:module:: sofic.automata.subsequential
 
-************************************
+**************************************
 Subsequential and Weighted Transducers
-************************************
+**************************************
 
 The deterministic and weighted branches of the finite-state transducer
 hierarchy :cite:`Mohri2009`.

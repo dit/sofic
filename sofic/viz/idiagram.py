@@ -87,9 +87,7 @@ GROUP_ORDER: tuple[str, ...] = (
 )
 
 # Back-compat aliases used by older docs / callers.
-ROLE_LABELS: dict[str, str] = {
-    role: GROUP_LABELS[COLOR_GROUP[role]] for role in ROLE_ORDER
-}
+ROLE_LABELS: dict[str, str] = {role: GROUP_LABELS[COLOR_GROUP[role]] for role in ROLE_ORDER}
 ROLE_TOTAL_KEY_LEGACY = ROLE_TOTAL_KEY
 
 
@@ -98,8 +96,7 @@ def _require_matplotlib() -> Any:
         import matplotlib.pyplot as plt
     except ImportError as exc:
         raise ImportError(
-            "Information-diagram plotting requires the optional sofic[viz] extra "
-            "(pip install 'sofic[viz]')."
+            "Information-diagram plotting requires the optional sofic[viz] extra (pip install 'sofic[viz]')."
         ) from exc
     return plt
 
@@ -173,6 +170,7 @@ def _pack_legend_handles(
     ordered = [handles_by_group[g] for g in GROUP_ORDER if g in handles_by_group]
     return ordered, max(1, min(ncol, len(ordered) or 1))
 
+
 def plot_information_diagram(
     source: Any,
     *,
@@ -227,9 +225,7 @@ def plot_information_diagram(
     span = (vmax - vmin) or 1.0
 
     summary = diagram.totals
-    present_groups = [
-        group for group in GROUP_ORDER if any(COLOR_GROUP[a.role] == group for a in plotted)
-    ]
+    present_groups = [group for group in GROUP_ORDER if any(COLOR_GROUP[a.role] == group for a in plotted)]
     handles_by_group: dict[str, Any] = {}
     for group in present_groups:
         role_for_color = next(role for role, g in COLOR_GROUP.items() if g == group)
