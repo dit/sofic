@@ -126,13 +126,19 @@ class MealyMachine(Transducer):
         error_output: Any = ERROR_SYMBOL,
         copy: bool = True,
     ) -> MealyMachine:
-        """Return a complete transducer by adding reject/error transitions."""
+        """Return a complete transducer by adding reject/error transitions.
+
+        If every state already has an outgoing edge for every symbol in
+        ``alphabet``, the reject sink is not added — an unused absorbing error
+        component would make the driven joint process reducible with a
+        non-unique stationary law.
+        """
         result = self.copy() if copy else self
         symbols = alphabet if alphabet is not None else result.alphabets()[0]
         if not symbols:
             return result
 
-        result.graph.add_state(reject)
+        gaps: list[tuple[Hashable, Any]] = []
         for state in list(result.states()):
             outgoing = {
                 transition.data.get(ATTR_SYMBOL)
@@ -140,7 +146,15 @@ class MealyMachine(Transducer):
                 if transition.data.get(ATTR_SYMBOL) is not EPSILON
             }
             for symbol in symbols - outgoing:
-                result.add_transition(state, reject, symbol, error_output, prob=1.0)
+                gaps.append((state, symbol))
+
+        result.input_alphabet = result.input_alphabet | frozenset(symbols)
+        if not gaps:
+            return result
+
+        result.graph.add_state(reject)
+        for state, symbol in gaps:
+            result.add_transition(state, reject, symbol, error_output, prob=1.0)
 
         for symbol in symbols:
             if not any(
@@ -148,7 +162,6 @@ class MealyMachine(Transducer):
             ):
                 result.add_transition(reject, reject, symbol, error_output, prob=1.0)
 
-        result.input_alphabet = result.input_alphabet | frozenset(symbols)
         result.output_alphabet = result.output_alphabet | frozenset({error_output})
         return result
 
