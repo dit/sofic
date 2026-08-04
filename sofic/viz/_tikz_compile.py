@@ -57,6 +57,8 @@ def compilation_document(body: str) -> str:
         "\n"
         r"\usepackage{xcolor}"
         "\n"
+        r"\pagecolor{white}"
+        "\n"
         r"\definecolor{honeydew}{RGB}{240,255,240}"
         "\n"
         r"\definecolor{mistyrose}{RGB}{255,228,225}"
@@ -127,7 +129,10 @@ def _pdf_to_png(pdf_path: Path, png_path: Path) -> bytes:
                 gs,
                 "-dNOPAUSE",
                 "-dBATCH",
-                "-sDEVICE=pngalpha",
+                # Opaque RGB (not pngalpha) so the page background is white.
+                "-sDEVICE=png16m",
+                "-dGraphicsAlphaBits=4",
+                "-dTextAlphaBits=4",
                 "-r200",
                 "-dFirstPage=1",
                 "-dLastPage=1",

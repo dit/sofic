@@ -218,9 +218,7 @@ class EpsilonMachine(MealyHMM):
         tol: float = 1e-9,
     ) -> Any:
         """Five-variable information-anatomy I-diagram (31 atoms) over the step joint."""
-        return self.to_bidirectional().information_diagram(
-            show_zero=show_zero, atoms=atoms, tol=tol
-        )
+        return self.to_bidirectional().information_diagram(show_zero=show_zero, atoms=atoms, tol=tol)
 
     def plot_information_diagram(self, **kwargs: Any) -> Any:
         """Draw the five-variable information anatomy as a colour-coded UpSet plot."""

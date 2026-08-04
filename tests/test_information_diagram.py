@@ -28,9 +28,7 @@ def _processes() -> dict[str, BidirectionalEpsilonMachine]:
     """Bidirectional presentations spanning the ephemeral-motif zoo."""
     return {
         "bernoulli_half": bernoulli(0.5).to_bidirectional(),
-        "golden_mean": BidirectionalEpsilonMachine.from_pair(
-            golden_mean_forward(0.5), golden_mean_reverse(0.5)
-        ),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
         "nemo": nemo_process().to_bidirectional(),
@@ -67,9 +65,7 @@ def test_named_totals_match_anatomy(name: str):
     assert totals["h_mu"] == pytest.approx(bidir.entropy_rate(), abs=1e-9)
     assert totals["h_mu"] == pytest.approx(totals["r_mu"] + totals["b_mu"], abs=1e-12)
     assert totals["h_imc"] == pytest.approx(bidir.internal_markov_entropy_rate(), abs=1e-9)
-    assert totals["h_imc_reverse"] == pytest.approx(
-        bidir.reverse_internal_markov_entropy_rate(), abs=1e-9
-    )
+    assert totals["h_imc_reverse"] == pytest.approx(bidir.reverse_internal_markov_entropy_rate(), abs=1e-9)
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -284,7 +280,7 @@ def test_every_plotted_atom_has_a_name():
 
 
 def test_plot_information_diagram_smoke():
-    """The UpSet plot builds a two-panel figure with one bar per atom."""
+    """The UpSet plot builds a three-panel figure (legend strip + bars + matrix)."""
     pytest.importorskip("dit")
     mpl = pytest.importorskip("matplotlib")
     mpl.use("Agg")
@@ -299,8 +295,9 @@ def test_plot_information_diagram_smoke():
     fig = plot_information_diagram(bidir, title="nemo")
     try:
         assert isinstance(fig, Figure)
-        assert len(fig.axes) == 2
-        bars = [p for p in fig.axes[0].patches if isinstance(p, Rectangle)]
+        assert len(fig.axes) == 3
+        # axes: [0] legend strip, [1] bar chart, [2] UpSet matrix
+        bars = [p for p in fig.axes[1].patches if isinstance(p, Rectangle)]
         assert len(bars) == n_atoms
     finally:
         plt.close(fig)

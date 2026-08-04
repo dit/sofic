@@ -59,6 +59,36 @@ def _emission_transition_tensors(
     return _emission_transition_tensors_from_mealy(_as_mealy_hmm(hmm))
 
 
+def _limit_distribution_from_initial(pi_initial: np.ndarray, transition: np.ndarray) -> np.ndarray | None:
+    """Return the limiting occupation law of ``pi_initial`` under ``transition``.
+
+    On reducible chains the left-eigenvector stationary law is not unique; the
+    process measure is the limit reached from the model's initial distribution.
+    """
+    pi = np.asarray(pi_initial, dtype=float).copy()
+    total = float(pi.sum())
+    if total <= 0.0:
+        return None
+    pi /= total
+    matrix = np.asarray(transition, dtype=float)
+    n = len(pi)
+    for _ in range(max(100, 20 * n)):
+        nxt = pi @ matrix
+        mass = float(nxt.sum())
+        if mass <= 0.0:
+            return None
+        nxt /= mass
+        if np.allclose(nxt, pi, rtol=1e-12, atol=1e-14):
+            pi = nxt
+            break
+        pi = nxt
+    pi[np.isclose(pi, 0.0, atol=1e-15)] = 0.0
+    mass = float(pi.sum())
+    if mass <= 0.0:
+        return None
+    return pi / mass
+
+
 def _stationary_emission_tensors(
     hmm: HiddenMarkovModel,
 ) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
@@ -68,8 +98,12 @@ def _stationary_emission_tensors(
     by the stationary distribution, not by the model's (possibly transient)
     ``initial_distribution``. The stationary vector is recovered directly from the
     summed emission-transition matrices so it stays aligned with ``joint``'s state
-    indexing; it falls back to the initial vector only when no stationary law can be
-    found (e.g. a degenerate generator).
+    indexing.
+
+    When the chain is reducible (multiple absorbing classes), the eigenvector
+    stationary law is not unique — prefer the limiting occupation reached from
+    ``initial_distribution``. Fall back to the eigenvector solution, then to the
+    initial vector, only when the limit cannot be formed.
     """
     from sofic.generators.prob import zeros
     from sofic.generators.stationary import stationary_distribution_from_transition
@@ -82,6 +116,10 @@ def _stationary_emission_tensors(
     transition = zeros((n, n), symbolic=symbolic)
     for matrix in joint.values():
         transition = transition + matrix
+    if not symbolic:
+        limited = _limit_distribution_from_initial(pi_initial, transition)
+        if limited is not None and np.allclose(limited @ transition, limited, rtol=1e-8, atol=1e-10):
+            return limited, joint
     try:
         pi = stationary_distribution_from_transition(transition)
     except Exception:

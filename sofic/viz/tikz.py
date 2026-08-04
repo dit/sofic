@@ -168,8 +168,15 @@ def model_to_tikz(
     angles: Mapping[Hashable, float] | None = None,
     rankdir: str | None = None,
     label: str | None = None,
+    edge_label_pos: float = 0.5,
 ) -> str:
-    """Return a Vaucanson-style TikZ picture for ``model``."""
+    """Return a Vaucanson-style TikZ picture for ``model``.
+
+    Args:
+        edge_label_pos: Fraction along each edge (0 = source, 1 = target) at
+            which to place the edge label.  Use ``1/3`` to keep labels clear of
+            mid-edge crossings.
+    """
     model = _model_for_viz(model)
     context = viz_context(model, style=style)
 
@@ -246,7 +253,21 @@ def model_to_tikz(
             source_name = node_name(source)
             target_name = node_name(target)
             opts = f"[{style_opts}]" if style_opts else ""
-            label_part = f" node {{{edge_label}}}" if edge_label else ""
+            if edge_label:
+                label_opts = [
+                    f"pos={edge_label_pos:g}",
+                    "fill=white",
+                    "inner sep=1pt",
+                    "font=\\scriptsize",
+                ]
+                # On reciprocal pairs, park labels on opposite sides of the bend.
+                if has_reverse and source != target:
+                    label_opts.append("auto")
+                    if source_name > target_name:
+                        label_opts.append("swap")
+                label_part = f" node[{','.join(label_opts)}] {{{edge_label}}}"
+            else:
+                label_part = ""
             edge_lines.append(f"({source_name}) edge {opts}{label_part} ({target_name})")
 
     if edge_lines:
@@ -313,7 +334,8 @@ def draw_tikz(
         inferred = Path(filename).suffix.lstrip(".").lower() or None
     resolved_format = (format or inferred or "tikz").lower()
 
-    fragment = model_to_tikz(model, fragment=True, **_tikz_display_kwargs(model), **kwargs)
+    display_kwargs = {**_tikz_display_kwargs(model), **kwargs}
+    fragment = model_to_tikz(model, fragment=True, **display_kwargs)
     if resolved_format == "tikz":
         if filename is None:
             return None
