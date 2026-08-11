@@ -25,6 +25,9 @@ from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_hmm,
     tent_map_misiurewicz_information_expected,
+    tent_map_misiurewicz_preimage_forward,
+    tent_map_misiurewicz_preimage_information_expected,
+    tent_map_misiurewicz_preimage_symbol_matrices,
     tent_map_misiurewicz_reverse,
 )
 from sofic.examples.processes import *
@@ -68,6 +71,9 @@ __all__ = [
     "tent_map_misiurewicz_forward",
     "tent_map_misiurewicz_hmm",
     "tent_map_misiurewicz_information_expected",
+    "tent_map_misiurewicz_preimage_forward",
+    "tent_map_misiurewicz_preimage_information_expected",
+    "tent_map_misiurewicz_preimage_symbol_matrices",
     "tent_map_misiurewicz_reverse",
 ]
 __all__ += _process_all

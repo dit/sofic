@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from sofic.examples import (
@@ -13,9 +15,12 @@ from sofic.examples import (
     golden_mean_forward,
     golden_mean_reverse,
     nemo_process,
+    tent_map_misiurewicz_a,
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_information_expected,
+    tent_map_misiurewicz_preimage_forward,
+    tent_map_misiurewicz_preimage_information_expected,
 )
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
@@ -479,6 +484,102 @@ def test_tent_map_misiurewicz_bidirectional_regression():
     assert b_mu == pytest.approx(expected["bound_mu"], abs=1e-4)
     assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
     assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
+
+
+def test_tent_map_preimage_partition_presentation():
+    """Refining by both preimages of ``c`` gives five states over four letters."""
+    forward = tent_map_misiurewicz_preimage_forward()
+    forward.validate_stochastic()
+
+    assert sorted(forward.states()) == ["A", "B", "C", "D", "E"]
+    assert sorted(forward.observation_alphabet) == [0, 1, 2, 3]
+    assert forward.is_unifilar()
+    # Still strictly sofic: r_μ = 0 does not buy finite memory.
+    assert forward.is_strictly_sofic()
+
+    # Reduced by the parameter's minimal polynomial ``a**3 = 2a + 2``, every
+    # branching probability is a quadratic in ``a``.
+    a = tent_map_misiurewicz_a()
+    expected = {
+        ("A", 2, "A"): (a**2 - 2) / 2,
+        ("A", 3, "B"): (4 - a**2) / 2,
+        ("B", 0, "D"): (a**2 - 2 * a + 2) / 6,
+        ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
+        ("C", 2, "E"): (2 + a - a**2) / 2,
+        ("C", 3, "B"): (a**2 - a) / 2,
+        ("D", 1, "C"): 1.0,
+        ("E", 2, "C"): 1.0,
+    }
+    edges = {(t.source, t.data["emission"], t.target): float(t.data["prob"]) for t in forward.graph.transitions()}
+    assert edges.keys() == expected.keys()
+    for edge, probability in expected.items():
+        assert edges[edge] == pytest.approx(probability, abs=1e-12)
+
+
+def test_tent_map_preimage_partition_stationary_distribution():
+    """Causal-state weights of the four-letter tent-map presentation."""
+    forward = tent_map_misiurewicz_preimage_forward()
+    index = forward.reindex()
+    pi = forward.stationary_distribution()
+    weights = {index.state(i): float(pi[i]) for i in range(len(index.states))}
+
+    assert weights == pytest.approx(
+        {
+            "A": 0.4870384416,
+            "B": 0.2882345739,
+            "C": 0.1123634923,
+            "D": 0.0764691477,
+            "E": 0.0358943445,
+        },
+        abs=1e-9,
+    )
+
+
+def test_tent_map_preimage_partition_forbidden_blocks():
+    """Nine of the sixteen two-letter blocks are forbidden by the refined partition."""
+    forward = tent_map_misiurewicz_preimage_forward()
+    words = forward.word_probabilities(2)
+    forbidden = {(0, 0), (0, 2), (0, 3), (1, 0), (1, 1), (2, 0), (2, 1), (3, 2), (3, 3)}
+
+    for word in forbidden:
+        assert float(words.get(word, 0.0)) == pytest.approx(0.0, abs=1e-12)
+    allowed = {word for word, p in words.items() if float(p) > 1e-12}
+    assert len(allowed) == 7
+    assert allowed.isdisjoint(forbidden)
+
+
+def test_tent_map_preimage_partition_is_generating():
+    """Both partitions of the same dynamics share the entropy rate ``log2(a)``."""
+    pytest.importorskip("dit")
+    a = tent_map_misiurewicz_a()
+    refined = tent_map_misiurewicz_preimage_forward()
+
+    assert refined.entropy_rate() == pytest.approx(math.log2(a), abs=1e-9)
+    assert refined.entropy_rate() == pytest.approx(tent_map_misiurewicz_forward().entropy_rate(), abs=1e-9)
+
+
+def test_tent_map_preimage_ephemeral_information_vanishes():
+    """The refined partition moves the whole entropy rate into bound information."""
+    pytest.importorskip("dit")
+    expected = tent_map_misiurewicz_preimage_information_expected()
+    refined = tent_map_misiurewicz_preimage_forward()
+
+    assert refined.ephemeral_information() == pytest.approx(0.0, abs=1e-9)
+    assert refined.bound_information() == pytest.approx(expected["bound_mu"], abs=1e-9)
+    assert refined.entropy_rate() == pytest.approx(expected["entropy_rate"], abs=1e-9)
+
+    # The coarser kneading partition of the same dynamics does not.
+    assert tent_map_misiurewicz_information_expected()["ephemeral_mu"] == pytest.approx(0.648258, abs=1e-4)
+
+
+def test_tent_map_preimage_statistical_complexity_exceeds_excess_entropy():
+    """Regression on C_μ and E; the gap is the machine's crypticity."""
+    pytest.importorskip("dit")
+    refined = tent_map_misiurewicz_preimage_forward()
+
+    assert refined.statistical_complexity() == pytest.approx(1.833069440568067, abs=1e-9)
+    assert refined.excess_entropy() == pytest.approx(1.1407151497907773, abs=1e-9)
+    assert refined.statistical_complexity() > refined.excess_entropy()
 
 
 def test_tent_forward_matches_generator_path():

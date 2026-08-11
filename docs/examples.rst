@@ -40,10 +40,24 @@ Other literature processes
 Tent map (Misiurewicz point)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Read through the two-letter kneading partition, split at the critical point
+``c = 1/2`` (James et al. :cite:`James2013`, supplement Figs.~6--8):
+
 * :func:`tent_map_misiurewicz_hmm` — non-unifilar HMM
 * :func:`tent_map_misiurewicz_forward`, :func:`tent_map_misiurewicz_reverse`
 * :func:`tent_map_misiurewicz_bidirectional` — information anatomy reference
 * :func:`tent_map_misiurewicz_information_expected` — expected measure dict
+
+Refining that partition by both order-1 preimages of the critical point,
+``L = 1/(2a)`` and ``R = 1 - 1/(2a)``, gives a four-letter alphabet and a
+five-state machine for the *same* dynamics. Both partitions are generating, so
+both have entropy rate ``log2(a)``; only the anatomy split differs, and the
+refined one has ``r_mu = 0``. Derived from the interval Markov chain — the 2013
+supplement figures cover only the kneading partition:
+
+* :func:`tent_map_misiurewicz_preimage_forward` — five states over ``{0, 1, 2, 3}``
+* :func:`tent_map_misiurewicz_preimage_symbol_matrices` — the ``T^(x)`` matrices
+* :func:`tent_map_misiurewicz_preimage_information_expected` — expected measure dict
 
 Sofic-Dyck shifts
 ~~~~~~~~~~~~~~~~~
@@ -144,6 +158,9 @@ API
 .. autofunction:: tent_map_misiurewicz_bidirectional
 .. autofunction:: tent_map_misiurewicz_a
 .. autofunction:: tent_map_misiurewicz_information_expected
+.. autofunction:: tent_map_misiurewicz_preimage_forward
+.. autofunction:: tent_map_misiurewicz_preimage_symbol_matrices
+.. autofunction:: tent_map_misiurewicz_preimage_information_expected
 .. autofunction:: dyck_shift_order
 .. autofunction:: motzkin_shift
 .. autofunction:: sofic_dyck_fig1_shift

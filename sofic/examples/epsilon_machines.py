@@ -12,7 +12,10 @@ References
 - Golden-mean shift (forbid ``11``, Parry max-entropy): standard symbolic
   dynamics; see e.g. Ellison et al., arXiv:1107.2168 Fig.~2.
 - Tent map (Misiurewicz point): James, Burke & Crutchfield (2013), supplement
-  to *Chaos Forgets and Remembers*; Figs.~6--8.
+  to *Chaos Forgets and Remembers*; Figs.~6--8.  The four-letter
+  ``preimage`` variants read the same dynamics through a partition refined by
+  both preimages of the critical point; that presentation is derived from the
+  interval Markov chain rather than taken from a figure.
 """
 
 from __future__ import annotations
@@ -463,6 +466,103 @@ def tent_map_misiurewicz_forward(a: Any | None = None) -> EpsilonMachine:
     """Forward ε-machine for tent-map symbolic dynamics at the Misiurewicz point."""
     states, symbols, matrices = tent_map_misiurewicz_fig7_symbol_matrices(a)
     return from_symbol_matrices(states, symbols, matrices)
+
+
+def tent_map_misiurewicz_preimage_symbol_matrices(
+    a: Any | None = None,
+) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
+    """Symbol matrices for the tent map read through the partition ``{L, c, R}``.
+
+    The kneading partition of :func:`tent_map_misiurewicz_fig7_symbol_matrices`
+    cuts ``[0, 1]`` only at the critical point ``c = 1/2``.  Refining it by the
+    two order-1 preimages of ``c`` -- ``L = 1/(2a)`` and ``R = 1 - 1/(2a)`` --
+    gives the four-letter generating partition
+
+    ==========  ==================
+    Symbol      Cell
+    ==========  ==================
+    ``0``       ``[0, L)``
+    ``1``       ``[L, c)``
+    ``2``       ``[c, R)``
+    ``3``       ``[R, 1]``
+    ==========  ==================
+
+    under which the map has the five-state ε-machine ``A``--``E``.  Reducing by
+    the parameter's minimal polynomial ``a**3 = 2a + 2`` turns every transition
+    probability into a quadratic in ``a`` with rational coefficients, so unlike
+    the kneading presentation none of them carries an ``a``-dependent
+    denominator.
+
+    Derived from the exact interval Markov chain on the forward-orbit closure of
+    ``{c, L, R}``.  The tent map, the Misiurewicz parameter and the information
+    anatomy this presentation is used for are from James, Burke & Crutchfield,
+    *Chaos Forgets and Remembers* (2013) :cite:`James2013`; that paper's figures
+    cover only the kneading partition, so this refined presentation has no
+    published figure to cite.
+    """
+    from sofic.generators.prob import is_symbolic, zeros
+
+    if a is None:
+        a = tent_map_misiurewicz_a()
+    states = ("A", "B", "C", "D", "E")
+    symbolic = is_symbolic(a)
+    one = 1 if symbolic else 1.0
+    matrices = {symbol: zeros((5, 5), symbolic=symbolic) for symbol in (0, 1, 2, 3)}
+    # A=0, B=1, C=2, D=3, E=4.  Rows sum to one identically in ``a``.
+    matrices[2][0, 0] = (a**2 - 2) / 2  # A → A on 2
+    matrices[3][0, 1] = (4 - a**2) / 2  # A → B on 3
+    matrices[0][1, 3] = (a**2 - 2 * a + 2) / 6  # B → D on 0
+    matrices[1][1, 0] = (4 + 2 * a - a**2) / 6  # B → A on 1
+    matrices[2][2, 4] = (2 + a - a**2) / 2  # C → E on 2
+    matrices[3][2, 1] = (a**2 - a) / 2  # C → B on 3
+    matrices[1][3, 2] = one  # D → C on 1
+    matrices[2][4, 2] = one  # E → C on 2
+    return states, (0, 1, 2, 3), matrices
+
+
+def tent_map_misiurewicz_preimage_forward(a: Any | None = None) -> EpsilonMachine:
+    """Forward ε-machine of the tent map under the four-letter ``{L, c, R}`` partition.
+
+    Companion to :func:`tent_map_misiurewicz_forward`, which reads the same
+    dynamics through the two-letter kneading partition.  Refining by both
+    preimages of the critical point trades states for letters: five causal
+    states over a four-letter alphabet instead of four over two.  The process
+    stays strictly sofic (infinite Markov and cryptic order) but its ephemeral
+    information vanishes -- see
+    :func:`tent_map_misiurewicz_preimage_information_expected`.
+    """
+    states, symbols, matrices = tent_map_misiurewicz_preimage_symbol_matrices(a)
+    return from_symbol_matrices(states, symbols, matrices)
+
+
+def tent_map_misiurewicz_preimage_information_expected(a: Any | None = None) -> dict[str, Any]:
+    """Closed-form anatomy of the four-letter ``{L, c, R}`` tent-map partition.
+
+    The ephemeral rate is *exactly* zero, so ``b_mu = h_mu = log2(a)``.  The
+    reason is structural rather than numerical: the machine of
+    :func:`tent_map_misiurewicz_preimage_forward` is unifilar, no two of its
+    edges share both a source and a target, and every branch leads to a state
+    with a distinguishable future (``A`` versus ``B``, ``D`` versus ``A``, ``E``
+    versus ``B``).  Knowing the past fixes the current causal state, the future
+    then fixes the successor, and the two together name the emitted symbol --
+    leaving nothing for ``r_mu = H[X_0 | past, future]`` to measure.
+
+    Contrast :func:`tent_map_misiurewicz_information_expected`, where the
+    coarser kneading partition of the *same* dynamics splits the same entropy
+    rate into a nonzero ephemeral part (James, Burke & Crutchfield, 2013
+    :cite:`James2013`).
+    """
+    from sofic.generators.prob import is_symbolic
+
+    if a is None:
+        a = tent_map_misiurewicz_a()
+    if is_symbolic(a):
+        import sympy as sp
+
+        h_mu = sp.log(a, 2)
+        return {"bound_mu": h_mu, "ephemeral_mu": sp.Integer(0), "entropy_rate": h_mu}
+    h_mu = math.log2(a)
+    return {"bound_mu": h_mu, "ephemeral_mu": 0.0, "entropy_rate": h_mu}
 
 
 def tent_map_misiurewicz_hmm(a: Any | None = None) -> MealyHMM:

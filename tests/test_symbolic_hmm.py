@@ -17,6 +17,8 @@ from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_hmm,
     tent_map_misiurewicz_information_expected,
+    tent_map_misiurewicz_preimage_forward,
+    tent_map_misiurewicz_preimage_symbol_matrices,
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.prob import (
@@ -26,6 +28,35 @@ from sofic.generators.prob import (
     probs_equal,
 )
 from sofic.generators.words import hmm_word_probability
+
+
+def test_symbolic_preimage_rows_sum_to_one_identically():
+    """The refined partition's rows normalize for a free ``a``, not just at the root."""
+    a = sp.symbols("a", positive=True)
+    states, symbols, matrices = tent_map_misiurewicz_preimage_symbol_matrices(a)
+    for i in range(len(states)):
+        row = sum(matrices[x][i, j] for x in symbols for j in range(len(states)))
+        assert sp.simplify(row) == 1
+
+
+def test_symbolic_preimage_substitution_matches_numeric():
+    """Substituting the Misiurewicz root into the symbolic machine recovers the floats."""
+    a = sp.symbols("a", positive=True)
+    a_num = tent_map_misiurewicz_a()
+    symbolic = tent_map_misiurewicz_preimage_forward(a)
+    numeric = tent_map_misiurewicz_preimage_forward()
+
+    def edges(machine, substitute):
+        # Certain transitions are stored as an exact ``1``, so sympify before substituting.
+        return {
+            (t.source, t.data["emission"], t.target): float(
+                sp.sympify(t.data["prob"]).subs(a, a_num) if substitute else t.data["prob"]
+            )
+            for t in machine.graph.transitions()
+        }
+
+    assert edges(symbolic, True) == pytest.approx(edges(numeric, False), abs=1e-12)
+    assert float(symbolic.entropy_rate().subs(a, a_num)) == pytest.approx(math.log2(a_num), abs=1e-9)
 
 
 def test_symbolic_edge_probabilities_preserved():
