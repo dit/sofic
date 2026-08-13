@@ -43,10 +43,14 @@ __all__ = [
     "SpectralInferenceError",
     "hankel_matrices",
     "learn_spectral_wfa",
+    "project_to_epsilon_machine",
     "project_to_mealy",
     "project_to_nmachine",
     "spectral_singular_values",
 ]
+
+_BELIEF_DECIMALS = 6
+_MASS_ATOL = 1e-12
 
 
 class SpectralInferenceError(ValueError):
@@ -443,3 +447,118 @@ def project_to_mealy(qr: QuasiRealization, *, tol: float = 1e-8, validate: bool 
     if validate:
         machine.validate()
     return machine
+
+
+def project_to_epsilon_machine(
+    qr: QuasiRealization,
+    *,
+    tol: float = 1e-8,
+    max_states: int = 10_000,
+) -> Any:
+    """Extract an ε-machine from a learned spectral model.
+
+    When the observable operators admit a non-negative realization in the
+    learned basis, this is :func:`project_to_mealy` followed by
+    :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_hmm`. Signed
+    operators are converted by enumerating mixed states of the observable
+    operators (belief updates ``b A_x / (b A_x τ)``) and merging
+    predictively equivalent recurrent states :cite:`Ellison2009`. This is the
+    computational-mechanics extraction, not a clustering heuristic.
+
+    Raises
+    ------
+    SpectralInferenceError
+        If mixed-state enumeration exceeds ``max_states`` or the initial
+        vector is degenerate.
+    """
+    from sofic.generators.epsilon_machine import EpsilonMachine
+
+    try:
+        mealy = project_to_mealy(qr, tol=tol, validate=True)
+    except SpectralInferenceError:
+        mealy = _mealy_from_operator_mixed_states(qr, max_states=max_states)
+    return EpsilonMachine.from_hmm(mealy)
+
+
+def _mealy_from_operator_mixed_states(
+    qr: QuasiRealization,
+    *,
+    max_states: int = 10_000,
+    decimals: int = _BELIEF_DECIMALS,
+) -> Any:
+    """Build a unifilar Mealy HMM whose states are mixed states of ``qr``."""
+    from collections import deque
+
+    from sofic.generators.mealy import MealyHMM
+    from sofic.generators.mixed_state import MixedState
+    from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
+
+    maps = qr.symbol_maps
+    tau = np.asarray(qr.tau, dtype=float)
+    symbols = tuple(sorted(maps, key=repr))
+    eta0 = MixedState.from_vector(qr.pi, decimals=decimals)
+    if eta0 is None:
+        raise SpectralInferenceError("degenerate initial vector; cannot extract mixed states")
+
+    graph = TransitionGraph()
+    discovered: dict[MixedState, MixedState] = {}
+    queue: deque[MixedState] = deque()
+
+    def register(state: MixedState) -> MixedState:
+        existing = discovered.get(state)
+        if existing is not None:
+            return existing
+        atol = 10 ** (-decimals)
+        for known in discovered:
+            if all(np.isclose(a, b, rtol=0.0, atol=atol) for a, b in zip(known.belief, state.belief, strict=True)):
+                discovered[state] = known
+                return known
+        if len(discovered) >= max_states:
+            raise SpectralInferenceError(
+                f"mixed-state extraction exceeded max_states={max_states}; "
+                "use project_to_nmachine for the signed observable-operator model"
+            )
+        discovered[state] = state
+        graph.add_state(state)
+        queue.append(state)
+        return state
+
+    register(eta0)
+    while queue:
+        eta = queue.popleft()
+        row = eta.as_array()
+        emissions: list[tuple[Any, MixedState, float]] = []
+        for symbol in symbols:
+            nxt = row @ maps[symbol]
+            prob = float(nxt @ tau)
+            if prob <= _MASS_ATOL:
+                continue
+            successor = MixedState.from_vector(nxt, decimals=decimals)
+            if successor is None:
+                continue
+            emissions.append((symbol, register(successor), prob))
+        total = sum(prob for _symbol, _successor, prob in emissions)
+        if total <= _MASS_ATOL:
+            continue
+        for symbol, successor, prob in emissions:
+            graph.add_transition(
+                eta,
+                successor,
+                **{ATTR_PROB: float(prob / total), ATTR_EMISSION: symbol},
+            )
+
+    keep = graph.terminal_recurrent_states()
+    if not keep:
+        keep = frozenset(discovered.values())
+    recurrent = TransitionGraph()
+    for state in keep:
+        recurrent.add_state(state)
+        for transition in graph.out_transitions(state):
+            if transition.target in keep:
+                recurrent.add_transition(transition.source, transition.target, **dict(transition.data))
+    initial = {eta0: 1.0} if eta0 in keep else {}
+    return MealyHMM(
+        graph=recurrent,
+        initial_distribution=initial,
+        observation_alphabet=frozenset(symbols),
+    )

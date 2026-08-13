@@ -16,7 +16,7 @@ from sofic.generators.directional_flow import (
     synergistic_information_flow,
     transfer_entropy,
 )
-from sofic.generators.epsilon_inference import cssr, subtree_merge
+from sofic.generators.epsilon_inference import cssr, spectral, subtree_merge
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
@@ -71,6 +71,7 @@ __all__ = [
     "is_lumpable",
     "lump",
     "normalize_partition",
+    "spectral",
     "subtree_merge",
     "fit_stack_hmm_mle",
     "learn_stack_hmm_papni",

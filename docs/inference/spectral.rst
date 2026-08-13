@@ -61,6 +61,25 @@ in the learned basis and raises :class:`SpectralInferenceError` otherwise.
 
    machine = project_to_nmachine(model)   # observable-operator generator with a graph
 
+Projection to an ε-machine
+==========================
+
+:func:`project_to_epsilon_machine` extracts the causal presentation: a
+non-negative Mealy projection when one exists in the learned basis, otherwise
+mixed-state enumeration of the observable operators
+:cite:`Ellison2009`. The same path is
+:func:`~sofic.generators.epsilon_inference.spectral` /
+``EpsilonMachine.from_sequence(..., method="spectral")``.
+
+.. code-block:: python
+
+   from sofic.generators.epsilon_inference import spectral
+   from sofic.examples import golden_mean
+
+   process = golden_mean(0.5)
+   eps = spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
+   len(list(eps.states()))  # 2
+
 API
 ===
 
@@ -73,5 +92,7 @@ API
 .. autofunction:: project_to_nmachine
 
 .. autofunction:: project_to_mealy
+
+.. autofunction:: project_to_epsilon_machine
 
 .. autoexception:: SpectralInferenceError

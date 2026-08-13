@@ -14,6 +14,7 @@ from sofic.generators.quasi_realization import QuasiRealization
 from sofic.inference.spectral import (
     SpectralInferenceError,
     learn_spectral_wfa,
+    project_to_epsilon_machine,
     project_to_mealy,
     project_to_nmachine,
     spectral_singular_values,
@@ -132,6 +133,27 @@ def test_project_to_mealy_rejects_signed_realization():
     learned = learn_spectral_wfa(word_probability=model.word_probability, alphabet=alphabet, prefix_length=3)
     with pytest.raises(SpectralInferenceError):
         project_to_mealy(learned)
+
+
+def test_project_to_epsilon_machine_from_signed_golden_mean():
+    from sofic.generators.epsilon_machine import EpsilonMachine
+
+    model = golden_mean(0.5)
+    alphabet = sorted(model.observation_alphabet, key=repr)
+    learned = learn_spectral_wfa(word_probability=model.word_probability, alphabet=alphabet, prefix_length=3, rank=2)
+    machine = project_to_epsilon_machine(learned)
+    assert isinstance(machine, EpsilonMachine)
+    machine.validate()
+    assert len(list(machine.states())) == 2
+    assert machine.entropy_rate() == pytest.approx(model.entropy_rate(), abs=1e-6)
+
+
+def test_project_to_epsilon_machine_respects_max_states():
+    model = golden_mean(0.5)
+    alphabet = sorted(model.observation_alphabet, key=repr)
+    learned = learn_spectral_wfa(word_probability=model.word_probability, alphabet=alphabet, prefix_length=3, rank=2)
+    with pytest.raises(SpectralInferenceError, match="max_states"):
+        project_to_epsilon_machine(learned, max_states=1)
 
 
 # --- Input validation ------------------------------------------------------

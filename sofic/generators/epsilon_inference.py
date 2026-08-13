@@ -1,13 +1,15 @@
-"""Sample-based ε-machine reconstruction (CSSR and subtree merging).
+"""Sample-based ε-machine reconstruction (CSSR, subtree merging, and spectral).
 
 CSSR follows Shalizi, Shalizi & Crutchfield (arXiv:cs/0210025). Subtree merging
-follows Crutchfield & Young (PRL 1989; PRE 1994).
+follows Crutchfield & Young (PRL 1989; PRE 1994). Spectral reconstruction learns
+a weighted finite automaton by Hankel SVD :cite:`Balle2014,Hsu2012` and extracts
+causal states as mixed states of the learned operators :cite:`Ellison2009`.
 """
 
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal
 
@@ -641,3 +643,61 @@ def subtree_merge(
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
     return _counts_to_mealy(states, counts, history_to_state, seq, length=L)
+
+
+def spectral(
+    sequences: Iterable[Any] | None = None,
+    *,
+    word_probability: Callable[[Sequence[Any]], float] | None = None,
+    alphabet: Sequence[Any] | None = None,
+    rank: int | None = None,
+    prefix_length: int = 3,
+    suffix_length: int | None = None,
+    singular_value_threshold: float = 1e-3,
+    min_singular_value: float = 1e-12,
+    max_states: int = 10_000,
+) -> EpsilonMachine:
+    """Reconstruct an ε-machine by spectral learning then mixed-state extraction.
+
+    Learns a weighted finite automaton / observable-operator model from block
+    statistics :cite:`Balle2014,Hsu2012`, then extracts causal states as the
+    mixed states of those operators :cite:`Ellison2009`. When the learned
+    operators are non-negative this is a Mealy projection followed by
+    :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_hmm`; signed
+    operators use mixed-state enumeration rather than a clustering heuristic.
+
+    Parameters
+    ----------
+    sequences
+        A single observed realization or an iterable of realizations. Ignored
+        when ``word_probability`` is given.
+    word_probability
+        Optional exact block-probability function ``f(word) -> float``.
+        ``alphabet`` is then required.
+    alphabet
+        Observation alphabet. Inferred from ``sequences`` when omitted.
+    rank
+        Number of latent states. When ``None`` the rank is chosen from the
+        Hankel singular-value spectrum.
+    prefix_length, suffix_length
+        Maximum lengths of the prefix and suffix bases. ``suffix_length``
+        defaults to ``prefix_length``.
+    singular_value_threshold, min_singular_value
+        Cutoffs for automatic rank selection; see
+        :func:`~sofic.inference.spectral.learn_spectral_wfa`.
+    max_states
+        Safety cap on enumerated mixed states.
+    """
+    from sofic.inference.spectral import learn_spectral_wfa, project_to_epsilon_machine
+
+    model = learn_spectral_wfa(
+        sequences,
+        word_probability=word_probability,
+        alphabet=alphabet,
+        rank=rank,
+        prefix_length=prefix_length,
+        suffix_length=suffix_length,
+        singular_value_threshold=singular_value_threshold,
+        min_singular_value=min_singular_value,
+    )
+    return project_to_epsilon_machine(model, max_states=max_states)
