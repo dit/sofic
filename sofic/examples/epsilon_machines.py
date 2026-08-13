@@ -12,10 +12,11 @@ References
 - Golden-mean shift (forbid ``11``, Parry max-entropy): standard symbolic
   dynamics; see e.g. Ellison et al., arXiv:1107.2168 Fig.~2.
 - Tent map (Misiurewicz point): James, Burke & Crutchfield (2013), supplement
-  to *Chaos Forgets and Remembers*; Figs.~6--8.  The four-letter
-  ``preimage`` variants read the same dynamics through a partition refined by
-  both preimages of the critical point; that presentation is derived from the
-  interval Markov chain rather than taken from a figure.
+  to *Chaos Forgets and Remembers*; Figs.~6--8.  The ``partition`` family reads
+  the same dynamics through all four generating partitions built from the
+  critical point and its two order-1 preimages; only the kneading partition
+  appears in that paper's figures, so the three refinements are derived from the
+  interval Markov chain instead.
 """
 
 from __future__ import annotations
@@ -441,6 +442,11 @@ def tent_map_misiurewicz_fig7_symbol_matrices(
     Fig.~7.  State ``A`` emits only ``1``; ``D`` has a nontrivial ``0`` branch to
     ``C`` and a ``1`` self-loop.  When ``a`` is a sympy expression the matrices
     use object dtype with exact entries.
+
+    This is the ``"c"`` member of the four-partition family of
+    :func:`tent_map_misiurewicz_partition_symbol_matrices`, keeping the figure's
+    state names.  That function instead names states by decreasing stationary
+    probability, so its ``A, B, C, D`` are this function's ``D, C, B, A``.
     """
     from sofic.generators.prob import is_symbolic, zeros
 
@@ -468,90 +474,118 @@ def tent_map_misiurewicz_forward(a: Any | None = None) -> EpsilonMachine:
     return from_symbol_matrices(states, symbols, matrices)
 
 
-def tent_map_misiurewicz_preimage_symbol_matrices(
-    a: Any | None = None,
-) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
-    """Symbol matrices for the tent map read through the partition ``{L, c, R}``.
+#: Keys of the four generating partitions of the tent map at the Misiurewicz
+#: point, in refinement order.  Each names the cuts added to the critical point
+#: ``c = 1/2``: nothing, the left preimage ``L = 1/(2a)``, the right preimage
+#: ``R = 1 - 1/(2a)``, or both.  See
+#: :func:`tent_map_misiurewicz_partition_symbol_matrices`.
+TENT_MAP_MISIUREWICZ_PARTITIONS: tuple[str, ...] = ("c", "Lc", "cR", "LcR")
 
-    The kneading partition of :func:`tent_map_misiurewicz_fig7_symbol_matrices`
-    cuts ``[0, 1]`` only at the critical point ``c = 1/2``.  Refining it by the
-    two order-1 preimages of ``c`` -- ``L = 1/(2a)`` and ``R = 1 - 1/(2a)`` --
-    gives the four-letter generating partition
+#: ``partition -> (states, alphabet, edges)`` where each edge is
+#: ``(source, symbol, target, (k0, k1, k2), d)`` standing for the transition
+#: probability ``(k0 + k1 * a + k2 * a**2) / d``.  Every entry is reduced modulo
+#: the parameter's minimal polynomial ``a**3 = 2a + 2``, which is why no
+#: probability carries an ``a``-dependent denominator.  States are named by
+#: decreasing stationary probability, uniformly across the four partitions.
+_TENT_MAP_PARTITION_EDGES: dict[
+    str,
+    tuple[tuple[str, ...], tuple[int, ...], tuple[tuple[str, int, str, tuple[int, int, int], int], ...]],
+] = {
+    "c": (
+        ("A", "B", "C", "D"),
+        (0, 1),
+        (
+            ("A", 0, "B", (4, 0, -1), 2),
+            ("A", 1, "A", (-2, 0, 1), 2),
+            ("B", 0, "D", (2, -2, 1), 6),
+            ("B", 1, "A", (4, 2, -1), 6),
+            ("C", 0, "B", (0, -1, 1), 2),
+            ("C", 1, "D", (2, 1, -1), 2),
+            ("D", 1, "C", (1, 0, 0), 1),
+        ),
+    ),
+    "Lc": (
+        ("A", "B", "C", "D", "E"),
+        (0, 1, 2),
+        (
+            ("A", 0, "E", (2, -1, 0), 2),
+            ("A", 1, "B", (2, 1, -1), 2),
+            ("A", 2, "A", (-2, 0, 1), 2),
+            ("B", 2, "A", (1, 0, 0), 1),
+            ("C", 0, "E", (-1, -1, 1), 2),
+            ("C", 1, "B", (1, 0, 0), 2),
+            ("C", 2, "D", (2, 1, -1), 2),
+            ("D", 2, "C", (1, 0, 0), 1),
+            ("E", 1, "D", (1, 0, 0), 1),
+        ),
+    ),
+    "cR": (
+        ("A", "B", "C", "D", "E"),
+        (0, 1, 2),
+        (
+            ("A", 0, "B", (1, 0, 0), 1),
+            ("B", 0, "D", (2, -2, 1), 6),
+            ("B", 1, "C", (-2, -1, 2), 6),
+            ("B", 2, "A", (2, 1, -1), 2),
+            ("C", 1, "C", (-2, 0, 1), 2),
+            ("C", 2, "A", (4, 0, -1), 2),
+            ("D", 1, "E", (2, 1, -1), 2),
+            ("D", 2, "A", (0, -1, 1), 2),
+            ("E", 1, "D", (1, 0, 0), 1),
+        ),
+    ),
+    "LcR": (
+        ("A", "B", "C", "D", "E"),
+        (0, 1, 2, 3),
+        (
+            ("A", 2, "A", (-2, 0, 1), 2),
+            ("A", 3, "B", (4, 0, -1), 2),
+            ("B", 0, "D", (2, -2, 1), 6),
+            ("B", 1, "A", (4, 2, -1), 6),
+            ("C", 2, "E", (2, 1, -1), 2),
+            ("C", 3, "B", (0, -1, 1), 2),
+            ("D", 1, "C", (1, 0, 0), 1),
+            ("E", 2, "C", (1, 0, 0), 1),
+        ),
+    ),
+}
 
-    ==========  ==================
-    Symbol      Cell
-    ==========  ==================
-    ``0``       ``[0, L)``
-    ``1``       ``[L, c)``
-    ``2``       ``[c, R)``
-    ``3``       ``[R, 1]``
-    ==========  ==================
+#: ``partition -> ((k0, k1, k2), d)`` for the ephemeral information rate
+#: ``r_mu = (k0 + k1 * a + k2 * a**2) / d``, again reduced modulo
+#: ``a**3 = 2a + 2``.  For ``"c"`` this is the published rate of James et al.
+#: (2013) in reduced form; see
+#: :func:`tent_map_misiurewicz_partition_information_expected`.
+_TENT_MAP_PARTITION_EPHEMERAL: dict[str, tuple[tuple[int, int, int], int]] = {
+    "c": ((59, 7, -11), 57),
+    "Lc": ((56, 25, -23), 57),
+    "cR": ((1, -6, 4), 19),
+    "LcR": ((0, 0, 0), 1),
+}
 
-    under which the map has the five-state ε-machine ``A``--``E``.  Reducing by
-    the parameter's minimal polynomial ``a**3 = 2a + 2`` turns every transition
-    probability into a quadratic in ``a`` with rational coefficients, so unlike
-    the kneading presentation none of them carries an ``a``-dependent
-    denominator.
 
-    Derived from the exact interval Markov chain on the forward-orbit closure of
-    ``{c, L, R}``.  The tent map, the Misiurewicz parameter and the information
-    anatomy this presentation is used for are from James, Burke & Crutchfield,
-    *Chaos Forgets and Remembers* (2013) :cite:`James2013`; that paper's figures
-    cover only the kneading partition, so this refined presentation has no
-    published figure to cite.
+def _tent_map_partition_check(partition: str) -> None:
+    if partition not in _TENT_MAP_PARTITION_EDGES:
+        raise ValueError(f"unknown tent-map partition {partition!r}; expected one of {TENT_MAP_MISIUREWICZ_PARTITIONS}")
+
+
+def _tent_map_quadratic(coeffs: tuple[int, int, int], denom: int, a: Any, symbolic: bool) -> Any:
+    """Evaluate ``(k0 + k1 * a + k2 * a**2) / denom`` exactly or in floats."""
+    k0, k1, k2 = coeffs
+    if symbolic:
+        import sympy as sp
+
+        return sp.Rational(k0, denom) + sp.Rational(k1, denom) * a + sp.Rational(k2, denom) * a**2
+    return (k0 + k1 * a + k2 * a**2) / denom
+
+
+def tent_map_misiurewicz_partition_cuts(partition: str, a: Any | None = None) -> tuple[Any, ...]:
+    """Return the ascending cut points of one of the four tent-map partitions.
+
+    ``"c"`` cuts only at the critical point; ``"Lc"`` and ``"cR"`` add one
+    order-1 preimage of it; ``"LcR"`` adds both.  With a symbolic ``a`` the cuts
+    are exact sympy expressions.
     """
-    from sofic.generators.prob import is_symbolic, zeros
-
-    if a is None:
-        a = tent_map_misiurewicz_a()
-    states = ("A", "B", "C", "D", "E")
-    symbolic = is_symbolic(a)
-    one = 1 if symbolic else 1.0
-    matrices = {symbol: zeros((5, 5), symbolic=symbolic) for symbol in (0, 1, 2, 3)}
-    # A=0, B=1, C=2, D=3, E=4.  Rows sum to one identically in ``a``.
-    matrices[2][0, 0] = (a**2 - 2) / 2  # A → A on 2
-    matrices[3][0, 1] = (4 - a**2) / 2  # A → B on 3
-    matrices[0][1, 3] = (a**2 - 2 * a + 2) / 6  # B → D on 0
-    matrices[1][1, 0] = (4 + 2 * a - a**2) / 6  # B → A on 1
-    matrices[2][2, 4] = (2 + a - a**2) / 2  # C → E on 2
-    matrices[3][2, 1] = (a**2 - a) / 2  # C → B on 3
-    matrices[1][3, 2] = one  # D → C on 1
-    matrices[2][4, 2] = one  # E → C on 2
-    return states, (0, 1, 2, 3), matrices
-
-
-def tent_map_misiurewicz_preimage_forward(a: Any | None = None) -> EpsilonMachine:
-    """Forward ε-machine of the tent map under the four-letter ``{L, c, R}`` partition.
-
-    Companion to :func:`tent_map_misiurewicz_forward`, which reads the same
-    dynamics through the two-letter kneading partition.  Refining by both
-    preimages of the critical point trades states for letters: five causal
-    states over a four-letter alphabet instead of four over two.  The process
-    stays strictly sofic (infinite Markov and cryptic order) but its ephemeral
-    information vanishes -- see
-    :func:`tent_map_misiurewicz_preimage_information_expected`.
-    """
-    states, symbols, matrices = tent_map_misiurewicz_preimage_symbol_matrices(a)
-    return from_symbol_matrices(states, symbols, matrices)
-
-
-def tent_map_misiurewicz_preimage_information_expected(a: Any | None = None) -> dict[str, Any]:
-    """Closed-form anatomy of the four-letter ``{L, c, R}`` tent-map partition.
-
-    The ephemeral rate is *exactly* zero, so ``b_mu = h_mu = log2(a)``.  The
-    reason is structural rather than numerical: the machine of
-    :func:`tent_map_misiurewicz_preimage_forward` is unifilar, no two of its
-    edges share both a source and a target, and every branch leads to a state
-    with a distinguishable future (``A`` versus ``B``, ``D`` versus ``A``, ``E``
-    versus ``B``).  Knowing the past fixes the current causal state, the future
-    then fixes the successor, and the two together name the emitted symbol --
-    leaving nothing for ``r_mu = H[X_0 | past, future]`` to measure.
-
-    Contrast :func:`tent_map_misiurewicz_information_expected`, where the
-    coarser kneading partition of the *same* dynamics splits the same entropy
-    rate into a nonzero ephemeral part (James, Burke & Crutchfield, 2013
-    :cite:`James2013`).
-    """
+    _tent_map_partition_check(partition)
     from sofic.generators.prob import is_symbolic
 
     if a is None:
@@ -559,10 +593,131 @@ def tent_map_misiurewicz_preimage_information_expected(a: Any | None = None) -> 
     if is_symbolic(a):
         import sympy as sp
 
+        c = sp.Rational(1, 2)
+        left = 1 / (2 * a)
+    else:
+        c = 0.5
+        left = 1.0 / (2.0 * a)
+    right = 1 - left
+    return {"c": (c,), "Lc": (left, c), "cR": (c, right), "LcR": (left, c, right)}[partition]
+
+
+def tent_map_misiurewicz_partition_symbol_matrices(
+    partition: str,
+    a: Any | None = None,
+) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
+    """Symbol matrices ``T^(x)`` for one of the tent map's four generating partitions.
+
+    At the Misiurewicz parameter the interval ``[0, 1]`` can be cut at the
+    critical point ``c = 1/2`` and, optionally, at either or both of its
+    order-1 preimages ``L = 1/(2a)`` and ``R = 1 - 1/(2a)``.  All four choices
+    are generating, so all four read out the *same* dynamics at the same entropy
+    rate ``h_mu = log2(a)``; they differ in how many letters they spend and in
+    how much of that rate survives as bound information:
+
+    ==========  =========================  ======  ========  ================
+    Partition   Cells                      States  Alphabet  ``r_mu``
+    ==========  =========================  ======  ========  ================
+    ``"c"``     ``c``                      4       2         ``(59 + 7a - 11a**2)/57``
+    ``"Lc"``    ``L, c``                   5       3         ``(56 + 25a - 23a**2)/57``
+    ``"cR"``    ``c, R``                   5       3         ``(1 - 6a + 4a**2)/19``
+    ``"LcR"``   ``L, c, R``                5       4         ``0``
+    ==========  =========================  ======  ========  ================
+
+    Symbols number the cells left to right, so ``"LcR"`` emits ``0`` on
+    ``[0, L)``, ``1`` on ``[L, c)``, ``2`` on ``[c, R)`` and ``3`` on
+    ``[R, 1]``.  Reducing by the parameter's minimal polynomial
+    ``a**3 = 2a + 2`` makes every transition probability a quadratic in ``a``
+    with rational coefficients, so none of them carries an ``a``-dependent
+    denominator.  States are named by decreasing stationary probability in every
+    partition, which makes them comparable across the family; for ``"c"`` that
+    relabels the published figure, whose ``A, B, C, D`` are this function's
+    ``D, C, B, A`` (see :func:`tent_map_misiurewicz_fig7_symbol_matrices`).
+
+    Derived from the exact interval Markov chain on the forward-orbit closure of
+    ``{c, L, R}``.  The tent map, the Misiurewicz parameter and the ``"c"``
+    presentation are from James, Burke & Crutchfield, *Chaos Forgets and
+    Remembers* (2013) :cite:`James2013`; that paper's figures cover only the
+    kneading partition, so the three refinements have no published figure to
+    cite.
+    """
+    _tent_map_partition_check(partition)
+    from sofic.generators.prob import is_symbolic, zeros
+
+    if a is None:
+        a = tent_map_misiurewicz_a()
+    states, alphabet, edges = _TENT_MAP_PARTITION_EDGES[partition]
+    symbolic = is_symbolic(a)
+    index = {state: i for i, state in enumerate(states)}
+    size = len(states)
+    matrices = {symbol: zeros((size, size), symbolic=symbolic) for symbol in alphabet}
+    for source, symbol, target, coeffs, denom in edges:
+        matrices[symbol][index[source], index[target]] = _tent_map_quadratic(coeffs, denom, a, symbolic)
+    return states, alphabet, matrices
+
+
+def tent_map_misiurewicz_partition_forward(partition: str, a: Any | None = None) -> EpsilonMachine:
+    """Forward ε-machine of the tent map under one of its four generating partitions.
+
+    See :func:`tent_map_misiurewicz_partition_symbol_matrices` for the partitions
+    and their presentations.  Every one of the four is unifilar and strictly
+    sofic -- Markov and cryptic orders are infinite throughout -- so refining the
+    partition never buys finite memory.  What it buys is bound information:
+    ``r_mu`` falls from ``0.6483`` bits/symbol at ``"c"`` to exactly zero at
+    ``"LcR"``.
+
+    ``"c"`` is :func:`tent_map_misiurewicz_forward` up to the state relabeling
+    noted in :func:`tent_map_misiurewicz_partition_symbol_matrices`.
+    """
+    states, symbols, matrices = tent_map_misiurewicz_partition_symbol_matrices(partition, a)
+    return from_symbol_matrices(states, symbols, matrices)
+
+
+def tent_map_misiurewicz_partition_information_expected(
+    partition: str,
+    a: Any | None = None,
+) -> dict[str, Any]:
+    """Closed-form anatomy of one of the tent map's four generating partitions.
+
+    All four are generating, so ``entropy_rate = log2(a)`` throughout and only
+    the split into ``bound_mu`` and ``ephemeral_mu`` changes.  Each ephemeral
+    rate is a quadratic in ``a`` with rational coefficients, tabulated in
+    :func:`tent_map_misiurewicz_partition_symbol_matrices`.
+
+    Two exact facts about the family are worth noting.  First, ``"LcR"`` has
+    ``r_mu = 0``: its machine is unifilar, no two edges share both a source and
+    a target, and every branch leads to a state with a distinguishable future,
+    so the past fixes the causal state, the future fixes the successor, and the
+    two together name the emitted symbol -- leaving nothing for
+    ``r_mu = H[X_0 | past, future]`` to measure.  Second, the ephemeral rate is
+    *modular* over the two available cuts,
+
+    ``r_mu("c") - r_mu("Lc") - r_mu("cR") + r_mu("LcR") = 0``
+
+    identically in ``a``, so each cut is worth a fixed number of bits regardless
+    of whether the other has been made; the ``L`` cut is worth
+    ``r_mu("cR") = (1 - 6a + 4a**2)/19``, which is also exactly the invariant
+    measure of the two fine cells it separates.
+
+    For ``"c"`` this reproduces :func:`tent_map_misiurewicz_information_expected`,
+    which states the same rate in the unreduced form published by James, Burke &
+    Crutchfield (2013) :cite:`James2013`.
+    """
+    _tent_map_partition_check(partition)
+    from sofic.generators.prob import is_symbolic
+
+    if a is None:
+        a = tent_map_misiurewicz_a()
+    coeffs, denom = _TENT_MAP_PARTITION_EPHEMERAL[partition]
+    if is_symbolic(a):
+        import sympy as sp
+
         h_mu = sp.log(a, 2)
-        return {"bound_mu": h_mu, "ephemeral_mu": sp.Integer(0), "entropy_rate": h_mu}
+        r_mu = sp.simplify(_tent_map_quadratic(coeffs, denom, a, True))
+        return {"bound_mu": sp.simplify(h_mu - r_mu), "ephemeral_mu": r_mu, "entropy_rate": h_mu}
     h_mu = math.log2(a)
-    return {"bound_mu": h_mu, "ephemeral_mu": 0.0, "entropy_rate": h_mu}
+    r_mu = _tent_map_quadratic(coeffs, denom, a, False)
+    return {"bound_mu": h_mu - r_mu, "ephemeral_mu": r_mu, "entropy_rate": h_mu}
 
 
 def tent_map_misiurewicz_hmm(a: Any | None = None) -> MealyHMM:
@@ -877,6 +1032,10 @@ def tent_map_misiurewicz_information_expected(a: Any | None = None) -> dict[str,
     Returns floats when ``a`` is numeric, or sympy expressions when ``a`` is
     symbolic.  The ephemeral rate is
     ``r_μ = (1/4)*(3 - 2/(a+1) - 4/(a+2) + 9/(2a+3))``.
+
+    This is the kneading partition, i.e. the ``"c"`` member of the family of
+    :func:`tent_map_misiurewicz_partition_information_expected`, which states the
+    same rate reduced modulo ``a**3 = 2a + 2`` to ``(59 + 7a - 11a**2)/57``.
     """
     from sofic.generators.prob import is_symbolic
 

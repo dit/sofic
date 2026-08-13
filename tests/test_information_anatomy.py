@@ -8,6 +8,7 @@ import pytest
 
 from sofic.examples import (
     NRPS,
+    TENT_MAP_MISIUREWICZ_PARTITIONS,
     bernoulli,
     butterfly_process,
     even_process,
@@ -19,8 +20,9 @@ from sofic.examples import (
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_information_expected,
-    tent_map_misiurewicz_preimage_forward,
-    tent_map_misiurewicz_preimage_information_expected,
+    tent_map_misiurewicz_partition_cuts,
+    tent_map_misiurewicz_partition_forward,
+    tent_map_misiurewicz_partition_information_expected,
 )
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
@@ -486,100 +488,277 @@ def test_tent_map_misiurewicz_bidirectional_regression():
     assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
 
 
-def test_tent_map_preimage_partition_presentation():
-    """Refining by both preimages of ``c`` gives five states over four letters."""
-    forward = tent_map_misiurewicz_preimage_forward()
+# The four generating partitions of the tent map at the Misiurewicz point, each
+# built from the critical point plus zero, one or both of its order-1 preimages.
+TENT_MAP_PARTITION_SHAPE = {
+    "c": (["A", "B", "C", "D"], [0, 1]),
+    "Lc": (["A", "B", "C", "D", "E"], [0, 1, 2]),
+    "cR": (["A", "B", "C", "D", "E"], [0, 1, 2]),
+    "LcR": (["A", "B", "C", "D", "E"], [0, 1, 2, 3]),
+}
+
+TENT_MAP_PARTITION_WEIGHTS = {
+    "c": {"A": 0.4870384416, "B": 0.2882345739, "C": 0.1123634923, "D": 0.1123634923},
+    "Lc": {
+        "A": 0.4870384416,
+        "B": 0.2117654261,
+        "C": 0.1123634923,
+        "D": 0.1123634923,
+        "E": 0.0764691477,
+    },
+    "cR": {
+        "A": 0.2882345739,
+        "B": 0.2882345739,
+        "C": 0.2752730155,
+        "D": 0.1123634923,
+        "E": 0.0358943445,
+    },
+    "LcR": {
+        "A": 0.4870384416,
+        "B": 0.2882345739,
+        "C": 0.1123634923,
+        "D": 0.0764691477,
+        "E": 0.0358943445,
+    },
+}
+
+# Two-letter blocks the partition forbids; the coarsest partition forbids none.
+TENT_MAP_PARTITION_FORBIDDEN_PAIRS = {
+    "c": set(),
+    "Lc": {(0, 0), (0, 2), (1, 0), (1, 1)},
+    "cR": {(1, 0), (2, 1), (2, 2)},
+    "LcR": {(0, 0), (0, 2), (0, 3), (1, 0), (1, 1), (2, 0), (2, 1), (3, 2), (3, 3)},
+}
+
+TENT_MAP_PARTITION_EPHEMERAL = {
+    "c": 0.6482578367935150,
+    "Lc": 0.4953195413389188,
+    "cR": 0.1529382954545961,
+    "LcR": 0.0,
+}
+
+# (statistical complexity, excess entropy).  C_μ - E is the crypticity.
+TENT_MAP_PARTITION_COMPLEXITY = {
+    "c": (1.7315174883104, 0.3175426940962),
+    "Lc": (1.9720901450910, 0.5581153508764),
+    "cR": (2.0735446304436, 0.9001424930096),
+    "LcR": (1.8330694405681, 1.1407151497908),
+}
+
+
+def test_tent_map_partition_keys_are_ordered_by_refinement():
+    assert TENT_MAP_MISIUREWICZ_PARTITIONS == ("c", "Lc", "cR", "LcR")
+
+    a = tent_map_misiurewicz_a()
+    left, right = 1 / (2 * a), 1 - 1 / (2 * a)
+    assert tent_map_misiurewicz_partition_cuts("c") == pytest.approx([0.5])
+    assert tent_map_misiurewicz_partition_cuts("Lc") == pytest.approx([left, 0.5])
+    assert tent_map_misiurewicz_partition_cuts("cR") == pytest.approx([0.5, right])
+    assert tent_map_misiurewicz_partition_cuts("LcR") == pytest.approx([left, 0.5, right])
+
+
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partition_presentation(partition):
+    """Each partition gives a unifilar, strictly sofic machine of the stated shape."""
+    forward = tent_map_misiurewicz_partition_forward(partition)
     forward.validate_stochastic()
 
-    assert sorted(forward.states()) == ["A", "B", "C", "D", "E"]
-    assert sorted(forward.observation_alphabet) == [0, 1, 2, 3]
+    states, alphabet = TENT_MAP_PARTITION_SHAPE[partition]
+    assert sorted(forward.states()) == states
+    assert sorted(forward.observation_alphabet) == alphabet
     assert forward.is_unifilar()
-    # Still strictly sofic: r_μ = 0 does not buy finite memory.
+    # Refining never buys finite memory: r_μ falls to zero but the process stays
+    # strictly sofic, with infinite Markov and cryptic order throughout.
     assert forward.is_strictly_sofic()
 
-    # Reduced by the parameter's minimal polynomial ``a**3 = 2a + 2``, every
-    # branching probability is a quadratic in ``a``.
-    a = tent_map_misiurewicz_a()
-    expected = {
-        ("A", 2, "A"): (a**2 - 2) / 2,
-        ("A", 3, "B"): (4 - a**2) / 2,
-        ("B", 0, "D"): (a**2 - 2 * a + 2) / 6,
-        ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
-        ("C", 2, "E"): (2 + a - a**2) / 2,
-        ("C", 3, "B"): (a**2 - a) / 2,
-        ("D", 1, "C"): 1.0,
-        ("E", 2, "C"): 1.0,
-    }
-    edges = {(t.source, t.data["emission"], t.target): float(t.data["prob"]) for t in forward.graph.transitions()}
-    assert edges.keys() == expected.keys()
-    for edge, probability in expected.items():
-        assert edges[edge] == pytest.approx(probability, abs=1e-12)
 
-
-def test_tent_map_preimage_partition_stationary_distribution():
-    """Causal-state weights of the four-letter tent-map presentation."""
-    forward = tent_map_misiurewicz_preimage_forward()
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partition_stationary_distribution(partition):
+    forward = tent_map_misiurewicz_partition_forward(partition)
     index = forward.reindex()
     pi = forward.stationary_distribution()
     weights = {index.state(i): float(pi[i]) for i in range(len(index.states))}
 
-    assert weights == pytest.approx(
-        {
-            "A": 0.4870384416,
-            "B": 0.2882345739,
-            "C": 0.1123634923,
-            "D": 0.0764691477,
-            "E": 0.0358943445,
+    assert weights == pytest.approx(TENT_MAP_PARTITION_WEIGHTS[partition], abs=1e-9)
+
+
+def test_tent_map_partition_edge_probabilities_are_quadratics_in_a():
+    """Reduced by ``a**3 = 2a + 2`` every branching probability is a quadratic in ``a``."""
+    a = tent_map_misiurewicz_a()
+    expected = {
+        "c": {
+            ("A", 0, "B"): (4 - a**2) / 2,
+            ("A", 1, "A"): (a**2 - 2) / 2,
+            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
+            ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
+            ("C", 0, "B"): (a**2 - a) / 2,
+            ("C", 1, "D"): (2 + a - a**2) / 2,
+            ("D", 1, "C"): 1.0,
         },
-        abs=1e-9,
-    )
+        "Lc": {
+            ("A", 0, "E"): (2 - a) / 2,
+            ("A", 1, "B"): (2 + a - a**2) / 2,
+            ("A", 2, "A"): (a**2 - 2) / 2,
+            ("B", 2, "A"): 1.0,
+            ("C", 0, "E"): (a**2 - a - 1) / 2,
+            ("C", 1, "B"): 0.5,
+            ("C", 2, "D"): (2 + a - a**2) / 2,
+            ("D", 2, "C"): 1.0,
+            ("E", 1, "D"): 1.0,
+        },
+        "cR": {
+            ("A", 0, "B"): 1.0,
+            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
+            ("B", 1, "C"): (2 * a**2 - a - 2) / 6,
+            ("B", 2, "A"): (2 + a - a**2) / 2,
+            ("C", 1, "C"): (a**2 - 2) / 2,
+            ("C", 2, "A"): (4 - a**2) / 2,
+            ("D", 1, "E"): (2 + a - a**2) / 2,
+            ("D", 2, "A"): (a**2 - a) / 2,
+            ("E", 1, "D"): 1.0,
+        },
+        "LcR": {
+            ("A", 2, "A"): (a**2 - 2) / 2,
+            ("A", 3, "B"): (4 - a**2) / 2,
+            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
+            ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
+            ("C", 2, "E"): (2 + a - a**2) / 2,
+            ("C", 3, "B"): (a**2 - a) / 2,
+            ("D", 1, "C"): 1.0,
+            ("E", 2, "C"): 1.0,
+        },
+    }
+
+    for partition, edges in expected.items():
+        forward = tent_map_misiurewicz_partition_forward(partition)
+        actual = {(t.source, t.data["emission"], t.target): float(t.data["prob"]) for t in forward.graph.transitions()}
+        assert actual.keys() == edges.keys(), partition
+        for edge, probability in edges.items():
+            assert actual[edge] == pytest.approx(probability, abs=1e-12), (partition, edge)
 
 
-def test_tent_map_preimage_partition_forbidden_blocks():
-    """Nine of the sixteen two-letter blocks are forbidden by the refined partition."""
-    forward = tent_map_misiurewicz_preimage_forward()
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partition_forbidden_blocks(partition):
+    forward = tent_map_misiurewicz_partition_forward(partition)
+    _states, alphabet = TENT_MAP_PARTITION_SHAPE[partition]
     words = forward.word_probabilities(2)
-    forbidden = {(0, 0), (0, 2), (0, 3), (1, 0), (1, 1), (2, 0), (2, 1), (3, 2), (3, 3)}
+    forbidden = TENT_MAP_PARTITION_FORBIDDEN_PAIRS[partition]
 
     for word in forbidden:
         assert float(words.get(word, 0.0)) == pytest.approx(0.0, abs=1e-12)
     allowed = {word for word, p in words.items() if float(p) > 1e-12}
-    assert len(allowed) == 7
     assert allowed.isdisjoint(forbidden)
+    assert len(allowed) == len(alphabet) ** 2 - len(forbidden)
 
 
-def test_tent_map_preimage_partition_is_generating():
-    """Both partitions of the same dynamics share the entropy rate ``log2(a)``."""
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partitions_are_all_generating(partition):
+    """Every partition is generating, so all four share the entropy rate ``log2(a)``."""
     pytest.importorskip("dit")
     a = tent_map_misiurewicz_a()
-    refined = tent_map_misiurewicz_preimage_forward()
+    forward = tent_map_misiurewicz_partition_forward(partition)
 
-    assert refined.entropy_rate() == pytest.approx(math.log2(a), abs=1e-9)
-    assert refined.entropy_rate() == pytest.approx(tent_map_misiurewicz_forward().entropy_rate(), abs=1e-9)
+    assert forward.entropy_rate() == pytest.approx(math.log2(a), abs=1e-9)
+    assert forward.entropy_rate() == pytest.approx(tent_map_misiurewicz_forward().entropy_rate(), abs=1e-9)
 
 
-def test_tent_map_preimage_ephemeral_information_vanishes():
-    """The refined partition moves the whole entropy rate into bound information."""
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partition_anatomy_matches_closed_form(partition):
+    """The machine's measured anatomy matches the tabulated closed form."""
     pytest.importorskip("dit")
-    expected = tent_map_misiurewicz_preimage_information_expected()
-    refined = tent_map_misiurewicz_preimage_forward()
+    forward = tent_map_misiurewicz_partition_forward(partition)
+    expected = tent_map_misiurewicz_partition_information_expected(partition)
+    r_mu = TENT_MAP_PARTITION_EPHEMERAL[partition]
 
-    assert refined.ephemeral_information() == pytest.approx(0.0, abs=1e-9)
-    assert refined.bound_information() == pytest.approx(expected["bound_mu"], abs=1e-9)
-    assert refined.entropy_rate() == pytest.approx(expected["entropy_rate"], abs=1e-9)
+    assert expected["ephemeral_mu"] == pytest.approx(r_mu, abs=1e-12)
+    assert forward.ephemeral_information() == pytest.approx(r_mu, abs=1e-9)
+    assert forward.bound_information() == pytest.approx(expected["bound_mu"], abs=1e-9)
+    assert forward.entropy_rate() == pytest.approx(expected["entropy_rate"], abs=1e-9)
+    assert expected["bound_mu"] + expected["ephemeral_mu"] == pytest.approx(expected["entropy_rate"], abs=1e-12)
 
-    # The coarser kneading partition of the same dynamics does not.
-    assert tent_map_misiurewicz_information_expected()["ephemeral_mu"] == pytest.approx(0.648258, abs=1e-4)
+
+def test_tent_map_partition_ephemeral_rate_is_modular_over_the_two_cuts():
+    """Each preimage cut is worth a fixed number of bits, independent of the other."""
+    rates = {
+        p: tent_map_misiurewicz_partition_information_expected(p)["ephemeral_mu"] for p in ("c", "Lc", "cR", "LcR")
+    }
+
+    # The ``L`` cut removes the same amount whether or not ``R`` has been cut.
+    assert rates["c"] - rates["Lc"] == pytest.approx(rates["cR"] - rates["LcR"], abs=1e-12)
+    # Equivalently, the interaction term vanishes and the two shares sum to the whole.
+    assert rates["c"] - rates["Lc"] - rates["cR"] + rates["LcR"] == pytest.approx(0.0, abs=1e-12)
+    assert rates["Lc"] + rates["cR"] == pytest.approx(rates["c"], abs=1e-12)
+
+    # The ``L`` cut's share is the measure of the two fine cells it separates.
+    a = tent_map_misiurewicz_a()
+    assert rates["cR"] == pytest.approx(2 * (4 * a**2 - 6 * a + 1) / 38, abs=1e-12)
 
 
-def test_tent_map_preimage_statistical_complexity_exceeds_excess_entropy():
+def test_tent_map_partition_c_is_the_published_figure_relabeled():
+    """``"c"`` is the Fig.~7 machine with states renamed by decreasing weight."""
+    pytest.importorskip("dit")
+    family = tent_map_misiurewicz_partition_forward("c")
+    published = tent_map_misiurewicz_forward()
+    relabel = {"A": "D", "B": "C", "C": "B", "D": "A"}
+
+    family_edges = {
+        (relabel[t.source], t.data["emission"], relabel[t.target]): float(t.data["prob"])
+        for t in family.graph.transitions()
+    }
+    published_edges = {
+        (t.source, t.data["emission"], t.target): float(t.data["prob"]) for t in published.graph.transitions()
+    }
+    assert family_edges.keys() == published_edges.keys()
+    for edge, probability in published_edges.items():
+        assert family_edges[edge] == pytest.approx(probability, abs=1e-12)
+
+    # And the two closed forms of the kneading rate agree.
+    reduced = tent_map_misiurewicz_partition_information_expected("c")
+    as_published = tent_map_misiurewicz_information_expected()
+    for key in ("entropy_rate", "ephemeral_mu", "bound_mu"):
+        assert reduced[key] == pytest.approx(as_published[key], abs=1e-12)
+
+
+@pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
+def test_tent_map_partition_statistical_complexity_exceeds_excess_entropy(partition):
     """Regression on C_μ and E; the gap is the machine's crypticity."""
     pytest.importorskip("dit")
-    refined = tent_map_misiurewicz_preimage_forward()
+    forward = tent_map_misiurewicz_partition_forward(partition)
+    c_mu, excess = TENT_MAP_PARTITION_COMPLEXITY[partition]
 
-    assert refined.statistical_complexity() == pytest.approx(1.833069440568067, abs=1e-9)
-    assert refined.excess_entropy() == pytest.approx(1.1407151497907773, abs=1e-9)
-    assert refined.statistical_complexity() > refined.excess_entropy()
+    assert forward.statistical_complexity() == pytest.approx(c_mu, abs=1e-9)
+    assert forward.excess_entropy() == pytest.approx(excess, abs=1e-9)
+    assert forward.statistical_complexity() > forward.excess_entropy()
+
+
+def test_tent_map_partition_excess_entropy_is_modular_but_complexity_is_not():
+    """``E`` inherits the cuts' additivity; stored history does not."""
+    pytest.importorskip("dit")
+    excess = {}
+    complexity = {}
+    for partition in TENT_MAP_MISIUREWICZ_PARTITIONS:
+        forward = tent_map_misiurewicz_partition_forward(partition)
+        excess[partition] = forward.excess_entropy()
+        complexity[partition] = forward.statistical_complexity()
+
+    interaction = excess["c"] - excess["Lc"] - excess["cR"] + excess["LcR"]
+    assert interaction == pytest.approx(0.0, abs=1e-9)
+
+    interaction = complexity["c"] - complexity["Lc"] - complexity["cR"] + complexity["LcR"]
+    assert abs(interaction) > 0.4
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        tent_map_misiurewicz_partition_cuts,
+        tent_map_misiurewicz_partition_forward,
+        tent_map_misiurewicz_partition_information_expected,
+    ],
+)
+def test_tent_map_partition_rejects_unknown_key(call):
+    with pytest.raises(ValueError, match="unknown tent-map partition"):
+        call("Rc")
 
 
 def test_tent_forward_matches_generator_path():
