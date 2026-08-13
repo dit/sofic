@@ -37,14 +37,21 @@ def model_to_graphviz(
     *,
     rankdir: str | None = None,
     style: str = "auto",
+    color_by_emission: bool = True,
     graph_attr: dict[str, str] | None = None,
     node_attr: dict[str, str] | None = None,
     edge_attr: dict[str, str] | None = None,
 ) -> graphviz.Digraph:
-    """Return a :class:`graphviz.Digraph` for ``model``."""
+    """Return a :class:`graphviz.Digraph` for ``model``.
+
+    Edges sharing an emission (or input/label symbol when the model has no
+    emissions) get a common colour from a categorical palette. Pass
+    ``color_by_emission=False`` for uncoloured edges. Visibly pushdown / Dyck
+    kind colours (call / return / internal) take precedence.
+    """
     graphviz = _require_graphviz()
     model = _model_for_viz(model)
-    context = viz_context(model, style=style)
+    context = viz_context(model, style=style, color_by_emission=color_by_emission)
 
     resolved_rankdir = rankdir if rankdir is not None else (context.rankdir or "LR")
     attrs = {

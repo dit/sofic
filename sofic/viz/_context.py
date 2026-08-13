@@ -13,21 +13,25 @@ from sofic.graph import (
     ATTR_FUTURE_SYMBOL,
     ATTR_KIND,
     ATTR_OUTPUT,
+    EPSILON,
     KIND_CALL,
     KIND_INTERNAL,
     KIND_RETURN,
     Transition,
 )
 from sofic.viz._edge import (
+    PART_EMISSION,
     PART_KIND,
     PART_MATCH_TAG,
     PART_MULTIPLICITY,
     PART_PROB,
     PART_QUASIPROB,
     PART_STACK,
+    PART_SYMBOL,
     EdgePart,
     EdgeSpec,
     edge_spec,
+    part_value,
 )
 from sofic.viz._format import (
     format_belief,
@@ -123,6 +127,58 @@ def _dyck_edge_color(kind: Any) -> str | None:
     return None
 
 
+# Tableau 10 — Graphviz hex, stable assignment by sorted ``repr`` of the symbol.
+EMISSION_PALETTE: tuple[str, ...] = (
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+)
+
+_NAMED_RGB: dict[str, tuple[int, int, int]] = {
+    "seagreen": (46, 139, 87),
+    "firebrick": (178, 34, 34),
+    "steelblue": (70, 130, 180),
+}
+
+
+def _rgb_from_graphviz_color(color: str) -> tuple[int, int, int] | None:
+    if color.startswith("#") and len(color) == 7:
+        return int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+    return _NAMED_RGB.get(color)
+
+
+def tikz_draw_color(color: str) -> str:
+    """TikZ ``draw=`` value for a Graphviz color string (hex or named)."""
+    rgb = _rgb_from_graphviz_color(color)
+    if rgb is None:
+        return color
+    red, green, blue = rgb
+    return f"{{rgb,255:red,{red};green,{green};blue,{blue}}}"
+
+
+def _emission_color_key(model: StateMachine, transition: Transition) -> Any:
+    """Emission (else input/label symbol) used to color ``transition``, or None."""
+    key = part_value(edge_spec(model, transition), PART_EMISSION, PART_SYMBOL)
+    if key is None or key is EPSILON:
+        return None
+    return key
+
+
+def _emission_color_map(model: StateMachine) -> dict[Any, str]:
+    keys = sorted(
+        {key for transition in model.transitions() if (key := _emission_color_key(model, transition)) is not None},
+        key=repr,
+    )
+    return {key: EMISSION_PALETTE[index % len(EMISSION_PALETTE)] for index, key in enumerate(keys)}
+
+
 _TRANSIENT_FILL = "mistyrose"
 _RECURRENT_FILL = "honeydew"
 _RECURRENCE_ATOL = 1e-12
@@ -164,7 +220,12 @@ def _recurrence_fill_sets(
     return frozenset(), frozenset()
 
 
-def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
+def viz_context(
+    model: StateMachine,
+    *,
+    style: str = "auto",
+    color_by_emission: bool = True,
+) -> VizContext:
     from sofic.automata.base import LabeledAutomaton
     from sofic.automata.transducers import Transducer
     from sofic.automata.vpa import VisiblyPushdownAutomaton
@@ -198,8 +259,9 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     def _dyck_color(transition: Transition) -> str | None:
         return _dyck_edge_color(transition.data.get(ATTR_KIND))
 
-    edge_color: Callable[[Transition], str | None] = lambda _t: None
+    specialized_color: Callable[[Transition], str | None] = lambda _t: None
     edge_style: Callable[[Transition], str | None] = lambda _t: None
+    emission_colors = _emission_color_map(model) if color_by_emission else {}
 
     if isinstance(model, LabeledAutomaton):
         initial_states = model.initial_states
@@ -210,7 +272,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
         if model.initial_state is not None:
             initial_states = frozenset({model.initial_state})
         accepting_states = model.accepting_states
-        edge_color = _dyck_color
+        specialized_color = _dyck_color
     elif isinstance(model, MixedStatePresentation):
         initial_states = frozenset({model.initial_mixed_state})
     elif isinstance(model, BidirectionalEpsilonMachine):
@@ -218,7 +280,7 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
     elif isinstance(model, (NMachine, MooreHMM, MealyHMM, StochasticModel, QuasiStochasticModel)):
         initial_states = _stochastic_initials(model)
     elif isinstance(model, SoficDyckShift):
-        edge_color = _dyck_color
+        specialized_color = _dyck_color
 
     for state in model.states():
         attrs = model.graph.state_attrs(state)
@@ -256,6 +318,15 @@ def viz_context(model: StateMachine, *, style: str = "auto") -> VizContext:
         if state in recurrent_fill:
             return _RECURRENT_FILL
         return None
+
+    def edge_color(transition: Transition) -> str | None:
+        color = specialized_color(transition)
+        if color:
+            return color
+        key = _emission_color_key(model, transition)
+        if key is None:
+            return None
+        return emission_colors.get(key)
 
     return VizContext(
         title=title,

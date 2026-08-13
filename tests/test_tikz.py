@@ -39,6 +39,17 @@ def test_dfa_tikz_symbol_only():
     assert r"\Edge{" not in tikz
 
 
+def test_tikz_colors_edges_by_emission_by_default():
+    from sofic.viz._context import EMISSION_PALETTE, tikz_draw_color
+
+    tikz = model_to_tikz(golden_mean_forward(0.5))
+    assert f"draw={tikz_draw_color(EMISSION_PALETTE[0])}" in tikz
+    assert f"draw={tikz_draw_color(EMISSION_PALETTE[1])}" in tikz
+
+    plain = model_to_tikz(golden_mean_forward(0.5), color_by_emission=False)
+    assert "draw=" not in plain
+
+
 def test_sofic_dyck_tikz_marks_matched_edges():
     from sofic.examples import sofic_dyck_nondeterminizable_shift
 

@@ -28,6 +28,12 @@ installed (``pip install sofic[viz]`` plus the system ``graphviz`` binary):
 Models implement Jupyter display via ``_repr_mimebundle_``, so simply
 evaluating a model in a notebook shows its diagram when Graphviz is available.
 
+By default, edges that share an emission (or an input/label symbol, on
+automata and shifts with no emissions) are drawn in the same colour. Pass
+``color_by_emission=False`` to ``draw`` / ``to_graphviz`` / ``to_tikz`` for
+uncoloured edges. Visibly pushdown automata and Dyck shifts keep their
+call / return / internal colours.
+
 TikZ / LaTeX
 ============
 
