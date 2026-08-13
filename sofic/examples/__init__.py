@@ -3,6 +3,7 @@
 from importlib import import_module as _import_module
 
 from sofic.examples.epsilon_machines import (
+    TENT_MAP_MISIUREWICZ_PARTITIONS,
     alternating_biased_coins,
     bernoulli,
     butterfly_process,
@@ -25,6 +26,10 @@ from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_forward,
     tent_map_misiurewicz_hmm,
     tent_map_misiurewicz_information_expected,
+    tent_map_misiurewicz_partition_cuts,
+    tent_map_misiurewicz_partition_forward,
+    tent_map_misiurewicz_partition_information_expected,
+    tent_map_misiurewicz_partition_symbol_matrices,
     tent_map_misiurewicz_reverse,
 )
 from sofic.examples.processes import *
@@ -63,11 +68,16 @@ __all__ = [
     "sofic_dyck_fig1_shift",
     "sofic_dyck_nondeterminizable_shift",
     "sofic_dyck_zeta_example_shift",
+    "TENT_MAP_MISIUREWICZ_PARTITIONS",
     "tent_map_misiurewicz_a",
     "tent_map_misiurewicz_bidirectional",
     "tent_map_misiurewicz_forward",
     "tent_map_misiurewicz_hmm",
     "tent_map_misiurewicz_information_expected",
+    "tent_map_misiurewicz_partition_cuts",
+    "tent_map_misiurewicz_partition_forward",
+    "tent_map_misiurewicz_partition_information_expected",
+    "tent_map_misiurewicz_partition_symbol_matrices",
     "tent_map_misiurewicz_reverse",
 ]
 __all__ += _process_all

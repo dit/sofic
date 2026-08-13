@@ -40,10 +40,89 @@ Other literature processes
 Tent map (Misiurewicz point)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Read through the two-letter kneading partition, split at the critical point
+``c = 1/2`` (James et al. :cite:`James2013`, supplement Figs.~6--8):
+
 * :func:`tent_map_misiurewicz_hmm` — non-unifilar HMM
 * :func:`tent_map_misiurewicz_forward`, :func:`tent_map_misiurewicz_reverse`
 * :func:`tent_map_misiurewicz_bidirectional` — information anatomy reference
 * :func:`tent_map_misiurewicz_information_expected` — expected measure dict
+
+The four generating partitions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The critical point can be joined by either or both of its order-1 preimages,
+``L = 1/(2a)`` and ``R = 1 - 1/(2a)``, giving four generating partitions of the
+*same* dynamics. All four are handled together by one family of constructors,
+keyed by the cuts they make:
+
+* :func:`tent_map_misiurewicz_partition_forward` — the ε-machine
+* :func:`tent_map_misiurewicz_partition_symbol_matrices` — the ``T^(x)`` matrices
+* :func:`tent_map_misiurewicz_partition_information_expected` — expected measure dict
+* :func:`tent_map_misiurewicz_partition_cuts` — the cut points
+* :data:`TENT_MAP_MISIUREWICZ_PARTITIONS` — the four keys, in refinement order
+
+Because every partition is generating they share the entropy rate
+``h_mu = log2(a) ≈ 0.8232``, and each is strictly sofic with infinite Markov and
+cryptic order. Only the anatomy split moves:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 16 8 10 32 12
+
+   * - Partition
+     - Cuts
+     - States
+     - Alphabet
+     - ``r_mu``
+     - ``r_mu`` ≈
+   * - ``"c"``
+     - ``c``
+     - 4
+     - 2
+     - ``(59 + 7a - 11a**2)/57``
+     - 0.6483
+   * - ``"Lc"``
+     - ``L, c``
+     - 5
+     - 3
+     - ``(56 + 25a - 23a**2)/57``
+     - 0.4953
+   * - ``"cR"``
+     - ``c, R``
+     - 5
+     - 3
+     - ``(1 - 6a + 4a**2)/19``
+     - 0.1529
+   * - ``"LcR"``
+     - ``L, c, R``
+     - 5
+     - 4
+     - ``0``
+     - 0.0000
+
+Reducing modulo the parameter's minimal polynomial ``a**3 = 2a + 2`` makes every
+transition probability and every ephemeral rate a quadratic in ``a`` with
+rational coefficients. Two exact identities fall out. The rate is *modular* over
+the two cuts,
+
+.. math::
+
+   r_\mu(\{c\}) - r_\mu(\{L, c\}) - r_\mu(\{c, R\}) + r_\mu(\{L, c, R\}) = 0,
+
+so each cut is worth a fixed number of bits whether or not the other has been
+made; and the ``L`` cut's share, ``(1 - 6a + 4a**2)/19``, is exactly the
+invariant measure of the two cells of the interval Markov chain that it
+separates. Adding both cuts drives ``r_mu`` to zero, leaving the whole entropy
+rate as bound information.
+
+``"c"`` is the kneading partition above, so
+:func:`tent_map_misiurewicz_partition_forward` with ``"c"`` reproduces
+:func:`tent_map_misiurewicz_forward` up to state names: the family names states
+by decreasing stationary probability, making them comparable across partitions,
+whereas :func:`tent_map_misiurewicz_forward` keeps the published figure's labels.
+The three refinements are derived from the exact interval Markov chain, since the
+2013 supplement's figures cover only the kneading partition.
 
 Sofic-Dyck shifts
 ~~~~~~~~~~~~~~~~~
@@ -144,6 +223,11 @@ API
 .. autofunction:: tent_map_misiurewicz_bidirectional
 .. autofunction:: tent_map_misiurewicz_a
 .. autofunction:: tent_map_misiurewicz_information_expected
+.. autofunction:: tent_map_misiurewicz_partition_cuts
+.. autofunction:: tent_map_misiurewicz_partition_forward
+.. autofunction:: tent_map_misiurewicz_partition_symbol_matrices
+.. autofunction:: tent_map_misiurewicz_partition_information_expected
+.. autodata:: TENT_MAP_MISIUREWICZ_PARTITIONS
 .. autofunction:: dyck_shift_order
 .. autofunction:: motzkin_shift
 .. autofunction:: sofic_dyck_fig1_shift
