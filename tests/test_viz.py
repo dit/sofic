@@ -8,7 +8,7 @@ from sofic.automata.dfa import DFA
 from sofic.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
 from sofic.generators.markov import MarkovChain
 from sofic.graph import ATTR_PROB
-from sofic.viz._context import viz_context
+from sofic.viz._context import EMISSION_PALETTE, viz_context
 from sofic.viz._format import (
     format_belief,
     format_distribution,
@@ -277,3 +277,31 @@ def test_format_prob_label_symbolic():
     assert format_prob_label(sp.Rational(1, 2)) == "1/2"
     assert "a" in format_prob_label(a / (a + 1))
     assert format_prob_label(0.5) == "1/2"
+
+
+def test_edges_colored_by_emission_by_default():
+    eps = golden_mean()
+    source = model_to_graphviz(eps).source
+    assert f'color="{EMISSION_PALETTE[0]}"' in source
+    assert f'color="{EMISSION_PALETTE[1]}"' in source
+
+    context = viz_context(eps)
+    by_symbol: dict[object, set[str | None]] = {}
+    for transition in eps.transitions():
+        by_symbol.setdefault(transition.data["emission"], set()).add(context.edge_color(transition))
+    assert by_symbol[0] == {EMISSION_PALETTE[0]}
+    assert by_symbol[1] == {EMISSION_PALETTE[1]}
+
+
+def test_color_by_emission_can_be_disabled():
+    source = model_to_graphviz(golden_mean(), color_by_emission=False).source
+    assert 'color="#' not in source
+
+
+def test_dfa_edges_colored_by_input_symbol():
+    source = model_to_graphviz(_dfa()).source
+    assert f'color="{EMISSION_PALETTE[0]}"' in source
+    assert f'color="{EMISSION_PALETTE[1]}"' in source
+
+    plain = model_to_graphviz(_dfa(), color_by_emission=False).source
+    assert 'color="#' not in plain

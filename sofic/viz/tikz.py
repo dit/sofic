@@ -12,7 +12,7 @@ from typing import Any
 
 from sofic.base import StateMachine
 from sofic.graph import Transition
-from sofic.viz._context import VizContext, viz_context
+from sofic.viz._context import VizContext, tikz_draw_color, viz_context
 from sofic.viz._edge import (
     PART_EMISSION,
     PART_KIND,
@@ -169,6 +169,7 @@ def model_to_tikz(
     rankdir: str | None = None,
     label: str | None = None,
     edge_label_pos: float = 0.5,
+    color_by_emission: bool = True,
 ) -> str:
     """Return a Vaucanson-style TikZ picture for ``model``.
 
@@ -176,9 +177,12 @@ def model_to_tikz(
         edge_label_pos: Fraction along each edge (0 = source, 1 = target) at
             which to place the edge label.  Use ``1/3`` to keep labels clear of
             mid-edge crossings.
+        color_by_emission: Colour edges by emission (or input/label symbol).
+            Defaults to ``True``. Visibly pushdown / Dyck kind colours take
+            precedence.
     """
     model = _model_for_viz(model)
-    context = viz_context(model, style=style)
+    context = viz_context(model, style=style, color_by_emission=color_by_emission)
 
     if layout == "circle":
         coords = layout_circle(model, radius=radius, positions=positions, angles=angles)
@@ -249,6 +253,10 @@ def model_to_tikz(
                 has_reverse=has_reverse,
                 loop_style=loop_styles.get((source, target, index)),
             )
+            color = context.edge_color(transition)
+            if color:
+                draw = f"draw={tikz_draw_color(color)}"
+                style_opts = f"{style_opts}, {draw}" if style_opts else draw
             edge_label = _tikz_edge_label(model, transition)
             source_name = node_name(source)
             target_name = node_name(target)
