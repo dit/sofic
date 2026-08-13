@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from sofic.examples.epsilon_machines import bernoulli, even_process, golden_mean
-from sofic.generators.epsilon_inference import cssr, subtree_merge
+from sofic.generators.epsilon_inference import cssr, spectral, subtree_merge
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.hmm_inference import sample
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
@@ -160,3 +160,47 @@ def test_cssr_short_sequence_raises():
 def test_subtree_merge_short_sequence_raises():
     with pytest.raises(ValueError, match="at least two"):
         subtree_merge([1], L=1)
+
+
+def test_spectral_bernoulli_single_state():
+    oracle = bernoulli(0.3)
+    alphabet = sorted(oracle.observation_alphabet, key=repr)
+    inferred = spectral(word_probability=oracle.word_probability, alphabet=alphabet, prefix_length=2, rank=1)
+    inferred.validate()
+    assert len(list(inferred.states())) == 1
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=1e-9)
+
+
+def test_spectral_golden_mean_recovers_two_states():
+    oracle = golden_mean(0.5)
+    alphabet = sorted(oracle.observation_alphabet, key=repr)
+    inferred = spectral(word_probability=oracle.word_probability, alphabet=alphabet, prefix_length=3, rank=2)
+    inferred.validate()
+    assert len(list(inferred.states())) == 2
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=1e-6)
+    assert inferred.statistical_complexity() == pytest.approx(oracle.statistical_complexity(), abs=1e-6)
+    assert _signatures_isomorphic(inferred, oracle, prob_tol=0.05)
+
+
+def test_spectral_even_process_recovers_two_states():
+    oracle = even_process(0.5)
+    alphabet = sorted(oracle.observation_alphabet, key=repr)
+    inferred = spectral(word_probability=oracle.word_probability, alphabet=alphabet, prefix_length=3, rank=2)
+    inferred.validate()
+    assert len(list(inferred.states())) == 2
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=1e-6)
+    assert inferred.statistical_complexity() == pytest.approx(oracle.statistical_complexity(), abs=1e-6)
+    assert _signatures_isomorphic(inferred, oracle, prob_tol=0.05)
+
+
+def test_from_sequence_spectral_dispatch(rng: np.random.Generator):
+    oracle = bernoulli(0.4)
+    observations, _ = sample(oracle, 400, rng)
+    inferred = EpsilonMachine.from_sequence(observations, method="spectral", prefix_length=2, rank=1)
+    inferred.validate()
+    assert len(list(inferred.states())) == 1
+
+
+def test_from_sequence_unknown_method():
+    with pytest.raises(ValueError, match="unknown inference method"):
+        EpsilonMachine.from_sequence([0, 1, 0], method="nsd")

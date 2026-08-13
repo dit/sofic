@@ -51,7 +51,7 @@ class EpsilonMachine(MealyHMM):
         cls,
         sequence: Sequence[Any],
         *,
-        method: Literal["cssr", "subtree"] = "cssr",
+        method: Literal["cssr", "subtree", "spectral"] = "cssr",
         **kwargs: Any,
     ) -> EpsilonMachine:
         """Reconstruct an ε-machine from an observed symbol sequence.
@@ -61,11 +61,14 @@ class EpsilonMachine(MealyHMM):
         sequence
             Observed process realization.
         method
-            ``"cssr"`` for Causal-State Splitting Reconstruction, or
-            ``"subtree"`` for depth-``L`` subtree merging (pass ``L=...``).
+            ``"cssr"`` for Causal-State Splitting Reconstruction,
+            ``"subtree"`` for depth-``L`` subtree merging (pass ``L=...``), or
+            ``"spectral"`` for Hankel-SVD learning followed by mixed-state
+            extraction.
         **kwargs
-            Forwarded to :func:`~sofic.generators.epsilon_inference.cssr` or
-            :func:`~sofic.generators.epsilon_inference.subtree_merge`.
+            Forwarded to :func:`~sofic.generators.epsilon_inference.cssr`,
+            :func:`~sofic.generators.epsilon_inference.subtree_merge`, or
+            :func:`~sofic.generators.epsilon_inference.spectral`.
         """
         if method == "cssr":
             from sofic.generators.epsilon_inference import cssr
@@ -75,6 +78,10 @@ class EpsilonMachine(MealyHMM):
             from sofic.generators.epsilon_inference import subtree_merge
 
             return subtree_merge(sequence, **kwargs)
+        if method == "spectral":
+            from sofic.generators.epsilon_inference import spectral
+
+            return spectral(sequence, **kwargs)
         raise ValueError(f"unknown inference method {method!r}")
 
     def copy(self) -> Self:

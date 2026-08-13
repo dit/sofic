@@ -9,10 +9,11 @@ Sample-based reconstruction of ε-machines from observed symbol sequences.
 This complements the **oracle** path :func:`~sofic.generators.epsilon_construction.build_epsilon_machine`,
 which merges probabilistically equivalent states in a *given* generator.
 
-Two algorithms are implemented:
+Three algorithms are implemented:
 
 * **CSSR** (Causal-State Splitting Reconstruction) :cite:`Shalizi2002,Shalizi2004`
 * **Subtree merging** (Crutchfield--Young batch reconstruction) :cite:`CrutchfieldYoung1989,Crutchfield1994`
+* **Spectral** (Hankel SVD, then mixed-state extraction) :cite:`Balle2014,Hsu2012,Ellison2009`
 
 Quick start
 ===========
@@ -55,16 +56,50 @@ numerical tolerance for finite-sample estimates.
 
 .. autofunction:: subtree_merge
 
+Spectral reconstruction
+=======================
+
+Spectral reconstruction learns a weighted finite automaton from the Hankel matrix
+of block probabilities :cite:`Balle2014,Hsu2012`, then extracts causal states as
+mixed states of the learned operators :cite:`Ellison2009`. When the operators
+are non-negative in the learned basis this is a Mealy projection followed by
+:meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_hmm`; signed
+operators use mixed-state enumeration of the observable operators (not a
+clustering heuristic). The same extraction is
+:func:`~sofic.inference.spectral.project_to_epsilon_machine`.
+
+Pass ``rank`` when the model order is known (two for the golden mean and even
+process). Otherwise the Hankel singular-value gap selects the rank.
+
+.. code-block:: python
+
+   inferred = EpsilonMachine.from_sequence(
+       observations, method="spectral", prefix_length=3, rank=2
+   )
+
+.. autofunction:: spectral
+
 Unified entry point
 ===================
 
 Use :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_sequence` to
-dispatch to CSSR or subtree merging (see :doc:`epsilon_machine`).
+dispatch to CSSR, subtree merging, or spectral reconstruction
+(see :doc:`epsilon_machine`).
 
-Related inference methods (not yet implemented)
-===============================================
+Related inference methods
+=========================
 
-**transCSSR** — input/output ε-transducers (Darmon, 2014).
+**transCSSR** — input/output ε-transducers; see :doc:`epsilon_transducer_inference`.
+
+**Bayesian structural inference** — conjugate Dirichlet–multinomial evidence over
+candidate unifilar topologies :cite:`Strelioff2014`; see :doc:`../inference/epsilon`.
+This is not a Gibbs clustering heuristic over history labels.
+
+Subtree merging is the literature reconstruction by morph clustering; a separate
+agglomerative "causal-state merging" procedure is not provided. k-means on
+history-morph embeddings (sometimes labelled "neural state discovery" despite
+involving no neural network) is also not provided — mixed-state extraction is
+the causal-state construction used after spectral learning.
 
 **VLMC / context algorithm** — sparse Markov trees; not causally minimal in general.
 
@@ -76,4 +111,5 @@ Related inference methods (not yet implemented)
 
 **RKHS ε-machines** — continuous-time extension (arXiv:2011.14821).
 
-See also :doc:`epsilon_machine`, :doc:`constructions`, and :doc:`hmm_inference`.
+See also :doc:`epsilon_machine`, :doc:`constructions`, :doc:`hmm_inference`,
+and :doc:`../inference/spectral`.
