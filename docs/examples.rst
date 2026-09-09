@@ -143,6 +143,24 @@ figures:
 * :func:`golden_mean`
 * :func:`noisy_random_phase_slip`
 
+Tetris randomizers
+~~~~~~~~~~~~~~~~~~
+
+Unifilar ε-machines for tetromino spawn algorithms. All use the seven-letter
+alphabet ``IJLOSTZ`` and the *stationary* piece process (game-start transients
+such as TGM's initial history and the first-piece S/Z/O ban are omitted).
+
+* :func:`tetris_iid` — uniform i.i.d. draws
+* :func:`tetris_nes` — idealized NES one-reroll randomizer :cite:`TetrisWikiNES`
+* :func:`tetris_bag` — Guideline 7-bag (Random Generator) :cite:`TetrisWikiRandomGenerator`
+* :func:`tetris_history` — TGM-style history window with a reroll budget :cite:`TetrisWikiTGM`
+* :func:`tetris_tgm`, :func:`tetris_tgm2` — TGM1 (4 history / 4 rolls) and TGM2 (4 / 6)
+* :func:`tetris_gameboy` — Game Boy 1989 bitwise-OR randomizer :cite:`HardDropGameBoy`
+
+TGM3's 35-pool drought randomizer is not expanded: its state space is millions
+of configurations. These factories are not registered on
+``processes.process_list``.
+
 Process library
 ---------------
 
@@ -233,3 +251,10 @@ API
 .. autofunction:: sofic_dyck_fig1_shift
 .. autofunction:: sofic_dyck_nondeterminizable_shift
 .. autofunction:: sofic_dyck_zeta_example_shift
+.. autofunction:: tetris_iid
+.. autofunction:: tetris_nes
+.. autofunction:: tetris_bag
+.. autofunction:: tetris_history
+.. autofunction:: tetris_tgm
+.. autofunction:: tetris_tgm2
+.. autofunction:: tetris_gameboy
