@@ -540,3 +540,55 @@ def test_word_cylinder_measure_weighs_the_reachable_interval():
 def test_colex_cdf_rejects_non_wheeler_machines():
     with pytest.raises(WheelerError):
         colex_cdf(even_process())
+
+
+# Smallest process whose ε-machine is Wheeler but whose time reversal's is not.
+# Found by exhaustive search over binary topological ε-machines: forward and
+# reverse Wheelerness first disagree at three states (reverse-only) and at four
+# states (forward-only), so neither implies the other.  Edges are
+# ``(source, target, symbol)``.
+_REVERSAL_WITNESS_FORWARD = [(0, 0, 0), (0, 1, 1), (1, 0, 0), (1, 2, 1), (2, 3, 0), (3, 1, 1)]
+_REVERSAL_WITNESS_REVERSE = [(0, 1, 1), (0, 2, 0), (1, 0, 0), (1, 3, 1), (2, 2, 0), (2, 3, 1), (3, 0, 0)]
+
+
+def _presentation(edges) -> DFA:
+    states = {source for source, _, _ in edges} | {target for _, target, _ in edges}
+    dfa = DFA(
+        input_alphabet=frozenset({0, 1}),
+        initial_states=frozenset({min(states)}),
+        accepting_states=frozenset(states),
+    )
+    for state in sorted(states):
+        dfa.graph.add_state(state)
+    for source, target, symbol in edges:
+        dfa.add_transition(source, target, symbol)
+    return dfa
+
+
+def _factor_words(edges, length):
+    states = {source for source, _, _ in edges} | {target for _, target, _ in edges}
+    reached = {(state, ()) for state in states}
+    for _ in range(length):
+        reached = {
+            (target, word + (symbol,)) for state, word in reached for source, target, symbol in edges if source == state
+        }
+    return {word for _, word in reached}
+
+
+@pytest.mark.parametrize("length", [1, 2, 3, 4, 5, 6])
+def test_the_reversal_witness_presentations_are_genuine_reverses(length):
+    forward = _factor_words(_REVERSAL_WITNESS_FORWARD, length)
+    backward = _factor_words(_REVERSAL_WITNESS_REVERSE, length)
+    assert backward == {word[::-1] for word in forward}
+
+
+def test_wheelerness_is_not_preserved_by_time_reversal():
+    assert is_wheeler(_presentation(_REVERSAL_WITNESS_FORWARD))
+    assert not is_wheeler(_presentation(_REVERSAL_WITNESS_REVERSE))
+
+
+def test_the_reversal_witness_fails_sortability_not_input_consistency():
+    """Both presentations are input consistent; only the forward one sorts."""
+    assert is_input_consistent(_presentation(_REVERSAL_WITNESS_FORWARD))
+    assert is_input_consistent(_presentation(_REVERSAL_WITNESS_REVERSE))
+    assert colex_width(_presentation(_REVERSAL_WITNESS_REVERSE)) > 1
