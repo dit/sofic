@@ -524,6 +524,21 @@ class EpsilonMachine(MealyHMM):
 
         return is_asymptotically_synchronizable_from_graph(graph_from_epsilon_machine(self))
 
+    def reverse_is_finite(self) -> bool:
+        """Return whether the reverse ε-machine has finitely many causal states.
+
+        Decided in polynomial time by the twins property rather than by
+        enumerating beliefs; see
+        :func:`~sofic.generators.reversal.reverse_is_finite`. Use this before
+        :meth:`from_time_reversed` or :meth:`causal_irreversibility`, both of
+        which raise
+        :class:`~sofic.exceptions.MixedStateExplosionError` when it returns
+        ``False``.
+        """
+        from sofic.generators.reversal import reverse_is_finite
+
+        return reverse_is_finite(self)
+
     def is_definite(self) -> bool:
         """Return whether the ε-machine is a definite automaton (finite Markov order).
 

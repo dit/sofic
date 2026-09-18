@@ -119,6 +119,69 @@ def test_explosive_reverse_belief_set_does_not_close():
     assert issubclass(MixedStateExplosionError, StochasticValidationError)
 
 
+def test_reverse_is_finite_decides_explosion():
+    from sofic.examples import golden_mean_forward
+
+    assert not _explosive_forward().reverse_is_finite()
+    assert golden_mean_forward(0.5).reverse_is_finite()
+    assert ellison_fig9_forward().reverse_is_finite()
+
+
+def test_reverse_is_finite_sees_parallel_pair_edges():
+    """Regression: two symbols may carry a pair to the same successor.
+
+    Here ``(B, C)`` reaches ``(C, A)`` under both ``0`` and ``1`` with different
+    ratios. Collapsing those parallel edges hides the non-unit cycle and reports
+    this explosive machine as finite.
+    """
+    spec = {
+        "A": [("0", "B", 1 / 3), ("1", "A", 2 / 3)],
+        "B": [("0", "C", 2 / 5), ("1", "C", 3 / 5)],
+        "C": [("0", "A", 4 / 7), ("1", "A", 3 / 7)],
+    }
+    eps = EpsilonMachine(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    for state in spec:
+        eps.graph.add_state(state)
+    for state, edges in spec.items():
+        for symbol, target, prob in edges:
+            eps.graph.add_transition(state, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+
+    assert not eps.reverse_is_finite()
+
+
+def test_reverse_is_finite_is_not_a_structural_condition():
+    """Same transition structure as the witness, but finite for these probabilities.
+
+    The pair-graph cycle weight happens to be one here, so the belief set closes.
+    A structure-only test cannot distinguish these two machines.
+    """
+    finite = EpsilonMachine(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    spec = {
+        "A": [("0", "A", 1 / 3), ("1", "B", 2 / 3)],
+        "B": [("0", "A", 1 / 2), ("1", "C", 1 / 2)],
+        "C": [("0", "B", 2 / 3), ("1", "A", 1 / 3)],
+    }
+    for state in spec:
+        finite.graph.add_state(state)
+    for state, edges in spec.items():
+        for symbol, target, prob in edges:
+            finite.graph.add_transition(state, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+
+    assert finite.reverse_is_finite()
+    assert not _explosive_forward().reverse_is_finite()
+
+    # and the prediction is borne out by actually building it
+    reverse = EpsilonMachine.from_time_reversed(finite)
+    reverse.validate()
+    assert len(list(reverse.states())) >= 1
+
+
 def test_from_time_reversed_propagates_explosion_instead_of_degrading():
     """Regression: the row-normalized fallback must not mask an infinite reverse.
 
