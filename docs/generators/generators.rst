@@ -38,6 +38,7 @@ Computational mechanics
    generative_models
    directional_flow
    alternative_complexity
+   wheeler_epsilon
 
 Constructions and conversions
 =============================

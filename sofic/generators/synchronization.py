@@ -7,6 +7,7 @@ on unifilar graph topology, not transition probabilities.
 
 from __future__ import annotations
 
+import bisect
 import math
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from typing import Any
 
 import networkx as nx
 
+from sofic.automata.wheeler import LabeledGraph, WheelerOrder, wheeler_order_of_graph
 from sofic.exceptions import UnifilarityError
 from sofic.graph import ATTR_EMISSION, ATTR_SYMBOL
 
@@ -61,8 +63,31 @@ def build_topological_graph_from_transitions(
     return TopologicalUnifilarGraph(states=states, alphabet=alphabet, transitions=dict(transitions))
 
 
+def labeled_graph_of(graph: TopologicalUnifilarGraph) -> LabeledGraph:
+    """View a topological graph as a :class:`~sofic.automata.wheeler.LabeledGraph`."""
+    return LabeledGraph(
+        states=tuple(sorted(graph.states, key=repr)),
+        alphabet=tuple(sorted(graph.alphabet, key=repr)),
+        edges=tuple((source, symbol, target) for (source, symbol), target in graph.transitions.items()),
+    )
+
+
 def power_automaton(graph: TopologicalUnifilarGraph) -> PowerAutomaton:
-    """Build the power automaton via subset construction from the full state set."""
+    """Build the power automaton by subset construction from the full state set.
+
+    When ``graph`` is Wheeler the construction runs over co-lex *intervals*
+    instead of arbitrary subsets. Path coherence guarantees the two agree
+    :cite:`Gagie2017`, but the interval form visits at most ``n(n+1)/2`` states
+    and steps in ``O(log n)`` rather than ``O(n)``, so the synchronization
+    orders built on top of it stay polynomial.
+    """
+    order = wheeler_order_of_graph(labeled_graph_of(graph))
+    if order is not None:
+        return _interval_power_automaton(graph, order)
+    return _subset_power_automaton(graph)
+
+
+def _subset_power_automaton(graph: TopologicalUnifilarGraph) -> PowerAutomaton:
     start = frozenset(graph.states)
     pa = PowerAutomaton(graph=graph, start=start)
     queue = [start]
@@ -75,6 +100,55 @@ def power_automaton(graph: TopologicalUnifilarGraph) -> PowerAutomaton:
             if not successor:
                 continue
             pa.transitions[current][symbol] = successor
+            if successor not in seen:
+                seen.add(successor)
+                queue.append(successor)
+    return pa
+
+
+def _interval_power_automaton(graph: TopologicalUnifilarGraph, order: WheelerOrder) -> PowerAutomaton:
+    """Subset construction restricted to intervals of a Wheeler order.
+
+    Axiom two makes the target rank non-decreasing in the source rank for each
+    symbol, so the image of a rank interval is bracketed by the first and last
+    edges whose sources fall inside it -- two binary searches per step.
+    """
+    edges_by_symbol: dict[Any, tuple[list[int], list[int]]] = {}
+    for symbol in graph.alphabet:
+        pairs = sorted(
+            (order.rank[source], order.rank[target])
+            for (source, edge_symbol), target in graph.transitions.items()
+            if edge_symbol == symbol
+        )
+        if pairs:
+            edges_by_symbol[symbol] = ([source for source, _ in pairs], [target for _, target in pairs])
+
+    def image(interval: tuple[int, int], symbol: Any) -> tuple[int, int] | None:
+        found = edges_by_symbol.get(symbol)
+        if found is None:
+            return None
+        sources, targets = found
+        low = bisect.bisect_left(sources, interval[0])
+        high = bisect.bisect_right(sources, interval[1]) - 1
+        if low > high:
+            return None
+        return (targets[low], targets[high])
+
+    def as_subset(interval: tuple[int, int]) -> frozenset[Hashable]:
+        return frozenset(order.states[rank] for rank in range(interval[0], interval[1] + 1))
+
+    start = (0, len(order.states) - 1)
+    pa = PowerAutomaton(graph=graph, start=as_subset(start))
+    queue = [start]
+    seen = {start}
+    while queue:
+        current = queue.pop(0)
+        out_map = pa.transitions.setdefault(as_subset(current), {})
+        for symbol in graph.alphabet:
+            successor = image(current, symbol)
+            if successor is None:
+                continue
+            out_map[symbol] = as_subset(successor)
             if successor not in seen:
                 seen.add(successor)
                 queue.append(successor)

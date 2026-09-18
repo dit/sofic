@@ -331,7 +331,13 @@ def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.generators.quasi_realization import QuasiRealization
     from sofic.generators.stack_hmm import HiddenMarkovStackModel
     from sofic.shifts.base import SymbolicModel
-    from sofic.shifts.covers import LeftFischerCover, LeftKriegerCover, RightFischerCover, RightKriegerCover
+    from sofic.shifts.covers import (
+        LeftFischerCover,
+        LeftKriegerCover,
+        RightFischerCover,
+        RightKriegerCover,
+        WheelerCover,
+    )
     from sofic.shifts.markov_dyck import MarkovDyckShift
     from sofic.shifts.sft import ShiftOfFiniteType
     from sofic.shifts.sofic import SoficShift
@@ -447,4 +453,5 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(RightFischerCover, symbolic),
         _spec(LeftKriegerCover, symbolic),
         _spec(RightKriegerCover, symbolic),
+        _spec(WheelerCover, symbolic),
     )

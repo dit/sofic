@@ -441,6 +441,32 @@ class EpsilonMachine(MealyHMM):
         order = self.markov_order()
         return not isinstance(order, float) or math.isfinite(order)
 
+    def wheeler_presentation(self, **kwargs: Any) -> Any:
+        """Return a Wheeler presentation of this process.
+
+        Returns ``self`` when :meth:`~sofic.base.StateMachine.is_wheeler`,
+        otherwise the smallest edge-machine refinement whose states sort
+        co-lexicographically. See
+        :func:`sofic.generators.wheeler_epsilon.wheeler_presentation` --
+        original, uncited work.
+        """
+        from sofic.generators.wheeler_epsilon import wheeler_presentation
+
+        return wheeler_presentation(self, **kwargs)
+
+    def wheeler_statistical_complexity(self, **kwargs: Any) -> float:
+        """``C_W``: state entropy of a Wheeler presentation, in bits.
+
+        Always at least :meth:`statistical_complexity`, with equality exactly
+        when the epsilon-machine is already Wheeler. The gap is the memory
+        spent making the causal states intervals of the recency order on pasts.
+        See :func:`sofic.generators.wheeler_epsilon.wheeler_statistical_complexity`
+        -- original, uncited work.
+        """
+        from sofic.generators.wheeler_epsilon import wheeler_statistical_complexity
+
+        return wheeler_statistical_complexity(self, **kwargs)
+
     def cryptic_order(self) -> int | float:
         """Cryptic order ``k_chi``: retrodiction depth after synchronization.
 

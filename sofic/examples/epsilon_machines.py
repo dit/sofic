@@ -1062,6 +1062,50 @@ def tent_map_misiurewicz_information_expected(a: Any | None = None) -> dict[str,
     }
 
 
+def wheeler_infinite_order_process(p: float = 0.5, q: float = 0.5, r: float = 0.5) -> EpsilonMachine:
+    """Five-state Wheeler ε-machine of infinite Markov order.
+
+    The discriminating example separating the Wheeler property from finite
+    memory. Its causal states admit the Wheeler order ``A < E < B < C < D``, so
+    every state owns an interval of the recency-ordered pasts, yet no bounded
+    window of symbols fixes the state: :meth:`~EpsilonMachine.markov_order` is
+    infinite. Wheelerness is therefore *not* a restatement of definiteness.
+
+    Found by exhaustive search over binary topological ε-machines with
+    :func:`~sofic.generators.topological_epsilon_enumeration.iter_topological_epsilon_machines`;
+    twenty of the 35186 five-state machines share both properties. No prior
+    source states this example.
+    """
+    for name, value in (("p", p), ("q", q), ("r", r)):
+        if not 0.0 < value < 1.0:
+            raise ValueError(f"{name} must be in (0, 1)")
+    states = ("A", "B", "C", "D", "E")
+    return from_symbol_matrices(
+        states,
+        (0, 1),
+        {
+            0: np.array(
+                [
+                    [p, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                    [q, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 1.0],
+                    [r, 0.0, 0.0, 0.0, 0.0],
+                ]
+            ),
+            1: np.array(
+                [
+                    [0.0, 1.0 - p, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0 - q, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0 - r, 0.0, 0.0],
+                ]
+            ),
+        },
+    )
+
+
 def ellison_fig9_reverse() -> EpsilonMachine:
     """Reverse ε-machine from Ellison et al., arXiv:1107.2168, Fig.~9.
 
