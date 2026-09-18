@@ -64,11 +64,16 @@ Reversal
 ========
 
 A finite forward ε-machine does not imply a finite reverse one: a process can
-have three forward causal states and infinitely many retrodictive ones, making
-:math:`C_\mu^{-}` and hence :math:`\Delta C_\mu` infinite. :meth:`from_time_reversed`
-and :meth:`causal_irreversibility` then raise
+have finitely many forward causal states and infinitely many retrodictive ones.
+This is the "explosive irreversibility" of :cite:`Ellison2011`.
+:meth:`from_time_reversed` and :meth:`causal_irreversibility` then raise
 :class:`~sofic.exceptions.MixedStateExplosionError`, because there is no finite
 presentation to return.
+
+Infinitely many reverse states does not by itself make :math:`C_\mu^{-}`
+infinite — that is the entropy of the retrodictive stationary distribution, and
+it converges when those weights decay geometrically, as in the example above.
+The obstruction here is cardinality, not divergence.
 
 :meth:`reverse_is_finite` decides this in polynomial time without enumerating
 beliefs. Since the retrodictive causal states are the normalized vectors

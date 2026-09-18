@@ -36,7 +36,8 @@ def is_markov_like(model: StateMachine) -> bool:
 def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
     """Decide whether the reverse ε-machine of a unifilar ``model`` has finitely many states.
 
-    A finite forward ε-machine does not imply a finite reverse one. Because the
+    A finite forward ε-machine does not imply a finite reverse one
+    (:cite:`Ellison2011`). Because the
     seed belief is uniform and ``model`` is unifilar, the retrodictive causal
     states are exactly the normalized vectors :math:`(\\Pr(x \\mid s))_{s}` over
     all words :math:`x`, so the reverse machine is finite iff every

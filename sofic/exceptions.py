@@ -23,8 +23,9 @@ class MixedStateExplosionError(StochasticValidationError):
     This is distinct from a malformed model: the belief set may be genuinely
     infinite. A process can have a finite forward ε-machine and infinitely many
     retrodictive causal states, in which case the reverse mixed-state
-    presentation never closes no matter how large the cap
-    (see :cite:`Crutchfield2009` for :math:`\\Delta C_\\mu`).
+    presentation never closes no matter how large the cap. This is the
+    "explosive irreversibility" of :cite:`Ellison2011`; see
+    :cite:`Crutchfield2009` for :math:`\\Delta C_\\mu`.
     """
 
 

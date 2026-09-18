@@ -558,8 +558,9 @@ class EpsilonMachine(MealyHMM):
         ------
         MixedStateExplosionError
             If the reverse belief set does not close. A finite forward
-            ε-machine does not imply a finite reverse one, and when the reverse
-            is infinite there is no presentation to return.
+            ε-machine does not imply a finite reverse one -- the "explosive
+            irreversibility" of :cite:`Ellison2011` -- and when the reverse is
+            infinite there is no presentation to return.
         """
         from sofic.exceptions import (
             MixedStateExplosionError,
