@@ -73,3 +73,68 @@ def test_row_normalized_presentation_fallback():
     direct = _row_normalized_presentation(rev_hmm)
     direct.validate_stochastic()
     assert set(direct.states()) == set(eps.states())
+
+
+def _explosive_forward() -> EpsilonMachine:
+    """A three-state ε-machine with infinitely many retrodictive causal states.
+
+    The support is the full binary shift, so there is a single atom, yet the
+    reverse belief set never closes. Reading the future ``(01)^k`` multiplies the
+    posterior ratio ``z / y`` by exactly ``9 / 7`` per block, so those futures have
+    pairwise distinct posteriors for every ``k`` while all keeping full support.
+    """
+    spec = {
+        "A": [("0", "A", 1 / 3), ("1", "B", 2 / 3)],
+        "B": [("0", "A", 2 / 5), ("1", "C", 3 / 5)],
+        "C": [("0", "B", 4 / 7), ("1", "A", 3 / 7)],
+    }
+    eps = EpsilonMachine(
+        initial_distribution={"A": 1.0},
+        observation_alphabet=frozenset({"0", "1"}),
+    )
+    for state in spec:
+        eps.graph.add_state(state)
+    for state, edges in spec.items():
+        for symbol, target, prob in edges:
+            eps.graph.add_transition(state, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+    return eps
+
+
+def test_explosive_reverse_belief_set_does_not_close():
+    import pytest
+
+    from sofic.exceptions import MixedStateExplosionError, StochasticValidationError
+    from sofic.generators.mixed_state_construction import build_mixed_state_presentation
+
+    forward = _explosive_forward()
+    forward.validate()
+    assert forward.is_unifilar()
+
+    rev_hmm = time_reverse_stochastic(forward)
+    for cap in (32, 128):
+        with pytest.raises(MixedStateExplosionError):
+            build_mixed_state_presentation(rev_hmm, max_states=cap)
+
+    # Still a StochasticValidationError, so existing handlers keep working.
+    assert issubclass(MixedStateExplosionError, StochasticValidationError)
+
+
+def test_from_time_reversed_propagates_explosion_instead_of_degrading():
+    """Regression: the row-normalized fallback must not mask an infinite reverse.
+
+    Falling back here returns a non-unifilar machine whose state entropy equals
+    the forward statistical complexity, so ``causal_irreversibility`` silently
+    reports ``0.0`` for a process whose reverse ε-machine is infinite.
+    """
+    from unittest.mock import patch
+
+    import pytest
+
+    from sofic.exceptions import MixedStateExplosionError
+
+    forward = _explosive_forward()
+    with (
+        patch.object(EpsilonMachine, "from_hmm", side_effect=MixedStateExplosionError("did not close")),
+        pytest.raises(MixedStateExplosionError),
+    ):
+        EpsilonMachine.from_time_reversed(forward)

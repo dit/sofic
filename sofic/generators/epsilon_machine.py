@@ -537,13 +537,30 @@ class EpsilonMachine(MealyHMM):
 
     @classmethod
     def from_time_reversed(cls, forward: EpsilonMachine) -> EpsilonMachine:
-        """Build a reverse ε-machine presentation from ``forward``."""
-        from sofic.exceptions import StochasticValidationError, UnifilarityError
+        """Build a reverse ε-machine presentation from ``forward``.
+
+        Raises
+        ------
+        MixedStateExplosionError
+            If the reverse belief set does not close. A finite forward
+            ε-machine does not imply a finite reverse one, and when the reverse
+            is infinite there is no presentation to return.
+        """
+        from sofic.exceptions import (
+            MixedStateExplosionError,
+            StochasticValidationError,
+            UnifilarityError,
+        )
         from sofic.generators.reversal import time_reverse_stochastic
 
         rev_hmm = time_reverse_stochastic(forward)
         try:
             return cls.from_hmm(rev_hmm)
+        except MixedStateExplosionError:
+            # Row-normalizing would return a non-unifilar machine whose state
+            # entropy coincides with the forward C_mu, reporting Delta C_mu = 0
+            # for a process whose reverse machine is infinite.
+            raise
         except (StochasticValidationError, UnifilarityError):
             return _row_normalized_presentation(rev_hmm)
 
