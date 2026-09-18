@@ -42,9 +42,20 @@ from sofic.examples.shifts import (
     sofic_dyck_nondeterminizable_shift,
     sofic_dyck_zeta_example_shift,
 )
+from sofic.examples.tetris import (
+    TETROMINOES,
+    tetris_bag,
+    tetris_gameboy,
+    tetris_history,
+    tetris_iid,
+    tetris_nes,
+    tetris_tgm,
+    tetris_tgm2,
+)
 
 processes = _import_module("sofic.examples.processes")
 shifts = _import_module("sofic.examples.shifts")
+tetris = _import_module("sofic.examples.tetris")
 
 __all__ = [
     "alternating_biased_coins",
@@ -80,9 +91,18 @@ __all__ = [
     "tent_map_misiurewicz_partition_information_expected",
     "tent_map_misiurewicz_partition_symbol_matrices",
     "tent_map_misiurewicz_reverse",
+    "TETROMINOES",
+    "tetris_bag",
+    "tetris_gameboy",
+    "tetris_history",
+    "tetris_iid",
+    "tetris_nes",
+    "tetris_tgm",
+    "tetris_tgm2",
     "wheeler_infinite_order_process",
 ]
 __all__ += _process_all
-__all__ = [name for name in __all__ if name not in {"processes", "shifts"}]
+__all__ = [name for name in __all__ if name not in {"processes", "shifts", "tetris"}]
 __all__.append("processes")
 __all__.append("shifts")
+__all__.append("tetris")
