@@ -1073,8 +1073,9 @@ def wheeler_infinite_order_process(p: float = 0.5, q: float = 0.5, r: float = 0.
 
     Found by exhaustive search over binary topological ε-machines with
     :func:`~sofic.generators.topological_epsilon_enumeration.iter_topological_epsilon_machines`;
-    twenty of the 35186 five-state machines share both properties. No prior
-    source states this example.
+    twenty of the 35186 five-state machines share both properties, and five
+    states is the smallest size at which any does. No prior source states this
+    example.
     """
     for name, value in (("p", p), ("q", q), ("r", r)):
         if not 0.0 < value < 1.0:
