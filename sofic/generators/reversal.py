@@ -57,13 +57,26 @@ def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
     weights make the weight a potential difference, so the ratio depends only on
     the current pair and there are at most :math:`\\lvert S \\rvert^2` of them.
 
-    This is the twins property that characterizes determinizability of weighted
-    automata :cite:`Mohri2009`. A unifilar ε-machine is an unambiguous weighted
-    automaton over :math:`(\\mathbb{R}_{>0}, \\times)`, which is commutative and
-    cancellative, so the :math:`O(\\lvert Q \\rvert^2 + \\lvert E \\rvert^2)`
-    test of :cite:`AllauzenMohri2003` applies: cycles live only inside strongly
-    connected components, so it suffices to build a potential within each
-    component and check every intra-component edge against it.
+    That criterion is the twins property of weighted automata
+    :cite:`Mohri2009`, and in this form it is Theorem 5 of
+    :cite:`AllauzenMohri2003`: a trim cycle-unambiguous weighted automaton over a
+    commutative cancellative semiring has the twins property iff every cycle of
+    :math:`A \\cap A^{-1}` -- the pair graph -- has weight one. Unifilarity gives
+    exactly one path per (state, word), so the ε-machine is deterministic and
+    hence cycle-unambiguous, and :math:`(\\mathbb{R}_{>0}, \\times)` is
+    commutative and cancellative. Their Theorem 6 decides it in
+    :math:`O(\\lvert Q \\rvert^2 + \\lvert E \\rvert^2)`: cycles live only inside
+    strongly connected components, so it suffices to build a potential within
+    each component and check every intra-component edge against it. That is the
+    algorithm below.
+
+    Their "twins iff determinizable" equivalence is *not* what is being invoked:
+    it is stated for trim unambiguous automata over the tropical semiring, and
+    they note that over the real semiring twins does not imply determinizable for
+    infinitely ambiguous automata. Seeding the belief with full support makes
+    every state initial, so this automaton is :math:`\\lvert S \\rvert`-ambiguous
+    over the real semiring. The equivalence here rests on the direct argument
+    above instead, which unifilarity makes available.
 
     Note that this is *not* a structural condition. Machines with identical
     transition structure can differ, since a cycle weight can equal one by
