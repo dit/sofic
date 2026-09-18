@@ -361,8 +361,8 @@ def is_wheeler(model: Any, *, symbol_key: Callable[[Any], Any] | None = None) ->
 
     A property of the presentation. Whether the *language* is Wheeler -- whether
     some equivalent automaton is -- is a strictly weaker and much more expensive
-    question, decidable in ``O(mn)`` for a DFA and PSPACE-complete for an NFA
-    :cite:`Becker2023` :cite:`Alanko2021`. See
+    question, decidable in ``O(mn)`` for a DFA :cite:`Becker2023` and
+    PSPACE-complete for an NFA :cite:`DAgostino2023`. See
     :func:`~sofic.shifts.wheeler.wheeler_cover` and
     :func:`~sofic.generators.wheeler_epsilon.wheeler_presentation` for the
     search over presentations.

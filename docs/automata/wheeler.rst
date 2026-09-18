@@ -26,11 +26,13 @@ determinizing it.
 Presentations versus languages
 ==============================
 
-:func:`is_wheeler` asks whether *this presentation* is Wheeler, which is a
-sorting question answerable in polynomial time. Whether the *language* is
-Wheeler — whether any equivalent automaton is — is much harder: ``O(mn)`` for a
-DFA :cite:`Becker2023`, PSPACE-complete for an NFA :cite:`Alanko2021`, and
-NP-hard to recognize as a graph property :cite:`GibneyThankachan2019`.
+:func:`is_wheeler` asks whether *this presentation* is Wheeler. For a
+deterministic presentation that is a sorting question, answerable in polynomial
+time; for a general labeled graph, recognizing Wheelerness is NP-complete
+:cite:`GibneyThankachan2019`. Whether the *language* is Wheeler — whether any
+equivalent automaton is — is harder still: ``O(mn)`` for a DFA
+:cite:`Becker2023`, improving the first polynomial algorithm
+:cite:`Alanko2021`, and PSPACE-complete for an NFA :cite:`DAgostino2023`.
 :func:`~sofic.shifts.wheeler.wheeler_cover` and
 :func:`~sofic.generators.wheeler_epsilon.wheeler_presentation` search over
 presentations for the process-level question.
