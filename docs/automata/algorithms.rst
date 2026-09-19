@@ -42,6 +42,7 @@ API
 .. autofunction:: minimize_hopcroft
 .. autofunction:: minimize_moore
 .. autofunction:: minimize_brzozowski
+.. autofunction:: nerode_partition
 .. autofunction:: equivalent
 .. autofunction:: sofic.automata.regex.automaton_to_regex
 
