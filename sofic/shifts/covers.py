@@ -45,3 +45,19 @@ class RightKriegerCover(SoficShift):
         from sofic.shifts.cover_construction import right_krieger_from_sofic
 
         return right_krieger_from_sofic(shift)
+
+
+class WheelerCover(SoficShift):
+    """Wheeler presentation of a sofic shift, merged down.
+
+    Unlike the Fischer and Krieger covers this one need not exist: Wheeler
+    languages are star-free :cite:`Alanko2021`, and even for a shift that has
+    one the presentation may need extra symbols of memory. See
+    :func:`sofic.shifts.wheeler.wheeler_cover`.
+    """
+
+    @classmethod
+    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> WheelerCover:
+        from sofic.shifts.wheeler import wheeler_cover
+
+        return wheeler_cover(shift, **kwargs)

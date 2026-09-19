@@ -46,6 +46,7 @@ Canonical structures
    atomaton
    observation_table
    learning
+   wheeler
 
 Advanced
 ========

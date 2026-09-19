@@ -55,6 +55,15 @@ from sofic.generators.topological_epsilon_enumeration import (
     iter_topological_epsilon_machines,
     iter_topological_epsilon_strings,
 )
+from sofic.generators.wheeler_epsilon import (
+    colex_cdf,
+    cylinder_measure,
+    debruijn_presentation,
+    wheeler_complexity_gap,
+    wheeler_presentation,
+    wheeler_statistical_complexity,
+    word_cylinder_measure,
+)
 
 __all__ = [
     "BidirectionalEpsilonMachine",
@@ -99,7 +108,10 @@ __all__ = [
     "QuasiStochasticModel",
     "StochasticModel",
     "WynerGenerativeModel",
+    "colex_cdf",
     "count_topological_epsilon_machines",
+    "cylinder_measure",
+    "debruijn_presentation",
     "epsilon_machine_to_idfa_string",
     "functional_generative_model",
     "gacs_korner_generative_model",
@@ -111,5 +123,9 @@ __all__ = [
     "iter_topological_epsilon_machines",
     "iter_topological_epsilon_strings",
     "minimal_generative_model",
+    "wheeler_complexity_gap",
+    "wheeler_presentation",
+    "wheeler_statistical_complexity",
+    "word_cylinder_measure",
     "wyner_generative_model",
 ]

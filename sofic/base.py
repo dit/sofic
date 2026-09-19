@@ -83,6 +83,42 @@ class StateMachine(ABC):
         result.graph = self.graph.reverse()
         return result
 
+    def is_wheeler(self) -> bool:
+        """Return whether this presentation admits a Wheeler order.
+
+        Wheelerness is a property of a *presentation*, not of the language it
+        generates: a process whose minimal presentation is not Wheeler may
+        still have a larger one that is. Nor does it coincide with finite
+        Markov order -- every definite presentation has a Wheeler order-``R``
+        de Bruijn form, yet Wheeler presentations of infinite Markov order also
+        exist :cite:`Gagie2017` :cite:`Alanko2020`.
+        """
+        from sofic.automata.wheeler import is_wheeler
+
+        return is_wheeler(self)
+
+    def wheeler_order(self) -> Any:
+        """Return a :class:`~sofic.automata.wheeler.WheelerOrder`, or ``None``.
+
+        Sorts states by the co-lexicographic rank of the words reaching them,
+        so each state owns an interval of the sorted prefixes
+        :cite:`Gagie2017`.
+        """
+        from sofic.automata.wheeler import wheeler_order
+
+        return wheeler_order(self)
+
+    def colex_width(self) -> int:
+        """Co-lexicographic width of this presentation; Wheeler is width one.
+
+        Bounds the cost of indexing, encoding, and determinizing the machine
+        :cite:`CotumaccioPrezza2021`. Width one implies Wheelerness only for
+        input-consistent presentations -- prefer :meth:`is_wheeler`.
+        """
+        from sofic.automata.wheeler import colex_width
+
+        return colex_width(self)
+
     def __repr__(self) -> str:
         states = list(self.states())
         transitions = list(self.transitions())

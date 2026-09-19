@@ -2170,6 +2170,7 @@ test = [
 ]
 viz = [
     { name = "graphviz" },
+    { name = "matplotlib" },
 ]
 
 [package.metadata]
@@ -2189,7 +2190,9 @@ requires-dist = [
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'docs'" },
     { name = "matplotlib", marker = "extra == 'dev'" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.5" },
     { name = "matplotlib", marker = "extra == 'docs'" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.5" },
     { name = "networkx", specifier = ">=2.6" },
     { name = "numpy", specifier = ">=1.22" },
     { name = "pymc", marker = "extra == 'bayes'", specifier = ">=5" },

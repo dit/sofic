@@ -6,6 +6,7 @@ from sofic.shifts.covers import (
     LeftKriegerCover,
     RightFischerCover,
     RightKriegerCover,
+    WheelerCover,
 )
 from sofic.shifts.dyck_enumeration import (
     DyckGraphString,
@@ -23,6 +24,14 @@ from sofic.shifts.sofic_dyck import SoficDyckShift
 from sofic.shifts.sofic_relation import SoficRelation
 from sofic.shifts.textile import TextileSystem
 from sofic.shifts.tmc import TopologicalMarkovChain
+from sofic.shifts.wheeler import (
+    higher_block_presentation,
+    is_wheeler_shift,
+    right_resolve,
+    wheeler_cover,
+    wheeler_index_of_shift,
+    wheeler_order_of_shift,
+)
 
 __all__ = [
     "DyckGraphString",
@@ -44,5 +53,12 @@ __all__ = [
     "SymbolicModel",
     "TextileSystem",
     "TopologicalMarkovChain",
+    "WheelerCover",
     "full_shift",
+    "higher_block_presentation",
+    "is_wheeler_shift",
+    "right_resolve",
+    "wheeler_cover",
+    "wheeler_index_of_shift",
+    "wheeler_order_of_shift",
 ]

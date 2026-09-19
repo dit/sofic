@@ -31,6 +31,7 @@ from sofic.examples.epsilon_machines import (
     tent_map_misiurewicz_partition_information_expected,
     tent_map_misiurewicz_partition_symbol_matrices,
     tent_map_misiurewicz_reverse,
+    wheeler_infinite_order_process,
 )
 from sofic.examples.processes import *
 from sofic.examples.processes import __all__ as _process_all
@@ -98,6 +99,7 @@ __all__ = [
     "tetris_nes",
     "tetris_tgm",
     "tetris_tgm2",
+    "wheeler_infinite_order_process",
 ]
 __all__ += _process_all
 __all__ = [name for name in __all__ if name not in {"processes", "shifts", "tetris"}]
