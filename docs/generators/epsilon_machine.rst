@@ -60,6 +60,32 @@ block entropies also provide explicit estimates for ``h_mu``, ``E``, ``r_mu``,
 
    In [11]: estimates.information_anatomy()
 
+Reversal
+========
+
+A finite forward ε-machine does not imply a finite reverse one: a process can
+have finitely many forward causal states and infinitely many retrodictive ones.
+This is the "explosive irreversibility" of :cite:`Ellison2011`.
+:meth:`from_time_reversed` and :meth:`causal_irreversibility` then raise
+:class:`~sofic.exceptions.MixedStateExplosionError`, because there is no finite
+presentation to return.
+
+Infinitely many reverse states does not by itself make :math:`C_\mu^{-}`
+infinite — that is the entropy of the retrodictive stationary distribution, and
+it converges when those weights decay geometrically, as in the example above.
+The obstruction here is cardinality, not divergence.
+
+:meth:`reverse_is_finite` decides this in polynomial time without enumerating
+beliefs. Since the retrodictive causal states are the normalized vectors
+:math:`(\Pr(x \mid s))_s`, the reverse machine is finite exactly when every
+cycle of the pair graph on :math:`S \times S`, weighted by
+:math:`p(a \mid s) / p(a \mid s')`, has weight one — the twins property
+:cite:`Mohri2009` :cite:`AllauzenMohri2003`.
+
+This is not a structural property: two machines with identical transition
+structure can differ, because a cycle weight may equal one only by algebraic
+coincidence in the probabilities.
+
 See also :doc:`bidirectional_epsilon_machine`, :doc:`information_anatomy`,
 :doc:`block_convergence`, and :doc:`epsilon_inference` (sample-based reconstruction).
 
@@ -67,7 +93,9 @@ API
 ===
 
 .. autoclass:: EpsilonMachine
-   :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, block_entropy_estimates, plot_block_entropy_diagram, block_convergence_diagram, block_convergence_estimates, plot_block_convergence_diagram, caekl_block_information, caekl_rate, caekl_intercept, caekl_rate_converged, approximate_entropy_rate, approximate_excess_entropy, approximate_information_anatomy, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, caekl_causal_information, crypticity, bidirectional_crypticity, causal_irreversibility, stored_information_decomposition, transient_information, oracular_information, gauge_information, predictability_gain, structural_information, thermodynamic_depth, spectral_complexity, markov_order, is_markov, cryptic_order, reset_threshold, synchronizing_word, is_exactly_synchronizable, is_asymptotically_synchronizable, is_definite
+   :members: from_hmm, from_sequence, from_time_reversed, to_bidirectional, block_entropy_diagram, block_entropy_estimates, plot_block_entropy_diagram, block_convergence_diagram, block_convergence_estimates, plot_block_convergence_diagram, caekl_block_information, caekl_rate, caekl_intercept, caekl_rate_converged, approximate_entropy_rate, approximate_excess_entropy, approximate_information_anatomy, statistical_complexity, bidirectional_statistical_complexity, excess_entropy, predicted_information, bound_information, ephemeral_information, information_anatomy, caekl_causal_information, crypticity, bidirectional_crypticity, causal_irreversibility, stored_information_decomposition, transient_information, oracular_information, gauge_information, predictability_gain, structural_information, thermodynamic_depth, spectral_complexity, markov_order, is_markov, cryptic_order, reset_threshold, synchronizing_word, is_exactly_synchronizable, is_asymptotically_synchronizable, is_definite, reverse_is_finite
+
+.. autofunction:: sofic.generators.reversal.reverse_is_finite
 
 .. autoclass:: sofic.generators.block_entropy.BlockEntropyDiagram
    :members: plot, transient_information

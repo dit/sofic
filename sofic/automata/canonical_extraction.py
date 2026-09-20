@@ -40,11 +40,18 @@ def canonical_rfsa_from_language(language: RegularLanguage | NFA | DFA) -> Canon
 
 
 def atomaton_from_language(language: RegularLanguage | NFA | DFA) -> Atomaton:
-    """Build átomaton via double-reversal pipeline."""
+    """Build átomaton via double-reversal pipeline.
+
+    The átomaton is the *reverse of the minimal DFA of the reverse language*
+    (:cite:`BrzozowskiTamm2014`, Theorem 2), so the pipeline must stop at the
+    reversal: determinizing once more would collapse it back to the minimal DFA
+    of ``language``, which is Brzozowski's minimization rather than the
+    átomaton.
+    """
     aut = _language_automaton(language)
     dfa = minimal_dfa_from_language(aut)
     rev = dfa.reverse().determinize().minimize()
-    atom = rev.reverse().determinize()
+    atom = rev.reverse()
     return Atomaton(
         input_alphabet=atom.input_alphabet,
         initial_states=atom.initial_states,

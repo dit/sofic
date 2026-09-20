@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from sofic.exceptions import StochasticValidationError
+from sofic.exceptions import MixedStateExplosionError
 from sofic.generators.base import HiddenMarkovModel
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.mixed_state import (
@@ -107,7 +107,9 @@ def build_mixed_state_presentation(
                 discovered[state] = known
                 return known
         if len(discovered) >= max_states:
-            raise StochasticValidationError(f"mixed-state presentation exceeded max_states={max_states}")
+            raise MixedStateExplosionError(
+                f"mixed-state presentation exceeded max_states={max_states}; the reachable belief set may be infinite"
+            )
         discovered[state] = state
         graph.add_state(state)
         queue.append(state)

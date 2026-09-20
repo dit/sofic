@@ -134,7 +134,42 @@ def minimize_moore(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:
     if not states:
         return work
 
-    partition = _initial_partition(states, work.accepting_states)
+    partition = _moore_refine(work, states, symbols)
+    return _quotient_from_partition(work, partition, symbols)
+
+
+def nerode_partition(
+    dfa: DFA,
+    *,
+    alphabet: frozenset[Any] | None = None,
+) -> tuple[frozenset[Hashable], ...]:
+    """Return the Nerode classes of ``dfa``: states grouped by right language.
+
+    The DFA is completed with a trap state so that missing transitions compare
+    correctly, and the trap is dropped from the result.  Unlike
+    :func:`minimize_moore`, states are *not* trimmed first, so states with an
+    empty right language survive as their own class.  Callers that reason about
+    every state of a given DFA -- rather than about the language it recognizes
+    -- need that distinction.
+    """
+    symbols = alphabet if alphabet is not None else _effective_alphabet(dfa)
+    work = complete(dfa, symbols)
+    states = sorted(work.states(), key=repr)
+    if not states:
+        return ()
+
+    partition = _moore_refine(work, states, symbols)
+    blocks = (frozenset(block) - {_TRAP} for block in partition)
+    return tuple(block for block in blocks if block)
+
+
+def _moore_refine(
+    dfa: DFA,
+    states: Sequence[Hashable],
+    symbols: frozenset[Any],
+) -> list[set[Hashable]]:
+    """Refine the accepting/non-accepting split until it is stable."""
+    partition = _initial_partition(states, dfa.accepting_states)
     changed = True
     while changed:
         changed = False
@@ -146,7 +181,7 @@ def minimize_moore(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:
                 for piece in refined:
                     groups: dict[int, set[Hashable]] = {}
                     for state in piece:
-                        successor = _dfa_successor(work, state, symbol)
+                        successor = _dfa_successor(dfa, state, symbol)
                         index = -1 if successor is None else _block_index(partition, successor)
                         groups.setdefault(index, set()).add(state)
                     next_refined.extend(groups.values())
@@ -155,8 +190,7 @@ def minimize_moore(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:
                 changed = True
             new_partition.extend(refined)
         partition = new_partition
-
-    return _quotient_from_partition(work, partition, symbols)
+    return partition
 
 
 def minimize_hopcroft(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:
