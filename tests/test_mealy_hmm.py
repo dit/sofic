@@ -83,3 +83,19 @@ def test_entropy_rate_requires_unifilar_presentation():
 
     with pytest.raises(NotImplementedError, match="unifilar"):
         hmm.entropy_rate()
+
+
+def test_mealy_without_alphabet_or_initial_distribution():
+    """Regression: symbols missing from the alphabet raised KeyError, and an empty
+    initial distribution made sampling fail on NaN and every word probability 0."""
+    import numpy as np
+
+    hmm = MealyHMM()
+    for source, target, prob in [("a", "a", 0.9), ("a", "b", 0.1), ("b", "a", 0.2), ("b", "b", 0.8)]:
+        hmm.add_transition(source, target, target, prob)
+    assert hmm.observation_alphabet == frozenset({"a", "b"})
+    hmm.validate()
+    symbols, _ = hmm.sample(50, rng=np.random.default_rng(0))
+    assert len(symbols) == 50
+    assert hmm.word_probability("ab") == pytest.approx(2 / 3 * 0.1)
+    assert hmm.entropy_rate() == pytest.approx(0.5533064, abs=1e-6)

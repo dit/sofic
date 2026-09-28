@@ -35,10 +35,13 @@ class MealyHMM(HiddenMarkovModel):
         """Add an edge carrying joint emission probability ``P(target, symbol | source)``.
 
         ``prob`` may be a Python float or an exact sympy expression (see
-        :mod:`sofic.generators.prob`).
+        :mod:`sofic.generators.prob`). ``symbol`` is added to the observation
+        alphabet if it is not already there.
         """
         from sofic.generators.prob import as_prob
 
+        if symbol not in self.observation_alphabet:
+            self.observation_alphabet = self.observation_alphabet | {symbol}
         return self.graph.add_transition(
             source,
             target,
