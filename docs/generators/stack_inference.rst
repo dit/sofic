@@ -41,6 +41,13 @@ Two families are provided:
 Histories are counted with a bounded stack depth, so ``max_stack_depth`` caps
 the configurations considered during reconstruction.
 
+Stack CSSR runs flat CSSR over ``(suffix, stack)`` configurations. Every observed
+stack seeds its own root, and suffixes grow into the past with the stack fixed.
+When morphs are compared, all return symbols count as one event: which return
+can follow is decided by the stack top through matched call-return pairs, not by
+the finite control. Return edges are matched only to calls observed to close
+them.
+
 API
 ===
 

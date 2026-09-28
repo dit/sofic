@@ -144,3 +144,16 @@ def test_validate_rejects_negative_probability():
 
     with pytest.raises(StochasticValidationError):
         model.validate()
+
+
+def test_word_probability_of_long_word_does_not_underflow():
+    """Regression: masses below an absolute 1e-15 were pruned, so any word longer
+    than about 50 symbols had probability exactly 0."""
+    from sofic.examples.shifts import dyck_shift_order
+    from sofic.shifts.sofic_dyck import transition_ref
+
+    shift = dyck_shift_order(1)
+    refs = [transition_ref(transition) for transition in shift.transitions()]
+    model = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, dict.fromkeys(refs, 1 / len(refs)))
+    word, _ = model.sample(200, rng=np.random.default_rng(0))
+    assert np.log2(model.word_probability(word)) == pytest.approx(-200.0)

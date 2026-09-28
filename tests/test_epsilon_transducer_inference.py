@@ -84,3 +84,33 @@ def test_reconstruction_reproduces_conditional_law():
 def test_rejects_mismatched_lengths():
     with pytest.raises(ValueError):
         transcssr("010", "01")
+
+
+def _held_out_bits_per_symbol(eps: EpsilonTransducer, xs, ys, burn: int = 20) -> float:
+    states = list(eps.states())
+    index = {state: i for i, state in enumerate(states)}
+    belief = np.array([eps.initial_distribution.get(state, 0.0) for state in states])
+    total = 0.0
+    for t, (x, y) in enumerate(zip(xs, ys, strict=True)):
+        nxt = np.zeros(len(states))
+        for transition in eps.transitions():
+            if transition.data["symbol"] == x and transition.data["output"] == y:
+                nxt[index[transition.target]] += belief[index[transition.source]] * transition.data["prob"]
+        mass = nxt.sum()
+        if mass <= 0.0:
+            return float("inf")
+        if t >= burn:
+            total -= np.log2(mass)
+        belief = nxt / mass
+    return total / (len(xs) - burn)
+
+
+def test_recovers_two_step_delay():
+    """Regression: joint suffixes grew forward and successors were never truncated,
+    so Delay(2) gave 5-19 states that forbade valid input-output pairs."""
+    xs, ys = _paired_samples(Delay(2), 10000, seed=0)
+    eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"))
+    eps.validate()
+    assert len(list(eps.states())) == 4
+    test_xs, test_ys = _paired_samples(Delay(2), 3000, seed=1)
+    assert _held_out_bits_per_symbol(eps, test_xs, test_ys) == pytest.approx(0.0, abs=1e-9)

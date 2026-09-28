@@ -13,7 +13,7 @@ symbol ``x``.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -185,6 +185,17 @@ def _table_significant(table: np.ndarray, *, alpha: float, test: Literal["g", "c
     return float(p_value) < alpha
 
 
+def _state_aggregate(counts: JointSuffixCounts, histories: Iterable[JointHistory]) -> StateAggregate:
+    aggregate: StateAggregate = {}
+    for history in histories:
+        _merge_aggregate(aggregate, _history_aggregate(counts, history))
+    return aggregate
+
+
+def _observed(counts: JointSuffixCounts, history: JointHistory) -> int:
+    return sum(sum(counter.values()) for counter in counts.next_counts.get(history, {}).values())
+
+
 def _homogenize(
     counts: JointSuffixCounts,
     *,
@@ -192,122 +203,50 @@ def _homogenize(
     alpha: float,
     test: Literal["g", "chi2"],
     min_count: int,
-) -> tuple[dict[int, set[JointHistory]], dict[JointHistory, int]]:
-    in_alpha = counts.input_alphabet
-    out_alpha = counts.output_alphabet
-    states: dict[int, set[JointHistory]] = {0: {()}}
-    state_agg: dict[int, StateAggregate] = {0: _history_aggregate(counts, ())}
-    history_to_state: dict[JointHistory, int] = {(): 0}
-    next_state_id = 1
+) -> list[set[JointHistory]]:
+    """transCSSR homogenization: grow joint suffixes one ``(input, output)`` pair into the past.
 
-    for _length in range(Lmax + 1):
-        for state_id in sorted(states):
-            for history in list(states[state_id]):
-                for pair in _observed_pairs(counts, history):
-                    child = (*history, pair)
-                    if child in history_to_state or counts.history_counts.get(child, 0) == 0:
+    As in flat CSSR, a child ``p h`` of suffix ``h`` stays in its parent's state
+    unless its conditional output law differs; histories seen fewer than
+    ``min_count`` times stay with their parent.
+    """
+    in_alpha, out_alpha = counts.input_alphabet, counts.output_alphabet
+    states: list[set[JointHistory]] = [{()}]
+    aggregates: list[StateAggregate] = [_history_aggregate(counts, ())]
+    pairs = _pairs_from(counts)
+
+    def differ(left: StateAggregate, right: StateAggregate) -> bool:
+        return aggregates_differ(
+            left, right, input_alphabet=in_alpha, output_alphabet=out_alpha, alpha=alpha, test=test
+        )
+
+    for length in range(Lmax):
+        for parent_id in range(len(states)):
+            for history in sorted((h for h in states[parent_id] if len(h) == length), key=repr):
+                for pair in pairs:
+                    child = (pair, *history)
+                    if _observed(counts, child) == 0:
                         continue
                     child_agg = _history_aggregate(counts, child)
-                    if counts.history_counts.get(child, 0) < min_count:
-                        # Too rare to split reliably; inherit the parent's causal state.
-                        states[state_id].add(child)
-                        history_to_state[child] = state_id
-                        _merge_aggregate(state_agg[state_id], child_agg)
-                        continue
-                    if aggregates_differ(
-                        state_agg[state_id],
-                        child_agg,
-                        input_alphabet=in_alpha,
-                        output_alphabet=out_alpha,
-                        alpha=alpha,
-                        test=test,
-                    ):
-                        best_state: int | None = None
-                        best_score = float("inf")
-                        for candidate_id, candidate_agg in state_agg.items():
-                            if aggregates_differ(
-                                candidate_agg,
-                                child_agg,
-                                input_alphabet=in_alpha,
-                                output_alphabet=out_alpha,
-                                alpha=alpha,
-                                test=test,
-                            ):
+                    target = parent_id
+                    if _observed(counts, child) >= min_count and differ(aggregates[parent_id], child_agg):
+                        best_id, best_score = None, float("inf")
+                        for candidate_id, candidate_agg in enumerate(aggregates):
+                            if candidate_id == parent_id or differ(candidate_agg, child_agg):
                                 continue
                             score = _aggregate_score(
-                                candidate_agg,
-                                child_agg,
-                                input_alphabet=in_alpha,
-                                output_alphabet=out_alpha,
+                                candidate_agg, child_agg, input_alphabet=in_alpha, output_alphabet=out_alpha
                             )
                             if score < best_score:
-                                best_score = score
-                                best_state = candidate_id
-                        if best_state is None:
-                            best_state = next_state_id
-                            states[next_state_id] = set()
-                            state_agg[next_state_id] = {}
-                            next_state_id += 1
-                        states[best_state].add(child)
-                        history_to_state[child] = best_state
-                        _merge_aggregate(state_agg[best_state], child_agg)
-                    else:
-                        states[state_id].add(child)
-                        history_to_state[child] = state_id
-                        _merge_aggregate(state_agg[state_id], child_agg)
-    return states, history_to_state
-
-
-def _observed_pairs(counts: JointSuffixCounts, history: JointHistory) -> list[tuple[Any, Any]]:
-    by_input = counts.next_counts.get(history)
-    if by_input is None:
-        return []
-    pairs: list[tuple[Any, Any]] = []
-    for input_symbol, counter in by_input.items():
-        for output_symbol in counter:
-            pairs.append((input_symbol, output_symbol))
-    return pairs
-
-
-def _determinize(
-    states: dict[int, set[JointHistory]],
-    history_to_state: dict[JointHistory, int],
-    counts: JointSuffixCounts,
-) -> dict[int, set[JointHistory]]:
-    current = {state_id: set(histories) for state_id, histories in states.items()}
-    next_state_id = (max(current) + 1) if current else 0
-    changed = True
-    while changed:
-        changed = False
-        for state_id in sorted(current):
-            histories = current[state_id]
-            if len(histories) <= 1:
-                continue
-            for pair in _pairs_from(counts):
-                buckets: dict[int, set[JointHistory]] = defaultdict(set)
-                for history in histories:
-                    if not _history_emits(counts, history, pair):
-                        continue
-                    child = (*history, pair)
-                    target = history_to_state.get(child)
-                    if target is None:
-                        continue
-                    buckets[target].add(history)
-                if len(buckets) <= 1:
-                    continue
-                ordered = sorted(buckets.items(), key=lambda item: (-len(item[1]), repr(min(item[1], key=repr))))
-                _keep_target, keep_histories = ordered[0]
-                current[state_id] = keep_histories
-                for _target, split_histories in ordered[1:]:
-                    current[next_state_id] = split_histories
-                    for history in split_histories:
-                        history_to_state[history] = next_state_id
-                    next_state_id += 1
-                changed = True
-                break
-            if changed:
-                break
-    return current
+                                best_id, best_score = candidate_id, score
+                        if best_id is None:
+                            states.append(set())
+                            aggregates.append({})
+                            best_id = len(states) - 1
+                        target = best_id
+                    states[target].add(child)
+                    _merge_aggregate(aggregates[target], child_agg)
+    return states
 
 
 def _pairs_from(counts: JointSuffixCounts) -> list[tuple[Any, Any]]:
@@ -322,118 +261,182 @@ def _history_emits(counts: JointSuffixCounts, history: JointHistory, pair: tuple
     return bool(counter) and counter.get(pair[1], 0) > 0
 
 
-def _drop_transient(
-    states: dict[int, set[JointHistory]],
-    history_to_state: dict[JointHistory, int],
+def _edges(
+    states: list[set[JointHistory]],
     counts: JointSuffixCounts,
-) -> dict[int, set[JointHistory]]:
-    import networkx as nx
+    alive: set[int],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2"],
+) -> dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]:
+    """Successor states by ``(input, output)`` pair, with the histories that lead there.
 
-    graph = nx.DiGraph()
-    graph.add_nodes_from(states)
-    for state_id, histories in states.items():
-        for history in histories:
+    Shorter histories move to their one-pair extension; length-``Lmax`` histories
+    drop their oldest pair, and the length-``Lmax + 1`` history is re-tested against
+    the truncated history's state (see
+    :func:`sofic.generators.epsilon_inference._suffix_edges`).
+    """
+    in_alpha, out_alpha = counts.input_alphabet, counts.output_alphabet
+    history_to_state = {h: index for index in alive for h in states[index]}
+    aggregates = {index: _state_aggregate(counts, states[index]) for index in alive}
+    edges: dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]] = {}
+    for index in alive:
+        by_pair: dict[tuple[Any, Any], dict[int, set[JointHistory]]] = defaultdict(lambda: defaultdict(set))
+        for history in states[index]:
             for pair in _pairs_from(counts):
                 if not _history_emits(counts, history, pair):
                     continue
-                target = history_to_state.get((*history, pair))
+                extended = (*history, pair)
+                if len(extended) <= Lmax:
+                    target = history_to_state.get(extended)
+                else:
+                    target = history_to_state.get(extended[1:])
+                    extended_agg = _history_aggregate(counts, extended)
+                    if extended_agg and (
+                        target is None
+                        or aggregates_differ(
+                            aggregates[target],
+                            extended_agg,
+                            input_alphabet=in_alpha,
+                            output_alphabet=out_alpha,
+                            alpha=alpha,
+                            test=test,
+                        )
+                    ):
+                        best_score = float("inf")
+                        for candidate in sorted(alive):
+                            if aggregates_differ(
+                                aggregates[candidate],
+                                extended_agg,
+                                input_alphabet=in_alpha,
+                                output_alphabet=out_alpha,
+                                alpha=alpha,
+                                test=test,
+                            ):
+                                continue
+                            score = _aggregate_score(
+                                aggregates[candidate], extended_agg, input_alphabet=in_alpha, output_alphabet=out_alpha
+                            )
+                            if score < best_score:
+                                target, best_score = candidate, score
                 if target is not None:
-                    graph.add_edge(state_id, target)
-    if graph.number_of_edges() == 0:
-        return states
-
-    recurrent: set[int] = set()
-    for component in nx.strongly_connected_components(graph):
-        subgraph = graph.subgraph(component)
-        has_cycle = subgraph.number_of_edges() > 0 and (
-            len(component) > 1 or any(subgraph.has_edge(node, node) for node in component)
-        )
-        if not has_cycle:
-            continue
-        if not any(graph.has_edge(v, w) for v in component for w in graph.nodes if w not in component):
-            recurrent.update(component)
-    if not recurrent:
-        return states
-    return {state_id: histories for state_id, histories in states.items() if state_id in recurrent}
+                    by_pair[pair][target].add(history)
+        edges[index] = by_pair
+    return edges
 
 
-def _state_visits(
-    inputs: Sequence[Any],
-    outputs: Sequence[Any],
-    history_to_state: dict[JointHistory, int],
+def _closed_classes(edges: dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]) -> list[set[int]]:
+    import networkx as nx
+
+    graph = nx.DiGraph()
+    graph.add_nodes_from(edges)
+    for source, by_pair in edges.items():
+        for targets in by_pair.values():
+            graph.add_edges_from((source, target) for target in targets)
+    condensed = nx.condensation(graph)
+    return [
+        set(condensed.nodes[node]["members"])
+        for node in condensed
+        if condensed.out_degree(node) == 0 and graph.subgraph(condensed.nodes[node]["members"]).number_of_edges() > 0
+    ]
+
+
+def _determinize(
+    states: list[set[JointHistory]],
+    counts: JointSuffixCounts,
+    alive: set[int],
     *,
-    length: int,
-) -> Counter[int]:
-    visits: Counter[int] = Counter()
-    pairs = tuple(zip(inputs, outputs, strict=True))
-    for t in range(len(pairs)):
-        for hist_len in range(min(t, length), -1, -1):
-            history = pairs[t - hist_len : t]
-            state = history_to_state.get(history)
-            if state is not None:
-                visits[state] += 1
-                break
-    return visits
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2"],
+) -> tuple[list[set[JointHistory]], set[int]]:
+    """Split alive states until each ``(input, output)`` pair has one alive successor."""
+    states = [set(h) for h in states]
+    alive = set(alive)
+    while True:
+        edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
+        split = next(
+            (
+                (index, pair)
+                for index in sorted(alive)
+                for pair in sorted(edges[index], key=repr)
+                if len(edges[index][pair]) > 1
+            ),
+            None,
+        )
+        if split is None:
+            return states, alive
+        index, pair = split
+        groups = sorted(edges[index][pair].values(), key=lambda g: (-len(g), sorted(map(repr, g))))
+        for group in groups[1:]:
+            states[index] -= group
+            states.append(set(group))
+            alive.add(len(states) - 1)
 
 
 def _build_transducer(
-    states: dict[int, set[JointHistory]],
+    states: list[set[JointHistory]],
     counts: JointSuffixCounts,
-    history_to_state: dict[JointHistory, int],
+    alive: set[int],
     inputs: Sequence[Any],
     outputs: Sequence[Any],
     *,
-    length: int,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2"],
 ) -> EpsilonTransducer:
-    visits = _state_visits(inputs, outputs, history_to_state, length=length)
-    if not visits:
-        raise StochasticValidationError("no empirical causal-state visits")
+    edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
+    history_to_state = {h: index for index in alive for h in states[index]}
+
+    visits: Counter[int] = Counter()
+    pairs = tuple(zip(inputs, outputs, strict=True))
+    for t in range(len(pairs) + 1):
+        for hist_len in range(min(t, Lmax), -1, -1):
+            state = history_to_state.get(pairs[t - hist_len : t])
+            if state is not None:
+                visits[state] += 1
+                break
+
+    classes = _closed_classes(edges)
+    if not classes:
+        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this Lmax")
+    keep = max(classes, key=lambda members: (sum(visits[s] for s in members), -min(members)))
 
     graph = TransitionGraph()
-    labels = {state_id: f"s{state_id}" for state_id in states}
-    for label in labels.values():
-        graph.add_state(label)
-
+    labels = {state: f"s{rank}" for rank, state in enumerate(sorted(keep))}
+    for state in sorted(keep):
+        graph.add_state(labels[state])
     used_inputs: set[Any] = set()
     used_outputs: set[Any] = set()
-    for state_id, histories in states.items():
-        source = labels[state_id]
+    for state in sorted(keep):
+        longest = max(len(h) for h in states[state])
+        aggregate = _state_aggregate(counts, {h for h in states[state] if len(h) == longest})
         for input_symbol in counts.input_alphabet:
-            morph = counts.state_morph(histories, input_symbol)
-            if not morph:
-                continue
-            row: list[tuple[str, Any, float]] = []
-            for output_symbol, prob in morph.items():
-                if prob <= 0.0:
-                    continue
-                emitting = [
-                    history for history in histories if _history_emits(counts, history, (input_symbol, output_symbol))
-                ]
-                targets = {history_to_state.get((*history, (input_symbol, output_symbol))) for history in emitting}
-                targets.discard(None)
-                if len(targets) != 1:
-                    continue
-                target_id = next(iter(targets))
-                if target_id not in labels:
-                    continue
-                row.append((labels[target_id], output_symbol, prob))
-            total = sum(prob for _label, _out, prob in row)
-            if total <= 0.0:
-                continue
-            for target_label, output_symbol, prob in row:
+            row = [
+                (labels[next(iter(edges[state][(input_symbol, output_symbol)]))], output_symbol, float(count))
+                for output_symbol, count in sorted(
+                    aggregate.get(input_symbol, Counter()).items(), key=lambda i: repr(i[0])
+                )
+                if count > 0 and edges[state].get((input_symbol, output_symbol))
+            ]
+            total = sum(weight for _label, _output, weight in row)
+            for target_label, output_symbol, weight in row:
                 graph.add_transition(
-                    source,
+                    labels[state],
                     target_label,
-                    **{ATTR_SYMBOL: input_symbol, ATTR_OUTPUT: output_symbol, ATTR_PROB: prob / total},
+                    **{ATTR_SYMBOL: input_symbol, ATTR_OUTPUT: output_symbol, ATTR_PROB: weight / total},
                 )
                 used_inputs.add(input_symbol)
                 used_outputs.add(output_symbol)
 
-    total_visits = float(sum(visits.values()))
-    initial = {labels[state_id]: visits[state_id] / total_visits for state_id in states if visits.get(state_id, 0) > 0}
-    if not initial:
-        initial = {labels[next(iter(states))]: 1.0}
-
+    kept_visits = {state: visits[state] for state in keep if visits[state] > 0}
+    total_visits = float(sum(kept_visits.values()))
+    initial = (
+        {labels[state]: count / total_visits for state, count in kept_visits.items()}
+        if total_visits > 0
+        else {labels[min(keep)]: 1.0}
+    )
     result = EpsilonTransducer(
         input_alphabet=frozenset(used_inputs),
         output_alphabet=frozenset(used_outputs),
@@ -491,9 +494,9 @@ def transcssr(
         max_length=max_length + 1,
     )
 
-    states, history_to_state = _homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
-    states = _determinize(states, history_to_state, counts)
-    history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
-    states = _drop_transient(states, history_to_state, counts)
-    history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
-    return _build_transducer(states, counts, history_to_state, xs, ys, length=max_length)
+    states = _homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
+    everything = set(range(len(states)))
+    edges = _edges(states, counts, everything, Lmax=max_length, alpha=alpha, test=test)
+    alive = set().union(*_closed_classes(edges)) or everything
+    states, alive = _determinize(states, counts, alive, Lmax=max_length, alpha=alpha, test=test)
+    return _build_transducer(states, counts, alive, xs, ys, Lmax=max_length, alpha=alpha, test=test)

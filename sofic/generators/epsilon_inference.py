@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, ClassVar, Literal
 
 import numpy as np
@@ -150,6 +151,30 @@ def _contingency_rows(
     return table
 
 
+def _g_statistic(table: np.ndarray) -> float | None:
+    """G-test statistic of a contingency table, as ``scipy.stats.chi2_contingency`` computes it.
+
+    Includes Yates' correction for one degree of freedom, and returns ``None`` if an
+    expected count is zero. Inlined because the test runs once per pair of
+    histories, and the general scipy routine dominated inference time.
+    """
+    expected = table.sum(axis=1, keepdims=True) * table.sum(axis=0, keepdims=True) / table.sum()
+    if np.any(expected == 0):
+        return None
+    observed = table
+    if (table.shape[0] - 1) * (table.shape[1] - 1) == 1:
+        diff = expected - observed
+        observed = observed + np.sign(diff) * np.minimum(0.5, np.abs(diff))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        terms = np.where(observed > 0, observed * np.log(observed / expected), 0.0)
+    return 2.0 * float(terms.sum())
+
+
+@lru_cache(maxsize=256)
+def _chi2_critical(alpha: float, dof: int) -> float:
+    return float(stats.chi2.ppf(1.0 - alpha, dof))
+
+
 def morphs_differ(
     counts: SuffixCounts,
     left_histories: set[History],
@@ -170,16 +195,10 @@ def morphs_differ(
     if table is None:
         return False
     if test == "g":
-        try:
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p_value, _dof, expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-        except ValueError:
+        statistic = _g_statistic(table)
+        if statistic is None or not np.isfinite(statistic):
             return False
-        if not np.isfinite(statistic) or np.any(expected == 0):
-            return False
-        dof = max(1, table.shape[1] - 1)
-        critical = float(stats.chi2.ppf(1.0 - alpha, dof))
-        return float(statistic) > critical
+        return statistic > _chi2_critical(alpha, max(1, table.shape[1] - 1))
     try:
         statistic, p_value, _dof, expected = stats.chi2_contingency(table)
     except ValueError:
@@ -206,9 +225,8 @@ def morph_test_score(
         return 0.0
     try:
         if test == "g":
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p, _dof, _expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-            return float(statistic) if np.isfinite(statistic) else 0.0
+            statistic = _g_statistic(table)
+            return statistic if statistic is not None and np.isfinite(statistic) else 0.0
         statistic, _p, _dof, _expected = stats.chi2_contingency(table)
         return float(statistic)
     except ValueError:
@@ -386,6 +404,7 @@ def _drop_transient_states(
     counts: SuffixCounts,
     *,
     length: int,
+    successor_fn: Callable[[History, Any], History] = _grow_history,
 ) -> dict[int, set[History]]:
     """Keep only states in bottom strongly connected components."""
     import networkx as nx
@@ -396,8 +415,7 @@ def _drop_transient_states(
             for symbol in counts.alphabet:
                 if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
                     continue
-                child = history + (symbol,)
-                target = history_to_state.get(child)
+                target = history_to_state.get(successor_fn(history, symbol))
                 if target is None:
                     continue
                 successors[state_id][symbol].add(target)
@@ -430,84 +448,6 @@ def _drop_transient_states(
     if not recurrent:
         return states
     return {state_id: histories for state_id, histories in states.items() if state_id in recurrent}
-
-
-def _empirical_state_visits(
-    sequence: Sequence[Any],
-    history_to_state: dict[History, int],
-    *,
-    length: int,
-) -> Counter[int]:
-    """Count how often each causal state is occupied along ``sequence``.
-
-    Every time step belongs to exactly one causal state — the one keyed by the
-    *longest* available suffix (up to ``length``). Counting each nested suffix
-    (as an earlier version did) over-weights short-history states and skews the
-    reconstructed ``initial_distribution`` away from the occupation/stationary law.
-    """
-    visits: Counter[int] = Counter()
-    seq = tuple(sequence)
-    for t in range(len(seq)):
-        for hist_len in range(min(t, length), -1, -1):
-            history = seq[t - hist_len : t]
-            state = history_to_state.get(history)
-            if state is not None:
-                visits[state] += 1
-                break
-    return visits
-
-
-def _counts_to_mealy(
-    states: dict[int, set[History]],
-    counts: SuffixCounts,
-    history_to_state: dict[History, int],
-    sequence: Sequence[Any],
-    *,
-    length: int,
-) -> EpsilonMachine:
-    visits = _empirical_state_visits(sequence, history_to_state, length=length)
-    if not visits:
-        raise StochasticValidationError("no empirical state visits")
-
-    graph = TransitionGraph()
-    state_labels = {state_id: f"s{state_id}" for state_id in states}
-    for label in state_labels.values():
-        graph.add_state(label)
-
-    for state_id, histories in states.items():
-        label = state_labels[state_id]
-        morph = counts.state_morph(histories)
-        for symbol in counts.alphabet:
-            prob = morph[symbol]
-            if prob <= 0.0:
-                continue
-            emitting = [
-                history for history in histories if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
-            ]
-            if not emitting:
-                continue
-            child_histories = {history + (symbol,) for history in emitting}
-            targets = {history_to_state.get(child) for child in child_histories}
-            targets.discard(None)
-            if not targets:
-                continue
-            if len(targets) > 1:
-                raise StochasticValidationError(f"non-unifilar inferred transition from {label!r} on {symbol!r}")
-            target_label = state_labels[next(iter(targets))]
-            graph.add_transition(label, target_label, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
-
-    total_visits = float(sum(visits.values()))
-    initial = {state_labels[state_id]: visits[state_id] / total_visits for state_id in states if visits[state_id] > 0}
-    if not initial:
-        initial = {state_labels[next(iter(states))]: 1.0}
-
-    machine = EpsilonMachine(
-        graph=graph,
-        initial_distribution=initial,
-        observation_alphabet=frozenset(counts.alphabet),
-    )
-    machine.validate()
-    return machine
 
 
 def _cssr_default_lmax(n: int, alphabet_size: int) -> int:
@@ -744,6 +684,32 @@ def _suffix_machine(
     return machine
 
 
+def _suffix_reconstruct(
+    states: list[set[History]],
+    counts: SuffixCounts,
+    sequence: Sequence[Any],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+) -> EpsilonMachine:
+    """Prune transient states, determinize, and build the machine from homogeneous ``states``."""
+
+    def reconstruct(resolve: bool) -> EpsilonMachine:
+        everything = set(range(len(states)))
+        edges = _suffix_edges(states, counts, everything, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        alive = set().union(*_recurrent_states(edges)) or everything
+        split, alive = _suffix_determinize(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        return _suffix_machine(split, counts, sequence, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+
+    machine = reconstruct(resolve=True)
+    # Resolving truncated successors needs Lmax at least the synchronization length. When it
+    # is shorter, resolution can close off a state that never emits some observed symbol.
+    if {t.data[ATTR_EMISSION] for t in machine.transitions()} < set(sequence):
+        machine = reconstruct(resolve=False)
+    return machine
+
+
 def cssr(
     sequence: Sequence[Any],
     *,
@@ -797,22 +763,11 @@ def cssr(
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
 
     homogeneous = _suffix_homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
+    return _suffix_reconstruct(homogeneous, counts, seq, Lmax=max_length, alpha=alpha, test=test)
 
-    def reconstruct(resolve: bool) -> EpsilonMachine:
-        everything = set(range(len(homogeneous)))
-        edges = _suffix_edges(homogeneous, counts, everything, Lmax=max_length, alpha=alpha, test=test, resolve=resolve)
-        alive = set().union(*_recurrent_states(edges)) or everything
-        states, alive = _suffix_determinize(
-            homogeneous, counts, alive, Lmax=max_length, alpha=alpha, test=test, resolve=resolve
-        )
-        return _suffix_machine(states, counts, seq, alive, Lmax=max_length, alpha=alpha, test=test, resolve=resolve)
 
-    machine = reconstruct(resolve=True)
-    # Resolving truncated successors needs Lmax at least the synchronization length. When it
-    # is shorter, resolution can close off a state that never emits some observed symbol.
-    if {t.data[ATTR_EMISSION] for t in machine.transitions()} < set(seq):
-        machine = reconstruct(resolve=False)
-    return machine
+#: Significance level used by subtree merging when ``delta = 0`` and to resolve truncated successors.
+_SUBTREE_ALPHA = 0.01
 
 
 def _morph_distance(
@@ -834,11 +789,9 @@ def _morphs_equivalent(
     *,
     delta: float,
 ) -> bool:
-    left_morph = counts.morph(left)
-    right_morph = counts.morph(right)
     if delta > 0.0:
         return _morph_distance(counts, left, right, delta=delta) <= delta
-    return all(np.isclose(left_morph[symbol], right_morph[symbol], rtol=0.0, atol=1e-3) for symbol in counts.alphabet)
+    return not morphs_differ(counts, {left}, {right}, alpha=_SUBTREE_ALPHA, test="g")
 
 
 def _cluster_histories_by_morph(
@@ -885,7 +838,13 @@ def subtree_merge(
     delta: float = 0.0,
     alphabet: Sequence[Any] | None = None,
 ) -> EpsilonMachine:
-    """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young)."""
+    """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young).
+
+    Histories up to length ``L`` are clustered by next-symbol distribution: within
+    total-variation distance ``delta``, or, when ``delta = 0``, unless a G-test at
+    significance 0.01 tells them apart. The clusters are then determinized as in
+    :func:`cssr`.
+    """
     if L < 0:
         raise ValueError("L must be non-negative")
     seq = tuple(sequence)
@@ -895,26 +854,9 @@ def subtree_merge(
 
     histories = {history for history in counts.history_counts if len(history) <= L}
     histories.add(())
+    states = list(_cluster_histories_by_morph(counts, histories, delta=delta).values())
 
-    states = _cluster_histories_by_morph(counts, histories, delta=delta)
-    history_to_state = {history: state_id for state_id, members in states.items() for history in members}
-
-    states = _cssr_determinize(states, history_to_state, counts, length=L)
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    states = _merge_similar_states(states, history_to_state, counts, alpha=0.05, test="tv")
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    # Re-determinize: morph-only merging can fuse states with incompatible
-    # successors, so restore unifilarity before building the machine.
-    states = _cssr_determinize(states, history_to_state, counts, length=L)
-    states = _drop_transient_states(states, history_to_state, counts, length=L)
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    return _counts_to_mealy(states, counts, history_to_state, seq, length=L)
+    return _suffix_reconstruct(states, counts, seq, Lmax=L, alpha=_SUBTREE_ALPHA, test="g")
 
 
 def spectral(

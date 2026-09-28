@@ -259,3 +259,17 @@ def test_cssr_non_synchronizable_process_returns_valid_machine():
     inferred = cssr(observations, Lmax=4, alpha=0.001)
     inferred.validate()
     assert inferred.entropy_rate() >= oracle.entropy_rate() - 0.02
+
+
+@pytest.mark.parametrize(("name", "L", "n_states"), [("Even", 3, 2), ("GoldenMean", 2, 2), ("RkGM", 5, 8)])
+def test_subtree_merge_default_delta_recovers_process(name: str, L: int, n_states: int):
+    """Regression: the default delta = 0 compared sampled morphs to within 1e-3 and
+    successors were never truncated, so this raised StochasticValidationError."""
+    from sofic.examples import processes
+
+    oracle = processes.RkGM(5, 3) if name == "RkGM" else getattr(processes, name)()
+    observations, _ = sample(oracle, 20000, np.random.default_rng(5))
+    inferred = subtree_merge(observations, L=L)
+    inferred.validate()
+    assert len(list(inferred.states())) == n_states
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=0.02)

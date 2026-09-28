@@ -12,11 +12,12 @@ from sofic.generators.epsilon_inference import (
     History,
     SuffixCounts,
     _cluster_histories_by_morph,
+    _cssr_default_lmax,
     _cssr_determinize,
-    _cssr_homogenize,
-    _default_lmax,
     _drop_transient_states,
     _merge_similar_states,
+    morph_test_score,
+    morphs_differ,
 )
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
 from sofic.graph import ATTR_SYMBOL
@@ -136,6 +137,29 @@ def _stack_successor_fn(
     return successor
 
 
+_RETURN = object()
+
+
+def _control_counts(counts: StackSuffixCounts, alphabet: DyckAlphabet) -> StackSuffixCounts:
+    """Counts with every return symbol collapsed into one event.
+
+    Which return symbol can follow is decided by the stack top (through matched
+    call-return pairs), not by the finite control, so comparing raw morphs would
+    split every control state by its stack top.
+    """
+    returns = alphabet.return_alphabet
+    collapsed = StackSuffixCounts(
+        alphabet=tuple(symbol for symbol in counts.alphabet if symbol not in returns) + (_RETURN,)
+    )
+    collapsed.history_counts = counts.history_counts
+    for history, nxt in counts.next_counts.items():
+        merged: Counter[Any] = Counter()
+        for symbol, count in nxt.items():
+            merged[_RETURN if symbol in returns else symbol] += count
+        collapsed.next_counts[history] = merged
+    return collapsed
+
+
 def _stack_homogenize(
     counts: StackSuffixCounts,
     *,
@@ -144,14 +168,52 @@ def _stack_homogenize(
     alpha: float,
     test: Literal["g", "chi2", "tv"],
     max_stack_depth: int,
+    min_count: int = 1,
 ) -> tuple[dict[int, set[ConfigurationHistory]], dict[ConfigurationHistory, int]]:
-    return _cssr_homogenize(
-        counts,
-        Lmax=Lmax,
-        alpha=alpha,
-        test=test,
-        successor_fn=_stack_successor_fn(alphabet=alphabet, length=Lmax, max_stack_depth=max_stack_depth),
-    )
+    """CSSR homogenization over ``(suffix, stack)`` configurations.
+
+    Every observed stack contributes a root ``((), stack)``; suffixes then grow one
+    symbol into the past with their stack fixed, exactly as in flat CSSR. Growing
+    forward from the empty configuration instead only reaches stacks of depth at
+    most ``Lmax``, so deeper configurations had no state and their transitions were
+    dropped. Morphs are compared with return symbols collapsed (see :func:`_control_counts`).
+    """
+    control = _control_counts(counts, alphabet)
+    states: dict[int, set[ConfigurationHistory]] = {0: {counts.empty_history}}
+    history_to_state: dict[ConfigurationHistory, int] = {counts.empty_history: 0}
+
+    def place(child: ConfigurationHistory, parent_id: int) -> None:
+        target = parent_id
+        if morphs_differ(control, states[parent_id], {child}, alpha=alpha, test=test):
+            best_id, best_score = None, float("inf")
+            for candidate_id, candidate in states.items():
+                if candidate_id == parent_id or morphs_differ(control, candidate, {child}, alpha=alpha, test=test):
+                    continue
+                score = morph_test_score(control, candidate, {child}, test=test)
+                if score < best_score:
+                    best_id, best_score = candidate_id, score
+            if best_id is None:
+                best_id = max(states) + 1
+                states[best_id] = set()
+            target = best_id
+        states[target].add(child)
+        history_to_state[child] = target
+
+    def observed(history: ConfigurationHistory) -> bool:
+        return sum(counts.next_counts.get(history, Counter()).values()) >= max(1, min_count)
+
+    roots = {stack for suffix, stack in counts.history_counts if not suffix and stack}
+    for stack in sorted(roots, key=lambda stack: (len(stack), repr(stack))):
+        if observed(((), stack)):
+            place(((), stack), 0)
+    for length in range(Lmax):
+        for state_id in sorted(states):
+            for suffix, stack in sorted((h for h in states[state_id] if len(h[0]) == length), key=repr):
+                for symbol in counts.alphabet:
+                    child = ((symbol, *suffix), stack)
+                    if child not in history_to_state and observed(child):
+                        place(child, state_id)
+    return states, history_to_state
 
 
 def _stack_determinize(
@@ -180,8 +242,9 @@ def _stack_merge(
     *,
     alpha: float,
     test: Literal["g", "chi2", "tv"],
+    alphabet: DyckAlphabet,
 ) -> dict[int, set[ConfigurationHistory]]:
-    proxy = counts.restricted_to(set(history_to_state))
+    proxy = _control_counts(counts, alphabet).restricted_to(set(history_to_state))
     return _merge_similar_states(states, history_to_state, proxy, alpha=alpha, test=test)
 
 
@@ -195,14 +258,13 @@ def _stack_drop_transient(
     max_stack_depth: int,
 ) -> dict[int, set[ConfigurationHistory]]:
     proxy = counts.restricted_to(set(history_to_state))
-    return _drop_transient_states(states, history_to_state, proxy, length=length)
-
-
-def _representative_stack(histories: set[ConfigurationHistory]) -> tuple[Any, ...]:
-    stacks = [stack for _suffix, stack in histories if stack]
-    if not stacks:
-        return ()
-    return max(stacks, key=len)
+    return _drop_transient_states(
+        states,
+        history_to_state,
+        proxy,
+        length=length,
+        successor_fn=_stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth),
+    )
 
 
 def _counts_to_stack_hmm(
@@ -213,18 +275,22 @@ def _counts_to_stack_hmm(
     *,
     alphabet: DyckAlphabet,
     length: int,
+    max_stack_depth: int,
 ) -> HiddenMarkovStackModel:
     visits: Counter[int] = Counter()
     seq = tuple(sequence)
     stack: list[Any] = []
     for t in range(len(seq)):
-        for hist_len in range(0, min(t, length) + 1):
-            suffix = seq[t - hist_len : t]
-            state = history_to_state.get((suffix, tuple(stack)))
+        # Each step occupies one state: the one keyed by its longest available suffix.
+        for hist_len in range(min(t, length), -1, -1):
+            state = history_to_state.get((seq[t - hist_len : t], tuple(stack)))
             if state is not None:
                 visits[state] += 1
+                break
         symbol = seq[t]
         if symbol in alphabet.call_alphabet:
+            if len(stack) >= max_stack_depth:
+                stack = stack[1:]
             stack.append(symbol)
         elif symbol in alphabet.return_alphabet and stack:
             stack.pop()
@@ -241,89 +307,63 @@ def _counts_to_stack_hmm(
     for label in state_labels.values():
         model.graph.add_state(label)
 
-    call_refs: dict[tuple[Hashable, Any], TransitionRef] = {}
-    return_refs: dict[tuple[Hashable, Any, Any], TransitionRef] = {}
+    # Matched call-return pairs, as observed: a return ``r`` emitted with ``c`` on top.
+    observed_pairs = {
+        (stack[-1], symbol)
+        for (_suffix, stack), nxt in counts.next_counts.items()
+        if stack
+        for symbol, count in nxt.items()
+        if count > 0 and symbol in alphabet.return_alphabet
+    }
 
+    def legal(symbol: Any, stack: tuple[Any, ...]) -> bool:
+        if symbol not in alphabet.return_alphabet:
+            return True
+        return not stack or (stack[-1], symbol) in observed_pairs
+
+    call_refs: dict[Any, list[TransitionRef]] = defaultdict(list)
+    return_refs: dict[Any, list[TransitionRef]] = defaultdict(list)
     for state_id, histories in states.items():
         source = state_labels[state_id]
-        stack_repr = _representative_stack(histories)
-        stack_tops = {stack[-1] for _suffix, stack in histories if stack}
-        morph = counts.state_morph(histories)
+        emitted: Counter[Any] = Counter()
+        for history in histories:
+            emitted.update(counts.next_counts.get(history, Counter()))
         for symbol in counts.alphabet:
-            prob = morph[symbol]
-            if prob <= 0.0:
+            if emitted[symbol] <= 0:
                 continue
-            emitting = [
-                history for history in histories if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
-            ]
-            if not emitting:
-                continue
-            child_histories = {
-                _successor_history(
-                    history,
-                    symbol,
-                    alphabet=alphabet,
-                    length=length,
-                    max_stack_depth=max(len(stack_repr), 1),
+            targets: Counter[int] = Counter()
+            for history in histories:
+                count = counts.next_counts.get(history, Counter()).get(symbol, 0)
+                if count <= 0:
+                    continue
+                child = _successor_history(
+                    history, symbol, alphabet=alphabet, length=length, max_stack_depth=max_stack_depth
                 )
-                for history in emitting
-            }
-            targets = {history_to_state.get(child) for child in child_histories}
-            targets.discard(None)
+                target_id = history_to_state.get(child)
+                if target_id is not None:
+                    targets[target_id] += count
             if not targets:
                 continue
-            if len(targets) > 1:
-                target_counts: Counter[int] = Counter()
-                for history in emitting:
-                    child = _successor_history(
-                        history,
-                        symbol,
-                        alphabet=alphabet,
-                        length=length,
-                        max_stack_depth=max(len(stack_repr), 1),
-                    )
-                    target_id = history_to_state.get(child)
-                    if target_id is not None:
-                        target_counts[target_id] += counts.history_counts.get(history, 0)
-                target_id = target_counts.most_common(1)[0][0]
-            else:
-                target_id = next(iter(targets))
-            target = state_labels[target_id]
-
+            target = state_labels[targets.most_common(1)[0][0]]
+            # The stack model renormalizes over the moves legal in each configuration, so
+            # a symbol's weight is its frequency among the visits where it was legal.
+            opportunities = sum(
+                sum(counts.next_counts.get(history, Counter()).values())
+                for history in histories
+                if legal(symbol, history[1])
+            )
+            prob = emitted[symbol] / opportunities
             if symbol in alphabet.call_alphabet:
-                key = (source, symbol, target)
-                if key not in call_refs:
-                    call_refs[key] = model.add_call_transition(source, target, symbol, prob)
+                call_refs[symbol].append(model.add_call_transition(source, target, symbol, prob))
             elif symbol in alphabet.return_alphabet:
-                call_candidates = stack_tops or frozenset(alphabet.call_alphabet)
-                for matched_call in call_candidates:
-                    key = (source, symbol, matched_call)
-                    if key not in return_refs:
-                        return_refs[key] = model.add_return_transition(source, target, symbol, prob)
+                return_refs[symbol].append(model.add_return_transition(source, target, symbol, prob))
             else:
                 model.add_internal_transition(source, target, symbol, prob)
 
-    for (_src, call_symbol, _target), call_ref in call_refs.items():
-        for (_ret_source, _return_symbol, matched_call), return_ref in return_refs.items():
-            if matched_call == call_symbol:
+    for call_symbol, return_symbol in observed_pairs:
+        for call_ref in call_refs.get(call_symbol, ()):
+            for return_ref in return_refs.get(return_symbol, ()):
                 model.add_matched_pair(call_ref, return_ref)
-
-    for state_id, histories in states.items():
-        source = state_labels[state_id]
-        for history in histories:
-            _suffix, stack = history
-            if not stack:
-                continue
-            for symbol in alphabet.return_alphabet:
-                if counts.next_counts.get(history, Counter()).get(symbol, 0) <= 0:
-                    continue
-                matched_call = stack[-1]
-                for (src, sym, _tgt), call_ref in call_refs.items():
-                    if src != source or sym != matched_call:
-                        continue
-                    for (rsrc, rsym, mc), return_ref in return_refs.items():
-                        if rsrc == source and rsym == symbol and mc == matched_call:
-                            model.add_matched_pair(call_ref, return_ref)
 
     total_visits = float(sum(visits.values()))
     initial = {state_labels[state_id]: visits[state_id] / total_visits for state_id in states if visits[state_id] > 0}
@@ -348,7 +388,7 @@ def stack_cssr(
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
-    max_length = Lmax if Lmax is not None else _default_lmax(len(seq), len(alphabet.symbol_alphabet), min_count)
+    max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), len(alphabet.symbol_alphabet))
     counts = StackSuffixCounts.from_sequence(
         seq,
         alphabet=alphabet,
@@ -362,6 +402,7 @@ def stack_cssr(
         alpha=alpha,
         test=test,
         max_stack_depth=max_stack_depth,
+        min_count=min_count,
     )
     states = _stack_determinize(
         states,
@@ -371,7 +412,7 @@ def stack_cssr(
         alphabet=alphabet,
         max_stack_depth=max_stack_depth,
     )
-    states = _stack_merge(states, history_to_state, counts, alpha=alpha, test=test)
+    states = _stack_merge(states, history_to_state, counts, alpha=alpha, test=test, alphabet=alphabet)
     states = _stack_drop_transient(
         states, history_to_state, counts, length=max_length, alphabet=alphabet, max_stack_depth=max_stack_depth
     )
@@ -383,6 +424,7 @@ def stack_cssr(
         seq,
         alphabet=alphabet,
         length=max_length,
+        max_stack_depth=max_stack_depth,
     )
 
 
@@ -422,7 +464,7 @@ def stack_subtree_merge(
     history_to_state = {
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
-    states = _stack_merge(states, history_to_state, counts, alpha=0.05, test="tv")
+    states = _stack_merge(states, history_to_state, counts, alpha=0.05, test="tv", alphabet=alphabet)
     history_to_state = {
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
@@ -439,6 +481,7 @@ def stack_subtree_merge(
         seq,
         alphabet=alphabet,
         length=L,
+        max_stack_depth=max_stack_depth,
     )
 
 

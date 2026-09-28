@@ -66,8 +66,9 @@ Subtree merging
 
 Subtree merging :cite:`CrutchfieldYoung1989` clusters histories with statistically
 equivalent next-symbol distributions (metric tolerance ``delta``), then determinizes
-to a unifilar presentation.  With ``delta=0``, morphs are compared up to a small
-numerical tolerance for finite-sample estimates.
+to a unifilar presentation.  With ``delta=0``, two morphs are equivalent unless a
+G-test at significance 0.01 tells them apart, a tolerance that scales with the
+sample. Transitions follow the same successor rule as CSSR.
 
 .. autofunction:: subtree_merge
 
