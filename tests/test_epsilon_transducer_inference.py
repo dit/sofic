@@ -114,3 +114,35 @@ def test_recovers_two_step_delay():
     assert len(list(eps.states())) == 4
     test_xs, test_ys = _paired_samples(Delay(2), 3000, seed=1)
     assert _held_out_bits_per_symbol(eps, test_xs, test_ys) == pytest.approx(0.0, abs=1e-9)
+
+
+def _has_markov_order_selection() -> bool:
+    import dit.inference
+
+    return hasattr(dit.inference, "select_markov_order")
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_exact_and_bonferroni_recover_delay_memory(seed):
+    xs, ys = _paired_samples(Delay(1), 6000, seed=seed)
+    for kwargs in ({"test": "exact"}, {"correction": "bonferroni"}):
+        eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax=2, **kwargs)
+        eps.validate()
+        assert len(list(eps.states())) == 2
+
+
+def test_bonferroni_keeps_memoryless_channel_single_state():
+    xs, ys = _paired_samples(BinaryChannel(0.1, 0.2), 4000, seed=3)
+    eps = transcssr(
+        xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax=4, alpha=0.05, correction="bonferroni"
+    )
+    assert len(list(eps.states())) == 1
+    with pytest.raises(ValueError, match="unknown correction"):
+        transcssr(xs, ys, Lmax=1, correction="holm")
+
+
+@pytest.mark.skipif(not _has_markov_order_selection(), reason="needs dit.inference.select_markov_order")
+def test_auto_lmax_delay():
+    xs, ys = _paired_samples(Delay(1), 6000, seed=4)
+    eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax="auto")
+    assert len(list(eps.states())) == 2

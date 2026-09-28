@@ -46,8 +46,17 @@ Cross-validation and WAIC
 
    cross_validated_log_likelihood(fit, data, folds=5)   # held-out log score (higher is better)
 
+   # Drop 20 symbols next to each held-out block, and keep folds finite when the
+   # fitted model forbids a held-out transition:
+   cross_validated_log_likelihood(fit, data, folds=5, gap=20, smoothing=1e-3)
+
    posterior = EpsilonMachinePosterior(golden_mean(0.3), data)
    waic_epsilon_machine(posterior, [data], n_samples=200)
+
+Contiguous blocks of one sequence are dependent, so without a ``gap`` the
+held-out score is optimistic :cite:`Burman1994`. ``smoothing`` mixes each held-out
+prediction with the uniform distribution, so that one forbidden transition no
+longer makes a whole fold ``-inf``.
 
 Ranking candidate topologies
 ============================

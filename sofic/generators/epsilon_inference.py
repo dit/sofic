@@ -8,6 +8,7 @@ causal states as mixed states of the learned operators :cite:`Ellison2009`.
 
 from __future__ import annotations
 
+import zlib
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -22,6 +23,9 @@ from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
 History = tuple[Any, ...]
+
+#: Morph-equality tests: G-test, chi-squared, total-variation threshold, or Monte Carlo exact G-test.
+MorphTest = Literal["g", "chi2", "tv", "exact"]
 
 
 @dataclass
@@ -175,16 +179,86 @@ def _chi2_critical(alpha: float, dof: int) -> float:
     return float(stats.chi2.ppf(1.0 - alpha, dof))
 
 
+#: Monte Carlo tables drawn per ``"exact"`` morph test.
+_EXACT_DRAWS = 999
+
+#: Smallest expected count at which the ``"exact"`` test trusts the chi-squared limit.
+_EXACT_MIN_EXPECTED = 5.0
+
+
+def _exact_g_pvalue(table: np.ndarray) -> float:
+    """Monte Carlo p-value of the G statistic among tables with the same margins.
+
+    Tables are drawn uniformly given both margins (``scipy.stats.random_table``),
+    the exact null of equal morphs. The generator is seeded from the table itself,
+    so reconstruction stays deterministic.
+    """
+    counts = table.astype(np.int64)
+    rows, cols = counts.sum(axis=1), counts.sum(axis=0)
+    expected = np.outer(rows, cols) / counts.sum()
+
+    def g(observed: np.ndarray) -> np.ndarray:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            terms = np.where(observed > 0, observed * np.log(observed / expected), 0.0)
+        return 2.0 * terms.sum(axis=(-2, -1))
+
+    rng = np.random.default_rng(zlib.crc32(counts.tobytes()))
+    draws = stats.random_table(rows, cols, seed=rng).rvs(size=_EXACT_DRAWS)
+    observed = g(counts.astype(float))
+    extreme = np.sum(g(draws.astype(float)) >= observed - 1e-9 * max(1.0, observed))
+    return float((1 + extreme) / (1 + _EXACT_DRAWS))
+
+
+def _exact_significant(table: np.ndarray, alpha: float) -> bool:
+    """The ``"exact"`` decision for a contingency table of next-symbol counts.
+
+    Uses the Monte Carlo exact G-test when an expected count is below
+    ``_EXACT_MIN_EXPECTED`` and the asymptotic G-test otherwise.
+    """
+    if np.any(table.sum(axis=1) == 0):
+        return False
+    expected = np.outer(table.sum(axis=1), table.sum(axis=0)) / table.sum()
+    if expected.min() < _EXACT_MIN_EXPECTED:
+        return _exact_g_pvalue(table) < alpha
+    statistic = _g_statistic(table)
+    if statistic is None or not np.isfinite(statistic):
+        return False
+    return statistic > _chi2_critical(alpha, max(1, table.shape[1] - 1))
+
+
+def _bonferroni_alpha(
+    counts: SuffixCounts,
+    alpha: float,
+    *,
+    max_length: int,
+    min_count: int,
+    suffix_length: Callable[[History], int] = len,
+) -> float:
+    """``alpha`` divided by the number of suffixes eligible for a split test."""
+    eligible = sum(
+        1
+        for history, following in counts.next_counts.items()
+        if 0 < suffix_length(history) <= max_length and sum(following.values()) >= max(1, min_count)
+    )
+    return alpha / max(1, eligible)
+
+
 def morphs_differ(
     counts: SuffixCounts,
     left_histories: set[History],
     right_histories: set[History],
     *,
     alpha: float = 0.05,
-    test: Literal["g", "chi2", "tv"] = "g",
+    test: MorphTest = "g",
     delta: float = 0.0,
 ) -> bool:
-    """Return whether two history sets have significantly different morphs."""
+    """Return whether two history sets have significantly different morphs.
+
+    ``"g"`` and ``"chi2"`` use the chi-squared limit, which is unreliable when
+    expected counts are small. ``"exact"`` instead compares the G statistic with
+    tables drawn uniformly given the observed margins whenever an expected count is
+    below 5, and uses the G-test otherwise.
+    """
     if test == "tv":
         left = counts.state_morph(left_histories)
         right = counts.state_morph(right_histories)
@@ -194,6 +268,8 @@ def morphs_differ(
     table = _contingency_rows(counts, left_histories, right_histories)
     if table is None:
         return False
+    if test == "exact":
+        return _exact_significant(table, alpha)
     if test == "g":
         statistic = _g_statistic(table)
         if statistic is None or not np.isfinite(statistic):
@@ -213,7 +289,7 @@ def morph_test_score(
     left_histories: set[History],
     right_histories: set[History],
     *,
-    test: Literal["g", "chi2", "tv"] = "g",
+    test: MorphTest = "g",
 ) -> float:
     """Score for matching morphs (lower is more similar)."""
     if test == "tv":
@@ -224,7 +300,7 @@ def morph_test_score(
     if table is None:
         return 0.0
     try:
-        if test == "g":
+        if test in ("g", "exact"):
             statistic = _g_statistic(table)
             return statistic if statistic is not None and np.isfinite(statistic) else 0.0
         statistic, _p, _dof, _expected = stats.chi2_contingency(table)
@@ -249,7 +325,7 @@ def _cssr_homogenize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     successor_fn: Callable[[History, Any], History] = _grow_history,
 ) -> tuple[dict[int, set[History]], dict[History, int]]:
     """Return state id -> histories and history -> state id."""
@@ -361,7 +437,7 @@ def _merge_similar_states(
     counts: SuffixCounts,
     *,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
 ) -> dict[int, set[History]]:
     """Merge inferred states whose pooled morphs are statistically indistinguishable.
 
@@ -465,7 +541,7 @@ def _suffix_homogenize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     min_count: int = 1,
 ) -> list[set[History]]:
     """CSSR homogenization: grow suffixes one symbol into the past, up to length ``Lmax``.
@@ -517,7 +593,7 @@ def _suffix_edges(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     resolve: bool = True,
 ) -> dict[int, dict[Any, dict[int, set[History]]]]:
     """Successor states of each alive state, by symbol, with the suffixes that lead there.
@@ -587,7 +663,7 @@ def _suffix_determinize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     resolve: bool = True,
 ) -> tuple[list[set[History]], set[int]]:
     """Split alive states until each (state, symbol) pair has a single alive successor.
@@ -624,7 +700,7 @@ def _suffix_machine(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     resolve: bool = True,
 ) -> EpsilonMachine:
     """Build the ε-machine on the most-visited recurrent class of the alive states."""
@@ -691,7 +767,7 @@ def _suffix_reconstruct(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
 ) -> EpsilonMachine:
     """Prune transient states, determinize, and build the machine from homogeneous ``states``."""
 
@@ -710,14 +786,69 @@ def _suffix_reconstruct(
     return machine
 
 
+def suggest_lmax(
+    sequence: Sequence[Any],
+    *,
+    alpha: float = 0.01,
+    max_order: int | None = None,
+    method: Literal["exact", "chi2", "aic", "bic"] = "exact",
+    n_surrogates: int = 999,
+    seed: int = 0,
+) -> int:
+    """A data-driven ``Lmax`` for :func:`cssr`: the estimated Markov order, at least 1.
+
+    Orders ``0, 1, ...`` are tested against the next order with
+    :func:`dit.inference.select_markov_order`. The default ``"exact"`` method
+    compares the conditional block entropy against surrogates that preserve the
+    observed ``(order + 1)``-gram counts, which is valid at any sample size, unlike
+    the asymptotic chi-squared test :cite:`Pethel2014`.
+
+    Parameters
+    ----------
+    sequence
+        Observed symbols.
+    alpha
+        Significance level of each order test.
+    max_order
+        Largest order considered; by default the largest ``L`` whose
+        ``(L + 1)``-words are seen about 5 times each on average, at most 10.
+    method
+        ``"exact"`` or ``"chi2"`` (sequential tests), or ``"aic"`` / ``"bic"``.
+    n_surrogates
+        Surrogates per test for ``"exact"``.
+    seed
+        Seed for the surrogates, so the suggestion is reproducible.
+
+    Notes
+    -----
+    For a Markov source this recovers its order, which is the synchronization
+    length CSSR needs. A strictly sofic source (such as the even process) has
+    infinite Markov order, so the suggestion keeps growing with the sample; treat it
+    as a lower bound on the history length the data can support, not as the source's
+    synchronization length.
+    """
+    import dit.inference
+
+    select_markov_order = getattr(dit.inference, "select_markov_order", None)
+    if select_markov_order is None:  # pragma: no cover - depends on the installed dit
+        raise ImportError("suggest_lmax requires a dit release with dit.inference.select_markov_order")
+    seq = [repr(symbol) for symbol in sequence]
+    if max_order is None:
+        k = max(2, len(set(seq)))
+        max_order = max(1, min(10, int(np.log(max(len(seq), 1) / 5) / np.log(k)) - 1))
+    order = select_markov_order(seq, max_order, method=method, alpha=alpha, n_surrogates=n_surrogates, prng=seed)
+    return max(1, int(order))
+
+
 def cssr(
     sequence: Sequence[Any],
     *,
     alphabet: Sequence[Any] | None = None,
-    Lmax: int | None = None,
+    Lmax: int | Literal["auto"] | None = None,
     alpha: float = 0.01,
-    test: Literal["g", "chi2", "tv"] = "g",
+    test: MorphTest = "g",
     min_count: int = 5,
+    correction: Literal["bonferroni"] | None = None,
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by Causal-State Splitting Reconstruction :cite:`Shalizi2004`.
 
@@ -736,15 +867,23 @@ def cssr(
         Longest suffix considered; by default a third of ``log_k len(sequence)``,
         between 1 and 10. It should be at least the synchronization length of the
         source (for a Markov source, its order). Larger values run many more
-        significance tests, and some of them split states by chance.
+        significance tests, and some of them split states by chance. ``"auto"``
+        uses :func:`suggest_lmax`, the Markov order estimated by exact tests.
     alpha
         Significance level of each morph-equality test. The worked example of
         :cite:`Shalizi2002` uses 0.01; smaller values guard against spurious states
         when ``Lmax`` is large.
     test
-        ``"g"`` (G-test), ``"chi2"``, or ``"tv"`` (total-variation threshold).
+        ``"g"`` (G-test), ``"chi2"``, ``"tv"`` (total-variation threshold), or
+        ``"exact"`` (Monte Carlo exact G-test when expected counts are small; see
+        :func:`morphs_differ`).
     min_count
         Suffixes seen fewer than this many times are not tested or placed in a state.
+    correction
+        ``"bonferroni"`` divides ``alpha`` by the number of suffixes eligible for
+        testing, bounding the chance of any spurious split. CSSR decides each test
+        in light of earlier ones, so step-up procedures that control the false
+        discovery rate (Benjamini–Hochberg) do not apply directly.
 
     Notes
     -----
@@ -757,10 +896,17 @@ def cssr(
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
     alphabet_size = len(set(seq)) if alphabet is None else len(tuple(alphabet))
-    max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), alphabet_size)
+    if Lmax == "auto":
+        max_length = suggest_lmax(seq, alpha=alpha)
+    else:
+        max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), alphabet_size)
     if max_length < 0:
         raise ValueError("Lmax must be non-negative")
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
+    if correction == "bonferroni":
+        alpha = _bonferroni_alpha(counts, alpha, max_length=max_length, min_count=min_count)
+    elif correction is not None:
+        raise ValueError(f"unknown correction {correction!r}")
 
     homogeneous = _suffix_homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
     return _suffix_reconstruct(homogeneous, counts, seq, Lmax=max_length, alpha=alpha, test=test)
@@ -788,10 +934,12 @@ def _morphs_equivalent(
     right: History,
     *,
     delta: float,
+    alpha: float = _SUBTREE_ALPHA,
+    test: MorphTest = "g",
 ) -> bool:
     if delta > 0.0:
         return _morph_distance(counts, left, right, delta=delta) <= delta
-    return not morphs_differ(counts, {left}, {right}, alpha=_SUBTREE_ALPHA, test="g")
+    return not morphs_differ(counts, {left}, {right}, alpha=alpha, test=test)
 
 
 def _cluster_histories_by_morph(
@@ -799,6 +947,8 @@ def _cluster_histories_by_morph(
     histories: set[History],
     *,
     delta: float,
+    alpha: float = _SUBTREE_ALPHA,
+    test: MorphTest = "g",
 ) -> dict[int, set[History]]:
     parent: dict[History, History] = {history: history for history in histories}
 
@@ -818,7 +968,7 @@ def _cluster_histories_by_morph(
     history_list = sorted(histories)
     for index, left in enumerate(history_list):
         for right in history_list[index + 1 :]:
-            if _morphs_equivalent(counts, left, right, delta=delta):
+            if _morphs_equivalent(counts, left, right, delta=delta, alpha=alpha, test=test):
                 union(left, right)
 
     clusters: dict[History, set[History]] = defaultdict(set)
@@ -834,17 +984,27 @@ def _cluster_histories_by_morph(
 def subtree_merge(
     sequence: Sequence[Any],
     *,
-    L: int,
+    L: int | Literal["auto"],
     delta: float = 0.0,
     alphabet: Sequence[Any] | None = None,
+    alpha: float = _SUBTREE_ALPHA,
+    test: MorphTest = "g",
+    correction: Literal["bonferroni"] | None = None,
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young).
 
     Histories up to length ``L`` are clustered by next-symbol distribution: within
-    total-variation distance ``delta``, or, when ``delta = 0``, unless a G-test at
-    significance 0.01 tells them apart. The clusters are then determinized as in
-    :func:`cssr`.
+    total-variation distance ``delta``, or, when ``delta = 0``, unless a morph test
+    (``test``, at level ``alpha``) tells them apart. The clusters are then
+    determinized as in :func:`cssr`.
+
+    ``L="auto"`` uses :func:`suggest_lmax`. ``correction="bonferroni"`` divides
+    ``alpha`` by the number of history pairs compared, so that no pair is split
+    apart by chance; since a rejected test *separates* histories, this makes the
+    reconstruction more conservative (fewer states).
     """
+    if L == "auto":
+        L = suggest_lmax(sequence, alpha=alpha)
     if L < 0:
         raise ValueError("L must be non-negative")
     seq = tuple(sequence)
@@ -854,9 +1014,13 @@ def subtree_merge(
 
     histories = {history for history in counts.history_counts if len(history) <= L}
     histories.add(())
-    states = list(_cluster_histories_by_morph(counts, histories, delta=delta).values())
+    if correction == "bonferroni":
+        alpha /= max(1, len(histories) * (len(histories) - 1) // 2)
+    elif correction is not None:
+        raise ValueError(f"unknown correction {correction!r}")
+    states = list(_cluster_histories_by_morph(counts, histories, delta=delta, alpha=alpha, test=test).values())
 
-    return _suffix_reconstruct(states, counts, seq, Lmax=L, alpha=_SUBTREE_ALPHA, test="g")
+    return _suffix_reconstruct(states, counts, seq, Lmax=L, alpha=alpha, test=test)
 
 
 def spectral(

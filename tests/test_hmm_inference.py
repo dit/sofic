@@ -347,3 +347,36 @@ def test_seeded_sample_is_reproducible_across_hash_seeds():
         for seed in ("1", "2", "3")
     }
     assert len(outputs) == 1
+
+
+def _symmetric_two_state() -> MealyHMM:
+    """A fully connected 2-state binary HMM whose symmetric start is an EM fixed point."""
+    hmm = MealyHMM(observation_alphabet=frozenset({0, 1}), initial_distribution={"A": 0.5, "B": 0.5})
+    for state in ("A", "B"):
+        hmm.graph.add_state(state)
+    for source in ("A", "B"):
+        for target in ("A", "B"):
+            for symbol in (0, 1):
+                hmm.add_transition(source, target, symbol, 0.25)
+    hmm.validate()
+    return hmm
+
+
+def test_baum_welch_restarts_escape_symmetric_fixed_point():
+    data = sample(golden_mean(0.5), 2000, rng=np.random.default_rng(4))[0]
+    single, _ = baum_welch(_symmetric_two_state(), data, max_iter=300)
+    best, _trace, finals = baum_welch(
+        _symmetric_two_state(), data, max_iter=300, n_restarts=5, rng=0, return_restarts=True
+    )
+    assert len(finals) == 5
+    assert log_likelihood(best, data) > log_likelihood(single, data) + 10
+    assert log_likelihood(best, data) == pytest.approx(max(finals), abs=1.0)
+
+
+def test_baum_welch_restarts_reproducible_and_validated():
+    data = sample(golden_mean(0.4), 500, rng=np.random.default_rng(5))[0]
+    first, _ = baum_welch(_symmetric_two_state(), data, n_restarts=3, rng=1)
+    second, _ = baum_welch(_symmetric_two_state(), data, n_restarts=3, rng=1)
+    assert log_likelihood(first, data) == pytest.approx(log_likelihood(second, data))
+    with pytest.raises(ValueError):
+        baum_welch(_symmetric_two_state(), data, n_restarts=0)

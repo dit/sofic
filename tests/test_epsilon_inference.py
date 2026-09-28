@@ -273,3 +273,94 @@ def test_subtree_merge_default_delta_recovers_process(name: str, L: int, n_state
     inferred.validate()
     assert len(list(inferred.states())) == n_states
     assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=0.02)
+
+
+def _has_markov_order_selection() -> bool:
+    import dit.inference
+
+    return hasattr(dit.inference, "select_markov_order")
+
+
+needs_markov_order = pytest.mark.skipif(
+    not _has_markov_order_selection(), reason="needs dit.inference.select_markov_order"
+)
+
+
+@needs_markov_order
+def test_suggest_lmax_markov_sources():
+    from sofic.examples import processes
+    from sofic.generators.epsilon_inference import suggest_lmax
+
+    observations, _ = sample(golden_mean(0.5), 4000, np.random.default_rng(1))
+    assert suggest_lmax(observations) == 1
+    observations, _ = sample(processes.RkGM(3, 2), 20000, np.random.default_rng(2))
+    assert suggest_lmax(observations, method="bic") == 3
+
+
+@needs_markov_order
+def test_suggest_lmax_grows_for_even_process():
+    """The even process has infinite Markov order, so the suggestion grows with data."""
+    from sofic.generators.epsilon_inference import suggest_lmax
+
+    short, _ = sample(even_process(0.5), 300, np.random.default_rng(3))
+    long, _ = sample(even_process(0.5), 30000, np.random.default_rng(3))
+    assert suggest_lmax(long, method="bic") > suggest_lmax(short, method="bic")
+
+
+@needs_markov_order
+def test_cssr_auto_lmax_golden_mean(rng: np.random.Generator):
+    observations, _ = sample(golden_mean(0.5), 8000, rng)
+    inferred = cssr(observations, Lmax="auto", alpha=0.001)
+    assert len(list(inferred.states())) == 2
+    assert _signatures_isomorphic(inferred, golden_mean(0.5), prob_tol=0.1)
+
+
+def test_exact_morph_test_small_counts():
+    """With tiny counts the exact test is calibrated where the chi-squared limit is not."""
+    from sofic.generators.epsilon_inference import SuffixCounts, morphs_differ
+
+    rng = np.random.default_rng(4)
+    rejections = {"g": 0, "exact": 0}
+    trials = 300
+    for _ in range(trials):
+        counts = SuffixCounts(alphabet=(0, 1, 2))
+        for history in ((0,), (1,)):
+            for symbol in rng.choice(3, size=6, p=[0.8, 0.1, 0.1]):
+                counts.next_counts[history][int(symbol)] += 1
+                counts.history_counts[history] += 1
+        for test in rejections:
+            rejections[test] += morphs_differ(counts, {(0,)}, {(1,)}, alpha=0.05, test=test)
+    assert rejections["exact"] / trials <= 0.08
+    assert rejections["exact"] <= rejections["g"]
+
+
+def test_exact_morph_test_is_deterministic(rng: np.random.Generator):
+    observations, _ = sample(golden_mean(0.5), 3000, rng)
+    first = cssr(observations, Lmax=3, alpha=0.01, test="exact")
+    second = cssr(observations, Lmax=3, alpha=0.01, test="exact")
+    assert _transition_signature(first) == _transition_signature(second)
+    assert len(list(first.states())) == 2
+
+
+def test_cssr_bonferroni_reduces_spurious_states():
+    """An i.i.d. source with a long Lmax: the corrected test keeps a single state."""
+    observations, _ = sample(bernoulli(0.3), 3000, np.random.default_rng(6))
+    inferred = cssr(observations, Lmax=6, alpha=0.05, correction="bonferroni")
+    assert len(list(inferred.states())) == 1
+    with pytest.raises(ValueError, match="unknown correction"):
+        cssr(observations, Lmax=2, correction="holm")
+
+
+@pytest.mark.parametrize("kwargs", [{"test": "exact"}, {"correction": "bonferroni"}, {"alpha": 0.001}])
+def test_subtree_merge_options_golden_mean(kwargs):
+    observations, _ = sample(golden_mean(0.5), 6000, np.random.default_rng(7))
+    inferred = subtree_merge(observations, L=2, **kwargs)
+    assert len(list(inferred.states())) == 2
+    with pytest.raises(ValueError, match="unknown correction"):
+        subtree_merge(observations, L=2, correction="holm")
+
+
+@needs_markov_order
+def test_subtree_merge_auto_depth():
+    observations, _ = sample(golden_mean(0.5), 6000, np.random.default_rng(8))
+    assert len(list(subtree_merge(observations, L="auto").states())) == 2

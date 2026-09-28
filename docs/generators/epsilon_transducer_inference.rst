@@ -14,6 +14,11 @@ Causal states are equivalence classes of joint ``(input, output)`` pasts that
 induce the same conditional next-output law ``P(y | history, x)`` for every input
 symbol ``x``. Rare histories inherit their parent's state (controlled by
 ``min_count``); the split decision uses a G-test at significance ``alpha``.
+As in :func:`~sofic.generators.epsilon_inference.cssr`, ``test="exact"`` uses a
+Monte Carlo exact G-test for tables with small expected counts, and
+``correction="bonferroni"`` divides ``alpha`` by the number of
+(history, input symbol) tests. ``Lmax="auto"`` sets the depth from the Markov
+order of the joint ``(input, output)`` sequence :cite:`Pethel2014`.
 
 .. ipython::
 

@@ -48,6 +48,12 @@ can follow is decided by the stack top through matched call-return pairs, not by
 the finite control. Return edges are matched only to calls observed to close
 them.
 
+``stack_cssr`` accepts the same calibration options as
+:func:`~sofic.generators.epsilon_inference.cssr`: ``test="exact"``,
+``correction="bonferroni"`` (over eligible configurations), and ``Lmax="auto"``.
+Stack processes generally have infinite Markov order, so the automatic depth is
+a lower bound on the suffix length the data support.
+
 API
 ===
 

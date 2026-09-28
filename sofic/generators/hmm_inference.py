@@ -370,7 +370,10 @@ def baum_welch(
     max_iter: int = 100,
     tol: float = 1e-6,
     estimate_initial: bool = True,
-) -> tuple[Any, list[float]]:
+    n_restarts: int = 1,
+    rng: np.random.Generator | int | None = None,
+    return_restarts: bool = False,
+) -> tuple[Any, list[float]] | tuple[Any, list[float], list[float]]:
     r"""Fit HMM parameters by Baum-Welch (EM) expectation-maximization.
 
     Re-estimates the Mealy joint edge law
@@ -390,6 +393,13 @@ def baum_welch(
     Returns ``(fitted_model, loglik_trace)`` where ``loglik_trace`` is the
     non-decreasing sequence of total natural-log likelihoods observed before each
     parameter update.
+
+    EM converges to a local maximum of the likelihood. With ``n_restarts > 1`` the
+    first run starts from ``hmm``'s parameters and each further run from edge laws
+    drawn uniformly (Dirichlet(1)) over each state's structurally allowed edges;
+    the fit with the highest final log-likelihood is returned. Pass
+    ``return_restarts=True`` to also get every run's final log-likelihood, which
+    shows whether near-equal optima exist.
     """
     from sofic.generators.mealy import MealyHMM
 
@@ -409,6 +419,63 @@ def baum_welch(
         if matrix[i, j] > 0.0
     }
 
+    if n_restarts < 1:
+        raise ValueError("n_restarts must be at least 1")
+    generator = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
+    runs = []
+    for restart in range(n_restarts):
+        start_joint = joint if restart == 0 else _random_edge_law(joint, support, n_states, generator)
+        runs.append(
+            _baum_welch_run(pi, start_joint, seqs, max_iter=max_iter, tol=tol, estimate_initial=estimate_initial)
+        )
+    finals = [trace[-1] if trace else float("-inf") for _pi, _joint, trace in runs]
+    pi, joint, loglik_trace = runs[int(np.argmax(finals))]
+
+    fitted = MealyHMM(
+        initial_distribution={states[i]: float(pi[i]) for i in range(n_states) if pi[i] > 0.0},
+        observation_alphabet=alphabet,
+    )
+    for state in states:
+        fitted.graph.add_state(state)
+    for i, symbol, j in sorted(support, key=lambda edge: (edge[0], str(edge[1]), edge[2])):
+        prob = float(joint[symbol][i, j])
+        if prob > 0.0:
+            fitted.add_transition(states[i], states[j], symbol, prob)
+    fitted.validate()
+    if return_restarts:
+        return fitted, loglik_trace, finals
+    return fitted, loglik_trace
+
+
+def _random_edge_law(
+    joint: dict[Any, np.ndarray],
+    support: set[tuple[int, Any, int]],
+    n_states: int,
+    rng: np.random.Generator,
+) -> dict[Any, np.ndarray]:
+    """Edge laws drawn uniformly over each state's allowed ``(symbol, target)`` edges."""
+    new_joint = {symbol: np.zeros((n_states, n_states), dtype=float) for symbol in joint}
+    for i in range(n_states):
+        edges = sorted(((symbol, j) for (source, symbol, j) in support if source == i), key=lambda e: (str(e[0]), e[1]))
+        if not edges:
+            continue
+        weights = rng.dirichlet(np.ones(len(edges)))
+        for (symbol, j), weight in zip(edges, weights, strict=True):
+            new_joint[symbol][i, j] = weight
+    return new_joint
+
+
+def _baum_welch_run(
+    pi: np.ndarray,
+    joint: dict[Any, np.ndarray],
+    seqs: list[Any],
+    *,
+    max_iter: int,
+    tol: float,
+    estimate_initial: bool,
+) -> tuple[np.ndarray, dict[Any, np.ndarray], list[float]]:
+    """One EM run from ``(pi, joint)``; returns the final parameters and trace."""
+    n_states = len(pi)
     loglik_trace: list[float] = []
     prev_ll: float | None = None
     for _iteration in range(max_iter):
@@ -443,19 +510,7 @@ def baum_welch(
             mass = float(gamma0_sum.sum())
             if mass > 0.0:
                 pi = gamma0_sum / mass
-
-    fitted = MealyHMM(
-        initial_distribution={states[i]: float(pi[i]) for i in range(n_states) if pi[i] > 0.0},
-        observation_alphabet=alphabet,
-    )
-    for state in states:
-        fitted.graph.add_state(state)
-    for i, symbol, j in sorted(support, key=lambda edge: (edge[0], str(edge[1]), edge[2])):
-        prob = float(joint[symbol][i, j])
-        if prob > 0.0:
-            fitted.add_transition(states[i], states[j], symbol, prob)
-    fitted.validate()
-    return fitted, loglik_trace
+    return pi, joint, loglik_trace
 
 
 def score(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:

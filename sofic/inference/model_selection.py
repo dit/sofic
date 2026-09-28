@@ -116,6 +116,39 @@ def _total_log_likelihood(model: HiddenMarkovModel, sequences: Sequence[Sequence
     return total
 
 
+def _smoothed_log_likelihood(
+    model: HiddenMarkovModel,
+    sequence: Sequence[Any],
+    *,
+    smoothing: float,
+    alphabet_size: int,
+) -> float:
+    """Natural-log likelihood with each one-step prediction mixed with the uniform law.
+
+    ``P'(x_t | x_{0:t}) = (1 - smoothing) P(x_t | x_{0:t}) + smoothing / alphabet_size``,
+    computed by forward filtering. After a symbol the model forbids, the belief is
+    propagated without conditioning on it.
+    """
+    from sofic.generators.hmm_inference import _emission_transition_tensors_from_mealy
+
+    pi, joint = _emission_transition_tensors_from_mealy(model.to_mealy())
+    total_step = sum(joint.values())
+    belief = np.asarray(pi, dtype=float)
+    belief = belief / belief.sum()
+    total = 0.0
+    for symbol in sequence:
+        matrix = joint.get(symbol)
+        unnormalized = belief @ matrix if matrix is not None else np.zeros_like(belief)
+        predicted = float(unnormalized.sum())
+        total += float(np.log((1.0 - smoothing) * predicted + smoothing / alphabet_size))
+        if predicted > 0.0:
+            belief = unnormalized / predicted
+        else:
+            belief = belief @ total_step
+            belief = belief / belief.sum()
+    return total
+
+
 def score_model(
     model: HiddenMarkovModel,
     data: Iterable[Any],
@@ -193,6 +226,8 @@ def cross_validated_log_likelihood(
     *,
     folds: int = 5,
     rng: np.random.Generator | int | None = None,
+    gap: int = 0,
+    smoothing: float = 0.0,
 ) -> float:
     """Return the total held-out natural-log likelihood under ``folds``-fold CV.
 
@@ -201,8 +236,26 @@ def cross_validated_log_likelihood(
     sequences; a single long sequence is split into ``folds`` contiguous blocks.
     Each held-out block is scored under a model trained on the remaining data and
     the contributions are summed (higher is better). A fold whose held-out data
-    has zero probability contributes ``-inf``.
+    has zero probability contributes ``-inf`` unless ``smoothing > 0``.
+
+    Parameters
+    ----------
+    gap
+        For contiguous blocks of one long sequence, drop this many symbols from
+        each training block on the side adjacent to the held-out block. Neighboring
+        blocks of a dependent sequence are correlated, so without a gap the
+        held-out score is optimistic (buffered or "h-block" cross-validation
+        :cite:`Burman1994`). A gap of the order of the process's memory suffices.
+    smoothing
+        Mix each one-step held-out prediction with the uniform distribution over
+        the observed alphabet, with this weight. Then a single transition that the
+        fitted model forbids costs ``log(smoothing / |A|)`` instead of making the
+        whole fold ``-inf``, so models can still be compared.
     """
+    if gap < 0:
+        raise ValueError("gap must be non-negative")
+    if not 0.0 <= smoothing < 1.0:
+        raise ValueError("smoothing must be in [0, 1)")
     generator = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
     sequences = _normalize_sequences(data)
     if folds < 2:
@@ -219,16 +272,31 @@ def cross_validated_log_likelihood(
         blocks = [list(chunk) for chunk in np.array_split(np.array(flat, dtype=object), folds)]
         blocks = [[list(block)] for block in blocks]
 
+    contiguous = len(sequences) < folds
+    alphabet_size = max(1, len({symbol for seq in sequences for symbol in seq}))
     total = 0.0
     for held_out_index in range(len(blocks)):
         train: list[Any] = []
         for index, block in enumerate(blocks):
             if index == held_out_index:
                 continue
+            if contiguous and gap:
+                (segment,) = block
+                if index == held_out_index - 1:
+                    segment = segment[: max(0, len(segment) - gap)]
+                elif index == held_out_index + 1:
+                    segment = segment[gap:]
+                block = [segment] if segment else []
             train.extend(block)
-        held_out = blocks[held_out_index]
+        held_out = _normalize_sequences(blocks[held_out_index])
         model = fit(train)
-        total += _total_log_likelihood(model, _normalize_sequences(held_out))
+        if smoothing > 0.0:
+            total += sum(
+                _smoothed_log_likelihood(model, seq, smoothing=smoothing, alphabet_size=alphabet_size)
+                for seq in held_out
+            )
+        else:
+            total += _total_log_likelihood(model, held_out)
     return float(total)
 
 
