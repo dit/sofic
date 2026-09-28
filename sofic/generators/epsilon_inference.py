@@ -827,10 +827,11 @@ def suggest_lmax(
     as a lower bound on the history length the data can support, not as the source's
     synchronization length.
     """
-    try:
-        from dit.inference import select_markov_order
-    except ImportError as error:  # pragma: no cover - depends on the installed dit
-        raise ImportError("suggest_lmax requires a dit release with dit.inference.select_markov_order") from error
+    import dit.inference
+
+    select_markov_order = getattr(dit.inference, "select_markov_order", None)
+    if select_markov_order is None:  # pragma: no cover - depends on the installed dit
+        raise ImportError("suggest_lmax requires a dit release with dit.inference.select_markov_order")
     seq = [repr(symbol) for symbol in sequence]
     if max_order is None:
         k = max(2, len(set(seq)))

@@ -253,18 +253,21 @@ class StructureStability:
         return self.topologies.most_common(1)[0][0] if self.topologies else None
 
 
-def _reconstruct(sequence: Sequence[Any], method: str | Callable[..., Any], kwargs: dict[str, Any]) -> Any:
-    if callable(method):
-        return method(sequence, **kwargs)
-    from sofic.generators.epsilon_machine import EpsilonMachine
+Method = Literal["cssr", "subtree", "spectral"]
 
-    return EpsilonMachine.from_sequence(sequence, method=method, **kwargs)
+
+def _reconstruct(sequence: Sequence[Any], method: Method | Callable[..., Any], kwargs: dict[str, Any]) -> Any:
+    if isinstance(method, str):
+        from sofic.generators.epsilon_machine import EpsilonMachine
+
+        return EpsilonMachine.from_sequence(sequence, method=method, **kwargs)
+    return method(sequence, **kwargs)
 
 
 def structure_stability(
     sequence: Sequence[Any],
     *,
-    method: Literal["cssr", "subtree", "spectral"] | Callable[..., Any] = "cssr",
+    method: Method | Callable[..., Any] = "cssr",
     n_resamples: int = 50,
     resample: Literal["subsample", "block"] = "subsample",
     fraction: float = 0.5,
@@ -322,8 +325,11 @@ def structure_stability(
         starts = generator.integers(0, n - m + 1, size=n_resamples)
         replicates: Iterable[Sequence[Any]] = (seq[s : s + m] for s in starts)
     elif resample == "block":
-        from dit.inference import stationary_bootstrap
+        import dit.inference
 
+        stationary_bootstrap = getattr(dit.inference, "stationary_bootstrap", None)
+        if stationary_bootstrap is None:  # pragma: no cover - depends on the installed dit
+            raise ImportError('resample="block" requires a dit release with dit.inference.stationary_bootstrap')
         array = np.empty(n, dtype=object)
         array[:] = seq
         replicates = (list(r) for r in stationary_bootstrap(array, n_resamples, mean_block_length, generator))

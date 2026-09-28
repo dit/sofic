@@ -64,6 +64,13 @@ def test_structure_stability_subsample(even_sample):
     assert result.modal_topology == result.reference
 
 
+def _has_stationary_bootstrap() -> bool:
+    import dit.inference
+
+    return hasattr(dit.inference, "stationary_bootstrap")
+
+
+@pytest.mark.skipif(not _has_stationary_bootstrap(), reason="needs dit.inference.stationary_bootstrap")
 def test_structure_stability_block_runs(even_sample):
     result = structure_stability(
         even_sample, n_resamples=4, rng=0, resample="block", mean_block_length=500, Lmax=3, alpha=0.001
