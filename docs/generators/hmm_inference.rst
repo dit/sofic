@@ -50,6 +50,14 @@ transition-graph topology fixed:
 
    In [13]: fitted, loglik_trace = baum_welch(golden_mean(0.6), data)
 
+EM stops at a local maximum of the likelihood. ``n_restarts`` reruns it from
+random edge laws on the same topology and keeps the best fit;
+``return_restarts=True`` also returns each run's final log-likelihood:
+
+.. code-block:: python
+
+   fitted, trace, finals = baum_welch(start, data, n_restarts=10, rng=0, return_restarts=True)
+
 The score and observed information quantify the log-likelihood gradient and
 parameter uncertainty at the current parameters:
 

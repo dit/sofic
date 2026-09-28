@@ -187,3 +187,40 @@ def test_rank_topological_epsilon_machines_prefers_two_states():
     best = ranked[0]
     assert len(list(best.machine.states())) == 2
     assert best.criterion_value < ranked[-1].criterion_value
+
+
+def test_cross_validation_smoothing_keeps_forbidden_folds_finite():
+    """The golden mean forbids 11; a held-out '11' makes an unsmoothed fold -inf."""
+    rng = np.random.default_rng(6)
+    data, _ = golden_mean(0.5).sample(1000, rng=rng)
+    data = list(data)
+    data[500:502] = [1, 1]
+
+    def fit_golden(train):
+        model, _trace = golden_mean(0.6).baum_welch(train)
+        return model
+
+    assert cross_validated_log_likelihood(fit_golden, data, folds=4) == float("-inf")
+    smoothed = cross_validated_log_likelihood(fit_golden, data, folds=4, smoothing=0.01)
+    assert np.isfinite(smoothed)
+    clean, _ = golden_mean(0.5).sample(1000, rng=np.random.default_rng(7))
+    exact = cross_validated_log_likelihood(fit_golden, list(clean), folds=4)
+    nearly = cross_validated_log_likelihood(fit_golden, list(clean), folds=4, smoothing=1e-9)
+    assert nearly == pytest.approx(exact, rel=1e-6)
+
+
+def test_cross_validation_gap_drops_boundary_symbols():
+    seen: list[int] = []
+
+    def fit_counting(train):
+        seen.append(sum(len(seq) for seq in train))
+        return _iid_binary(0.5)
+
+    data = [0, 1] * 200
+    cross_validated_log_likelihood(fit_counting, data, folds=4)
+    cross_validated_log_likelihood(fit_counting, data, folds=4, gap=10)
+    plain, gapped = seen[:4], seen[4:]
+    # Interior folds lose two gaps, the end folds one.
+    assert [p - g for p, g in zip(plain, gapped, strict=True)] == [10, 20, 20, 10]
+    with pytest.raises(ValueError):
+        cross_validated_log_likelihood(fit_counting, data, folds=4, gap=-1)

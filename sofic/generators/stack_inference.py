@@ -10,7 +10,9 @@ from sofic.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck
 from sofic.exceptions import StochasticValidationError
 from sofic.generators.epsilon_inference import (
     History,
+    MorphTest,
     SuffixCounts,
+    _bonferroni_alpha,
     _cluster_histories_by_morph,
     _cssr_default_lmax,
     _cssr_determinize,
@@ -18,6 +20,7 @@ from sofic.generators.epsilon_inference import (
     _merge_similar_states,
     morph_test_score,
     morphs_differ,
+    suggest_lmax,
 )
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
 from sofic.graph import ATTR_SYMBOL
@@ -166,7 +169,7 @@ def _stack_homogenize(
     alphabet: DyckAlphabet,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     max_stack_depth: int,
     min_count: int = 1,
 ) -> tuple[dict[int, set[ConfigurationHistory]], dict[ConfigurationHistory, int]]:
@@ -241,7 +244,7 @@ def _stack_merge(
     counts: StackSuffixCounts,
     *,
     alpha: float,
-    test: Literal["g", "chi2", "tv"],
+    test: MorphTest,
     alphabet: DyckAlphabet,
 ) -> dict[int, set[ConfigurationHistory]]:
     proxy = _control_counts(counts, alphabet).restricted_to(set(history_to_state))
@@ -378,23 +381,45 @@ def stack_cssr(
     sequence: Sequence[Any],
     *,
     alphabet: DyckAlphabet,
-    Lmax: int | None = None,
+    Lmax: int | Literal["auto"] | None = None,
     max_stack_depth: int = 8,
     alpha: float = 0.05,
-    test: Literal["g", "chi2", "tv"] = "g",
+    test: MorphTest = "g",
     min_count: int = 5,
+    correction: Literal["bonferroni"] | None = None,
 ) -> HiddenMarkovStackModel:
-    """Reconstruct a stack HMM via configuration-lifted CSSR."""
+    """Reconstruct a stack HMM via configuration-lifted CSSR.
+
+    ``Lmax="auto"`` uses :func:`~sofic.generators.epsilon_inference.suggest_lmax`
+    on the observed symbols. Stack processes generally have infinite Markov
+    order, so treat it as a lower bound on the suffix length the data support.
+    ``test="exact"`` and ``correction="bonferroni"`` are as in
+    :func:`~sofic.generators.epsilon_inference.cssr`; the correction counts
+    eligible (suffix, stack) configurations.
+    """
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
-    max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), len(alphabet.symbol_alphabet))
+    if Lmax == "auto":
+        max_length = suggest_lmax(seq, alpha=alpha)
+    else:
+        max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), len(alphabet.symbol_alphabet))
     counts = StackSuffixCounts.from_sequence(
         seq,
         alphabet=alphabet,
         max_length=max_length + 1,
         max_stack_depth=max_stack_depth,
     )
+    if correction == "bonferroni":
+        alpha = _bonferroni_alpha(
+            counts,
+            alpha,
+            max_length=max_length,
+            min_count=min_count,
+            suffix_length=lambda history: len(history[0]),
+        )
+    elif correction is not None:
+        raise ValueError(f"unknown correction {correction!r}")
     states, history_to_state = _stack_homogenize(
         counts,
         alphabet=alphabet,

@@ -1,6 +1,14 @@
 """Inference algorithms for stochastic generators."""
 
 from sofic.inference import bayesian
+from sofic.inference.diagnostics import (
+    GoodnessOfFit,
+    StructureStability,
+    goodness_of_fit,
+    reconstruction_sweep,
+    structure_stability,
+    topology_key,
+)
 from sofic.inference.model_selection import (
     ModelScores,
     WAICResult,
@@ -25,6 +33,12 @@ from sofic.inference.spectral import (
 
 __all__ = [
     "bayesian",
+    "GoodnessOfFit",
+    "StructureStability",
+    "goodness_of_fit",
+    "reconstruction_sweep",
+    "structure_stability",
+    "topology_key",
     "ModelScores",
     "WAICResult",
     "compare_information_criteria",

@@ -41,7 +41,8 @@ CSSR :cite:`Shalizi2002` starts from an IID model and grows causal states in thr
 1. **Initialize** — one state for the empty history.
 2. **Homogenize** — extend each suffix one symbol into the past, up to ``Lmax``; a
    child suffix whose next-symbol distribution differs significantly from its
-   state's (G-test, :math:`\chi^2`, or total-variation threshold) moves to the best
+   state's (G-test, :math:`\chi^2`, Monte Carlo exact G-test, or total-variation
+   threshold) moves to the best
    matching state, or starts a new one. States keep suffixes of every length.
 3. **Determinize** — drop transient states, then split states until each state and
    symbol lead to a single successor, then keep the most-visited recurrent class.
@@ -59,7 +60,44 @@ split states by chance; lowering ``alpha`` counters this. A process that is not
 exactly synchronizable has no finite-``Lmax`` reconstruction, and CSSR returns
 extra states.
 
+Choosing ``Lmax`` and calibrating the tests
+-------------------------------------------
+
+``Lmax="auto"`` sets ``Lmax`` to :func:`suggest_lmax`, the Markov order estimated
+by :func:`dit.inference.select_markov_order`. Its default method tests order
+:math:`n` against :math:`n + 1` with surrogates that preserve the observed
+:math:`(n + 1)`-gram counts exactly, so the test holds its nominal size at any
+sample length, where the asymptotic chi-squared test is badly anti-conservative
+:cite:`Pethel2014`. For a Markov source this is its order, which is the
+synchronization length CSSR needs. A strictly sofic source such as the even
+process has infinite Markov order, so the suggestion grows with the sample: read
+it as the longest history the data supports, not as a synchronization length.
+
+The morph tests also rely on the chi-squared limit, which fails for the sparse
+counts of long suffixes. ``test="exact"`` compares the G statistic with tables
+drawn uniformly given the observed margins whenever an expected count is below 5
+(seeded from the table, so reconstruction stays deterministic).
+``correction="bonferroni"`` divides ``alpha`` by the number of suffixes eligible
+for testing, bounding the chance of any spurious split. Because CSSR chooses each
+test in light of earlier outcomes, false-discovery-rate step-up procedures do not
+apply directly.
+
+.. code-block:: python
+
+   inferred = EpsilonMachine.from_sequence(
+       observations, method="cssr", Lmax="auto", test="exact", correction="bonferroni"
+   )
+
 .. autofunction:: cssr
+
+.. autofunction:: suggest_lmax
+
+After reconstruction, check the result with
+:func:`~sofic.inference.diagnostics.goodness_of_fit` and
+:func:`~sofic.inference.diagnostics.structure_stability`
+(see :doc:`../inference/diagnostics`).
+
+.. autofunction:: morphs_differ
 
 Subtree merging
 ===============
@@ -69,6 +107,10 @@ equivalent next-symbol distributions (metric tolerance ``delta``), then determin
 to a unifilar presentation.  With ``delta=0``, two morphs are equivalent unless a
 G-test at significance 0.01 tells them apart, a tolerance that scales with the
 sample. Transitions follow the same successor rule as CSSR.
+
+``subtree_merge`` accepts ``alpha``, ``test`` (including ``"exact"``) and
+``correction="bonferroni"``, which divides ``alpha`` over the history pairs
+compared, as well as ``L="auto"``.
 
 .. autofunction:: subtree_merge
 

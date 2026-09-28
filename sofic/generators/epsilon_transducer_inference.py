@@ -126,7 +126,7 @@ def aggregates_differ(
     input_alphabet: tuple[Any, ...],
     output_alphabet: tuple[Any, ...],
     alpha: float,
-    test: Literal["g", "chi2"] = "g",
+    test: Literal["g", "chi2", "exact"] = "g",
 ) -> bool:
     """Return whether two aggregated morphs differ on ``P(output | ., input)`` for some input."""
     for input_symbol in input_alphabet:
@@ -168,7 +168,11 @@ def _aggregate_score(
     return total
 
 
-def _table_significant(table: np.ndarray, *, alpha: float, test: Literal["g", "chi2"]) -> bool:
+def _table_significant(table: np.ndarray, *, alpha: float, test: Literal["g", "chi2", "exact"]) -> bool:
+    if test == "exact":
+        from sofic.generators.epsilon_inference import _exact_significant
+
+        return _exact_significant(table, alpha)
     try:
         if test == "g":
             with np.errstate(invalid="ignore", divide="ignore"):
@@ -201,7 +205,7 @@ def _homogenize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2"],
+    test: Literal["g", "chi2", "exact"],
     min_count: int,
 ) -> list[set[JointHistory]]:
     """transCSSR homogenization: grow joint suffixes one ``(input, output)`` pair into the past.
@@ -268,7 +272,7 @@ def _edges(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2"],
+    test: Literal["g", "chi2", "exact"],
 ) -> dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]:
     """Successor states by ``(input, output)`` pair, with the histories that lead there.
 
@@ -349,7 +353,7 @@ def _determinize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2"],
+    test: Literal["g", "chi2", "exact"],
 ) -> tuple[list[set[JointHistory]], set[int]]:
     """Split alive states until each ``(input, output)`` pair has one alive successor."""
     states = [set(h) for h in states]
@@ -384,7 +388,7 @@ def _build_transducer(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2"],
+    test: Literal["g", "chi2", "exact"],
 ) -> EpsilonTransducer:
     edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
     history_to_state = {h: index for index in alive for h in states[index]}
@@ -462,10 +466,11 @@ def transcssr(
     *,
     input_alphabet: Sequence[Any] | None = None,
     output_alphabet: Sequence[Any] | None = None,
-    Lmax: int | None = None,
+    Lmax: int | Literal["auto"] | None = None,
     alpha: float = 0.001,
-    test: Literal["g", "chi2"] = "g",
+    test: Literal["g", "chi2", "exact"] = "g",
     min_count: int = 5,
+    correction: Literal["bonferroni"] | None = None,
 ) -> EpsilonTransducer:
     """Reconstruct an ε-transducer from paired input/output sequences (transCSSR).
 
@@ -473,6 +478,13 @@ def transcssr(
     decision; the transCSSR/CSSR default of ``0.001`` favors fewer, more robust
     states. ``Lmax`` bounds the joint-history depth and ``min_count`` the minimum
     occurrences before a history is eligible to seed a new state.
+
+    ``Lmax="auto"`` applies :func:`~sofic.generators.epsilon_inference.suggest_lmax`
+    to the joint ``(input, output)`` sequence. ``test="exact"`` uses the Monte
+    Carlo exact G-test when expected counts are small (see
+    :func:`~sofic.generators.epsilon_inference.morphs_differ`), and
+    ``correction="bonferroni"`` divides ``alpha`` by the number of
+    (history, input symbol) tests that can split a state.
     """
     xs = tuple(inputs)
     ys = tuple(outputs)
@@ -485,7 +497,12 @@ def transcssr(
         if input_alphabet is None or output_alphabet is None
         else len(tuple(input_alphabet)) * len(tuple(output_alphabet))
     )
-    max_length = Lmax if Lmax is not None else _default_lmax(len(xs), joint_alphabet_size, min_count)
+    if Lmax == "auto":
+        from sofic.generators.epsilon_inference import suggest_lmax
+
+        max_length = suggest_lmax(list(zip(xs, ys, strict=True)), alpha=alpha)
+    else:
+        max_length = Lmax if Lmax is not None else _default_lmax(len(xs), joint_alphabet_size, min_count)
     counts = JointSuffixCounts.from_sequences(
         xs,
         ys,
@@ -493,6 +510,15 @@ def transcssr(
         output_alphabet=output_alphabet,
         max_length=max_length + 1,
     )
+    if correction == "bonferroni":
+        eligible = sum(
+            1
+            for history in counts.next_counts
+            if 0 < len(history) <= max_length and _observed(counts, history) >= max(1, min_count)
+        )
+        alpha /= max(1, eligible * len(counts.input_alphabet))
+    elif correction is not None:
+        raise ValueError(f"unknown correction {correction!r}")
 
     states = _homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
     everything = set(range(len(states)))

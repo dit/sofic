@@ -244,3 +244,20 @@ def test_stack_cssr_matches_motzkin_likelihood(Lmax: int):
     assert _held_out_bits_per_symbol(inferred, held_out) == pytest.approx(
         _held_out_bits_per_symbol(oracle, held_out), abs=0.05
     )
+
+
+def test_stack_cssr_exact_and_bonferroni_run():
+    shift = motzkin_shift()
+    oracle = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, _uniform_probabilities(shift))
+    observations, _ = oracle.sample(3000, rng=np.random.default_rng(1))
+    alphabet = DyckAlphabet(
+        call_alphabet=shift.call_alphabet,
+        return_alphabet=shift.return_alphabet,
+        internal_alphabet=shift.internal_alphabet,
+    )
+    for kwargs in ({"test": "exact"}, {"correction": "bonferroni"}):
+        inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.001, **kwargs)
+        inferred.validate()
+        assert oracle.word_probability(tuple(observations[:12])) > 0.0
+    with pytest.raises(ValueError, match="unknown correction"):
+        stack_cssr(observations, alphabet=alphabet, Lmax=2, correction="holm")

@@ -44,6 +44,7 @@ The historical names ``InferMC`` and ``InferEM`` are retained as aliases for
    epsilon
    spectral
    model_selection
+   diagnostics
    hdp_hmm
    stack_hmm
    pymc

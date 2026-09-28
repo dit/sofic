@@ -147,8 +147,13 @@ class HiddenMarkovModel(StochasticModel):
         max_iter: int = 100,
         tol: float = 1e-6,
         estimate_initial: bool = True,
+        n_restarts: int = 1,
+        rng: np.random.Generator | int | None = None,
     ) -> tuple[MealyHMM, list[float]]:
-        """Fit parameters by Baum-Welch EM, returning ``(fitted_model, loglik_trace)``."""
+        """Fit parameters by Baum-Welch EM, returning ``(fitted_model, loglik_trace)``.
+
+        ``n_restarts`` and ``rng`` are as in :func:`~sofic.generators.hmm_inference.baum_welch`.
+        """
         from sofic.generators.hmm_inference import baum_welch
 
         return baum_welch(
@@ -157,6 +162,8 @@ class HiddenMarkovModel(StochasticModel):
             max_iter=max_iter,
             tol=tol,
             estimate_initial=estimate_initial,
+            n_restarts=n_restarts,
+            rng=rng,
         )
 
     def score(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
