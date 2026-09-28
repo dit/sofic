@@ -322,3 +322,28 @@ def test_hmm_methods_delegate_to_inference_functions():
     assert np.allclose(gm.observed_information(obs), observed_information(gm, obs))
     _fitted, trace = gm.baum_welch(obs)
     assert trace
+
+
+def test_seeded_sample_is_reproducible_across_hash_seeds():
+    """Regression: symbol order came from iterating a frozenset, so a seeded sample
+    changed with PYTHONHASHSEED."""
+    import os
+    import subprocess
+    import sys
+
+    script = (
+        "import numpy as np\n"
+        "from sofic.examples.processes import Nemo\n"
+        "print(''.join(Nemo().sample(200, rng=np.random.default_rng(5))[0]))\n"
+    )
+    outputs = {
+        subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        ).stdout
+        for seed in ("1", "2", "3")
+    }
+    assert len(outputs) == 1

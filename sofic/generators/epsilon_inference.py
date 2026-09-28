@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, ClassVar, Literal
 
 import numpy as np
@@ -150,6 +151,30 @@ def _contingency_rows(
     return table
 
 
+def _g_statistic(table: np.ndarray) -> float | None:
+    """G-test statistic of a contingency table, as ``scipy.stats.chi2_contingency`` computes it.
+
+    Includes Yates' correction for one degree of freedom, and returns ``None`` if an
+    expected count is zero. Inlined because the test runs once per pair of
+    histories, and the general scipy routine dominated inference time.
+    """
+    expected = table.sum(axis=1, keepdims=True) * table.sum(axis=0, keepdims=True) / table.sum()
+    if np.any(expected == 0):
+        return None
+    observed = table
+    if (table.shape[0] - 1) * (table.shape[1] - 1) == 1:
+        diff = expected - observed
+        observed = observed + np.sign(diff) * np.minimum(0.5, np.abs(diff))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        terms = np.where(observed > 0, observed * np.log(observed / expected), 0.0)
+    return 2.0 * float(terms.sum())
+
+
+@lru_cache(maxsize=256)
+def _chi2_critical(alpha: float, dof: int) -> float:
+    return float(stats.chi2.ppf(1.0 - alpha, dof))
+
+
 def morphs_differ(
     counts: SuffixCounts,
     left_histories: set[History],
@@ -170,16 +195,10 @@ def morphs_differ(
     if table is None:
         return False
     if test == "g":
-        try:
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p_value, _dof, expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-        except ValueError:
+        statistic = _g_statistic(table)
+        if statistic is None or not np.isfinite(statistic):
             return False
-        if not np.isfinite(statistic) or np.any(expected == 0):
-            return False
-        dof = max(1, table.shape[1] - 1)
-        critical = float(stats.chi2.ppf(1.0 - alpha, dof))
-        return float(statistic) > critical
+        return statistic > _chi2_critical(alpha, max(1, table.shape[1] - 1))
     try:
         statistic, p_value, _dof, expected = stats.chi2_contingency(table)
     except ValueError:
@@ -206,9 +225,8 @@ def morph_test_score(
         return 0.0
     try:
         if test == "g":
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p, _dof, _expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-            return float(statistic) if np.isfinite(statistic) else 0.0
+            statistic = _g_statistic(table)
+            return statistic if statistic is not None and np.isfinite(statistic) else 0.0
         statistic, _p, _dof, _expected = stats.chi2_contingency(table)
         return float(statistic)
     except ValueError:
@@ -386,6 +404,7 @@ def _drop_transient_states(
     counts: SuffixCounts,
     *,
     length: int,
+    successor_fn: Callable[[History, Any], History] = _grow_history,
 ) -> dict[int, set[History]]:
     """Keep only states in bottom strongly connected components."""
     import networkx as nx
@@ -396,8 +415,7 @@ def _drop_transient_states(
             for symbol in counts.alphabet:
                 if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
                     continue
-                child = history + (symbol,)
-                target = history_to_state.get(child)
+                target = history_to_state.get(successor_fn(history, symbol))
                 if target is None:
                     continue
                 successors[state_id][symbol].add(target)
@@ -432,81 +450,263 @@ def _drop_transient_states(
     return {state_id: histories for state_id, histories in states.items() if state_id in recurrent}
 
 
-def _empirical_state_visits(
-    sequence: Sequence[Any],
-    history_to_state: dict[History, int],
-    *,
-    length: int,
-) -> Counter[int]:
-    """Count how often each causal state is occupied along ``sequence``.
+def _cssr_default_lmax(n: int, alphabet_size: int) -> int:
+    """A third of ``log_k n``, between 1 and 10.
 
-    Every time step belongs to exactly one causal state — the one keyed by the
-    *longest* available suffix (up to ``length``). Counting each nested suffix
-    (as an earlier version did) over-weights short-history states and skews the
-    reconstructed ``initial_distribution`` away from the occupation/stationary law.
+    Each length-``L`` word is then seen about ``n ** (2/3)`` times. Longer suffixes
+    multiply the number of significance tests, and with them the false splits.
     """
+    k = max(2, alphabet_size)
+    return max(1, min(10, int(np.log(n) / (3 * np.log(k)))))
+
+
+def _suffix_homogenize(
+    counts: SuffixCounts,
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+    min_count: int = 1,
+) -> list[set[History]]:
+    """CSSR homogenization: grow suffixes one symbol into the past, up to length ``Lmax``.
+
+    Each child suffix ``a x`` stays in its parent's state unless its next-symbol
+    distribution differs significantly; then it joins the most similar state that
+    does not differ, or starts a new one. As in :cite:`Shalizi2002`, states keep
+    the suffixes of every length they collect. Suffixes seen fewer than ``min_count``
+    times are not tested: the significance test is unreliable on so few counts.
+    """
+    states: list[set[History]] = [{()}]
+    for length in range(Lmax):
+        for parent_id in range(len(states)):
+            parent = states[parent_id]
+            for history in sorted((h for h in parent if len(h) == length), key=repr):
+                for symbol in counts.alphabet:
+                    child = (symbol, *history)
+                    if sum(counts.next_counts.get(child, Counter()).values()) < max(1, min_count):
+                        continue
+                    if not morphs_differ(counts, parent, {child}, alpha=alpha, test=test):
+                        parent.add(child)
+                        continue
+                    best_id, best_score = None, float("inf")
+                    for candidate_id, candidate in enumerate(states):
+                        if candidate_id == parent_id:
+                            continue
+                        if morphs_differ(counts, candidate, {child}, alpha=alpha, test=test):
+                            continue
+                        score = morph_test_score(counts, candidate, {child}, test=test)
+                        if score < best_score:
+                            best_id, best_score = candidate_id, score
+                    if best_id is None:
+                        states.append({child})
+                    else:
+                        states[best_id].add(child)
+    return states
+
+
+def _suffix_successor(history: History, symbol: Any, Lmax: int) -> History:
+    """The suffix that follows ``history`` on ``symbol``: extended, or truncated at ``Lmax``."""
+    extended = (*history, symbol)
+    return extended[1:] if len(extended) > Lmax else extended
+
+
+def _suffix_edges(
+    states: list[set[History]],
+    counts: SuffixCounts,
+    alive: set[int],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+    resolve: bool = True,
+) -> dict[int, dict[Any, dict[int, set[History]]]]:
+    """Successor states of each alive state, by symbol, with the suffixes that lead there.
+
+    A suffix shorter than ``Lmax`` moves to the state holding its one-symbol extension.
+    A length-``Lmax`` suffix must drop its oldest symbol, which can forget the phase
+    of a non-Markovian process: for the even process, the truncation of ``0111`` is
+    ``111``, whose parity is unknown. So the length-``Lmax + 1`` suffix is tested
+    against the truncated suffix's state, and if its morph differs, it moves to the
+    alive state whose morph it matches best instead. ``resolve=False`` always truncates.
+    """
+    history_to_state = {h: index for index in alive for h in states[index]}
+    edges: dict[int, dict[Any, dict[int, set[History]]]] = {}
+    for index in alive:
+        by_symbol: dict[Any, dict[int, set[History]]] = defaultdict(lambda: defaultdict(set))
+        for history in states[index]:
+            for symbol, count in counts.next_counts.get(history, Counter()).items():
+                if count == 0:
+                    continue
+                extended = (*history, symbol)
+                if len(extended) <= Lmax:
+                    target = history_to_state.get(extended)
+                else:
+                    target = history_to_state.get(extended[1:])
+                    if (
+                        resolve
+                        and counts.next_counts.get(extended)
+                        and (
+                            target is None or morphs_differ(counts, states[target], {extended}, alpha=alpha, test=test)
+                        )
+                    ):
+                        best_score = float("inf")
+                        for candidate in sorted(alive):
+                            if morphs_differ(counts, states[candidate], {extended}, alpha=alpha, test=test):
+                                continue
+                            score = morph_test_score(counts, states[candidate], {extended}, test=test)
+                            if score < best_score:
+                                target, best_score = candidate, score
+                if target is not None:
+                    by_symbol[symbol][target].add(history)
+        edges[index] = by_symbol
+    return edges
+
+
+def _recurrent_states(edges: dict[int, dict[Any, dict[int, set[History]]]]) -> list[set[int]]:
+    """Closed communicating classes (with at least one edge) of the state graph."""
+    import networkx as nx
+
+    graph = nx.DiGraph()
+    graph.add_nodes_from(edges)
+    for source, by_symbol in edges.items():
+        for targets in by_symbol.values():
+            graph.add_edges_from((source, target) for target in targets)
+    condensed = nx.condensation(graph)
+    classes = []
+    for node in condensed:
+        members = set(condensed.nodes[node]["members"])
+        if condensed.out_degree(node) == 0 and graph.subgraph(members).number_of_edges() > 0:
+            classes.append(members)
+    return classes
+
+
+def _suffix_determinize(
+    states: list[set[History]],
+    counts: SuffixCounts,
+    alive: set[int],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+    resolve: bool = True,
+) -> tuple[list[set[History]], set[int]]:
+    """Split alive states until each (state, symbol) pair has a single alive successor.
+
+    Successors in pruned (transient) states are ignored, as in :cite:`Shalizi2002`.
+    """
+    states = [set(h) for h in states]
+    alive = set(alive)
+    while True:
+        edges = _suffix_edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        split = None
+        for index in sorted(alive):
+            for symbol in sorted(edges[index], key=repr):
+                if len(edges[index][symbol]) > 1:
+                    split = (index, symbol)
+                    break
+            if split:
+                break
+        if split is None:
+            return states, alive
+        index, symbol = split
+        groups = sorted(edges[index][symbol].values(), key=lambda g: (-len(g), sorted(map(repr, g))))
+        for group in groups[1:]:
+            states[index] -= group
+            states.append(set(group))
+            alive.add(len(states) - 1)
+
+
+def _suffix_machine(
+    states: list[set[History]],
+    counts: SuffixCounts,
+    sequence: Sequence[Any],
+    alive: set[int],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+    resolve: bool = True,
+) -> EpsilonMachine:
+    """Build the ε-machine on the most-visited recurrent class of the alive states."""
+    edges = _suffix_edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+    history_to_state = {h: index for index in alive for h in states[index]}
+
     visits: Counter[int] = Counter()
     seq = tuple(sequence)
-    for t in range(len(seq)):
-        for hist_len in range(min(t, length), -1, -1):
-            history = seq[t - hist_len : t]
-            state = history_to_state.get(history)
+    for t in range(len(seq) + 1):
+        for length in range(min(t, Lmax), -1, -1):
+            state = history_to_state.get(seq[t - length : t])
             if state is not None:
                 visits[state] += 1
                 break
-    return visits
 
+    classes = _recurrent_states(edges)
+    if not classes:
+        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this Lmax")
+    keep = max(classes, key=lambda members: (sum(visits[s] for s in members), -min(members)))
 
-def _counts_to_mealy(
-    states: dict[int, set[History]],
-    counts: SuffixCounts,
-    history_to_state: dict[History, int],
-    sequence: Sequence[Any],
-    *,
-    length: int,
-) -> EpsilonMachine:
-    visits = _empirical_state_visits(sequence, history_to_state, length=length)
-    if not visits:
-        raise StochasticValidationError("no empirical state visits")
+    labels = {state: f"s{rank}" for rank, state in enumerate(sorted(keep))}
+    transitions = TransitionGraph()
+    for state in sorted(keep):
+        transitions.add_state(labels[state])
+    for state in sorted(keep):
+        longest = max(len(h) for h in states[state])
+        observed = _observed_counts_for_morph(counts, {h for h in states[state] if len(h) == longest})
+        weights = {
+            symbol: (next(iter(targets)), float(observed.get(symbol, 0)))
+            for symbol, targets in edges[state].items()
+            if observed.get(symbol, 0) > 0
+        }
+        if not weights:
+            weights = {
+                symbol: (next(iter(targets)), float(sum(len(h) for h in targets.values())))
+                for symbol, targets in edges[state].items()
+            }
+        total = sum(weight for _, weight in weights.values())
+        for symbol, (target, weight) in sorted(weights.items(), key=lambda item: repr(item[0])):
+            transitions.add_transition(
+                labels[state], labels[target], **{ATTR_PROB: weight / total, ATTR_EMISSION: symbol}
+            )
 
-    graph = TransitionGraph()
-    state_labels = {state_id: f"s{state_id}" for state_id in states}
-    for label in state_labels.values():
-        graph.add_state(label)
-
-    for state_id, histories in states.items():
-        label = state_labels[state_id]
-        morph = counts.state_morph(histories)
-        for symbol in counts.alphabet:
-            prob = morph[symbol]
-            if prob <= 0.0:
-                continue
-            emitting = [
-                history for history in histories if counts.next_counts.get(history, Counter()).get(symbol, 0) > 0
-            ]
-            if not emitting:
-                continue
-            child_histories = {history + (symbol,) for history in emitting}
-            targets = {history_to_state.get(child) for child in child_histories}
-            targets.discard(None)
-            if not targets:
-                continue
-            if len(targets) > 1:
-                raise StochasticValidationError(f"non-unifilar inferred transition from {label!r} on {symbol!r}")
-            target_label = state_labels[next(iter(targets))]
-            graph.add_transition(label, target_label, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
-
-    total_visits = float(sum(visits.values()))
-    initial = {state_labels[state_id]: visits[state_id] / total_visits for state_id in states if visits[state_id] > 0}
-    if not initial:
-        initial = {state_labels[next(iter(states))]: 1.0}
-
+    kept_visits = {state: visits[state] for state in keep if visits[state] > 0}
+    total_visits = float(sum(kept_visits.values()))
+    initial = (
+        {labels[state]: count / total_visits for state, count in kept_visits.items()}
+        if total_visits > 0
+        else {labels[min(keep)]: 1.0}
+    )
     machine = EpsilonMachine(
-        graph=graph,
+        graph=transitions,
         initial_distribution=initial,
         observation_alphabet=frozenset(counts.alphabet),
     )
     machine.validate()
+    return machine
+
+
+def _suffix_reconstruct(
+    states: list[set[History]],
+    counts: SuffixCounts,
+    sequence: Sequence[Any],
+    *,
+    Lmax: int,
+    alpha: float,
+    test: Literal["g", "chi2", "tv"],
+) -> EpsilonMachine:
+    """Prune transient states, determinize, and build the machine from homogeneous ``states``."""
+
+    def reconstruct(resolve: bool) -> EpsilonMachine:
+        everything = set(range(len(states)))
+        edges = _suffix_edges(states, counts, everything, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        alive = set().union(*_recurrent_states(edges)) or everything
+        split, alive = _suffix_determinize(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        return _suffix_machine(split, counts, sequence, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+
+    machine = reconstruct(resolve=True)
+    # Resolving truncated successors needs Lmax at least the synchronization length. When it
+    # is shorter, resolution can close off a state that never emits some observed symbol.
+    if {t.data[ATTR_EMISSION] for t in machine.transitions()} < set(sequence):
+        machine = reconstruct(resolve=False)
     return machine
 
 
@@ -515,32 +715,59 @@ def cssr(
     *,
     alphabet: Sequence[Any] | None = None,
     Lmax: int | None = None,
-    alpha: float = 0.05,
+    alpha: float = 0.01,
     test: Literal["g", "chi2", "tv"] = "g",
     min_count: int = 5,
 ) -> EpsilonMachine:
-    """Reconstruct an ε-machine by Causal-State Splitting Reconstruction (CSSR)."""
+    """Reconstruct an ε-machine by Causal-State Splitting Reconstruction :cite:`Shalizi2004`.
+
+    Suffixes are grown one symbol into the past up to length ``Lmax`` and grouped by
+    their next-symbol distributions (homogenization), then states are split until
+    every transition is deterministic (determinization). The result is restricted
+    to its most-visited closed class, so it is always a valid recurrent machine.
+
+    Parameters
+    ----------
+    sequence
+        Observed symbols.
+    alphabet
+        Symbol alphabet; defaults to the symbols in ``sequence``.
+    Lmax
+        Longest suffix considered; by default a third of ``log_k len(sequence)``,
+        between 1 and 10. It should be at least the synchronization length of the
+        source (for a Markov source, its order). Larger values run many more
+        significance tests, and some of them split states by chance.
+    alpha
+        Significance level of each morph-equality test. The worked example of
+        :cite:`Shalizi2002` uses 0.01; smaller values guard against spurious states
+        when ``Lmax`` is large.
+    test
+        ``"g"`` (G-test), ``"chi2"``, or ``"tv"`` (total-variation threshold).
+    min_count
+        Suffixes seen fewer than this many times are not tested or placed in a state.
+
+    Notes
+    -----
+    A process that is not exactly synchronizable (no finite past determines its
+    state, such as :func:`~sofic.examples.processes.ABC`) has no finite-``Lmax``
+    reconstruction. CSSR then returns more states than the ε-machine, with an
+    entropy rate that approaches the true one from above as ``Lmax`` grows.
+    """
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
     alphabet_size = len(set(seq)) if alphabet is None else len(tuple(alphabet))
-    max_length = Lmax if Lmax is not None else _default_lmax(len(seq), alphabet_size, min_count)
+    max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), alphabet_size)
+    if max_length < 0:
+        raise ValueError("Lmax must be non-negative")
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
 
-    states, history_to_state = _cssr_homogenize(
-        counts,
-        Lmax=max_length,
-        alpha=alpha,
-        test=test,
-    )
-    states = _cssr_determinize(states, history_to_state, counts, length=max_length)
-    states = _merge_similar_states(states, history_to_state, counts, alpha=alpha, test=test)
-    # Re-determinize: morph-only merging can fuse states with incompatible
-    # successors, so restore unifilarity before building the machine.
-    states = _cssr_determinize(states, history_to_state, counts, length=max_length)
-    states = _drop_transient_states(states, history_to_state, counts, length=max_length)
-    history_to_state = {history: state_id for state_id, histories in states.items() for history in histories}
-    return _counts_to_mealy(states, counts, history_to_state, seq, length=max_length)
+    homogeneous = _suffix_homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
+    return _suffix_reconstruct(homogeneous, counts, seq, Lmax=max_length, alpha=alpha, test=test)
+
+
+#: Significance level used by subtree merging when ``delta = 0`` and to resolve truncated successors.
+_SUBTREE_ALPHA = 0.01
 
 
 def _morph_distance(
@@ -562,11 +789,9 @@ def _morphs_equivalent(
     *,
     delta: float,
 ) -> bool:
-    left_morph = counts.morph(left)
-    right_morph = counts.morph(right)
     if delta > 0.0:
         return _morph_distance(counts, left, right, delta=delta) <= delta
-    return all(np.isclose(left_morph[symbol], right_morph[symbol], rtol=0.0, atol=1e-3) for symbol in counts.alphabet)
+    return not morphs_differ(counts, {left}, {right}, alpha=_SUBTREE_ALPHA, test="g")
 
 
 def _cluster_histories_by_morph(
@@ -613,7 +838,13 @@ def subtree_merge(
     delta: float = 0.0,
     alphabet: Sequence[Any] | None = None,
 ) -> EpsilonMachine:
-    """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young)."""
+    """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young).
+
+    Histories up to length ``L`` are clustered by next-symbol distribution: within
+    total-variation distance ``delta``, or, when ``delta = 0``, unless a G-test at
+    significance 0.01 tells them apart. The clusters are then determinized as in
+    :func:`cssr`.
+    """
     if L < 0:
         raise ValueError("L must be non-negative")
     seq = tuple(sequence)
@@ -623,26 +854,9 @@ def subtree_merge(
 
     histories = {history for history in counts.history_counts if len(history) <= L}
     histories.add(())
+    states = list(_cluster_histories_by_morph(counts, histories, delta=delta).values())
 
-    states = _cluster_histories_by_morph(counts, histories, delta=delta)
-    history_to_state = {history: state_id for state_id, members in states.items() for history in members}
-
-    states = _cssr_determinize(states, history_to_state, counts, length=L)
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    states = _merge_similar_states(states, history_to_state, counts, alpha=0.05, test="tv")
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    # Re-determinize: morph-only merging can fuse states with incompatible
-    # successors, so restore unifilarity before building the machine.
-    states = _cssr_determinize(states, history_to_state, counts, length=L)
-    states = _drop_transient_states(states, history_to_state, counts, length=L)
-    history_to_state = {
-        history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
-    }
-    return _counts_to_mealy(states, counts, history_to_state, seq, length=L)
+    return _suffix_reconstruct(states, counts, seq, Lmax=L, alpha=_SUBTREE_ALPHA, test="g")
 
 
 def spectral(

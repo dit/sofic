@@ -192,6 +192,9 @@ class HiddenMarkovStackModel(StochasticModel):
         current: dict[Configuration, float] = {
             (state, ()): float(prob) for state, prob in self.initial_distribution.items() if prob > _TOL
         }
+        # Masses are renormalized each step and pruned relative to their total; an absolute
+        # threshold would zero out every word longer than about 50 binary symbols.
+        log_scale = 0.0
         for symbol in word:
             next_masses: dict[Configuration, float] = {}
             for config, mass in current.items():
@@ -199,10 +202,12 @@ class HiddenMarkovStackModel(StochasticModel):
                     if transition.data.get(ATTR_SYMBOL) != symbol:
                         continue
                     next_masses[next_config] = next_masses.get(next_config, 0.0) + mass * prob
-            current = {config: mass for config, mass in next_masses.items() if mass > _TOL}
-            if not current:
+            total = sum(next_masses.values())
+            if total <= 0.0:
                 return 0.0
-        return float(sum(current.values()))
+            log_scale += float(np.log(total))
+            current = {config: mass / total for config, mass in next_masses.items() if mass > _TOL * total}
+        return float(np.exp(log_scale) * sum(current.values()))
 
     def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
         """Return emitted words of ``length`` and their probabilities."""

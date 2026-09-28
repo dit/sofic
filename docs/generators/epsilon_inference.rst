@@ -39,10 +39,25 @@ CSSR
 CSSR :cite:`Shalizi2002` starts from an IID model and grows causal states in three phases:
 
 1. **Initialize** — one state for the empty history.
-2. **Homogenize** — extend suffixes; split or assign child histories when next-symbol
-   distributions differ (G-test, :math:`\chi^2`, or total-variation threshold).
-3. **Determinize** — split homogeneous states until transitions are unifilar; drop
-   transient bottom-SCC states.
+2. **Homogenize** — extend each suffix one symbol into the past, up to ``Lmax``; a
+   child suffix whose next-symbol distribution differs significantly from its
+   state's (G-test, :math:`\chi^2`, or total-variation threshold) moves to the best
+   matching state, or starts a new one. States keep suffixes of every length.
+3. **Determinize** — drop transient states, then split states until each state and
+   symbol lead to a single successor, then keep the most-visited recurrent class.
+
+A length-``Lmax`` suffix has no one-symbol extension in the suffix tree, so its
+successor drops the oldest symbol. For a non-Markovian process that can forget the
+phase: in the even process with ``Lmax = 3``, the successor of ``011`` on ``1`` would
+be the ambiguous ``111``. So the length-``Lmax + 1`` suffix (here ``0111``) is tested
+against the truncated suffix's state, and is sent to the best matching state when
+the two differ.
+
+Choose ``Lmax`` at least the synchronization length of the source (its order, for
+a Markov source). Much larger values run many more significance tests, and some
+split states by chance; lowering ``alpha`` counters this. A process that is not
+exactly synchronizable has no finite-``Lmax`` reconstruction, and CSSR returns
+extra states.
 
 .. autofunction:: cssr
 
@@ -51,8 +66,9 @@ Subtree merging
 
 Subtree merging :cite:`CrutchfieldYoung1989` clusters histories with statistically
 equivalent next-symbol distributions (metric tolerance ``delta``), then determinizes
-to a unifilar presentation.  With ``delta=0``, morphs are compared up to a small
-numerical tolerance for finite-sample estimates.
+to a unifilar presentation.  With ``delta=0``, two morphs are equivalent unless a
+G-test at significance 0.01 tells them apart, a tolerance that scales with the
+sample. Transitions follow the same successor rule as CSSR.
 
 .. autofunction:: subtree_merge
 

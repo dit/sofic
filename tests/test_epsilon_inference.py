@@ -204,3 +204,72 @@ def test_from_sequence_spectral_dispatch(rng: np.random.Generator):
 def test_from_sequence_unknown_method():
     with pytest.raises(ValueError, match="unknown inference method"):
         EpsilonMachine.from_sequence([0, 1, 0], method="nsd")
+
+
+@pytest.mark.parametrize(
+    ("name", "Lmax"),
+    [("Even", 3), ("Even", 5), ("GoldenMean", 3), ("Nemo", 4), ("RkGM", 5)],
+)
+def test_cssr_recovers_synchronizable_processes(name: str, Lmax: int):
+    """Regression: appended (not prepended) suffixes and untruncated successors
+    dropped edges, so these raised StochasticValidationError or returned h_mu = 0."""
+    from sofic.examples import processes
+
+    oracle = processes.RkGM(5, 3) if name == "RkGM" else getattr(processes, name)()
+    observations, _ = sample(oracle, 20000, np.random.default_rng(5))
+    inferred = cssr(observations, Lmax=Lmax, alpha=0.001)
+    inferred.validate()
+    assert inferred.is_unifilar()
+    assert len(list(inferred.states())) == len(list(oracle.states()))
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=0.02)
+
+
+def test_cssr_even_process_ignores_truncated_nonsynchronizing_suffix():
+    """At Lmax = 3 the successor of ``011`` on ``1`` truncates to the ambiguous ``111``."""
+    oracle = even_process(0.5)
+    observations, _ = sample(oracle, 20000, np.random.default_rng(5))
+    inferred = cssr(observations, Lmax=3, alpha=0.01)
+    assert _signatures_isomorphic(inferred, oracle, prob_tol=0.03)
+
+
+def test_cssr_default_lmax_does_not_oversplit():
+    for oracle, n_states in [(even_process(0.5), 2), (bernoulli(0.3), 1)]:
+        observations, _ = sample(oracle, 20000, np.random.default_rng(7))
+        inferred = cssr(observations)
+        inferred.validate()
+        assert len(list(inferred.states())) == n_states
+
+
+def test_cssr_short_lmax_still_emits_every_symbol():
+    """Lmax below the Markov order cannot recover RkGM(5, 3), but must not collapse to a trap state."""
+    from sofic.examples import processes
+
+    observations, _ = sample(processes.RkGM(5, 3), 20000, np.random.default_rng(5))
+    inferred = cssr(observations, Lmax=3, alpha=0.001)
+    inferred.validate()
+    assert {t.data[ATTR_EMISSION] for t in inferred.transitions()} == {"0", "1"}
+    assert inferred.entropy_rate() > 0.0
+
+
+def test_cssr_non_synchronizable_process_returns_valid_machine():
+    from sofic.examples import processes
+
+    oracle = processes.ABC()
+    observations, _ = sample(oracle, 20000, np.random.default_rng(5))
+    inferred = cssr(observations, Lmax=4, alpha=0.001)
+    inferred.validate()
+    assert inferred.entropy_rate() >= oracle.entropy_rate() - 0.02
+
+
+@pytest.mark.parametrize(("name", "L", "n_states"), [("Even", 3, 2), ("GoldenMean", 2, 2), ("RkGM", 5, 8)])
+def test_subtree_merge_default_delta_recovers_process(name: str, L: int, n_states: int):
+    """Regression: the default delta = 0 compared sampled morphs to within 1e-3 and
+    successors were never truncated, so this raised StochasticValidationError."""
+    from sofic.examples import processes
+
+    oracle = processes.RkGM(5, 3) if name == "RkGM" else getattr(processes, name)()
+    observations, _ = sample(oracle, 20000, np.random.default_rng(5))
+    inferred = subtree_merge(observations, L=L)
+    inferred.validate()
+    assert len(list(inferred.states())) == n_states
+    assert inferred.entropy_rate() == pytest.approx(oracle.entropy_rate(), abs=0.02)

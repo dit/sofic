@@ -26,7 +26,12 @@ def _as_mealy_hmm(hmm: HiddenMarkovModel) -> Any:
 def _emission_transition_tensors_from_mealy(
     hmm: Any,
 ) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
-    """Return initial vector ``pi`` and symbol -> joint transition matrices."""
+    """Return initial vector ``pi`` and symbol -> joint transition matrices.
+
+    Symbols are keyed in a fixed (``repr``-sorted) order, so seeded sampling is
+    reproducible across interpreter runs. A model without an initial
+    distribution starts from its stationary distribution.
+    """
     from sofic.generators.prob import as_prob, has_symbolic, zeros
 
     idx = hmm.reindex()
@@ -36,10 +41,14 @@ def _emission_transition_tensors_from_mealy(
     symbolic = has_symbolic(edge_probs) or has_symbolic(init_probs)
 
     pi = zeros((n,), symbolic=symbolic)
-    for state, mass in hmm.initial_distribution.items():
-        pi[idx.index(state)] = as_prob(mass)
+    if hmm.initial_distribution:
+        for state, mass in hmm.initial_distribution.items():
+            pi[idx.index(state)] = as_prob(mass)
+    elif n:
+        pi = np.asarray(hmm.stationary_distribution(), dtype=object if symbolic else float)
 
-    symbols: set[Any] = set(hmm.observation_alphabet)
+    emissions = {transition.data.get(ATTR_EMISSION) for transition in hmm.transitions()} - {None}
+    symbols = sorted(set(hmm.observation_alphabet) | emissions, key=repr)
     joint: dict[Any, np.ndarray] = {symbol: zeros((n, n), symbolic=symbolic) for symbol in symbols}
 
     for transition in hmm.transitions():

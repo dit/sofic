@@ -219,3 +219,28 @@ def test_benchmark_passive_paths(method: str):
     assert list(inferred.transitions())
     oracle_prob = oracle.word_probability(tuple(observations[:12]))
     assert oracle_prob > 0.0
+
+
+def _held_out_bits_per_symbol(model, word) -> float:
+    return -np.log2(model.word_probability(tuple(word))) / len(word)
+
+
+@pytest.mark.parametrize("Lmax", [2, 3])
+def test_stack_cssr_matches_motzkin_likelihood(Lmax: int):
+    """Regression: homogenization only reached stacks of depth <= Lmax and return
+    edges were paired with unobserved calls, so held-out words got probability 0."""
+    shift = motzkin_shift()
+    oracle = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, _uniform_probabilities(shift))
+    alphabet = DyckAlphabet(
+        call_alphabet=shift.call_alphabet,
+        return_alphabet=shift.return_alphabet,
+        internal_alphabet=shift.internal_alphabet,
+    )
+    observations, _ = oracle.sample(5000, rng=np.random.default_rng(0))
+    held_out, _ = oracle.sample(60, rng=np.random.default_rng(99))
+    inferred = stack_cssr(observations, alphabet=alphabet, Lmax=Lmax, max_stack_depth=4, alpha=0.001)
+    inferred.validate()
+    assert len(list(inferred.states())) == 1
+    assert _held_out_bits_per_symbol(inferred, held_out) == pytest.approx(
+        _held_out_bits_per_symbol(oracle, held_out), abs=0.05
+    )

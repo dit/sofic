@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -24,9 +25,10 @@ def is_symbolic(value: Any) -> bool:
     Exact rationals / integers and expressions with free symbols are symbolic.
     ``sympy.Float`` is treated as numeric and will be coerced to ``float``.
     """
-    try:
-        import sympy
-    except ImportError:
+    # A sympy value can only exist once sympy is imported. Importing here instead
+    # would retry a failed import (a filesystem search) on every call without sympy.
+    sympy = sys.modules.get("sympy")
+    if sympy is None:
         return False
     if not isinstance(value, sympy.Expr):
         return False
@@ -50,13 +52,6 @@ def as_prob(value: Any) -> Prob:
         return float(value)
     if isinstance(value, int):
         return value
-    try:
-        import sympy
-
-        if isinstance(value, sympy.Basic):
-            return float(value)
-    except ImportError:
-        pass
     return float(value)
 
 
