@@ -70,7 +70,7 @@ forms exist for well-matched languages, or once calls are assigned to modules
    A k-module MEVPA. A module may have several entries, and the pushed symbol
    depends only on the caller state.
 
-``CallDrivenAutomaton``
+``ModularVisiblyPushdownAutomaton``
    The shared modular generalization: a call's target depends only on the call
    symbol.
 
@@ -108,7 +108,7 @@ API
 .. autoclass:: MultipleEntryVisiblyPushdownAutomaton
    :members: minimize
 
-.. autoclass:: CallDrivenAutomaton
+.. autoclass:: ModularVisiblyPushdownAutomaton
    :members: minimize
 
 .. autoclass:: CanonicalVisiblyPushdownAutomaton

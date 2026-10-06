@@ -29,7 +29,7 @@ Quick start
    observations, _ = oracle.sample(5000, rng)
 
    inferred = EpsilonMachine.from_sequence(
-       observations, method="cssr", Lmax=4, alpha=0.001
+       observations, method="cssr", max_history=4, alpha=0.001
    )
    len(list(inferred.states()))  # 2 for the even process
 
@@ -39,7 +39,7 @@ CSSR
 CSSR :cite:`Shalizi2002` starts from an IID model and grows causal states in three phases:
 
 1. **Initialize** — one state for the empty history.
-2. **Homogenize** — extend each suffix one symbol into the past, up to ``Lmax``; a
+2. **Homogenize** — extend each suffix one symbol into the past, up to ``max_history``; a
    child suffix whose next-symbol distribution differs significantly from its
    state's (G-test, :math:`\chi^2`, Monte Carlo exact G-test, or total-variation
    threshold) moves to the best
@@ -47,23 +47,23 @@ CSSR :cite:`Shalizi2002` starts from an IID model and grows causal states in thr
 3. **Determinize** — drop transient states, then split states until each state and
    symbol lead to a single successor, then keep the most-visited recurrent class.
 
-A length-``Lmax`` suffix has no one-symbol extension in the suffix tree, so its
+A length-``max_history`` suffix has no one-symbol extension in the suffix tree, so its
 successor drops the oldest symbol. For a non-Markovian process that can forget the
-phase: in the even process with ``Lmax = 3``, the successor of ``011`` on ``1`` would
-be the ambiguous ``111``. So the length-``Lmax + 1`` suffix (here ``0111``) is tested
+phase: in the even process with ``max_history = 3``, the successor of ``011`` on ``1`` would
+be the ambiguous ``111``. So the length-``max_history + 1`` suffix (here ``0111``) is tested
 against the truncated suffix's state, and is sent to the best matching state when
 the two differ.
 
-Choose ``Lmax`` at least the synchronization length of the source (its order, for
+Choose ``max_history`` at least the synchronization length of the source (its order, for
 a Markov source). Much larger values run many more significance tests, and some
 split states by chance; lowering ``alpha`` counters this. A process that is not
-exactly synchronizable has no finite-``Lmax`` reconstruction, and CSSR returns
+exactly synchronizable has no finite-``max_history`` reconstruction, and CSSR returns
 extra states.
 
-Choosing ``Lmax`` and calibrating the tests
--------------------------------------------
+Choosing ``max_history`` and calibrating the tests
+--------------------------------------------------
 
-``Lmax="auto"`` sets ``Lmax`` to :func:`suggest_lmax`, the Markov order estimated
+``max_history="auto"`` sets ``max_history`` to :func:`suggest_max_history`, the Markov order estimated
 by :func:`dit.inference.select_markov_order`. Its default method tests order
 :math:`n` against :math:`n + 1` with surrogates that preserve the observed
 :math:`(n + 1)`-gram counts exactly, so the test holds its nominal size at any
@@ -89,12 +89,12 @@ apply directly.
 .. code-block:: python
 
    inferred = EpsilonMachine.from_sequence(
-       observations, method="cssr", Lmax="auto", test="exact", correction="bonferroni"
+       observations, method="cssr", max_history="auto", test="exact", correction="bonferroni"
    )
 
-.. autofunction:: cssr
+.. autofunction:: learn_epsilon_machine_cssr
 
-.. autofunction:: suggest_lmax
+.. autofunction:: suggest_max_history
 
 After reconstruction, check the result with
 :func:`~sofic.inference.diagnostics.goodness_of_fit` and
@@ -112,11 +112,11 @@ to a unifilar presentation.  With ``delta=0``, two morphs are equivalent unless 
 G-test at significance 0.01 tells them apart, a tolerance that scales with the
 sample. Transitions follow the same successor rule as CSSR.
 
-``subtree_merge`` accepts ``alpha``, ``test`` (including ``"exact"``) and
+``learn_epsilon_machine_subtree`` accepts ``alpha``, ``test`` (including ``"exact"``) and
 ``correction="bonferroni"``, which divides ``alpha`` over the history pairs
-compared, as well as ``L="auto"``.
+compared, as well as ``max_history="auto"``.
 
-.. autofunction:: subtree_merge
+.. autofunction:: learn_epsilon_machine_subtree
 
 Spectral reconstruction
 =======================
@@ -139,7 +139,7 @@ process). Otherwise the Hankel singular-value gap selects the rank.
        observations, method="spectral", prefix_length=3, rank=2
    )
 
-.. autofunction:: sofic.inference.spectral.spectral
+.. autofunction:: sofic.inference.spectral.learn_epsilon_machine_spectral
 
 Unified entry point
 ===================

@@ -55,15 +55,15 @@ def _forward_scaled(
     return alpha_hat, log_scales
 
 
-def forward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
+def forward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
     """Return forward messages ``alpha[t, s]`` for ``len(observations)+1`` rows.
 
-    With ``scaled=True`` each row is normalized to sum to one (the numerically
+    With ``normalize=True`` each row is normalized to sum to one (the numerically
     stable message used for posteriors); otherwise the raw messages are returned.
     """
     pi, joint = emission_tensors(hmm)
     obs = list(observations)
-    if scaled:
+    if normalize:
         alpha_hat, _log_scales = _forward_scaled(pi, joint, obs)
         return alpha_hat
     n = len(pi)
@@ -78,10 +78,10 @@ def forward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: bool
     return alpha
 
 
-def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
+def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
     """Return backward messages ``beta[t, s]`` for ``len(observations)+1`` rows.
 
-    With ``scaled=True`` each row is normalized to sum to one. The smoothed
+    With ``normalize=True`` each row is normalized to sum to one. The smoothed
     posterior is then ``normalize(alpha_hat[t] * beta_hat[t])`` (the per-row
     scaling constants cancel on renormalization).
     """
@@ -96,7 +96,7 @@ def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: boo
             beta[t] = 0.0
         else:
             beta[t] = matrix @ beta[t + 1]
-        if scaled:
+        if normalize:
             total = float(beta[t].sum())
             if total > 0.0:
                 beta[t] = beta[t] / total

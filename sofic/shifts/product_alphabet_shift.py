@@ -1,7 +1,7 @@
-"""Sofic relations: subshifts over a product alphabet ``X x Y``.
+"""Product-alphabet shifts: sofic subshifts over a product alphabet ``X x Y``.
 
 The topological support of a transducer is a subshift of the product shift on
-``X x Y`` -- a "sofic relation" whose input and output projections are the
+``X x Y`` -- a sofic relation whose input and output projections are the
 transducer's domain and range subshifts. This is the symbolic-dynamics reading
 of a transducer, complementary to the sliding block code (Lind & Marcus, *An
 Introduction to Symbolic Dynamics and Coding* (1995), ch. 6).
@@ -15,11 +15,11 @@ from sofic.graph import ATTR_OUTPUT, ATTR_SYMBOL, EPSILON
 from sofic.shifts.sofic import SoficShift
 
 
-class SoficRelation(SoficShift):
+class ProductAlphabetShift(SoficShift):
     """A sofic subshift whose symbols are ``(input, output)`` pairs."""
 
     @classmethod
-    def from_transducer(cls, transducer: Any) -> SoficRelation:
+    def from_transducer(cls, transducer: Any) -> ProductAlphabetShift:
         """Build the topological support of a transducer (probabilities dropped)."""
         relation = cls()
         pairs: set[tuple[Any, Any]] = set()

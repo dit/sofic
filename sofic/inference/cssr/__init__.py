@@ -14,7 +14,7 @@ from sofic.inference.cssr.counts import (
     StackSuffixCounts,
     SuffixCounts,
 )
-from sofic.inference.cssr.process import cssr, suggest_lmax
+from sofic.inference.cssr.process import learn_epsilon_machine_cssr, suggest_max_history
 from sofic.inference.cssr.significance import (
     MorphTest,
     TableTest,
@@ -23,13 +23,13 @@ from sofic.inference.cssr.significance import (
     morphs_differ,
 )
 from sofic.inference.cssr.stack import (
-    fit_stack_hmm_mle,
+    learn_stack_hmm_cssr,
+    learn_stack_hmm_mle,
     learn_stack_hmm_papni,
-    stack_cssr,
-    stack_subtree_merge,
+    learn_stack_hmm_subtree,
 )
-from sofic.inference.cssr.subtree import subtree_merge
-from sofic.inference.cssr.transducer import transcssr
+from sofic.inference.cssr.subtree import learn_epsilon_machine_subtree
+from sofic.inference.cssr.transducer import learn_epsilon_transducer_cssr
 
 __all__ = [
     "ConfigurationHistory",
@@ -41,14 +41,14 @@ __all__ = [
     "SuffixCounts",
     "TableTest",
     "aggregates_differ",
-    "cssr",
-    "fit_stack_hmm_mle",
+    "learn_epsilon_machine_cssr",
+    "learn_stack_hmm_mle",
     "learn_stack_hmm_papni",
     "morph_test_score",
     "morphs_differ",
-    "stack_cssr",
-    "stack_subtree_merge",
-    "subtree_merge",
-    "suggest_lmax",
-    "transcssr",
+    "learn_stack_hmm_cssr",
+    "learn_stack_hmm_subtree",
+    "learn_epsilon_machine_subtree",
+    "suggest_max_history",
+    "learn_epsilon_transducer_cssr",
 ]

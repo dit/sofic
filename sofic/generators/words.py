@@ -63,7 +63,7 @@ def _matrix_step(matrices: Mapping[Any, np.ndarray], n: int, *, prune: bool = Tr
     return step
 
 
-def hmm_words_of_length(hmm: HiddenMarkovModel, length: int) -> dict[tuple[Any, ...], float]:
+def _hmm_words_of_length(hmm: HiddenMarkovModel, length: int) -> dict[tuple[Any, ...], float]:
     """Return observed words of ``length`` and their probabilities."""
     if length < 0:
         raise ValueError("length must be nonnegative")
@@ -83,7 +83,7 @@ def hmm_words_of_length(hmm: HiddenMarkovModel, length: int) -> dict[tuple[Any, 
     return distribution
 
 
-def hmm_word_probability(
+def _hmm_word_probability(
     hmm: HiddenMarkovModel,
     word: Sequence[Any],
     *,
@@ -109,20 +109,20 @@ def hmm_word_probability(
     return float(mass.sum())
 
 
-def hmm_log_word_probability(
+def _hmm_log_word_probability(
     hmm: HiddenMarkovModel,
     word: Sequence[Any],
     *,
     start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
 ) -> float:
     """Return ``log2(P(word))`` or ``-inf`` for forbidden words."""
-    probability = hmm_word_probability(hmm, word, start=start)
+    probability = _hmm_word_probability(hmm, word, start=start)
     if probability <= 0.0:
         return float("-inf")
     return float(np.log2(probability))
 
 
-def hmm_word_probabilities(
+def _hmm_word_probabilities(
     hmm: HiddenMarkovModel,
     lengths: int | Sequence[int],
     *,
@@ -139,18 +139,18 @@ def hmm_word_probabilities(
     distribution: dict[tuple[Any, ...], float] = {}
     for length in requested:
         if length == 0:
-            probability = hmm_word_probability(mealy, (), start=start)
+            probability = _hmm_word_probability(mealy, (), start=start)
             if not sparse or abs(probability) > _TOL:
                 distribution[()] = probability
             continue
         for word, _ in _enumerate_words(alphabet, length):
-            probability = hmm_word_probability(mealy, word, start=start)
+            probability = _hmm_word_probability(mealy, word, start=start)
             if not sparse or abs(probability) > _TOL:
                 distribution[word] = probability
     return distribution
 
 
-def hmm_conditional_word_probability(
+def _hmm_conditional_word_probability(
     hmm: HiddenMarkovModel,
     word: Sequence[Any],
     condition: Sequence[Any],
@@ -158,14 +158,14 @@ def hmm_conditional_word_probability(
     start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
 ) -> float:
     """Return ``P(word | condition)`` from the requested start distribution."""
-    condition_probability = hmm_word_probability(hmm, condition, start=start)
+    condition_probability = _hmm_word_probability(hmm, condition, start=start)
     if condition_probability <= _TOL:
         raise ZeroDivisionError("condition has zero probability")
     joint_word = tuple(condition) + tuple(word)
-    return hmm_word_probability(hmm, joint_word, start=start) / condition_probability
+    return _hmm_word_probability(hmm, joint_word, start=start) / condition_probability
 
 
-def pfa_words_of_length(pfa: ProbabilisticFiniteAutomaton, length: int) -> dict[tuple[Any, ...], float]:
+def _pfa_words_of_length(pfa: ProbabilisticFiniteAutomaton, length: int) -> dict[tuple[Any, ...], float]:
     """Return output words of ``length`` and their probabilities."""
     if length < 0:
         raise ValueError("length must be nonnegative")
@@ -183,7 +183,7 @@ def pfa_words_of_length(pfa: ProbabilisticFiniteAutomaton, length: int) -> dict[
     return distribution
 
 
-def quasi_words_of_length(model: QuasiStochasticModel, length: int) -> dict[tuple[Any, ...], float]:
+def _quasi_words_of_length(model: QuasiStochasticModel, length: int) -> dict[tuple[Any, ...], float]:
     """Return words of ``length`` and their signed quasiprobabilities."""
     if length < 0:
         raise ValueError("length must be nonnegative")
@@ -201,7 +201,7 @@ def quasi_words_of_length(model: QuasiStochasticModel, length: int) -> dict[tupl
     return distribution
 
 
-def markov_words_of_length(chain: MarkovChain, length: int) -> dict[tuple[Hashable, ...], float]:
+def _markov_words_of_length(chain: MarkovChain, length: int) -> dict[tuple[Hashable, ...], float]:
     """Return visible state paths of ``length`` and their probabilities."""
     if length < 0:
         raise ValueError("length must be nonnegative")
@@ -223,7 +223,7 @@ def _quasi_alphabet(model: QuasiStochasticModel) -> tuple[Any, ...]:
         alphabet = getattr(model, name, None)
         if alphabet:
             return tuple(alphabet)
-    return tuple(model.transition_matrices())
+    return tuple(model.symbol_matrices())
 
 
 def _markov_start(chain: MarkovChain) -> dict[Hashable, float]:

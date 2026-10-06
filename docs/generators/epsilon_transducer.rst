@@ -26,16 +26,16 @@ Minimize a joint-unifilar stochastic transducer to its causal states:
 
    In [1]: from sofic import EpsilonTransducer
 
-   In [2]: from sofic.examples.processes import BinaryChannel, GMtoEven
+   In [2]: from sofic.examples.processes import binary_channel, gm_to_even
 
-   In [3]: eps = EpsilonTransducer.from_channel(BinaryChannel(0.1, 0.2))
+   In [3]: eps = EpsilonTransducer.from_channel(binary_channel(0.1, 0.2))
 
    @doctest
    In [4]: len(list(eps.states()))
    Out[4]: 1
 
    @doctest
-   In [5]: EpsilonTransducer.from_channel(GMtoEven()).is_unifilar()
+   In [5]: EpsilonTransducer.from_channel(gm_to_even()).is_unifilar()
    Out[5]: True
 
 The channel can also be read off a joint ``(input, output)`` generator with

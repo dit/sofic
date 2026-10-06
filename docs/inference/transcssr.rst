@@ -16,10 +16,10 @@ symbol ``x``. Rare histories inherit their parent's state (controlled by
 ``min_count``); the split decision uses a G-test at significance ``alpha``, the
 same test as :func:`~sofic.inference.cssr.morphs_differ` (with
 Yates' continuity correction at one degree of freedom).
-As in :func:`~sofic.inference.cssr.cssr`, ``test="exact"`` uses a
+As in :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`, ``test="exact"`` uses a
 Monte Carlo exact G-test for tables with small expected counts, and
 ``correction="bonferroni"`` divides ``alpha`` by the number of
-(history, input symbol) tests. ``Lmax="auto"`` sets the depth from the Markov
+(history, input symbol) tests. ``max_history="auto"`` sets the depth from the Markov
 order of the joint ``(input, output)`` sequence :cite:`Pethel2014`.
 
 .. ipython::
@@ -28,15 +28,15 @@ order of the joint ``(input, output)`` sequence :cite:`Pethel2014`.
 
    In [2]: from sofic import EpsilonTransducer, MealyHMM
 
-   In [3]: from sofic.examples.processes import Delay
+   In [3]: from sofic.examples.processes import delay
 
-   In [4]: from sofic.automata.transducer_operations import compose_tg
+   In [4]: from sofic.automata.transducer_operations import compose_transducer_generator
 
    In [5]: inp = MealyHMM(observation_alphabet=frozenset({'0', '1'}), initial_distribution={'S': 1.0})
 
    In [6]: inp.graph.add_state('S'); _ = inp.add_transition('S', 'S', '0', 0.5); _ = inp.add_transition('S', 'S', '1', 0.5); inp.validate()
 
-   In [7]: joint = compose_tg(Delay(1), inp, joint=True)
+   In [7]: joint = compose_transducer_generator(delay(1), inp, joint=True)
 
    In [8]: obs, _ = joint.sample(8000, np.random.default_rng(0))
 
@@ -49,7 +49,7 @@ order of the joint ``(input, output)`` sequence :cite:`Pethel2014`.
 API
 ===
 
-.. autofunction:: transcssr
+.. autofunction:: learn_epsilon_transducer_cssr
 
 .. autoclass:: JointSuffixCounts
    :members: from_sequences, output_counts, state_morph

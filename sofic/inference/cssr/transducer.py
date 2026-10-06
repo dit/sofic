@@ -27,7 +27,7 @@ from sofic.inference.cssr.counts import (
     _merge_aggregate,
     _state_aggregate,
 )
-from sofic.inference.cssr.process import _recurrent_states, suggest_lmax
+from sofic.inference.cssr.process import _recurrent_states, suggest_max_history
 from sofic.inference.cssr.significance import TableTest, _aggregate_score, aggregates_differ
 
 
@@ -38,7 +38,7 @@ def _observed(counts: JointSuffixCounts, history: JointHistory) -> int:
 def _homogenize(
     counts: JointSuffixCounts,
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: TableTest,
     min_count: int,
@@ -59,7 +59,7 @@ def _homogenize(
             left, right, input_alphabet=in_alpha, output_alphabet=out_alpha, alpha=alpha, test=test
         )
 
-    for length in range(Lmax):
+    for length in range(max_history):
         for parent_id in range(len(states)):
             for history in sorted((h for h in states[parent_id] if len(h) == length), key=repr):
                 for pair in pairs:
@@ -105,14 +105,14 @@ def _edges(
     counts: JointSuffixCounts,
     alive: set[int],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: TableTest,
 ) -> dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]:
     """Successor states by ``(input, output)`` pair, with the histories that lead there.
 
-    Shorter histories move to their one-pair extension; length-``Lmax`` histories
-    drop their oldest pair, and the length-``Lmax + 1`` history is re-tested against
+    Shorter histories move to their one-pair extension; length-``max_history`` histories
+    drop their oldest pair, and the length-``max_history + 1`` history is re-tested against
     the truncated history's state (see
     :func:`sofic.inference.cssr.process._suffix_edges`).
     """
@@ -127,7 +127,7 @@ def _edges(
                 if not _history_emits(counts, history, pair):
                     continue
                 extended = (*history, pair)
-                if len(extended) <= Lmax:
+                if len(extended) <= max_history:
                     target = history_to_state.get(extended)
                 else:
                     target = history_to_state.get(extended[1:])
@@ -170,7 +170,7 @@ def _determinize(
     counts: JointSuffixCounts,
     alive: set[int],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: TableTest,
 ) -> tuple[list[set[JointHistory]], set[int]]:
@@ -178,7 +178,7 @@ def _determinize(
     states = [set(h) for h in states]
     alive = set(alive)
     while True:
-        edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
+        edges = _edges(states, counts, alive, max_history=max_history, alpha=alpha, test=test)
         split = next(
             (
                 (index, pair)
@@ -205,17 +205,17 @@ def _build_transducer(
     inputs: Sequence[Any],
     outputs: Sequence[Any],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: TableTest,
 ) -> EpsilonTransducer:
-    edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
+    edges = _edges(states, counts, alive, max_history=max_history, alpha=alpha, test=test)
     history_to_state = {h: index for index in alive for h in states[index]}
 
     visits: Counter[int] = Counter()
     pairs = tuple(zip(inputs, outputs, strict=True))
     for t in range(len(pairs) + 1):
-        for hist_len in range(min(t, Lmax), -1, -1):
+        for hist_len in range(min(t, max_history), -1, -1):
             state = history_to_state.get(pairs[t - hist_len : t])
             if state is not None:
                 visits[state] += 1
@@ -223,7 +223,7 @@ def _build_transducer(
 
     classes = _recurrent_states(edges)
     if not classes:
-        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this Lmax")
+        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this max_history")
     keep = max(classes, key=lambda members: (sum(visits[s] for s in members), -min(members)))
 
     graph = TransitionGraph()
@@ -271,7 +271,7 @@ def _build_transducer(
     return result
 
 
-def _default_lmax(n: int, alphabet_size: int, min_count: int) -> int:
+def _default_max_history(n: int, alphabet_size: int, min_count: int) -> int:
     if alphabet_size <= 0:
         return 1
     # The joint (input, output) history space grows as ``alphabet_size ** L``, so
@@ -279,13 +279,13 @@ def _default_lmax(n: int, alphabet_size: int, min_count: int) -> int:
     return max(1, min(5, n // max(1, alphabet_size * min_count)))
 
 
-def transcssr(
+def learn_epsilon_transducer_cssr(
     inputs: Sequence[Any],
     outputs: Sequence[Any],
     *,
     input_alphabet: Sequence[Any] | None = None,
     output_alphabet: Sequence[Any] | None = None,
-    Lmax: int | Literal["auto"] | None = None,
+    max_history: int | Literal["auto"] | None = None,
     alpha: float = 0.001,
     test: TableTest = "g",
     min_count: int = 5,
@@ -295,10 +295,10 @@ def transcssr(
 
     ``alpha`` is the per-test significance level for the causal-state split
     decision; the transCSSR/CSSR default of ``0.001`` favors fewer, more robust
-    states. ``Lmax`` bounds the joint-history depth and ``min_count`` the minimum
+    states. ``max_history`` bounds the joint-history depth and ``min_count`` the minimum
     occurrences before a history is eligible to seed a new state.
 
-    ``Lmax="auto"`` applies :func:`~sofic.inference.cssr.suggest_lmax`
+    ``max_history="auto"`` applies :func:`~sofic.inference.cssr.suggest_max_history`
     to the joint ``(input, output)`` sequence. ``test="exact"`` uses the Monte
     Carlo exact G-test when expected counts are small (see
     :func:`~sofic.inference.cssr.morphs_differ`), and
@@ -316,10 +316,12 @@ def transcssr(
         if input_alphabet is None or output_alphabet is None
         else len(tuple(input_alphabet)) * len(tuple(output_alphabet))
     )
-    if Lmax == "auto":
-        max_length = suggest_lmax(list(zip(xs, ys, strict=True)), alpha=alpha)
+    if max_history == "auto":
+        max_length = suggest_max_history(list(zip(xs, ys, strict=True)), alpha=alpha)
     else:
-        max_length = Lmax if Lmax is not None else _default_lmax(len(xs), joint_alphabet_size, min_count)
+        max_length = (
+            max_history if max_history is not None else _default_max_history(len(xs), joint_alphabet_size, min_count)
+        )
     counts = JointSuffixCounts.from_sequences(
         xs,
         ys,
@@ -337,9 +339,9 @@ def transcssr(
     elif correction is not None:
         raise ValueError(f"unknown correction {correction!r}")
 
-    states = _homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
+    states = _homogenize(counts, max_history=max_length, alpha=alpha, test=test, min_count=min_count)
     everything = set(range(len(states)))
-    edges = _edges(states, counts, everything, Lmax=max_length, alpha=alpha, test=test)
+    edges = _edges(states, counts, everything, max_history=max_length, alpha=alpha, test=test)
     alive = set().union(*_recurrent_states(edges)) or everything
-    states, alive = _determinize(states, counts, alive, Lmax=max_length, alpha=alpha, test=test)
-    return _build_transducer(states, counts, alive, xs, ys, Lmax=max_length, alpha=alpha, test=test)
+    states, alive = _determinize(states, counts, alive, max_history=max_length, alpha=alpha, test=test)
+    return _build_transducer(states, counts, alive, xs, ys, max_history=max_length, alpha=alpha, test=test)

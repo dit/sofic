@@ -77,23 +77,20 @@ def state_entropy(model: StochasticModel) -> Any:
 
 def joint_block_distribution(
     generator: HiddenMarkovModel,
-    history_length: int = 1,
+    block_length: int = 2,
 ) -> Any:
-    """Build a ``dit.Distribution`` over observed emission blocks.
-
-    ``history_length`` counts symbols before the present symbol, so the emitted
-    block length is ``history_length + 1``.
-    """
+    """Build a ``dit.Distribution`` over observed emission blocks of ``block_length`` symbols."""
     from sofic.generators.matrices import emission_tensors
     from sofic.generators.words import _enumerate_words, _matrix_step
 
+    if block_length < 1:
+        raise ValueError("block_length must be at least 1")
     dit = _require_dit()
     # Blocks of a stationary process are weighted by the stationary state law, not
     # the model's initial distribution (which may describe only the transient).
     pi, joint = emission_tensors(generator, policy="stationary")
 
     symbol_list = sorted(generator.observation_alphabet, key=repr)
-    block_length = max(1, history_length + 1)
     ones = np.ones(len(pi), dtype=float)
     outcomes = []
     probs = []
@@ -239,7 +236,7 @@ def entropy_rate_markov(chain: MarkovChain) -> Any:
 
 def collision_entropy(quasi_model: QuasiStochasticModel) -> float:
     """Second Renyi entropy rate (bits) from quasi transition matrices."""
-    matrices = quasi_model.transition_matrices()
+    matrices = quasi_model.symbol_matrices()
     pi = quasi_model.stationary_quasidistribution()
     total = 0.0
     for matrix in matrices.values():

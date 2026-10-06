@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.automata.learning.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni, papni_encode
+from sofic.automata.learning.papni import DyckAlphabet, encode_dyck_word, is_well_matched, learn_sofic_dyck_shift_papni
 from sofic.automata.learning.rpni import learn_dfa_rpni
 from sofic.examples.shifts import dyck_shift_order, motzkin_shift
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
@@ -13,12 +13,12 @@ from sofic.inference.bayesian.stack_hmm import (
     ModelComparisonStackHMM,
     StackHMMPosterior,
 )
-from sofic.inference.cssr import cssr
+from sofic.inference.cssr import learn_epsilon_machine_cssr
 from sofic.inference.cssr.stack import (
-    fit_stack_hmm_mle,
+    learn_stack_hmm_cssr,
+    learn_stack_hmm_mle,
     learn_stack_hmm_papni,
-    stack_cssr,
-    stack_subtree_merge,
+    learn_stack_hmm_subtree,
 )
 from sofic.shifts.dyck_enumeration import (
     count_dyck_graph_strings,
@@ -43,11 +43,11 @@ def _uniform_probabilities(shift):
     return {ref: 1.0 / len(refs) for ref in refs}
 
 
-def test_is_well_matched_and_papni_encode():
+def test_is_well_matched_and_encode_dyck_word():
     alphabet = _balanced_dyck_alphabet()
     assert is_well_matched(("(", ")"), alphabet)
     assert not is_well_matched((")", "("), alphabet)
-    assert papni_encode(("(", ")"), alphabet) == ("(", (")", "("))
+    assert encode_dyck_word(("(", ")"), alphabet) == ("(", (")", "("))
 
 
 def test_rpni_learns_balanced_parentheses_language():
@@ -72,7 +72,7 @@ def test_papni_recovers_dyck_shift_topology():
 def test_fit_stack_hmm_mle_assigns_positive_mass():
     shift = dyck_shift_order(1, call_symbols=("(",), return_symbols=(")",))
     sequence = ("(", ")", "(", "(", ")", ")")
-    model = fit_stack_hmm_mle(shift, sequence)
+    model = learn_stack_hmm_mle(shift, sequence)
     model.validate()
     assert model.word_probability(sequence) > 0.0
 
@@ -101,7 +101,7 @@ def test_stack_cssr_recovers_motzkin_structure():
         return_alphabet=shift.return_alphabet,
         internal_alphabet=shift.internal_alphabet,
     )
-    inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.001)
+    inferred = learn_stack_hmm_cssr(observations, alphabet=alphabet, max_history=3, max_stack_depth=4, alpha=0.001)
     inferred.validate()
     assert inferred.matched_edges
     prefix = tuple(observations[:12])
@@ -119,7 +119,7 @@ def test_stack_subtree_merge_runs_on_sample():
         return_alphabet=shift.return_alphabet,
         internal_alphabet=shift.internal_alphabet,
     )
-    inferred = stack_subtree_merge(observations, alphabet=alphabet, L=2, max_stack_depth=3)
+    inferred = learn_stack_hmm_subtree(observations, alphabet=alphabet, max_history=2, max_stack_depth=3)
     inferred.validate()
 
 
@@ -156,7 +156,7 @@ def test_dyck_graph_round_trip():
     assert count_dyck_graph_strings(call_symbols=("(",), return_symbols=(")",)) > 0
 
 
-@pytest.mark.parametrize("method", ["papni", "stack_cssr", "flat_cssr"])
+@pytest.mark.parametrize("method", ["papni", "learn_stack_hmm_cssr", "flat_cssr"])
 def test_benchmark_passive_paths(method: str):
     shift = dyck_shift_order(1, call_symbols=("(",), return_symbols=(")",))
     probs = _uniform_probabilities(shift)
@@ -183,10 +183,10 @@ def test_benchmark_passive_paths(method: str):
         if not positive:
             positive = [("(", ")")]
         inferred = learn_stack_hmm_papni(positive, alphabet=alphabet_bm, sequence=observations)
-    elif method == "stack_cssr":
-        inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.001)
+    elif method == "learn_stack_hmm_cssr":
+        inferred = learn_stack_hmm_cssr(observations, alphabet=alphabet, max_history=3, max_stack_depth=4, alpha=0.001)
     else:
-        flat = cssr(observations, Lmax=3, alpha=0.001)
+        flat = learn_epsilon_machine_cssr(observations, max_history=3, alpha=0.001)
         inferred = HiddenMarkovStackModel(
             call_alphabet=alphabet.call_alphabet,
             return_alphabet=alphabet.return_alphabet,
@@ -225,9 +225,9 @@ def _held_out_bits_per_symbol(model, word) -> float:
     return -np.log2(model.word_probability(tuple(word))) / len(word)
 
 
-@pytest.mark.parametrize("Lmax", [2, 3])
-def test_stack_cssr_matches_motzkin_likelihood(Lmax: int):
-    """Regression: homogenization only reached stacks of depth <= Lmax and return
+@pytest.mark.parametrize("max_history", [2, 3])
+def test_stack_cssr_matches_motzkin_likelihood(max_history: int):
+    """Regression: homogenization only reached stacks of depth <= max_history and return
     edges were paired with unobserved calls, so held-out words got probability 0."""
     shift = motzkin_shift()
     oracle = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, _uniform_probabilities(shift))
@@ -238,7 +238,9 @@ def test_stack_cssr_matches_motzkin_likelihood(Lmax: int):
     )
     observations, _ = oracle.sample(5000, rng=np.random.default_rng(0))
     held_out, _ = oracle.sample(60, rng=np.random.default_rng(99))
-    inferred = stack_cssr(observations, alphabet=alphabet, Lmax=Lmax, max_stack_depth=4, alpha=0.001)
+    inferred = learn_stack_hmm_cssr(
+        observations, alphabet=alphabet, max_history=max_history, max_stack_depth=4, alpha=0.001
+    )
     inferred.validate()
     assert len(list(inferred.states())) == 1
     assert _held_out_bits_per_symbol(inferred, held_out) == pytest.approx(
@@ -256,11 +258,13 @@ def test_stack_cssr_exact_and_bonferroni_run():
         internal_alphabet=shift.internal_alphabet,
     )
     for kwargs in ({"test": "exact"}, {"correction": "bonferroni"}):
-        inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.001, **kwargs)
+        inferred = learn_stack_hmm_cssr(
+            observations, alphabet=alphabet, max_history=3, max_stack_depth=4, alpha=0.001, **kwargs
+        )
         inferred.validate()
         assert oracle.word_probability(tuple(observations[:12])) > 0.0
     with pytest.raises(ValueError, match="unknown correction"):
-        stack_cssr(observations, alphabet=alphabet, Lmax=2, correction="holm")
+        learn_stack_hmm_cssr(observations, alphabet=alphabet, max_history=2, correction="holm")
 
 
 @pytest.mark.parametrize("seed", [1, 5])
@@ -280,7 +284,7 @@ def test_stack_cssr_keeps_histories_when_splitting(seed):
         return_alphabet=shift.return_alphabet,
         internal_alphabet=shift.internal_alphabet,
     )
-    inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.01)
+    inferred = learn_stack_hmm_cssr(observations, alphabet=alphabet, max_history=3, max_stack_depth=4, alpha=0.01)
     inferred.validate()
     held_out, _ = oracle.sample(400, rng=np.random.default_rng(100 + seed))
     windows = [tuple(held_out[i : i + 6]) for i in range(0, 390, 6)]

@@ -15,7 +15,7 @@ from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_OUTPUT, ATTR_PROB, ATTR_SYMBOL, EPSILON
 
 
-def cartesian_product_gg(
+def generator_product(
     generators: Sequence[HiddenMarkovModel],
     *,
     create_using: type[MealyHMM] | None = None,
@@ -59,7 +59,7 @@ def cartesian_product_gg(
     return result
 
 
-def cartesian_product_tt(
+def transducer_product(
     transducers: Sequence[MealyMachine],
     *,
     create_using: type[MealyMachine] | None = None,
@@ -100,7 +100,7 @@ def cartesian_product_tt(
     return result
 
 
-def compose_tt(
+def compose_transducers(
     transducers: Sequence[MealyMachine],
     *,
     complete: bool = True,
@@ -109,18 +109,20 @@ def compose_tt(
 ) -> MealyMachine:
     """Serially compose transducers.
 
-    ``compose_tt((t0, t1))`` returns the transducer that feeds ``t0``'s output
+    ``compose_transducers((t0, t1))`` returns the transducer that feeds ``t0``'s output
     into ``t1``. State labels are tuples ordered like the input transducers.
     """
     if not transducers:
         raise ValueError("at least one transducer is required")
     result = transducers[0].copy()
     for transducer in transducers[1:]:
-        result = _compose_pair_tt(result, transducer, complete=complete, create_using=create_using, normalize=normalize)
+        result = _compose_transducer_pair(
+            result, transducer, complete=complete, create_using=create_using, normalize=normalize
+        )
     return result
 
 
-def compose_tg(
+def compose_transducer_generator(
     transducer: MealyMachine,
     generator: HiddenMarkovModel,
     *,
@@ -191,7 +193,7 @@ def transduce_generator(
     create_using: type[MealyHMM] | None = None,
 ) -> MealyHMM:
     """Return the output-only generator induced by driving ``transducer`` with ``generator``."""
-    return compose_tg(
+    return compose_transducer_generator(
         transducer,
         generator,
         complete=complete,
@@ -201,7 +203,7 @@ def transduce_generator(
     )
 
 
-def _compose_pair_tt(
+def _compose_transducer_pair(
     left: MealyMachine,
     right: MealyMachine,
     *,
@@ -342,9 +344,9 @@ def _prob(data: dict[str, Any]) -> float:
 __all__ = [
     "ERROR_STATE",
     "ERROR_SYMBOL",
-    "cartesian_product_gg",
-    "cartesian_product_tt",
-    "compose_tg",
-    "compose_tt",
+    "generator_product",
+    "transducer_product",
+    "compose_transducer_generator",
+    "compose_transducers",
     "transduce_generator",
 ]

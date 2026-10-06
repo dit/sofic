@@ -19,7 +19,7 @@ from sofic.graph import (
 )
 
 
-class CallDrivenAutomaton(DeterministicVisiblyPushdownAutomaton):
+class ModularVisiblyPushdownAutomaton(DeterministicVisiblyPushdownAutomaton):
     """Deterministic modular VPA whose call target depends only on the call symbol."""
 
     modules: dict[Hashable, frozenset[Hashable]]
@@ -74,7 +74,7 @@ class CallDrivenAutomaton(DeterministicVisiblyPushdownAutomaton):
         call_partition: Mapping[Any, Hashable] | None = None,
         base_module: Hashable | None = None,
         call_entries: Mapping[Any, Hashable] | None = None,
-    ) -> CallDrivenAutomaton:
+    ) -> ModularVisiblyPushdownAutomaton:
         """Return the module-aware deterministic quotient as a CDA."""
         return _minimize_modular_vpa(
             cls,
@@ -139,7 +139,7 @@ class CallDrivenAutomaton(DeterministicVisiblyPushdownAutomaton):
             )
 
 
-class MultipleEntryVisiblyPushdownAutomaton(CallDrivenAutomaton):
+class MultipleEntryVisiblyPushdownAutomaton(ModularVisiblyPushdownAutomaton):
     """Modular VPA with multiple module entries and source-determined call pushes."""
 
     entry_states: dict[Hashable, frozenset[Hashable]]
@@ -212,7 +212,7 @@ class MultipleEntryVisiblyPushdownAutomaton(CallDrivenAutomaton):
                 self._require(existing == pushed, "MEVPA call push must depend only on the source state")
 
 
-class SingleEntryVisiblyPushdownAutomaton(CallDrivenAutomaton):
+class SingleEntryVisiblyPushdownAutomaton(ModularVisiblyPushdownAutomaton):
     """Modular VPA with one distinguished entry per non-base module."""
 
     entry_states: dict[Hashable, Hashable]
@@ -315,7 +315,7 @@ def _deterministic_view(vpa: VisiblyPushdownAutomaton) -> DeterministicVisiblyPu
 
 
 def _minimize_modular_vpa(
-    target_cls: type[CallDrivenAutomaton],
+    target_cls: type[ModularVisiblyPushdownAutomaton],
     vpa: VisiblyPushdownAutomaton,
     *,
     modules: Mapping[Hashable, Iterable[Hashable]] | None,
@@ -379,7 +379,7 @@ def _minimize_modular_vpa(
 
 
 def _construct_modular_view(
-    target_cls: type[CallDrivenAutomaton],
+    target_cls: type[ModularVisiblyPushdownAutomaton],
     det: DeterministicVisiblyPushdownAutomaton,
     *,
     modules: Mapping[Hashable, frozenset[Hashable]],
@@ -387,7 +387,7 @@ def _construct_modular_view(
     call_partition: Mapping[Any, Hashable],
     call_entries: Mapping[Any, Hashable],
     entry_states: Mapping[Hashable, Any],
-) -> CallDrivenAutomaton:
+) -> ModularVisiblyPushdownAutomaton:
     kwargs = {
         "input_alphabet": det.input_alphabet,
         "call_alphabet": det.call_alphabet,
@@ -463,7 +463,7 @@ def _infer_entry_states(
 
 
 def _refine_modular_partition(
-    vpa: CallDrivenAutomaton,
+    vpa: ModularVisiblyPushdownAutomaton,
     modules: Mapping[Hashable, frozenset[Hashable]],
 ) -> list[frozenset[Hashable]]:
     partition: list[frozenset[Hashable]] = []
@@ -512,7 +512,7 @@ def _stack_context_groups(
 
 
 def _modular_state_signature(
-    vpa: CallDrivenAutomaton,
+    vpa: ModularVisiblyPushdownAutomaton,
     state: Hashable,
     block_of: Mapping[Hashable, Hashable],
     context_groups: Sequence[tuple[Any, tuple[Any, ...]]],
@@ -557,8 +557,8 @@ def _modular_state_signature(
 
 
 def _quotient_modular_vpa(
-    target_cls: type[CallDrivenAutomaton],
-    source: CallDrivenAutomaton,
+    target_cls: type[ModularVisiblyPushdownAutomaton],
+    source: ModularVisiblyPushdownAutomaton,
     partition: Sequence[frozenset[Hashable]],
     *,
     modules: Mapping[Hashable, frozenset[Hashable]],

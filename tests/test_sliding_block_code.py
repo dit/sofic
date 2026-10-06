@@ -61,9 +61,9 @@ def test_to_transducer_realizes_code():
 
 
 def test_memoryless_transducer_round_trip():
-    from sofic.examples.processes import BitFlip
+    from sofic.examples.processes import bit_flip
 
-    code = BitFlip().to_sliding_block_code()
+    code = bit_flip().to_sliding_block_code()
     assert code.memory == 0
     assert code.apply_word(["0"]) == ("1",)
 

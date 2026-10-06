@@ -4,7 +4,7 @@ from sofic.automata.vpa.base import VisiblyPushdownAutomaton
 from sofic.automata.vpa.canonical import CanonicalVisiblyPushdownAutomaton
 from sofic.automata.vpa.deterministic import DeterministicVisiblyPushdownAutomaton
 from sofic.automata.vpa.modular import (
-    CallDrivenAutomaton,
+    ModularVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
 )
@@ -13,7 +13,7 @@ from sofic.automata.vpa.simulation import recognizes_vpa
 
 __all__ = [
     "BOTTOM",
-    "CallDrivenAutomaton",
+    "ModularVisiblyPushdownAutomaton",
     "CanonicalVisiblyPushdownAutomaton",
     "DeterministicVisiblyPushdownAutomaton",
     "MultipleEntryVisiblyPushdownAutomaton",

@@ -17,19 +17,15 @@ import numpy as np
 from sofic.automata.transducers import MealyMachine
 from sofic.examples._construction import _edge_machine, _relabel
 from sofic.examples.epsilon_machines import (
-    alternating_biased_coins,
     bernoulli,
     even_process,
+    fair_coin,
     golden_mean_forward,
-    nemo_process,
-    noisy_random_phase_slip,
 )
 from sofic.generators.base import QuasiStochasticModel
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_OUTPUT, ATTR_PROB, ATTR_QUASIPROB, ATTR_SYMBOL
-
-RecurrentEpsilonMachine = EpsilonMachine
 
 _STR_BITS = {0: "0", 1: "1"}
 
@@ -97,7 +93,7 @@ def _dirichlet(n: int, rng: Any = None) -> np.ndarray:
 def _compatible_machine_type(machine_type: Any, default: type[MealyHMM] = EpsilonMachine) -> type[MealyHMM]:
     if machine_type is None:
         return default
-    if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, MealyHMM):
+    if machine_type in (EpsilonMachine, MealyHMM):
         return machine_type
     if isinstance(machine_type, str):
         lowered = machine_type.lower()
@@ -108,13 +104,7 @@ def _compatible_machine_type(machine_type: Any, default: type[MealyHMM] = Epsilo
     return default
 
 
-def ABC(p: float = 0.75, q: float = 0.25) -> EpsilonMachine:
-    if math.isclose(p, q):
-        return _from_string(f"A A 0 {p}; A A 1 {1 - p}", name="ABC Process")
-    return _relabel(alternating_biased_coins(1 - p, 1 - q), symbols=_STR_BITS, name="ABC Process")
-
-
-def AFC(n: int) -> EpsilonMachine:
+def afc(n: int) -> EpsilonMachine:
     if n < 1:
         raise ValueError("n >= 1 required")
     spec = "B B 0; "
@@ -124,7 +114,7 @@ def AFC(n: int) -> EpsilonMachine:
     return _from_string(spec, name=f"Almost Fair Coin Process, order {n}")
 
 
-def AFC2(n: int) -> EpsilonMachine:
+def afc2(n: int) -> EpsilonMachine:
     if n < 1:
         raise ValueError("n >= 1 required")
     spec = "A1 B1 1; B1 A1 0; "
@@ -133,7 +123,7 @@ def AFC2(n: int) -> EpsilonMachine:
     return _from_string(spec, name=f"Almost Fair Coin 2 Process, order {n}")
 
 
-def BandMerging(machine_type: Any = MealyHMM) -> MealyHMM:
+def band_merging(machine_type: Any = MealyHMM) -> MealyHMM:
     cls = _compatible_machine_type(machine_type, MealyHMM)
     if cls is EpsilonMachine:
         edges = [
@@ -156,7 +146,7 @@ def BandMerging(machine_type: Any = MealyHMM) -> MealyHMM:
     )
 
 
-def BeadsOnNecklace(
+def beads_on_necklace(
     machine_type: Any = MealyHMM,
     beads: Sequence[Any] | Sequence[Sequence[Any]] = ("a", "b"),
     necklace: Sequence[Any] = ("0", "1", "3"),
@@ -201,7 +191,7 @@ def BeadsOnNecklace(
     return _edge_machine(edges, machine_type=MealyHMM, name="Beads On Necklace", normalize=False)
 
 
-def BeforeAfter(machine_type: Any = MealyHMM, style: str = "simple") -> MealyHMM:
+def before_after(machine_type: Any = MealyHMM, style: str = "simple") -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     if style == "simple":
         edges = [("A", "A", "0", 0.5), ("A", "B", "1", 0.5), ("B", "B", "0", 0.5), ("B", "A", "2", 0.5)]
@@ -222,33 +212,26 @@ def BeforeAfter(machine_type: Any = MealyHMM, style: str = "simple") -> MealyHMM
         ]
     else:
         raise ValueError("style must be 'simple' or 'cayley'")
-    return _edge_machine(edges, machine_type=MealyHMM, name="BeforeAfter", normalize=False)
+    return _edge_machine(edges, machine_type=MealyHMM, name="before_after", normalize=False)
 
 
-def BiasedCoin(bias: float, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+def random_biased_coin(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
+    generator = rng if rng is not None else np.random.default_rng()
+    bias = float(generator.random())
     return _relabel(bernoulli(bias), machine_type=_compatible_machine_type(machine_type), name=f"Coin, p = {bias}")
 
 
-def FairCoin(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    return BiasedCoin(0.5, machine_type=machine_type)
-
-
-def RandomBiasedCoin(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
-    generator = rng if rng is not None else np.random.default_rng()
-    return BiasedCoin(float(generator.random()), machine_type=machine_type)
-
-
-def IID(k: int | Sequence[Any], machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+def iid(k: int | Sequence[Any], machine_type: Any = EpsilonMachine) -> EpsilonMachine:
     alphabet = _as_alphabet(k)
     return _edge_machine(
         [("A", "A", symbol, 1.0) for symbol in alphabet],
         machine_type=_compatible_machine_type(machine_type),
-        name=f"IID({len(alphabet)})",
+        name=f"iid({len(alphabet)})",
         normalize=True,
     )
 
 
-def BinaryMarkovChain(
+def binary_markov_chain(
     p: float = 0.4,
     q: float = 0.3,
     a: float | None = None,
@@ -256,24 +239,24 @@ def BinaryMarkovChain(
     machine_type: Any = EpsilonMachine,
     branch: Any = None,
 ) -> MealyHMM:
-    if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        return BMC_eM(p, q)
+    if machine_type in (EpsilonMachine, None):
+        return bmc_em(p, q)
     if isinstance(machine_type, str):
         lowered = machine_type.lower()
         if lowered == "generative":
-            return BMC_gen(p, q, branch=branch)
+            return bmc_gen(p, q, branch=branch)
         if lowered == "parametrized":
             if a is None or b is None:
-                raise ValueError("a and b are required for parametrized BinaryMarkovChain")
-            return BMC_param(p, q, a, b)
+                raise ValueError("a and b are required for parametrized binary_markov_chain")
+            return bmc_param(p, q, a, b)
         if lowered == "lohr":
-            return BMC_lohr(p)
+            return bmc_lohr(p)
     raise NotImplementedError
 
 
-def BMC_eM(p: float, q: float) -> EpsilonMachine:
+def bmc_em(p: float, q: float) -> EpsilonMachine:
     if math.isclose(p, 1 - q):
-        return BiasedCoin(bias=p)
+        return _relabel(bernoulli(p), name=f"Coin, p = {p}")
     return _edge_machine(
         [("A", "A", "0", 1 - p), ("A", "B", "1", p), ("B", "A", "0", q), ("B", "B", "1", 1 - q)],
         machine_type=EpsilonMachine,
@@ -282,7 +265,7 @@ def BMC_eM(p: float, q: float) -> EpsilonMachine:
     )
 
 
-def BMC_gen(p: float, q: float, branch: Any = None) -> MealyHMM:
+def bmc_gen(p: float, q: float, branch: Any = None) -> MealyHMM:
     del branch
     if p == 1 and q == 1:
         spec = "A B 1 1.; B A 0 1."
@@ -303,26 +286,26 @@ def BMC_gen(p: float, q: float, branch: Any = None) -> MealyHMM:
     return _from_string(spec, machine_type=MealyHMM, name="BinaryMarkovChain gen", normalize=False)
 
 
-def _BMC_param_get_a_range(p: float, q: float) -> list[float]:
+def _bmc_param_get_a_range(p: float, q: float) -> list[float]:
     return [0, min(q, 1 - p)]
 
 
-def _BMC_param_get_b_range(p: float, q: float) -> list[float]:
+def _bmc_param_get_b_range(p: float, q: float) -> list[float]:
     return [max(q, 1 - p), 1]
 
 
-def _BMC_param_check_a_range(p: float, q: float, a: float) -> bool:
-    low, high = _BMC_param_get_a_range(p, q)
+def _bmc_param_check_a_range(p: float, q: float, a: float) -> bool:
+    low, high = _bmc_param_get_a_range(p, q)
     return low <= a <= high
 
 
-def _BMC_param_check_b_range(p: float, q: float, b: float) -> bool:
-    low, high = _BMC_param_get_b_range(p, q)
+def _bmc_param_check_b_range(p: float, q: float, b: float) -> bool:
+    low, high = _bmc_param_get_b_range(p, q)
     return low <= b <= high
 
 
-def BMC_param(p: float, q: float, a: float, b: float) -> MealyHMM:
-    if not _BMC_param_check_a_range(p, q, a) or not _BMC_param_check_b_range(p, q, b):
+def bmc_param(p: float, q: float, a: float, b: float) -> MealyHMM:
+    if not _bmc_param_check_a_range(p, q, a) or not _bmc_param_check_b_range(p, q, b):
         raise ValueError("a or b is outside the allowed range")
     probs = [
         a * (b + p - 1) / (b - a),
@@ -347,7 +330,7 @@ def BMC_param(p: float, q: float, a: float, b: float) -> MealyHMM:
     return _edge_machine(edges, machine_type=MealyHMM, name="BinaryMarkovChain parametrized", normalize=False)
 
 
-def BMC_lohr(p: float) -> MealyHMM:
+def bmc_lohr(p: float) -> MealyHMM:
     if p > 0.5:
         raise ValueError("currently requires p <= 0.5")
     return _edge_machine(
@@ -367,7 +350,7 @@ def BMC_lohr(p: float) -> MealyHMM:
     )
 
 
-def Butterfly() -> EpsilonMachine:
+def butterfly_two_branch() -> EpsilonMachine:
     """cmpy's two-branch Butterfly (``h_mu = 1``); not :func:`~sofic.examples.butterfly_process` (8 symbols, ``h_mu = 3``)."""
     return _from_string(
         """
@@ -378,7 +361,7 @@ def Butterfly() -> EpsilonMachine:
     )
 
 
-def Cantor(machine_type: Any = MealyHMM) -> MealyHMM:
+def cantor(machine_type: Any = MealyHMM) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     edges = [
         ("A", "A", "0", 0.55),
@@ -391,7 +374,7 @@ def Cantor(machine_type: Any = MealyHMM) -> MealyHMM:
     return _edge_machine(edges, machine_type=MealyHMM, name="Cantor Process", normalize=False)
 
 
-def CoupledGMPs(
+def coupled_gmps(
     epsilon: float = 0.01, p: float = 0.5, alt: bool = True, machine_type: Any = EpsilonMachine
 ) -> EpsilonMachine:
     if epsilon < 0 or p < 0:
@@ -436,7 +419,7 @@ def CoupledGMPs(
     )
 
 
-def UncoupledGMPs(p: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+def uncoupled_gmps(p: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
     if not 0 <= p <= 1:
         raise ValueError("p must be in [0, 1]")
     return _edge_machine(
@@ -455,7 +438,7 @@ def UncoupledGMPs(p: float = 0.5, machine_type: Any = EpsilonMachine) -> Epsilon
     )
 
 
-def CyclicBranching(num_states: int, num_branchings: int, num_symbols: int = 2) -> MealyHMM:
+def cyclic_branching(num_states: int, num_branchings: int, num_symbols: int = 2) -> MealyHMM:
     if num_branchings >= num_states:
         raise ValueError("number of branchings must be less than number of states")
     edges = []
@@ -475,8 +458,8 @@ def CyclicBranching(num_states: int, num_branchings: int, num_symbols: int = 2) 
     )
 
 
-def Ehrenfest(p: float = 0.5, N: int = 5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def ehrenfest(p: float = 0.5, N: int = 5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     edges = []
     for state in range(N + 1):
         edges.append((state, state, state, 1 - p))
@@ -484,42 +467,39 @@ def Ehrenfest(p: float = 0.5, N: int = 5, machine_type: Any = EpsilonMachine) ->
         edges.append((state, state + 1, state + 1, p * (N - state) / N))
     for state in range(1, N + 1):
         edges.append((state, state - 1, state - 1, p * state / N))
-    return _edge_machine(edges, machine_type=EpsilonMachine, name="Ehrenfest", normalize=False)
+    return _edge_machine(edges, machine_type=EpsilonMachine, name="ehrenfest", normalize=False)
 
 
-def Even(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> EpsilonMachine:
-    if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        return _relabel(even_process(bias), symbols=_STR_BITS, name="Even Process")
-    raise NotImplementedError
-
-
-def RandomEven(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
+def random_even(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
     return uniform_mealyhmm(
-        Even(), name="Random Even Process", create_using=_compatible_machine_type(machine_type), prng=rng
+        _relabel(even_process(), symbols=_STR_BITS),
+        name="Random Even Process",
+        create_using=_compatible_machine_type(machine_type),
+        prng=rng,
     )
 
 
-def EvenRedundant(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def even_redundant(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _from_string(
         f"A A 0 {bias}; A B 1 {1 - bias}; B C 1 1.; C C 0 {bias}; C D 1 {1 - bias}; D A 1 1.",
         name="Even Process (4-state)",
     )
 
 
-def ThreEven(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def three_even(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _from_string("A A 0 1; A B 1 1; A C 2 1; B A 1 1; C A 2 1;", name="ThreEven Process")
 
 
-def Flower(
+def flower(
     N: int = 4,
     M: int = 3,
     forward_dist: Sequence[float] | None = None,
     reverse_dists: np.ndarray | None = None,
     machine_type: Any = EpsilonMachine,
 ) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+    _require_machine_type(machine_type, EpsilonMachine)
     if N < 2 or M < 2:
         raise ValueError("N and M must be at least 2")
     if forward_dist is None:
@@ -535,23 +515,23 @@ def Flower(
     return _edge_machine(edges, machine_type=EpsilonMachine, name="Flower Process", normalize=False)
 
 
-def FourStateAlmostIID(delta: float = 0.2) -> EpsilonMachine:
+def four_state_almost_iid(delta: float = 0.2) -> EpsilonMachine:
     delta = max(0.0, min(float(delta), 0.24))
     p, q, r, s = 0.50 - 2 * delta, 0.50 - delta, 0.50 + delta, 0.50 + 2 * delta
     spec = f"A A 0 {p}; A B 1 {1 - p}; B C 0 {q}; B C 1 {1 - q}; C A 0 {r}; C D 1 {1 - r}; D A 0 {s}; D D 1 {1 - s};"
     return _from_string(spec, name="FourStateAlmostIID Process")
 
 
-def Girvan_fig6b(machine_type: Any = EpsilonMachine, alpha: float = 0.5, pi: float = 0.4) -> EpsilonMachine:
+def girvan_fig6b(machine_type: Any = EpsilonMachine, alpha: float = 0.5, pi: float = 0.4) -> EpsilonMachine:
     return _edge_machine(
         [("A", "A", "1", alpha), ("A", "P", "0", 1 - alpha), ("P", "A", "1", 1 - pi), ("P", "P", "0", pi)],
         machine_type=_compatible_machine_type(machine_type),
-        name="Girvan_fig6b",
+        name="girvan_fig6b",
         normalize=False,
     )
 
 
-def Girvan_fig6c(
+def girvan_fig6c(
     machine_type: Any = EpsilonMachine, alpha: float = 0.5, pi: float = 0.4, rho: float = 0.3
 ) -> EpsilonMachine:
     return _edge_machine(
@@ -564,12 +544,12 @@ def Girvan_fig6c(
             ("R", "A", "1", 1 - rho),
         ],
         machine_type=_compatible_machine_type(machine_type),
-        name="Girvan_fig6c",
+        name="girvan_fig6c",
         normalize=False,
     )
 
 
-def Girvan_fig6d(
+def girvan_fig6d(
     machine_type: Any = EpsilonMachine,
     alpha: float = 0.5,
     pi: float = 0.4,
@@ -588,18 +568,18 @@ def Girvan_fig6d(
             ("I", "P", "0", 1 - iota),
         ],
         machine_type=_compatible_machine_type(machine_type),
-        name="Girvan_fig6d",
+        name="girvan_fig6d",
         normalize=False,
     )
 
 
-def GoldenMean(bias: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+def golden_mean_forbid_00(bias: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
     """Golden mean forbidding ``00``; :func:`~sofic.examples.golden_mean` is its ``0 <-> 1`` mirror (forbids ``11``)."""
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+    _require_machine_type(machine_type, EpsilonMachine)
     return _relabel(golden_mean_forward(1 - bias), symbols=_STR_BITS, name="Golden Mean Process")
 
 
-def RestrictedGM(k: int) -> EpsilonMachine:
+def restricted_gm(k: int) -> EpsilonMachine:
     if k <= 0:
         raise ValueError("minimum k is 1")
     spec = "0 0 1 0.5; 0 1 0 0.5;"
@@ -609,7 +589,7 @@ def RestrictedGM(k: int) -> EpsilonMachine:
     return _from_string(spec, name=f"Restricted Golden Mean Process, k={k}")
 
 
-def StretchedGM(k: int) -> EpsilonMachine:
+def stretched_gm(k: int) -> EpsilonMachine:
     if k <= 0:
         raise ValueError("minimum k is 1")
     spec = "0 0 1 0.5; 0 1 0 0.5;"
@@ -619,7 +599,7 @@ def StretchedGM(k: int) -> EpsilonMachine:
     return _from_string(spec, name=f"Stretched Golden Mean Process, k={k}")
 
 
-def RNGM(R: int, N: int, p: float = 0.5) -> EpsilonMachine:
+def rn_gm(R: int, N: int, p: float = 0.5) -> EpsilonMachine:
     if R <= 0 or N <= 0 or R < N:
         raise ValueError("requires 1 <= N <= R")
     spec = f"0 0 1 {p}; 0 1 0 {1 - p};"
@@ -631,7 +611,7 @@ def RNGM(R: int, N: int, p: float = 0.5) -> EpsilonMachine:
     return _from_string(spec, name=f"R-N Golden Mean Process, R={R} N={N}")
 
 
-def RkGM(R: int, k: int, p: float = 0.5) -> EpsilonMachine:
+def rk_gm(R: int, k: int, p: float = 0.5) -> EpsilonMachine:
     if R <= 0 or k <= 0:
         raise ValueError("R and k must be positive")
     spec = f"0 0 1 {p}; 0 1 0 {1 - p};"
@@ -643,13 +623,16 @@ def RkGM(R: int, k: int, p: float = 0.5) -> EpsilonMachine:
     return _from_string(spec, name=f"R-k Golden Mean Process, R={R} k={k}")
 
 
-def RandomGoldenMean(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
+def random_golden_mean(machine_type: Any = EpsilonMachine, rng: np.random.Generator | None = None) -> EpsilonMachine:
     return uniform_mealyhmm(
-        GoldenMean(), name="Random Golden Mean Process", create_using=_compatible_machine_type(machine_type), prng=rng
+        golden_mean_forbid_00(),
+        name="Random Golden Mean Process",
+        create_using=_compatible_machine_type(machine_type),
+        prng=rng,
     )
 
 
-def GoldenMeanGHMM() -> QuasiStochasticModel:
+def golden_mean_ghmm() -> QuasiStochasticModel:
     q = QuasiStochasticModel(initial_quasidistribution={"A": 2 / 3, "B": 1 / 3})
     q.observation_alphabet = frozenset({"0", "1"})
     q.name = "Golden Mean Process"
@@ -667,7 +650,7 @@ def GoldenMeanGHMM() -> QuasiStochasticModel:
     return q
 
 
-def NonunifilarGoldenMean(bias: float = 0.5, free: float = 2 / 3) -> MealyHMM:
+def nonunifilar_golden_mean(bias: float = 0.5, free: float = 2 / 3) -> MealyHMM:
     pGM = bias
     pA = 1 / (1 + pGM)
     pB = pGM / (1 + pGM)
@@ -695,7 +678,7 @@ def NonunifilarGoldenMean(bias: float = 0.5, free: float = 2 / 3) -> MealyHMM:
     return _edge_machine(edges, machine_type=MealyHMM, name=f"Nonunifilar Golden Mean, p = {bias:.2f}", normalize=False)
 
 
-def IrreversibleTwoState(p: float = 0.5, q: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+def irreversible_two_state(p: float = 0.5, q: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
     return _edge_machine(
         [("A", "A", "0", p), ("A", "B", "1", 1 - p), ("B", "B", "1", q), ("B", "A", "2", 1 - q)],
         machine_type=_compatible_machine_type(machine_type),
@@ -704,8 +687,8 @@ def IrreversibleTwoState(p: float = 0.5, q: float = 0.5, machine_type: Any = Eps
     )
 
 
-def Ising(machine_type: Any = EpsilonMachine, J: float = 1.0, B: float = 0.3, T: float = 1.0) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def ising(machine_type: Any = EpsilonMachine, J: float = 1.0, B: float = 0.3, T: float = 1.0) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     beta = 1.0 / T
     rad = (np.sinh(beta * B) ** 2 + np.exp(-4 * beta * J)) ** 0.5
     two_p = 1.0 - (2 * np.exp(-4 * beta * J)) / (rad * (np.cosh(beta * B) + rad))
@@ -722,10 +705,10 @@ def Ising(machine_type: Any = EpsilonMachine, J: float = 1.0, B: float = 0.3, T:
     )
 
 
-def Lollipop(
+def lollipop(
     N: int, M: int, p: float = 0.5, q: float = 0.5, r: float = 0.1, machine_type: Any = EpsilonMachine
 ) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+    _require_machine_type(machine_type, EpsilonMachine)
     hns = [str(ind) for ind in range(N)]
     sns = [str(ind) for ind in range(N, N + 2 * (M - 1) + 1)]
     edges = []
@@ -742,18 +725,18 @@ def Lollipop(
     edges.append((sns[2 * (M - 1) - 1], sns[last], "1", 1 - r))
     edges.append((sns[2 * (M - 1) - 1], sns[last], "0", r))
     edges.append((sns[last], hns[0], "2", 1))
-    return _edge_machine(edges, machine_type=EpsilonMachine, name="Lollipop", normalize=False)
+    return _edge_machine(edges, machine_type=EpsilonMachine, name="lollipop", normalize=False)
 
 
-def LogicMachine(
+def logic_machine(
     logic: str, bias: float | Sequence[float] = 0.5, noise: float | Sequence[float] = 0.5, minimize: bool = True
 ) -> MealyHMM:
     del minimize
-    if logic == "RRX":
-        return RRX(machine_type=MealyHMM)
-    if logic == "Rn1C":
-        return Rn1C(noise=float(np.atleast_1d(noise)[0]), bias=float(np.atleast_1d(bias)[0]))
-    raise NotImplementedError("LogicMachine currently supports the common RRX and Rn1C constructors")
+    if logic == "rrx":
+        return rrx(machine_type=MealyHMM)
+    if logic == "rn1c":
+        return rn1c(noise=float(np.atleast_1d(noise)[0]), bias=float(np.atleast_1d(bias)[0]))
+    raise NotImplementedError("logic_machine currently supports the common 'RRX' and 'Rn1C' logics")
 
 
 def markov_skeleton(R: int, k: int | Sequence[Any], join: bool | None = None) -> MealyHMM:
@@ -777,7 +760,7 @@ def markov_skeleton(R: int, k: int | Sequence[Any], join: bool | None = None) ->
     return _edge_machine(edges, machine_type=MealyHMM, name=f"Order-{R} Markov skeleton")
 
 
-def Misiurewicz(machine_type: Any = MealyHMM) -> MealyHMM:
+def misiurewicz(machine_type: Any = MealyHMM) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [
@@ -795,7 +778,7 @@ def Misiurewicz(machine_type: Any = MealyHMM) -> MealyHMM:
     )
 
 
-def MisiurewiczSimplified(machine_type: Any = MealyHMM) -> MealyHMM:
+def misiurewicz_simplified(machine_type: Any = MealyHMM) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [
@@ -813,7 +796,7 @@ def MisiurewiczSimplified(machine_type: Any = MealyHMM) -> MealyHMM:
     )
 
 
-def MisiurewiczUniform(machine_type: Any = MealyHMM) -> MealyHMM:
+def misiurewicz_uniform(machine_type: Any = MealyHMM) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [
@@ -831,29 +814,24 @@ def MisiurewiczUniform(machine_type: Any = MealyHMM) -> MealyHMM:
     )
 
 
-def Multiple3(machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
-    return MultipleN(3, machine_type=machine_type, bias=bias)
+def multiple3(machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
+    return multiple_n(3, machine_type=machine_type, bias=bias)
 
 
-def Multiple4(machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
-    return MultipleN(4, machine_type=machine_type, bias=bias)
+def multiple4(machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
+    return multiple_n(4, machine_type=machine_type, bias=bias)
 
 
-def MultipleN(n: int, machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
-    _require_machine_type(machine_type, MealyHMM, EpsilonMachine, RecurrentEpsilonMachine)
+def multiple_n(n: int, machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyHMM:
+    _require_machine_type(machine_type, MealyHMM, EpsilonMachine)
     edges = [(0, 0, "0", bias), (0, 1, "1", 1 - bias)]
     for x in range(1, int(n)):
         edges.append((x, 0 if x == n - 1 else x + 1, "1", 1))
-    cls = EpsilonMachine if machine_type in (EpsilonMachine, RecurrentEpsilonMachine) else MealyHMM
+    cls = EpsilonMachine if machine_type is EpsilonMachine else MealyHMM
     return _edge_machine(edges, machine_type=cls, name=f"'Multiples of {n}' Process", normalize=False)
 
 
-def Nemo(machine_type: Any = EpsilonMachine, p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
-    return _relabel(nemo_process(p, q), symbols=_STR_BITS, name="Nemo Process")
-
-
-def NemoRedundant(machine_type: Any = MealyHMM, p: float = 0.5, q: float = 0.5) -> MealyHMM:
+def nemo_redundant(machine_type: Any = MealyHMM, p: float = 0.5, q: float = 0.5) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     return _from_string(
         f"""
@@ -865,7 +843,7 @@ def NemoRedundant(machine_type: Any = MealyHMM, p: float = 0.5, q: float = 0.5) 
     )
 
 
-def NoisyPeriod2(noise: float = 0.5) -> EpsilonMachine:
+def noisy_period2(noise: float = 0.5) -> EpsilonMachine:
     return _edge_machine(
         [("A", "B", "0", 1), ("B", "A", "0", noise), ("B", "A", "1", 1 - noise)],
         machine_type=EpsilonMachine,
@@ -874,12 +852,8 @@ def NoisyPeriod2(noise: float = 0.5) -> EpsilonMachine:
     )
 
 
-def NRPS() -> EpsilonMachine:
-    return noisy_random_phase_slip()
-
-
-def Odd(machine_type: Any = EpsilonMachine, bias1: float = 0.5, bias2: float = 0.5) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def odd(machine_type: Any = EpsilonMachine, bias1: float = 0.5, bias2: float = 0.5) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     edges = [
         ("A", "A", "0", bias1),
         ("A", "B", "1", 1 - bias1),
@@ -890,7 +864,7 @@ def Odd(machine_type: Any = EpsilonMachine, bias1: float = 0.5, bias2: float = 0
     return _edge_machine(edges, machine_type=EpsilonMachine, name="Odd Process", normalize=False)
 
 
-def OddGHMM(variant: int = 1) -> QuasiStochasticModel:
+def odd_ghmm(variant: int = 1) -> QuasiStochasticModel:
     matrices = (
         {"0": [[0.5, 0, 0], [1.0, 0, 0], [1.0, 0, 0]], "1": [[0.5, -0.5, 0.5], [0, 0, 0], [0.5, 0, -0.5]]}
         if variant == 1
@@ -913,23 +887,23 @@ def OddGHMM(variant: int = 1) -> QuasiStochasticModel:
     return q
 
 
-def EvenOdd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def even_odd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _from_string("A B 0 0.5; B A 0 1; A C 1 0.5; C B 0 0.5; C D 1 0.5; D C 1 1;", name="EvenOdd Process")
 
 
-def ThreEvenOdd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def three_even_odd(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _from_string(
         "A A 0 1; A B 1 1; B A 1 1; A C 2 1; C A 0 1; C B 1 1; C D 2 1; D C 2 1;", name="ThreEvenOdd Process"
     )
 
 
-def Period(P: int) -> MealyHMM:
-    return Periodic("0" * (P - 1) + "1")
+def period(P: int) -> MealyHMM:
+    return periodic("0" * (P - 1) + "1")
 
 
-def Periodic(word: Sequence[Any], reduce: bool = True) -> MealyHMM:
+def periodic(word: Sequence[Any], reduce: bool = True) -> MealyHMM:
     base = _word_period(word) if reduce else word
     edges = []
     for i, symbol in enumerate(base):
@@ -939,52 +913,52 @@ def Periodic(word: Sequence[Any], reduce: bool = True) -> MealyHMM:
     )
 
 
-def Period1(machine_type: Any = MealyHMM) -> MealyHMM:
-    return Periodic("1") if machine_type is MealyHMM else _from_string("A A 1 1", name="Period-1 Process")
+def period1(machine_type: Any = MealyHMM) -> MealyHMM:
+    return periodic("1") if machine_type is MealyHMM else _from_string("A A 1 1", name="Period-1 Process")
 
 
-def Period2(machine_type: Any = MealyHMM) -> MealyHMM:
-    return Periodic("01") if machine_type is MealyHMM else _from_string("A B 0 1; B A 1 1", name="Period-2 Process")
+def period2(machine_type: Any = MealyHMM) -> MealyHMM:
+    return periodic("01") if machine_type is MealyHMM else _from_string("A B 0 1; B A 1 1", name="Period-2 Process")
 
 
-def Period4(machine_type: Any = MealyHMM) -> MealyHMM:
+def period4(machine_type: Any = MealyHMM) -> MealyHMM:
     return (
-        Periodic("1110")
+        periodic("1110")
         if machine_type is MealyHMM
         else _from_string("A B 1 1; B C 1 1; C D 1 1; D A 0 1", name="Period-4 Process")
     )
 
 
-def Period7(machine_type: Any = MealyHMM) -> MealyHMM:
+def period7(machine_type: Any = MealyHMM) -> MealyHMM:
     if machine_type is not MealyHMM:
         raise NotImplementedError
-    return Periodic("10101110")
+    return periodic("10101110")
 
 
-def Period8(machine_type: Any = MealyHMM) -> MealyHMM:
+def period8(machine_type: Any = MealyHMM) -> MealyHMM:
     if machine_type is not MealyHMM:
         raise NotImplementedError
-    return Periodic("10101110")
+    return periodic("10101110")
 
 
-def Period12(machine_type: Any = MealyHMM) -> MealyHMM:
+def period12(machine_type: Any = MealyHMM) -> MealyHMM:
     if machine_type is not MealyHMM:
         raise NotImplementedError
-    return Periodic("101011101110")
+    return periodic("101011101110")
 
 
-def Period16(machine_type: Any = MealyHMM) -> MealyHMM:
+def period16(machine_type: Any = MealyHMM) -> MealyHMM:
     if machine_type is not MealyHMM:
         raise NotImplementedError
-    return Periodic("1010111011101110")
+    return periodic("1010111011101110")
 
 
-def PerturbedCoin(p: float = 0.2, q: float | None = None, machine_type: Any = EpsilonMachine) -> MealyHMM:
+def perturbed_coin(p: float = 0.2, q: float | None = None, machine_type: Any = EpsilonMachine) -> MealyHMM:
     if p == 0.5:
-        return FairCoin()
+        return fair_coin()
     if q is None:
         q = p
-    if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, None):
+    if machine_type in (EpsilonMachine, None):
         return _edge_machine(
             [("A", "A", "0", 1 - p), ("A", "B", "1", p), ("B", "A", "0", q), ("B", "B", "1", 1 - q)],
             machine_type=EpsilonMachine,
@@ -995,16 +969,16 @@ def PerturbedCoin(p: float = 0.2, q: float | None = None, machine_type: Any = Ep
     if lowered in {"lohr", "generative"}:
         if q != p:
             raise ValueError("Lohr/generative variants only support q == p")
-        return BMC_lohr(p) if lowered == "lohr" else BMC_gen(p, p)
+        return bmc_lohr(p) if lowered == "lohr" else bmc_gen(p, p)
     raise NotImplementedError(f"cannot build machine type {machine_type!r}")
 
 
-def PSB() -> EpsilonMachine:
+def phase_slip_backtrack_cmpy() -> EpsilonMachine:
     """cmpy's Phase-Slip Backtrack; a different process from :func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`."""
     return _from_string("A B 1; A D 0; B B 1; B C 0; C D 0; D A 1", name="Phase-Slip Backtrack")
 
 
-def RIP(p: float = 0.5, q: float = 0.5, reverse: bool = False) -> EpsilonMachine:
+def rip(p: float = 0.5, q: float = 0.5, reverse: bool = False) -> EpsilonMachine:
     if reverse:
         spec = f"D E 1 {1 - p * q}; D F 0 {p * q}; E D 1 {(1 - p) / (1 - p * q)}; E G 0 {p * (1 - q) / (1 - p * q)}; F G 0 1; G D 1 1"
     else:
@@ -1012,7 +986,7 @@ def RIP(p: float = 0.5, q: float = 0.5, reverse: bool = False) -> EpsilonMachine
     return _from_string(spec, name="Random Insertion Process")
 
 
-def Rn1C(noise: float = 0.5, bias: float = 0.5) -> EpsilonMachine:
+def rn1c(noise: float = 0.5, bias: float = 0.5) -> EpsilonMachine:
     return _edge_machine(
         [
             ("A", "B", "0", bias),
@@ -1027,8 +1001,8 @@ def Rn1C(noise: float = 0.5, bias: float = 0.5) -> EpsilonMachine:
     )
 
 
-def Rn1N(machine_type: Any = EpsilonMachine, bias: float = 0.5, noise: float = 0.1) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def rn1n(machine_type: Any = EpsilonMachine, bias: float = 0.5, noise: float = 0.1) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _edge_machine(
         [
             ("A", "B", "0", bias),
@@ -1043,8 +1017,8 @@ def Rn1N(machine_type: Any = EpsilonMachine, bias: float = 0.5, noise: float = 0
     )
 
 
-def RRX(machine_type: Any = EpsilonMachine) -> MealyHMM:
-    if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, None):
+def rrx(machine_type: Any = EpsilonMachine) -> MealyHMM:
+    if machine_type in (EpsilonMachine, None):
         edges = [
             ("S", "0", "0", 0.5),
             ("S", "1", "1", 0.5),
@@ -1055,7 +1029,7 @@ def RRX(machine_type: Any = EpsilonMachine) -> MealyHMM:
             ("00|11", "S", "0", 1),
             ("01|10", "S", "1", 1),
         ]
-        return _edge_machine(edges, machine_type=EpsilonMachine, name="RRX", normalize=False)
+        return _edge_machine(edges, machine_type=EpsilonMachine, name="rrx", normalize=False)
     if machine_type is MealyHMM:
         return _edge_machine(
             [
@@ -1077,19 +1051,19 @@ def RRX(machine_type: Any = EpsilonMachine) -> MealyHMM:
     raise NotImplementedError
 
 
-def RRXRO(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+def rrxro(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    _require_machine_type(machine_type, EpsilonMachine)
     return _from_string(
         """
         S 0 0 .5; S 1 1 .5; 0 00 0 .5; 0 01 1 .5; 1 10 0 .5; 1 11 1 .5;
         01 orTrue 1 1; 10 orTrue 1 1; 00 000 0 1; 000 orFalse 0 .5; 000 orTrue 1 .5;
         11 110 0 1; 110 orFalse 0 .5; 110 orTrue 1 .5; orFalse S 0 1; orTrue S 1 1;
         """,
-        name="RRXRO",
+        name="rrxro",
     )
 
 
-def SNS(machine_type: Any = MealyHMM) -> MealyHMM:
+def sns(machine_type: Any = MealyHMM) -> MealyHMM:
     _require_machine_type(machine_type, MealyHMM)
     return _edge_machine(
         [("A", "A", "1", 0.5), ("A", "B", "1", 0.5), ("B", "A", "0", 0.5), ("B", "B", "1", 0.5)],
@@ -1099,10 +1073,10 @@ def SNS(machine_type: Any = MealyHMM) -> MealyHMM:
     )
 
 
-def ThreeHundred(
+def three_hundred(
     machine_type: Any = EpsilonMachine, biases: tuple[float, float, float] = (0.5, 0.5, 0.5)
 ) -> EpsilonMachine:
-    _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
+    _require_machine_type(machine_type, EpsilonMachine)
     p, q, r = biases
     spec = f"A B 0 {p}; A C 1 {1 - p}; B D 0 1; C E 0 1; D F 0 {q}; D F 1 {1 - q}; E A 0 1; F A 0 {r}; F A 1 {1 - r};"
     return _from_string(spec, name="ThreeHundred Process")
@@ -1199,24 +1173,24 @@ def _transducer(
     return machine
 
 
-def GMtoEven(bias: float = 0.5, create_using: Any = None) -> MealyMachine:
+def gm_to_even(bias: float = 0.5, create_using: Any = None) -> MealyMachine:
     del bias, create_using
     return _transducer([("A", "A", "1", "0", 1), ("A", "B", "0", "1", 1), ("B", "A", "1", "1", 1)], name="GM to Even")
 
 
-def RCT(bias: float = 0.5, create_using: Any = None) -> MealyMachine:
+def rct(bias: float = 0.5, create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer(
         [("A", "B", "0", "0", bias), ("A", "C", "0", "1", bias), ("B", "A", "0", "0", 1), ("C", "A", "1", "1", 1)]
     )
 
 
-def BitFlip(create_using: Any = None) -> MealyMachine:
+def bit_flip(create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer([("A", "A", "0", "1", 1), ("A", "A", "1", "0", 1)])
 
 
-def FlipEveryOther(parity: str = "Even", create_using: Any = None) -> MealyMachine:
+def flip_every_other(parity: str = "Even", create_using: Any = None) -> MealyMachine:
     del create_using
     initial = "A" if parity == "Even" else "B"
     return _transducer(
@@ -1225,7 +1199,7 @@ def FlipEveryOther(parity: str = "Even", create_using: Any = None) -> MealyMachi
     )
 
 
-def Delay(length: int = 2, symbols: int | Sequence[Any] = 2, create_using: Any = None) -> MealyMachine:
+def delay(length: int = 2, symbols: int | Sequence[Any] = 2, create_using: Any = None) -> MealyMachine:
     del create_using
     alphabet = tuple(map(str, _as_alphabet(symbols)))
     edges = []
@@ -1237,7 +1211,7 @@ def Delay(length: int = 2, symbols: int | Sequence[Any] = 2, create_using: Any =
     return _transducer(edges)
 
 
-def TwoPerm(symbols: int | Sequence[Any] = 2, create_using: Any = None) -> MealyMachine:
+def two_perm(symbols: int | Sequence[Any] = 2, create_using: Any = None) -> MealyMachine:
     del create_using
     alphabet = tuple(map(str, _as_alphabet(symbols)))
     edges = []
@@ -1250,28 +1224,28 @@ def TwoPerm(symbols: int | Sequence[Any] = 2, create_using: Any = None) -> Mealy
     return _transducer(edges, initial="??")
 
 
-def BinaryChannel(p: float = 0.0, q: float = 0.0, create_using: Any = None) -> MealyMachine:
+def binary_channel(p: float = 0.0, q: float = 0.0, create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer(
         [("A", "A", "0", "0", 1 - p), ("A", "A", "0", "1", p), ("A", "A", "1", "1", 1 - q), ("A", "A", "1", "0", q)]
     )
 
 
-def SlidingNOR(create_using: Any = None) -> MealyMachine:
+def sliding_nor(create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer(
         [("A", "A", "0", "1", 1), ("A", "B", "1", "0", 1), ("B", "A", "0", "0", 1), ("B", "B", "1", "0", 1)]
     )
 
 
-def Parity(create_using: Any = None) -> MealyMachine:
+def parity(create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer(
         [("A", "A", "0", "0", 1), ("A", "B", "1", "1", 1), ("B", "A", "0", "0", 1), ("B", "A", "1", "0", 1)]
     )
 
 
-def GME(create_using: Any = None) -> MealyMachine:
+def gme(create_using: Any = None) -> MealyMachine:
     del create_using
     return _transducer(
         [
@@ -1285,93 +1259,87 @@ def GME(create_using: Any = None) -> MealyMachine:
     )
 
 
-def BinaryChannelET(p: float = 0.1, q: float = 0.2) -> Any:
+def binary_channel_et(p: float = 0.1, q: float = 0.2) -> Any:
     """Memoryless binary channel as its minimal (single-state) ε-transducer."""
     from sofic.generators.epsilon_transducer import EpsilonTransducer
 
-    return EpsilonTransducer.from_channel(BinaryChannel(p, q))
+    return EpsilonTransducer.from_channel(binary_channel(p, q))
 
 
-def GMtoEvenET() -> Any:
+def gm_to_even_et() -> Any:
     """Golden-mean-to-even map as an ε-transducer (Barnett & Crutchfield 2015)."""
     from sofic.generators.epsilon_transducer import EpsilonTransducer
 
-    return EpsilonTransducer.from_channel(GMtoEven())
+    return EpsilonTransducer.from_channel(gm_to_even())
 
 
 processes = [
-    "ABC",
-    "BandMerging",
-    "BeadsOnNecklace",
-    "BeforeAfter",
-    "BiasedCoin",
-    "BinaryMarkovChain",
-    "Butterfly",
-    "Cantor",
-    "CoupledGMPs",
-    "GoldenMean",
-    "IrreversibleTwoState",
-    "NonunifilarGoldenMean",
-    "Ehrenfest",
-    "Even",
-    "EvenOdd",
-    "EvenRedundant",
-    "FairCoin",
-    "Flower",
-    "FourStateAlmostIID",
-    "Girvan_fig6b",
-    "Girvan_fig6c",
-    "Girvan_fig6d",
-    "Ising",
-    "Lollipop",
-    "Misiurewicz",
-    "MisiurewiczSimplified",
-    "MisiurewiczUniform",
-    "Multiple3",
-    "Multiple4",
-    "Nemo",
-    "NemoRedundant",
-    "NoisyPeriod2",
-    "NRPS",
-    "Odd",
-    "Period1",
-    "Period2",
-    "Period4",
-    "Period7",
-    "Period8",
-    "Period12",
-    "Period16",
-    "PerturbedCoin",
-    "PSB",
-    "RandomBiasedCoin",
-    "RandomGoldenMean",
-    "RandomEven",
-    "RIP",
-    "Rn1C",
-    "Rn1N",
-    "RRX",
-    "RRXRO",
-    "SNS",
-    "ThreeHundred",
-    "ThreEven",
-    "ThreEvenOdd",
+    "band_merging",
+    "beads_on_necklace",
+    "before_after",
+    "binary_markov_chain",
+    "butterfly_two_branch",
+    "cantor",
+    "coupled_gmps",
+    "golden_mean_forbid_00",
+    "irreversible_two_state",
+    "nonunifilar_golden_mean",
+    "ehrenfest",
+    "even_odd",
+    "even_redundant",
+    "flower",
+    "four_state_almost_iid",
+    "girvan_fig6b",
+    "girvan_fig6c",
+    "girvan_fig6d",
+    "ising",
+    "lollipop",
+    "misiurewicz",
+    "misiurewicz_simplified",
+    "misiurewicz_uniform",
+    "multiple3",
+    "multiple4",
+    "nemo_redundant",
+    "noisy_period2",
+    "odd",
+    "period1",
+    "period2",
+    "period4",
+    "period7",
+    "period8",
+    "period12",
+    "period16",
+    "perturbed_coin",
+    "phase_slip_backtrack_cmpy",
+    "random_biased_coin",
+    "random_golden_mean",
+    "random_even",
+    "rip",
+    "rn1c",
+    "rn1n",
+    "rrx",
+    "rrxro",
+    "sns",
+    "three_hundred",
+    "three_even",
+    "three_even_odd",
 ]
-nonergodic_generators = ["UncoupledGMPs"]
+nonergodic_generators = ["uncoupled_gmps"]
 transducers = [
-    "GMtoEven",
-    "RCT",
-    "BitFlip",
-    "FlipEveryOther",
-    "Delay",
-    "TwoPerm",
-    "BinaryChannel",
-    "SlidingNOR",
-    "Parity",
-    "GME",
+    "gm_to_even",
+    "rct",
+    "bit_flip",
+    "flip_every_other",
+    "delay",
+    "two_perm",
+    "binary_channel",
+    "sliding_nor",
+    "parity",
+    "gme",
 ]
 epsilon_transducers = [
-    "BinaryChannelET",
-    "GMtoEvenET",
+    "binary_channel_et",
+    "gm_to_even_et",
 ]
 
 process_list = [globals()[name] for name in processes]
@@ -1381,25 +1349,25 @@ epsilon_transducer_list = [globals()[name] for name in epsilon_transducers]
 
 __all__ = processes + nonergodic_generators + transducers + epsilon_transducers
 __all__ += [
-    "AFC",
-    "AFC2",
-    "BMC_eM",
-    "BMC_gen",
-    "BMC_param",
-    "BMC_lohr",
-    "CyclicBranching",
-    "GoldenMeanGHMM",
-    "IID",
-    "LogicMachine",
+    "afc",
+    "afc2",
+    "bmc_em",
+    "bmc_gen",
+    "bmc_param",
+    "bmc_lohr",
+    "cyclic_branching",
+    "golden_mean_ghmm",
+    "iid",
+    "logic_machine",
     "markov_skeleton",
-    "MultipleN",
-    "OddGHMM",
-    "Period",
-    "Periodic",
-    "RestrictedGM",
-    "StretchedGM",
-    "RkGM",
-    "RNGM",
+    "multiple_n",
+    "odd_ghmm",
+    "period",
+    "periodic",
+    "restricted_gm",
+    "stretched_gm",
+    "rk_gm",
+    "rn_gm",
     "uniform_mealyhmm",
     "uniform_mealymc",
     "processes",
@@ -1408,8 +1376,8 @@ __all__ += [
     "transducer_list",
     "epsilon_transducers",
     "epsilon_transducer_list",
-    "_BMC_param_get_a_range",
-    "_BMC_param_get_b_range",
-    "_BMC_param_check_a_range",
-    "_BMC_param_check_b_range",
+    "_bmc_param_get_a_range",
+    "_bmc_param_get_b_range",
+    "_bmc_param_check_a_range",
+    "_bmc_param_check_b_range",
 ]

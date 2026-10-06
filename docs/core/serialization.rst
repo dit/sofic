@@ -26,7 +26,7 @@ The instance methods :meth:`~sofic.core.StateMachine.to_yaml`,
 :meth:`~sofic.core.StateMachine.write_yaml`,
 :meth:`~sofic.core.StateMachine.from_yaml`, and
 :meth:`~sofic.core.StateMachine.read_yaml` delegate to the module-level
-functions below. The polymorphic :func:`model_from_yaml` / :func:`from_yaml`
+functions below. The polymorphic :func:`model_from_yaml` / :func:`read_yaml`
 readers reconstruct the correct subclass from the serialized class tag, so they
 are convenient when the concrete type is not known in advance.
 
@@ -35,7 +35,6 @@ API
 
 .. autofunction:: model_to_yaml
 .. autofunction:: model_from_yaml
-.. autofunction:: from_yaml
 .. autofunction:: read_yaml
 .. autofunction:: model_to_dict
 .. autofunction:: model_from_dict

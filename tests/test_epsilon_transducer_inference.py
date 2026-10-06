@@ -7,9 +7,9 @@ from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
 from sofic import EpsilonTransducer, MealyHMM
-from sofic.automata.transducer_operations import compose_tg
-from sofic.examples.processes import BinaryChannel, Delay
-from sofic.inference.cssr import JointSuffixCounts, transcssr
+from sofic.automata.transducer_operations import compose_transducer_generator
+from sofic.examples.processes import binary_channel, delay
+from sofic.inference.cssr import JointSuffixCounts, learn_epsilon_transducer_cssr
 
 
 def _iid_input() -> MealyHMM:
@@ -22,7 +22,7 @@ def _iid_input() -> MealyHMM:
 
 
 def _paired_samples(channel, n, seed):
-    joint = compose_tg(channel, _iid_input(), joint=True)
+    joint = compose_transducer_generator(channel, _iid_input(), joint=True)
     observations, _ = joint.sample(n, np.random.default_rng(seed))
     xs = [pair[0] for pair in observations]
     ys = [pair[1] for pair in observations]
@@ -30,7 +30,7 @@ def _paired_samples(channel, n, seed):
 
 
 def _memoryless_reconstruction(n: int = 20000, *, max_seeds: int = 8) -> EpsilonTransducer:
-    """Recover a single-state ε-transducer for ``BinaryChannel(0.1, 0.2)``.
+    """Recover a single-state ε-transducer for ``binary_channel(0.1, 0.2)``.
 
     CSSR's χ² split decision is float-sensitive across platforms, so a fixed
     ``(n, seed)`` can over-split on some runners. Cap history depth at 1 (enough
@@ -38,13 +38,13 @@ def _memoryless_reconstruction(n: int = 20000, *, max_seeds: int = 8) -> Epsilon
     single-state.
     """
     for seed in range(max_seeds):
-        xs, ys = _paired_samples(BinaryChannel(0.1, 0.2), n, seed=seed)
-        candidate = transcssr(
+        xs, ys = _paired_samples(binary_channel(0.1, 0.2), n, seed=seed)
+        candidate = learn_epsilon_transducer_cssr(
             xs,
             ys,
             input_alphabet=("0", "1"),
             output_alphabet=("0", "1"),
-            Lmax=1,
+            max_history=1,
         )
         if len(list(candidate.states())) == 1:
             return candidate
@@ -68,7 +68,7 @@ def test_recovers_memoryless_channel():
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_recovers_delay_memory(seed):
-    xs, ys = _paired_samples(Delay(1), 10000, seed=seed)
+    xs, ys = _paired_samples(delay(1), 10000, seed=seed)
     eps = EpsilonTransducer.from_paired_sequences(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"))
     eps.validate()
     assert len(list(eps.states())) == 2
@@ -86,7 +86,7 @@ def test_reconstruction_reproduces_conditional_law():
 
 def test_rejects_mismatched_lengths():
     with pytest.raises(ValueError):
-        transcssr("010", "01")
+        learn_epsilon_transducer_cssr("010", "01")
 
 
 def _held_out_bits_per_symbol(eps: EpsilonTransducer, xs, ys, burn: int = 20) -> float:
@@ -110,12 +110,12 @@ def _held_out_bits_per_symbol(eps: EpsilonTransducer, xs, ys, burn: int = 20) ->
 
 def test_recovers_two_step_delay():
     """Regression: joint suffixes grew forward and successors were never truncated,
-    so Delay(2) gave 5-19 states that forbade valid input-output pairs."""
-    xs, ys = _paired_samples(Delay(2), 10000, seed=0)
-    eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"))
+    so delay(2) gave 5-19 states that forbade valid input-output pairs."""
+    xs, ys = _paired_samples(delay(2), 10000, seed=0)
+    eps = learn_epsilon_transducer_cssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"))
     eps.validate()
     assert len(list(eps.states())) == 4
-    test_xs, test_ys = _paired_samples(Delay(2), 3000, seed=1)
+    test_xs, test_ys = _paired_samples(delay(2), 3000, seed=1)
     assert _held_out_bits_per_symbol(eps, test_xs, test_ys) == pytest.approx(0.0, abs=1e-9)
 
 
@@ -127,27 +127,37 @@ def _has_markov_order_selection() -> bool:
 
 @pytest.mark.parametrize("seed", [0, 1])
 def test_exact_and_bonferroni_recover_delay_memory(seed):
-    xs, ys = _paired_samples(Delay(1), 6000, seed=seed)
+    xs, ys = _paired_samples(delay(1), 6000, seed=seed)
     for kwargs in ({"test": "exact"}, {"correction": "bonferroni"}):
-        eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax=2, **kwargs)
+        eps = learn_epsilon_transducer_cssr(
+            xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), max_history=2, **kwargs
+        )
         eps.validate()
         assert len(list(eps.states())) == 2
 
 
 def test_bonferroni_keeps_memoryless_channel_single_state():
-    xs, ys = _paired_samples(BinaryChannel(0.1, 0.2), 4000, seed=3)
-    eps = transcssr(
-        xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax=4, alpha=0.05, correction="bonferroni"
+    xs, ys = _paired_samples(binary_channel(0.1, 0.2), 4000, seed=3)
+    eps = learn_epsilon_transducer_cssr(
+        xs,
+        ys,
+        input_alphabet=("0", "1"),
+        output_alphabet=("0", "1"),
+        max_history=4,
+        alpha=0.05,
+        correction="bonferroni",
     )
     assert len(list(eps.states())) == 1
     with pytest.raises(ValueError, match="unknown correction"):
-        transcssr(xs, ys, Lmax=1, correction="holm")
+        learn_epsilon_transducer_cssr(xs, ys, max_history=1, correction="holm")
 
 
 @pytest.mark.skipif(not _has_markov_order_selection(), reason="needs dit.inference.select_markov_order")
 def test_auto_lmax_delay():
-    xs, ys = _paired_samples(Delay(1), 6000, seed=4)
-    eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax="auto")
+    xs, ys = _paired_samples(delay(1), 6000, seed=4)
+    eps = learn_epsilon_transducer_cssr(
+        xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), max_history="auto"
+    )
     assert len(list(eps.states())) == 2
 
 

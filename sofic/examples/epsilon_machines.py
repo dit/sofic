@@ -165,7 +165,7 @@ def golden_mean(p: float = 0.5) -> EpsilonMachine:
     al., arXiv:0905.3587, Fig.~4, see :func:`golden_mean_forward` and
     :func:`golden_mean_reverse`; for the Parry max-entropy measure on the
     same shift, see :func:`golden_mean_shift_parry`.  cmpy's
-    :func:`~sofic.examples.processes.GoldenMean` is the ``0 <-> 1`` mirror
+    :func:`~sofic.examples.processes.golden_mean_forbid_00` is the ``0 <-> 1`` mirror
     (forbids ``00``) and equals :func:`golden_mean_forward`.
     """
     if not 0.0 < p < 1.0:
@@ -273,10 +273,10 @@ def restricted_golden_mean(k: int = 1) -> EpsilonMachine:
     """
     if k < 1:
         raise ValueError("k must be >= 1")
-    from sofic.examples.processes import RestrictedGM
+    from sofic.examples.processes import restricted_gm
 
     states = {str(i): label for i, label in enumerate(sequential_labels(k + 1))}
-    return _relabel(RestrictedGM(k), symbols={"0": 0, "1": 1}, states=states)
+    return _relabel(restricted_gm(k), symbols={"0": 0, "1": 1}, states=states)
 
 
 def nemo_process(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
@@ -313,7 +313,7 @@ def phase_slip_backtrack(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
     """Phase-Slip Backtrack (PSB) Process (``R=3``, ``k_chi=2``).
 
     James, Mahoney, Ellison & Crutchfield, arXiv:1010.5545, Fig.~2.  A different
-    process from cmpy's :func:`~sofic.examples.processes.PSB`.
+    process from cmpy's :func:`~sofic.examples.processes.phase_slip_backtrack_cmpy`.
     """
     if not 0.0 < p < 1.0 or not 0.0 < q < 1.0:
         raise ValueError("p and q must be in (0, 1)")
@@ -348,7 +348,7 @@ def butterfly_process() -> EpsilonMachine:
     Mahoney et al., arXiv:0906.5099, Fig.~1. Each causal state emits every
     symbol with probability ``1/8``; synchronizing symbols ``2``--``7`` always
     reach the same causal state regardless of the source.  Not cmpy's
-    :func:`~sofic.examples.processes.Butterfly` (two branches per state, ``h_mu = 1``).
+    :func:`~sofic.examples.processes.butterfly_two_branch` (two branches per state, ``h_mu = 1``).
     """
     states = ("A", "B", "C", "D", "E")
     prob = 1.0 / 8.0
@@ -377,9 +377,9 @@ def butterfly_process() -> EpsilonMachine:
 
 def ellison_fig9_forward() -> EpsilonMachine:
     """Forward ε-machine from Ellison et al., arXiv:1107.2168, Fig.~9."""
-    from sofic.examples.processes import IrreversibleTwoState
+    from sofic.examples.processes import irreversible_two_state
 
-    return _relabel(IrreversibleTwoState(0.5, 0.5), symbols={"0": 0, "1": 1, "2": 2})
+    return _relabel(irreversible_two_state(0.5, 0.5), symbols={"0": 0, "1": 1, "2": 2})
 
 
 def tent_map_misiurewicz_a(symbolic: bool = False):

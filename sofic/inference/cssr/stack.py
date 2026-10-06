@@ -11,16 +11,16 @@ from sofic.exceptions import StochasticValidationError
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
 from sofic.graph import ATTR_SYMBOL
 from sofic.inference.cssr.counts import ConfigurationHistory, StackSuffixCounts, _push
-from sofic.inference.cssr.process import _cssr_default_lmax, _recurrent_states, suggest_lmax
+from sofic.inference.cssr.process import _default_max_history, _recurrent_states, suggest_max_history
 from sofic.inference.cssr.significance import MorphTest, _bonferroni_alpha, morph_test_score, morphs_differ
 from sofic.inference.cssr.subtree import _cluster_histories_by_morph
 from sofic.shifts.sofic_dyck import SoficDyckShift, TransitionRef, transition_ref
 
 __all__ = [
-    "fit_stack_hmm_mle",
+    "learn_stack_hmm_mle",
     "learn_stack_hmm_papni",
-    "stack_cssr",
-    "stack_subtree_merge",
+    "learn_stack_hmm_cssr",
+    "learn_stack_hmm_subtree",
 ]
 
 
@@ -90,7 +90,7 @@ def _stack_homogenize(
     counts: StackSuffixCounts,
     *,
     alphabet: DyckAlphabet,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
     max_stack_depth: int,
@@ -101,7 +101,7 @@ def _stack_homogenize(
     Every observed stack contributes a root ``((), stack)``; suffixes then grow one
     symbol into the past with their stack fixed, exactly as in flat CSSR. Growing
     forward from the empty configuration instead only reaches stacks of depth at
-    most ``Lmax``, so deeper configurations had no state and their transitions were
+    most ``max_history``, so deeper configurations had no state and their transitions were
     dropped. Morphs are compared with return symbols collapsed (see :func:`_control_counts`).
     """
     control = _control_counts(counts, alphabet)
@@ -132,7 +132,7 @@ def _stack_homogenize(
     for stack in sorted(roots, key=lambda stack: (len(stack), repr(stack))):
         if observed(((), stack)):
             place(((), stack), 0)
-    for length in range(Lmax):
+    for length in range(max_history):
         for state_id in sorted(states):
             for suffix, stack in sorted((h for h in states[state_id] if len(h[0]) == length), key=repr):
                 for symbol in counts.alphabet:
@@ -371,11 +371,11 @@ def _counts_to_stack_hmm(
     return model
 
 
-def stack_cssr(
+def learn_stack_hmm_cssr(
     sequence: Sequence[Any],
     *,
     alphabet: DyckAlphabet,
-    Lmax: int | Literal["auto"] | None = None,
+    max_history: int | Literal["auto"] | None = None,
     max_stack_depth: int = 8,
     alpha: float = 0.05,
     test: MorphTest = "g",
@@ -384,20 +384,22 @@ def stack_cssr(
 ) -> HiddenMarkovStackModel:
     """Reconstruct a stack HMM via configuration-lifted CSSR.
 
-    ``Lmax="auto"`` uses :func:`~sofic.inference.cssr.suggest_lmax`
+    ``max_history="auto"`` uses :func:`~sofic.inference.cssr.suggest_max_history`
     on the observed symbols. Stack processes generally have infinite Markov
     order, so treat it as a lower bound on the suffix length the data support.
     ``test="exact"`` and ``correction="bonferroni"`` are as in
-    :func:`~sofic.inference.cssr.cssr`; the correction counts
+    :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`; the correction counts
     eligible (suffix, stack) configurations.
     """
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
-    if Lmax == "auto":
-        max_length = suggest_lmax(seq, alpha=alpha)
+    if max_history == "auto":
+        max_length = suggest_max_history(seq, alpha=alpha)
     else:
-        max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), len(alphabet.symbol_alphabet))
+        max_length = (
+            max_history if max_history is not None else _default_max_history(len(seq), len(alphabet.symbol_alphabet))
+        )
     counts = StackSuffixCounts.from_sequence(
         seq,
         alphabet=alphabet,
@@ -417,7 +419,7 @@ def stack_cssr(
     states, history_to_state = _stack_homogenize(
         counts,
         alphabet=alphabet,
-        Lmax=max_length,
+        max_history=max_length,
         alpha=alpha,
         test=test,
         max_stack_depth=max_stack_depth,
@@ -447,27 +449,27 @@ def stack_cssr(
     )
 
 
-def stack_subtree_merge(
+def learn_stack_hmm_subtree(
     sequence: Sequence[Any],
     *,
     alphabet: DyckAlphabet,
-    L: int,
+    max_history: int,
     max_stack_depth: int = 8,
     delta: float = 0.0,
 ) -> HiddenMarkovStackModel:
-    """Reconstruct a stack HMM by merging depth-``L`` configuration subtrees."""
-    if L < 0:
-        raise ValueError("L must be non-negative")
+    """Reconstruct a stack HMM by merging depth-``max_history`` configuration subtrees."""
+    if max_history < 0:
+        raise ValueError("max_history must be non-negative")
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
     counts = StackSuffixCounts.from_sequence(
         seq,
         alphabet=alphabet,
-        max_length=L + 1,
+        max_length=max_history + 1,
         max_stack_depth=max_stack_depth,
     )
-    histories = {history for history in counts.history_counts if len(history[0]) <= L}
+    histories = {history for history in counts.history_counts if len(history[0]) <= max_history}
     histories.add(((), ()))
     proxy = counts.restricted_to(histories)
     states = _cluster_histories_by_morph(proxy, histories, delta=delta)
@@ -476,7 +478,7 @@ def stack_subtree_merge(
         states,
         history_to_state,
         counts,
-        length=L,
+        length=max_history,
         alphabet=alphabet,
         max_stack_depth=max_stack_depth,
     )
@@ -488,7 +490,7 @@ def stack_subtree_merge(
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
     }
     states = _stack_drop_transient(
-        states, history_to_state, counts, length=L, alphabet=alphabet, max_stack_depth=max_stack_depth
+        states, history_to_state, counts, length=max_history, alphabet=alphabet, max_stack_depth=max_stack_depth
     )
     history_to_state = {
         history: state_id for state_id, histories_in_state in states.items() for history in histories_in_state
@@ -499,12 +501,12 @@ def stack_subtree_merge(
         history_to_state,
         seq,
         alphabet=alphabet,
-        length=L,
+        length=max_history,
         max_stack_depth=max_stack_depth,
     )
 
 
-def fit_stack_hmm_mle(
+def learn_stack_hmm_mle(
     shift: SoficDyckShift,
     sequence: Sequence[Any],
     *,
@@ -568,4 +570,4 @@ def learn_stack_hmm_papni(
         fit_source = max((tuple(word) for word in positive if is_well_matched(word, alphabet)), key=len, default=())
     if not fit_source:
         raise ValueError("no sequence available for parameter fitting")
-    return fit_stack_hmm_mle(shift, fit_source)
+    return learn_stack_hmm_mle(shift, fit_source)

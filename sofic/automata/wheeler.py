@@ -493,7 +493,7 @@ def _order_of(model: Any, symbol_key: Callable[[Any], Any] | None) -> tuple[Labe
     return graph, order
 
 
-def minimum_wdfa(
+def minimize_wheeler(
     dfa: Any,
     *,
     symbol_key: Callable[[Any], Any] | None = None,
@@ -576,7 +576,7 @@ def _nerode_classes(dfa: Any, minimal: Any) -> dict[Hashable, Hashable]:
     return classes
 
 
-def wnfa_to_wdfa(
+def determinize_wheeler(
     nfa: Any,
     *,
     symbol_key: Callable[[Any], Any] | None = None,

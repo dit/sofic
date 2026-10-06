@@ -18,7 +18,7 @@ type, Sofic shifts, Dyck shifts, topological Markov chains, and covers
    markov_dyck_shift
    topological_markov_chain
    sliding_block_code
-   sofic_relation
+   product_alphabet_shift
    textile
    dyck_enumeration
    covers

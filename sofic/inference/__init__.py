@@ -1,20 +1,22 @@
 """Inference algorithms for stochastic generators.
 
-The names ``cssr`` and ``spectral`` bound here are the learner functions; they
-shadow the :mod:`sofic.inference.cssr` and :mod:`sofic.inference.spectral`
-modules as attributes, so import from those modules with ``from ... import``.
+Learners are named ``learn_<target>_<method>``; the subpackages and modules
+(:mod:`~sofic.inference.bayesian`, :mod:`~sofic.inference.cssr`,
+:mod:`~sofic.inference.diagnostics`, :mod:`~sofic.inference.hmm`,
+:mod:`~sofic.inference.model_selection`, :mod:`~sofic.inference.spectral`) are
+bound under their module names.
 """
 
-from sofic.inference import bayesian, hmm
+from sofic.inference import bayesian, cssr, diagnostics, hmm, model_selection, spectral
 from sofic.inference.cssr import (
-    cssr,
-    fit_stack_hmm_mle,
+    learn_epsilon_machine_cssr,
+    learn_epsilon_machine_subtree,
+    learn_epsilon_transducer_cssr,
+    learn_stack_hmm_cssr,
+    learn_stack_hmm_mle,
     learn_stack_hmm_papni,
-    stack_cssr,
-    stack_subtree_merge,
-    subtree_merge,
-    suggest_lmax,
-    transcssr,
+    learn_stack_hmm_subtree,
+    suggest_max_history,
 )
 from sofic.inference.diagnostics import (
     GoodnessOfFit,
@@ -52,18 +54,22 @@ from sofic.inference.model_selection import (
 from sofic.inference.spectral import (
     SpectralInferenceError,
     hankel_matrices,
+    learn_epsilon_machine_spectral,
     learn_spectral_wfa,
     project_to_epsilon_machine,
     project_to_mealy,
     project_to_nmachine,
-    spectral,
     spectral_singular_values,
 )
 
 __all__ = [
     "bayesian",
-    "hmm",
     "cssr",
+    "diagnostics",
+    "hmm",
+    "model_selection",
+    "spectral",
+    "learn_epsilon_machine_cssr",
     "GoodnessOfFit",
     "StructureStability",
     "goodness_of_fit",
@@ -86,14 +92,14 @@ __all__ = [
     "project_to_epsilon_machine",
     "project_to_mealy",
     "project_to_nmachine",
-    "spectral",
+    "learn_epsilon_machine_spectral",
     "spectral_singular_values",
-    "subtree_merge",
-    "suggest_lmax",
-    "transcssr",
-    "stack_cssr",
-    "stack_subtree_merge",
-    "fit_stack_hmm_mle",
+    "learn_epsilon_machine_subtree",
+    "suggest_max_history",
+    "learn_epsilon_transducer_cssr",
+    "learn_stack_hmm_cssr",
+    "learn_stack_hmm_subtree",
+    "learn_stack_hmm_mle",
     "learn_stack_hmm_papni",
     "baum_welch",
     "viterbi",

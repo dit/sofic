@@ -11,40 +11,40 @@ class LeftFischerCover(SoficShift):
     """Left Fischer cover presentation."""
 
     @classmethod
-    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> LeftFischerCover:
-        from sofic.shifts.cover_construction import left_fischer_from_sofic
+    def from_presentation(cls, shift: SoficShift, **kwargs: Any) -> LeftFischerCover:
+        from sofic.shifts.cover_construction import left_fischer_cover
 
-        return left_fischer_from_sofic(shift)
+        return left_fischer_cover(shift)
 
 
 class RightFischerCover(SoficShift):
     """Right Fischer cover presentation."""
 
     @classmethod
-    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> RightFischerCover:
-        from sofic.shifts.cover_construction import right_fischer_from_sofic
+    def from_presentation(cls, shift: SoficShift, **kwargs: Any) -> RightFischerCover:
+        from sofic.shifts.cover_construction import right_fischer_cover
 
-        return right_fischer_from_sofic(shift)
+        return right_fischer_cover(shift)
 
 
 class LeftKriegerCover(SoficShift):
     """Left Krieger cover presentation."""
 
     @classmethod
-    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> LeftKriegerCover:
-        from sofic.shifts.cover_construction import left_krieger_from_sofic
+    def from_presentation(cls, shift: SoficShift, **kwargs: Any) -> LeftKriegerCover:
+        from sofic.shifts.cover_construction import left_krieger_cover
 
-        return left_krieger_from_sofic(shift)
+        return left_krieger_cover(shift)
 
 
 class RightKriegerCover(SoficShift):
     """Right Krieger cover presentation."""
 
     @classmethod
-    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> RightKriegerCover:
-        from sofic.shifts.cover_construction import right_krieger_from_sofic
+    def from_presentation(cls, shift: SoficShift, **kwargs: Any) -> RightKriegerCover:
+        from sofic.shifts.cover_construction import right_krieger_cover
 
-        return right_krieger_from_sofic(shift)
+        return right_krieger_cover(shift)
 
 
 class WheelerCover(SoficShift):
@@ -57,7 +57,7 @@ class WheelerCover(SoficShift):
     """
 
     @classmethod
-    def from_sofic(cls, shift: SoficShift, **kwargs: Any) -> WheelerCover:
+    def from_presentation(cls, shift: SoficShift, **kwargs: Any) -> WheelerCover:
         from sofic.shifts.wheeler import wheeler_cover
 
         return wheeler_cover(shift, **kwargs)

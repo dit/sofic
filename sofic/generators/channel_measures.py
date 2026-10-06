@@ -4,7 +4,7 @@ Following Barnett & Crutchfield (J. Stat. Phys. 161:2 (2015)), a transducer's
 structural quantities are defined relative to a driving input process. Each
 measure here drives the transducer with a supplied input generator, forms the
 joint ``(input, output)`` process via
-:func:`~sofic.automata.transducer_operations.compose_tg`, and reads off the
+:func:`~sofic.automata.transducer_operations.compose_transducer_generator`, and reads off the
 quantity -- reusing the directional-flow estimators in
 :mod:`sofic.generators.directional_flow`.
 """
@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 
 def driven_joint_generator(transducer: MealyMachine, input_process: HiddenMarkovModel) -> MealyHMM:
     """Return the joint ``(input, output)`` generator induced by ``input_process``."""
-    from sofic.automata.transducer_operations import compose_tg
+    from sofic.automata.transducer_operations import compose_transducer_generator
 
-    return compose_tg(transducer, input_process, joint=True)
+    return compose_transducer_generator(transducer, input_process, joint=True)
 
 
 def channel_statistical_complexity(transducer: MealyMachine, input_process: HiddenMarkovModel) -> float:

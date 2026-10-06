@@ -15,8 +15,8 @@ __all__ = [
     "DyckAlphabet",
     "is_well_matched",
     "learn_sofic_dyck_shift_papni",
-    "papni_encode",
-    "papni_encode_samples",
+    "encode_dyck_word",
+    "encode_dyck_samples",
     "sofic_dyck_shift_from_papni_dfa",
 ]
 
@@ -63,7 +63,7 @@ def is_well_matched(word: Sequence[Any], alphabet: DyckAlphabet) -> bool:
     return counter == 0
 
 
-def papni_encode(word: Sequence[Any], alphabet: DyckAlphabet) -> tuple[Any, ...]:
+def encode_dyck_word(word: Sequence[Any], alphabet: DyckAlphabet) -> tuple[Any, ...]:
     """Convert a well-matched word to its stack-aware representation (PAPNI Alg. 2)."""
     if not is_well_matched(word, alphabet):
         raise ValueError("word is not well-matched")
@@ -84,7 +84,7 @@ def papni_encode(word: Sequence[Any], alphabet: DyckAlphabet) -> tuple[Any, ...]
     return tuple(encoded)
 
 
-def papni_encode_samples(
+def encode_dyck_samples(
     samples: Sequence[Sequence[Any]],
     alphabet: DyckAlphabet,
     *,
@@ -98,7 +98,7 @@ def papni_encode_samples(
             if drop_non_well_matched:
                 continue
             raise ValueError(f"sample {seq!r} is not well-matched")
-        encoded.append(papni_encode(seq, alphabet))
+        encoded.append(encode_dyck_word(seq, alphabet))
     return encoded
 
 
@@ -218,7 +218,7 @@ def _infer_matched_edges_from_traces(
     for word in traces:
         if not is_well_matched(word, alphabet):
             continue
-        encoded = papni_encode(word, alphabet)
+        encoded = encode_dyck_word(word, alphabet)
         dfa_state = initial
         config_state = initial
         stack: list[TransitionRef] = []
@@ -280,7 +280,7 @@ def learn_sofic_dyck_shift_papni(
     alphabet: DyckAlphabet,
 ) -> SoficDyckShift:
     """Learn a ``SoficDyckShift`` topology from labeled samples via PAPNI + RPNI."""
-    encoded_positive = papni_encode_samples(positive, alphabet)
+    encoded_positive = encode_dyck_samples(positive, alphabet)
     if not encoded_positive:
         raise ValueError("no well-matched positive samples remain after PAPNI filtering")
 
@@ -290,7 +290,7 @@ def learn_sofic_dyck_shift_papni(
             seq = tuple(word)
             if not is_well_matched(seq, alphabet):
                 continue
-            encoded_negative.append(papni_encode(seq, alphabet))
+            encoded_negative.append(encode_dyck_word(seq, alphabet))
 
     dfa = learn_dfa_rpni(encoded_positive, encoded_negative)
     well_matched_positive = [tuple(word) for word in positive if is_well_matched(word, alphabet)]

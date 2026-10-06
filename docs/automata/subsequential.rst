@@ -31,9 +31,9 @@ hierarchy :cite:`Mohri2009`.
 
    In [5]: from sofic.automata.subsequential import WeightedFiniteStateTransducer
 
-   In [6]: from sofic.examples.processes import BinaryChannel
+   In [6]: from sofic.examples.processes import binary_channel
 
-   In [7]: w = WeightedFiniteStateTransducer.from_transducer(BinaryChannel(0.1, 0.2))
+   In [7]: w = WeightedFiniteStateTransducer.from_transducer(binary_channel(0.1, 0.2))
 
    @doctest float
    In [8]: w.weight(['0'], ['0'])

@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.inference.cssr.counts import History, SuffixCounts
-from sofic.inference.cssr.process import _suffix_reconstruct, suggest_lmax
+from sofic.inference.cssr.process import _suffix_reconstruct, suggest_max_history
 from sofic.inference.cssr.significance import MorphTest, morphs_differ
 
 #: Significance level used by subtree merging when ``delta = 0`` and to resolve truncated successors.
@@ -83,38 +83,38 @@ def _cluster_histories_by_morph(
     return states
 
 
-def subtree_merge(
+def learn_epsilon_machine_subtree(
     sequence: Sequence[Any],
     *,
-    L: int | Literal["auto"],
+    max_history: int | Literal["auto"],
     delta: float = 0.0,
     alphabet: Sequence[Any] | None = None,
     alpha: float = _SUBTREE_ALPHA,
     test: MorphTest = "g",
     correction: Literal["bonferroni"] | None = None,
 ) -> EpsilonMachine:
-    """Reconstruct an ε-machine by merging depth-``L`` subtrees (Crutchfield--Young).
+    """Reconstruct an ε-machine by merging depth-``max_history`` subtrees (Crutchfield--Young).
 
-    Histories up to length ``L`` are clustered by next-symbol distribution: within
+    Histories up to length ``max_history`` are clustered by next-symbol distribution: within
     total-variation distance ``delta``, or, when ``delta = 0``, unless a morph test
     (``test``, at level ``alpha``) tells them apart. The clusters are then
-    determinized as in :func:`cssr`.
+    determinized as in :func:`learn_epsilon_machine_cssr`.
 
-    ``L="auto"`` uses :func:`suggest_lmax`. ``correction="bonferroni"`` divides
+    ``max_history="auto"`` uses :func:`suggest_max_history`. ``correction="bonferroni"`` divides
     ``alpha`` by the number of history pairs compared, so that no pair is split
     apart by chance; since a rejected test *separates* histories, this makes the
     reconstruction more conservative (fewer states).
     """
-    if L == "auto":
-        L = suggest_lmax(sequence, alpha=alpha)
-    if L < 0:
-        raise ValueError("L must be non-negative")
+    if max_history == "auto":
+        max_history = suggest_max_history(sequence, alpha=alpha)
+    if max_history < 0:
+        raise ValueError("max_history must be non-negative")
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
-    counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=L + 1)
+    counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_history + 1)
 
-    histories = {history for history in counts.history_counts if len(history) <= L}
+    histories = {history for history in counts.history_counts if len(history) <= max_history}
     histories.add(())
     if correction == "bonferroni":
         alpha /= max(1, len(histories) * (len(histories) - 1) // 2)
@@ -122,4 +122,4 @@ def subtree_merge(
         raise ValueError(f"unknown correction {correction!r}")
     states = list(_cluster_histories_by_morph(counts, histories, delta=delta, alpha=alpha, test=test).values())
 
-    return _suffix_reconstruct(states, counts, seq, Lmax=L, alpha=alpha, test=test)
+    return _suffix_reconstruct(states, counts, seq, max_history=max_history, alpha=alpha, test=test)

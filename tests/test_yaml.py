@@ -11,9 +11,9 @@ from sofic.automata.nfa import NFA
 from sofic.automata.nwa import NestedWordAutomaton
 from sofic.automata.transducers import MealyMachine, MooreMachine
 from sofic.automata.vpa import (
-    CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
+    ModularVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
@@ -159,7 +159,7 @@ def test_vpa_variants_round_trip():
     _round_trip(_base_vpa())
     _round_trip(_base_vpa(DeterministicVisiblyPushdownAutomaton))
 
-    cda = CallDrivenAutomaton(
+    cda = ModularVisiblyPushdownAutomaton(
         call_alphabet=frozenset({"c"}),
         return_alphabet=frozenset({"r"}),
         stack_alphabet=frozenset({"m"}),
@@ -357,7 +357,7 @@ def test_cover_and_symbolic_models_round_trip():
         shift.graph.add_state(source)
         shift.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol})
     for cls in (LeftFischerCover, RightFischerCover, LeftKriegerCover, RightKriegerCover, WheelerCover):
-        cover = cls.from_sofic(shift)
+        cover = cls.from_presentation(shift)
         restored = _round_trip(cover)
         assert type(restored) is cls
         assert sorted(map(repr, restored.states())) == sorted(map(repr, cover.states()))

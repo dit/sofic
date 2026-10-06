@@ -68,16 +68,16 @@ Projection to an ε-machine
 non-negative Mealy projection when one exists in the learned basis, otherwise
 mixed-state enumeration of the observable operators
 :cite:`Ellison2009`. The same path is
-:func:`~sofic.inference.spectral.spectral` /
+:func:`~sofic.inference.spectral.learn_epsilon_machine_spectral` /
 ``EpsilonMachine.from_sequence(..., method="spectral")``.
 
 .. code-block:: python
 
-   from sofic.inference.spectral import spectral
+   from sofic.inference.spectral import learn_epsilon_machine_spectral
    from sofic.examples import golden_mean
 
    process = golden_mean(0.5)
-   eps = spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
+   eps = learn_epsilon_machine_spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
    len(list(eps.states()))  # 2
 
 API

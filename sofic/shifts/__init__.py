@@ -17,11 +17,11 @@ from sofic.shifts.dyck_enumeration import (
     shift_to_dyck_graph_string,
 )
 from sofic.shifts.markov_dyck import MarkovDyckShift
+from sofic.shifts.product_alphabet_shift import ProductAlphabetShift
 from sofic.shifts.sft import ShiftOfFiniteType
 from sofic.shifts.sliding_block_code import SlidingBlockCode, full_shift
 from sofic.shifts.sofic import SoficShift
 from sofic.shifts.sofic_dyck import SoficDyckShift
-from sofic.shifts.sofic_relation import SoficRelation
 from sofic.shifts.textile import TextileSystem
 from sofic.shifts.tmc import TopologicalMarkovChain
 from sofic.shifts.wheeler import (
@@ -49,7 +49,7 @@ __all__ = [
     "SoficShift",
     "shift_to_dyck_graph_string",
     "SoficDyckShift",
-    "SoficRelation",
+    "ProductAlphabetShift",
     "SymbolicModel",
     "TextileSystem",
     "TopologicalMarkovChain",

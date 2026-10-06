@@ -15,9 +15,9 @@ Two families are provided:
 
 * **Topology known.** Given a
   :class:`~sofic.shifts.sofic_dyck.SoficDyckShift` presentation,
-  :func:`fit_stack_hmm_mle` estimates smoothed maximum-likelihood transition
+  :func:`learn_stack_hmm_mle` estimates smoothed maximum-likelihood transition
   weights from a sample.
-* **Topology unknown.** :func:`stack_cssr` and :func:`stack_subtree_merge`
+* **Topology unknown.** :func:`learn_stack_hmm_cssr` and :func:`learn_stack_hmm_subtree`
   reconstruct both the control graph and its probabilities from a single long
   sequence by splitting stack-aware histories, in the spirit of Causal-State
   Splitting Reconstruction :cite:`Shalizi2004`.
@@ -28,14 +28,14 @@ Two families are provided:
 .. code-block:: python
 
    from sofic.automata import DyckAlphabet
-   from sofic.inference.cssr import stack_cssr
+   from sofic.inference.cssr import learn_stack_hmm_cssr
 
    alphabet = DyckAlphabet(
        call_alphabet=frozenset({"("}),
        return_alphabet=frozenset({")"}),
        internal_alphabet=frozenset({"a"}),
    )
-   model = stack_cssr(sequence, alphabet=alphabet, Lmax=4, max_stack_depth=8)
+   model = learn_stack_hmm_cssr(sequence, alphabet=alphabet, max_history=4, max_stack_depth=8)
    model.validate()
 
 Histories are counted with a bounded stack depth, so ``max_stack_depth`` caps
@@ -48,18 +48,18 @@ can follow is decided by the stack top through matched call-return pairs, not by
 the finite control. Return edges are matched only to calls observed to close
 them.
 
-``stack_cssr`` accepts the same calibration options as
-:func:`~sofic.inference.cssr.cssr`: ``test="exact"``,
-``correction="bonferroni"`` (over eligible configurations), and ``Lmax="auto"``.
+``learn_stack_hmm_cssr`` accepts the same calibration options as
+:func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`: ``test="exact"``,
+``correction="bonferroni"`` (over eligible configurations), and ``max_history="auto"``.
 Stack processes generally have infinite Markov order, so the automatic depth is
 a lower bound on the suffix length the data support.
 
 API
 ===
 
-.. autofunction:: stack_cssr
-.. autofunction:: stack_subtree_merge
-.. autofunction:: fit_stack_hmm_mle
+.. autofunction:: learn_stack_hmm_cssr
+.. autofunction:: learn_stack_hmm_subtree
+.. autofunction:: learn_stack_hmm_mle
 .. autofunction:: learn_stack_hmm_papni
 
 .. autoclass:: StackSuffixCounts

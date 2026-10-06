@@ -49,7 +49,7 @@ __all__ = [
     "project_to_epsilon_machine",
     "project_to_mealy",
     "project_to_nmachine",
-    "spectral",
+    "learn_epsilon_machine_spectral",
     "spectral_singular_values",
 ]
 
@@ -568,7 +568,7 @@ def _mealy_from_operator_mixed_states(
     )
 
 
-def spectral(
+def learn_epsilon_machine_spectral(
     sequences: Iterable[Any] | None = None,
     *,
     word_probability: Callable[[Sequence[Any]], float] | None = None,

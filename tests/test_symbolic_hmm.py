@@ -29,7 +29,6 @@ from sofic.generators.prob import (
     is_symbolic,
     probs_equal,
 )
-from sofic.generators.words import hmm_word_probability
 
 
 @pytest.mark.parametrize("partition", TENT_MAP_MISIUREWICZ_PARTITIONS)
@@ -117,8 +116,8 @@ def test_fig6_hmm_matches_fig7_word_probabilities():
     hmm = tent_map_misiurewicz_hmm()
     fwd = tent_map_misiurewicz_forward()
     for word in [(0, 0), (0, 1), (1, 0), (1, 1), (0, 1, 0), (1, 1, 0)]:
-        assert hmm_word_probability(hmm, word) == pytest.approx(
-            hmm_word_probability(fwd, word),
+        assert hmm.word_probability(word) == pytest.approx(
+            fwd.word_probability(word),
             abs=1e-10,
         )
 

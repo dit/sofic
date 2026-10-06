@@ -37,13 +37,13 @@ class GoodnessOfFit:
     ----------
     statistic
         ``"g"`` or ``"entropy_rate"``.
-    L
+    block_length
         The word length compared.
     value
         The statistic on the observed data.
     pvalue
         ``(1 + #{simulated >= observed}) / (1 + n_samples)``. Small values mean
-        the machine does not reproduce the data's length-``L`` statistics.
+        the machine does not reproduce the data's length-``block_length`` statistics.
     null
         The statistic on each sequence simulated from the machine.
     forbidden_words
@@ -51,7 +51,7 @@ class GoodnessOfFit:
     """
 
     statistic: str
-    L: int
+    block_length: int
     value: float
     pvalue: float
     null: np.ndarray
@@ -92,7 +92,7 @@ def goodness_of_fit(
     machine: Any,
     data: Sequence[Any],
     *,
-    L: int | None = None,
+    block_length: int | None = None,
     statistic: Literal["g", "entropy_rate"] = "g",
     n_samples: int = 199,
     burn_in: int = 100,
@@ -101,8 +101,8 @@ def goodness_of_fit(
     """Parametric-bootstrap test that ``machine`` generated ``data``.
 
     Sequences as long as ``data`` are simulated from ``machine`` (after
-    ``burn_in`` steps, so they start near stationarity), and a length-``L`` word
-    statistic of the data is compared with its distribution over the simulations.
+    ``burn_in`` steps, so they start near stationarity), and a length-``block_length``
+    word statistic of the data is compared with its distribution over the simulations.
     Because the null distribution is simulated, the overlap between successive
     words is accounted for; no chi-squared approximation is used.
 
@@ -110,14 +110,14 @@ def goodness_of_fit(
     ----------
     machine
         A fitted generator with ``sample``, ``word_probabilities`` and
-        ``stationary_distribution`` (e.g. an ε-machine from :func:`cssr`).
+        ``stationary_distribution`` (e.g. an ε-machine from :func:`learn_epsilon_machine_cssr`).
     data
         The observed sequence the machine was fitted to.
-    L
+    block_length
         Word length; by default the longest with about ten observations per
         possible word (between 1 and 6).
     statistic
-        ``"g"`` is the G statistic of the observed length-``L`` word counts
+        ``"g"`` is the G statistic of the observed length-``block_length`` word counts
         against the machine's stationary word probabilities. ``"entropy_rate"`` is
         ``|h_hat - h_L|``, the gap between the plug-in conditional entropy
         ``H[X_{L-1} | X_{0:L-1}]`` and the machine's value.
@@ -137,7 +137,7 @@ def goodness_of_fit(
     Fitting and testing on the same data makes the test conservative, as in any
     parametric bootstrap without refitting. A small p-value is still evidence
     that the reconstruction misses structure. For CSSR that usually means
-    ``Lmax`` is shorter than the source's synchronization length, which happens
+    ``max_history`` is shorter than the source's synchronization length, which happens
     for strictly sofic sources. An observed word that the machine forbids gives
     ``G = inf`` and the smallest possible p-value.
     """
@@ -145,17 +145,17 @@ def goodness_of_fit(
     seq = tuple(data)
     n = len(seq)
     alphabet = set(seq) | set(machine.observation_alphabet)
-    if L is None:
-        L = _default_word_length(n, len(alphabet))
-    if L < 1 or n < L:
-        raise ValueError("L must be between 1 and len(data)")
+    if block_length is None:
+        block_length = _default_word_length(n, len(alphabet))
+    if block_length < 1 or n < block_length:
+        raise ValueError("block_length must be between 1 and len(data)")
     pi = np.asarray(machine.stationary_distribution(), dtype=float)
-    probabilities = {tuple(w): float(p) for w, p in machine.word_probabilities(L, start=pi).items()}
+    probabilities = {tuple(w): float(p) for w, p in machine.word_probabilities(block_length, start=pi).items()}
 
     if statistic == "g":
 
         def compute(sample: Sequence[Any]) -> float:
-            counts = _word_counts(sample, L)
+            counts = _word_counts(sample, block_length)
             total = sum(counts.values())
             g = 0.0
             for word, count in counts.items():
@@ -168,7 +168,7 @@ def goodness_of_fit(
         target = _model_conditional_entropy(probabilities)
 
         def compute(sample: Sequence[Any]) -> float:
-            return abs(_conditional_entropy(_word_counts(sample, L)) - target)
+            return abs(_conditional_entropy(_word_counts(sample, block_length)) - target)
     else:
         raise ValueError(f"unknown statistic {statistic!r}")
 
@@ -179,8 +179,10 @@ def goodness_of_fit(
         null[i] = compute(simulated[burn_in:])
     tol = 1e-12 * max(1.0, abs(value)) if np.isfinite(value) else 0.0
     pvalue = float((1 + np.sum(null >= value - tol)) / (1 + n_samples))
-    forbidden = tuple(sorted((w for w in _word_counts(seq, L) if probabilities.get(w, 0.0) <= 0.0), key=repr))
-    return GoodnessOfFit(statistic, int(L), float(value), pvalue, null, forbidden)
+    forbidden = tuple(
+        sorted((w for w in _word_counts(seq, block_length) if probabilities.get(w, 0.0) <= 0.0), key=repr)
+    )
+    return GoodnessOfFit(statistic, int(block_length), float(value), pvalue, null, forbidden)
 
 
 def topology_key(machine: Any) -> tuple[int, tuple[tuple[int, str, int], ...]]:
@@ -301,7 +303,7 @@ def structure_stability(
     rng
         Seed or generator.
     **kwargs
-        Forwarded to the reconstruction (e.g. ``Lmax``, ``alpha``).
+        Forwarded to the reconstruction (e.g. ``max_history``, ``alpha``).
 
     Returns
     -------
@@ -351,24 +353,24 @@ def reconstruction_sweep(
     sequence: Sequence[Any],
     *,
     alphas: Sequence[float] = (0.05, 0.01, 0.001),
-    lmaxes: Sequence[int] = (1, 2, 3, 4),
+    max_histories: Sequence[int] = (1, 2, 3, 4),
     method: Literal["cssr"] | Callable[..., Any] = "cssr",
     **kwargs: Any,
 ) -> dict[tuple[float, int], tuple[int, tuple[tuple[int, str, int], ...]] | None]:
     """Reconstruct over a grid of significance levels and history lengths.
 
-    Returns ``{(alpha, Lmax): topology_key}``, with ``None`` where reconstruction
-    failed. A structure that persists across a range of ``alpha`` and ``Lmax`` is
+    Returns ``{(alpha, max_history): topology_key}``, with ``None`` where reconstruction
+    failed. A structure that persists across a range of ``alpha`` and ``max_history`` is
     better supported than one that appears at a single setting. For a Markov
-    source, it should be stable for every ``Lmax`` at or above the source's order.
+    source, it should be stable for every ``max_history`` at or above the source's order.
     """
     results: dict[tuple[float, int], tuple[int, tuple[tuple[int, str, int], ...]] | None] = {}
     for alpha in alphas:
-        for lmax in lmaxes:
+        for history in max_histories:
             try:
-                machine = _reconstruct(sequence, method, {**kwargs, "alpha": alpha, "Lmax": lmax})
+                machine = _reconstruct(sequence, method, {**kwargs, "alpha": alpha, "max_history": history})
             except (StochasticValidationError, ValueError):
-                results[alpha, lmax] = None
+                results[alpha, history] = None
                 continue
-            results[alpha, lmax] = topology_key(machine)
+            results[alpha, history] = topology_key(machine)
     return results

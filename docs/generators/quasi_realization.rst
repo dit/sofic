@@ -16,6 +16,6 @@ API
 .. autoclass:: QuasiRealization
 .. autoclass:: QuasiStochasticModel
 
-.. autofunction:: sofic.generators.quasi_inference.transition_matrices
+.. autofunction:: sofic.generators.quasi_inference.symbol_matrices
 .. autofunction:: sofic.generators.quasi_inference.stationary_quasidistribution
 .. autofunction:: sofic.generators.quasi_inference.word_probability

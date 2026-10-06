@@ -10,19 +10,19 @@ from sofic.automata.dfa import DFA
 from sofic.automata.enumeration.icdfa import (
     ICDFAEnumerationError,
     _upper_bound_at,
-    count_flag_sequences,
     count_icdfa,
     count_icdfa_empty,
     dfa_to_icdfa_string,
     first_icdfa_empty_string,
-    flags_from_string,
+    icdfa_count_flag_sequences,
+    icdfa_flags_from_string,
+    icdfa_next_flags,
+    icdfa_string_from_flags,
     icdfa_string_to_dfa,
     iter_icdfa,
     iter_icdfa_empty_strings,
     last_icdfa_empty_string,
-    next_flags,
     next_icdfa_empty_string,
-    string_from_flags,
     validate_icdfa_empty_string,
 )
 
@@ -30,8 +30,8 @@ B2 = [1, 12, 216, 5248, 160675]
 
 
 def test_count_flag_sequences() -> None:
-    assert count_flag_sequences(2, 3) == 5
-    assert count_flag_sequences(3, 4) == 55
+    assert icdfa_count_flag_sequences(2, 3) == 5
+    assert icdfa_count_flag_sequences(3, 4) == 55
 
 
 def test_count_icdfa_empty() -> None:
@@ -60,7 +60,7 @@ def test_first_last_boundaries() -> None:
 
     flags = [1, 3]
     current = list(first_icdfa_empty_string(n=3, k=2))
-    transitions = list(string_from_flags(flags, n=3, k=2))
+    transitions = list(icdfa_string_from_flags(flags, n=3, k=2))
     last_for_flags = list(transitions)
     for index in range(6):
         if index in flags:
@@ -84,10 +84,10 @@ def test_flag_iteration_matches_count() -> None:
         while True:
             count += 1
             try:
-                next_flags(flags, k=k)
+                icdfa_next_flags(flags, k=k)
             except StopIteration:
                 break
-        assert count == count_flag_sequences(k, n)
+        assert count == icdfa_count_flag_sequences(k, n)
 
 
 def test_round_trip_codec() -> None:
@@ -120,8 +120,8 @@ def test_invalid_strings() -> None:
 
 def test_flags_from_string() -> None:
     transitions = first_icdfa_empty_string(n=3, k=2)
-    assert flags_from_string(transitions, n=3) == (1, 3)
-    rebuilt = string_from_flags((1, 3), n=3, k=2)
+    assert icdfa_flags_from_string(transitions, n=3) == (1, 3)
+    rebuilt = icdfa_string_from_flags((1, 3), n=3, k=2)
     assert rebuilt == transitions
 
 

@@ -29,15 +29,15 @@ Composition
 
 The composition helpers mirror the common ``cmpy`` transducer operations:
 
-* :func:`sofic.automata.transducer_operations.compose_tt` serially composes
+* :func:`sofic.automata.transducer_operations.compose_transducers` serially composes
   transducers.
-* :func:`sofic.automata.transducer_operations.compose_tg` composes a
+* :func:`sofic.automata.transducer_operations.compose_transducer_generator` composes a
   transducer with a stochastic generator and returns a joint input/output
   generator.
 * :func:`sofic.automata.transducer_operations.transduce_generator` returns
   the output-only generator induced by driving a transducer with a generator.
-* :func:`sofic.automata.transducer_operations.cartesian_product_tt` and
-  :func:`sofic.automata.transducer_operations.cartesian_product_gg` build
+* :func:`sofic.automata.transducer_operations.transducer_product` and
+  :func:`sofic.automata.transducer_operations.generator_product` build
   tuple-symbol Cartesian products.
 
 For convenience, :class:`MealyMachine` also exposes ``compose``,
@@ -55,8 +55,8 @@ API
 
 .. autofunction:: sofic.automata.transducer_simulation.transduce_mealy
 .. autofunction:: sofic.automata.transducer_simulation.transduce_moore
-.. autofunction:: sofic.automata.transducer_operations.compose_tt
-.. autofunction:: sofic.automata.transducer_operations.compose_tg
+.. autofunction:: sofic.automata.transducer_operations.compose_transducers
+.. autofunction:: sofic.automata.transducer_operations.compose_transducer_generator
 .. autofunction:: sofic.automata.transducer_operations.transduce_generator
-.. autofunction:: sofic.automata.transducer_operations.cartesian_product_tt
-.. autofunction:: sofic.automata.transducer_operations.cartesian_product_gg
+.. autofunction:: sofic.automata.transducer_operations.transducer_product
+.. autofunction:: sofic.automata.transducer_operations.generator_product

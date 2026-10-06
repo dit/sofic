@@ -24,7 +24,7 @@ from sofic.inference.cssr.significance import (
 )
 
 
-def _cssr_default_lmax(n: int, alphabet_size: int) -> int:
+def _default_max_history(n: int, alphabet_size: int) -> int:
     """A third of ``log_k n``, between 1 and 10.
 
     Each length-``L`` word is then seen about ``n ** (2/3)`` times. Longer suffixes
@@ -37,12 +37,12 @@ def _cssr_default_lmax(n: int, alphabet_size: int) -> int:
 def _suffix_homogenize(
     counts: SuffixCounts,
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
     min_count: int = 1,
 ) -> list[set[History]]:
-    """CSSR homogenization: grow suffixes one symbol into the past, up to length ``Lmax``.
+    """CSSR homogenization: grow suffixes one symbol into the past, up to length ``max_history``.
 
     Each child suffix ``a x`` stays in its parent's state unless its next-symbol
     distribution differs significantly; then it joins the most similar state that
@@ -51,7 +51,7 @@ def _suffix_homogenize(
     times are not tested: the significance test is unreliable on so few counts.
     """
     states: list[set[History]] = [{()}]
-    for length in range(Lmax):
+    for length in range(max_history):
         for parent_id in range(len(states)):
             parent = states[parent_id]
             for history in sorted((h for h in parent if len(h) == length), key=repr):
@@ -78,10 +78,10 @@ def _suffix_homogenize(
     return states
 
 
-def _suffix_successor(history: History, symbol: Any, Lmax: int) -> History:
-    """The suffix that follows ``history`` on ``symbol``: extended, or truncated at ``Lmax``."""
+def _suffix_successor(history: History, symbol: Any, max_history: int) -> History:
+    """The suffix that follows ``history`` on ``symbol``: extended, or truncated at ``max_history``."""
     extended = (*history, symbol)
-    return extended[1:] if len(extended) > Lmax else extended
+    return extended[1:] if len(extended) > max_history else extended
 
 
 def _suffix_edges(
@@ -89,17 +89,17 @@ def _suffix_edges(
     counts: SuffixCounts,
     alive: set[int],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
     resolve: bool = True,
 ) -> dict[int, dict[Any, dict[int, set[History]]]]:
     """Successor states of each alive state, by symbol, with the suffixes that lead there.
 
-    A suffix shorter than ``Lmax`` moves to the state holding its one-symbol extension.
-    A length-``Lmax`` suffix must drop its oldest symbol, which can forget the phase
+    A suffix shorter than ``max_history`` moves to the state holding its one-symbol extension.
+    A length-``max_history`` suffix must drop its oldest symbol, which can forget the phase
     of a non-Markovian process: for the even process, the truncation of ``0111`` is
-    ``111``, whose parity is unknown. So the length-``Lmax + 1`` suffix is tested
+    ``111``, whose parity is unknown. So the length-``max_history + 1`` suffix is tested
     against the truncated suffix's state, and if its morph differs, it moves to the
     alive state whose morph it matches best instead. ``resolve=False`` always truncates.
     """
@@ -112,7 +112,7 @@ def _suffix_edges(
                 if count == 0:
                     continue
                 extended = (*history, symbol)
-                if len(extended) <= Lmax:
+                if len(extended) <= max_history:
                     target = history_to_state.get(extended)
                 else:
                     target = history_to_state.get(extended[1:])
@@ -163,7 +163,7 @@ def _suffix_determinize(
     counts: SuffixCounts,
     alive: set[int],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
     resolve: bool = True,
@@ -175,7 +175,7 @@ def _suffix_determinize(
     states = [set(h) for h in states]
     alive = set(alive)
     while True:
-        edges = _suffix_edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        edges = _suffix_edges(states, counts, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve)
         split = None
         for index in sorted(alive):
             for symbol in sorted(edges[index], key=repr):
@@ -200,19 +200,19 @@ def _suffix_machine(
     sequence: Sequence[Any],
     alive: set[int],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
     resolve: bool = True,
 ) -> EpsilonMachine:
     """Build the ε-machine on the most-visited recurrent class of the alive states."""
-    edges = _suffix_edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+    edges = _suffix_edges(states, counts, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve)
     history_to_state = {h: index for index in alive for h in states[index]}
 
     visits: Counter[int] = Counter()
     seq = tuple(sequence)
     for t in range(len(seq) + 1):
-        for length in range(min(t, Lmax), -1, -1):
+        for length in range(min(t, max_history), -1, -1):
             state = history_to_state.get(seq[t - length : t])
             if state is not None:
                 visits[state] += 1
@@ -220,7 +220,7 @@ def _suffix_machine(
 
     classes = _recurrent_states(edges)
     if not classes:
-        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this Lmax")
+        raise StochasticValidationError("no recurrent inferred states; the sample is too short for this max_history")
     keep = max(classes, key=lambda members: (sum(visits[s] for s in members), -min(members)))
 
     labels = {state: f"s{rank}" for rank, state in enumerate(sorted(keep))}
@@ -267,7 +267,7 @@ def _suffix_reconstruct(
     counts: SuffixCounts,
     sequence: Sequence[Any],
     *,
-    Lmax: int,
+    max_history: int,
     alpha: float,
     test: MorphTest,
 ) -> EpsilonMachine:
@@ -275,20 +275,26 @@ def _suffix_reconstruct(
 
     def reconstruct(resolve: bool) -> EpsilonMachine:
         everything = set(range(len(states)))
-        edges = _suffix_edges(states, counts, everything, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        edges = _suffix_edges(
+            states, counts, everything, max_history=max_history, alpha=alpha, test=test, resolve=resolve
+        )
         alive = set().union(*_recurrent_states(edges)) or everything
-        split, alive = _suffix_determinize(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
-        return _suffix_machine(split, counts, sequence, alive, Lmax=Lmax, alpha=alpha, test=test, resolve=resolve)
+        split, alive = _suffix_determinize(
+            states, counts, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve
+        )
+        return _suffix_machine(
+            split, counts, sequence, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve
+        )
 
     machine = reconstruct(resolve=True)
-    # Resolving truncated successors needs Lmax at least the synchronization length. When it
+    # Resolving truncated successors needs max_history at least the synchronization length. When it
     # is shorter, resolution can close off a state that never emits some observed symbol.
     if {t.data[ATTR_EMISSION] for t in machine.transitions()} < set(sequence):
         machine = reconstruct(resolve=False)
     return machine
 
 
-def suggest_lmax(
+def suggest_max_history(
     sequence: Sequence[Any],
     *,
     alpha: float = 0.01,
@@ -297,7 +303,7 @@ def suggest_lmax(
     n_surrogates: int = 999,
     seed: int = 0,
 ) -> int:
-    """A data-driven ``Lmax`` for :func:`cssr`: the estimated Markov order, at least 1.
+    """A data-driven ``max_history`` for :func:`learn_epsilon_machine_cssr`: the estimated Markov order, at least 1.
 
     Orders ``0, 1, ...`` are tested against the next order with
     :func:`dit.inference.select_markov_order`. The default ``"exact"`` method
@@ -333,7 +339,7 @@ def suggest_lmax(
 
     select_markov_order = getattr(dit.inference, "select_markov_order", None)
     if select_markov_order is None:  # pragma: no cover - depends on the installed dit
-        raise ImportError("suggest_lmax requires a dit release with dit.inference.select_markov_order")
+        raise ImportError("suggest_max_history requires a dit release with dit.inference.select_markov_order")
     codes: dict[Any, str] = {}
     seq = [codes.setdefault(symbol, str(len(codes))) for symbol in sequence]
     if max_order is None:
@@ -343,11 +349,11 @@ def suggest_lmax(
     return max(1, int(order))
 
 
-def cssr(
+def learn_epsilon_machine_cssr(
     sequence: Sequence[Any],
     *,
     alphabet: Sequence[Any] | None = None,
-    Lmax: int | Literal["auto"] | None = None,
+    max_history: int | Literal["auto"] | None = None,
     alpha: float = 0.01,
     test: MorphTest = "g",
     min_count: int = 5,
@@ -355,7 +361,7 @@ def cssr(
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by Causal-State Splitting Reconstruction :cite:`Shalizi2004`.
 
-    Suffixes are grown one symbol into the past up to length ``Lmax`` and grouped by
+    Suffixes are grown one symbol into the past up to length ``max_history`` and grouped by
     their next-symbol distributions (homogenization), then states are split until
     every transition is deterministic (determinization). The result is restricted
     to its most-visited closed class, so it is always a valid recurrent machine.
@@ -366,16 +372,16 @@ def cssr(
         Observed symbols.
     alphabet
         Symbol alphabet; defaults to the symbols in ``sequence``.
-    Lmax
+    max_history
         Longest suffix considered; by default a third of ``log_k len(sequence)``,
         between 1 and 10. It should be at least the synchronization length of the
         source (for a Markov source, its order). Larger values run many more
         significance tests, and some of them split states by chance. ``"auto"``
-        uses :func:`suggest_lmax`, the Markov order estimated by exact tests.
+        uses :func:`suggest_max_history`, the Markov order estimated by exact tests.
     alpha
         Significance level of each morph-equality test. The worked example of
         :cite:`Shalizi2002` uses 0.01; smaller values guard against spurious states
-        when ``Lmax`` is large.
+        when ``max_history`` is large.
     test
         ``"g"`` (G-test), ``"chi2"``, ``"tv"`` (total-variation threshold), or
         ``"exact"`` (Monte Carlo exact G-test when expected counts are small; see
@@ -391,25 +397,25 @@ def cssr(
     Notes
     -----
     A process that is not exactly synchronizable (no finite past determines its
-    state, such as :func:`~sofic.examples.processes.ABC`) has no finite-``Lmax``
+    state, such as :func:`~sofic.examples.alternating_biased_coins`) has no finite-``max_history``
     reconstruction. CSSR then returns more states than the ε-machine, with an
-    entropy rate that approaches the true one from above as ``Lmax`` grows.
+    entropy rate that approaches the true one from above as ``max_history`` grows.
     """
     seq = tuple(sequence)
     if len(seq) < 2:
         raise ValueError("sequence must contain at least two symbols")
     alphabet_size = len(set(seq)) if alphabet is None else len(tuple(alphabet))
-    if Lmax == "auto":
-        max_length = suggest_lmax(seq, alpha=alpha)
+    if max_history == "auto":
+        max_length = suggest_max_history(seq, alpha=alpha)
     else:
-        max_length = Lmax if Lmax is not None else _cssr_default_lmax(len(seq), alphabet_size)
+        max_length = max_history if max_history is not None else _default_max_history(len(seq), alphabet_size)
     if max_length < 0:
-        raise ValueError("Lmax must be non-negative")
+        raise ValueError("max_history must be non-negative")
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
     if correction == "bonferroni":
         alpha = _bonferroni_alpha(counts, alpha, max_length=max_length, min_count=min_count)
     elif correction is not None:
         raise ValueError(f"unknown correction {correction!r}")
 
-    homogeneous = _suffix_homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
-    return _suffix_reconstruct(homogeneous, counts, seq, Lmax=max_length, alpha=alpha, test=test)
+    homogeneous = _suffix_homogenize(counts, max_history=max_length, alpha=alpha, test=test, min_count=min_count)
+    return _suffix_reconstruct(homogeneous, counts, seq, max_history=max_length, alpha=alpha, test=test)

@@ -16,10 +16,10 @@ from sofic.automata.enumeration.idfa import (
     IDFAEnumerationError,
     _delta_table,
     idfa_string_to_topological_graph,
+    idfa_transition_count,
     iter_idfa_strings,
     rank_idfa_string,
     reroot_idfa_string,
-    transition_count,
     validate_idfa_string,
 )
 from sofic.exceptions import SoficValidationError
@@ -274,7 +274,7 @@ def is_topological_epsilon_string(
 ) -> bool:
     """Return whether ``transitions`` passes the structural ε-machine tests."""
     validate_idfa_string(transitions, n=n, k=k)
-    defined = transition_count(transitions)
+    defined = idfa_transition_count(transitions)
     if defined < n:
         return False
     if n > 1 and defined >= n * k:

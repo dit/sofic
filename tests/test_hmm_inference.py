@@ -97,7 +97,7 @@ def test_log_likelihood_long_sequence_stays_finite():
 
 def test_forward_scaled_rows_are_normalized():
     coin = fair_coin()
-    alpha = forward(coin, ["0", "1", "0"], scaled=True)
+    alpha = forward(coin, ["0", "1", "0"], normalize=True)
     assert alpha.shape == (4, 1)
     assert np.allclose(alpha.sum(axis=1), 1.0)
 
@@ -333,8 +333,10 @@ def test_seeded_sample_is_reproducible_across_hash_seeds():
 
     script = (
         "import numpy as np\n"
-        "from sofic.examples.processes import Nemo\n"
-        "print(''.join(Nemo().sample(200, rng=np.random.default_rng(5))[0]))\n"
+        "from sofic.examples import nemo_process\n"
+        "from sofic.examples._construction import _relabel\n"
+        "nemo = _relabel(nemo_process(), symbols={0: '0', 1: '1'})\n"
+        "print(''.join(nemo.sample(200, rng=np.random.default_rng(5))[0]))\n"
     )
     outputs = {
         subprocess.run(

@@ -14,7 +14,7 @@ from functools import cache
 from sofic.automata.enumeration.icdfa import (
     _upper_bound_at,
     _validate_flags,
-    next_flags,
+    icdfa_next_flags,
 )
 from sofic.exceptions import SoficValidationError
 
@@ -22,14 +22,14 @@ __all__ = [
     "MISSING_TRANSITION",
     "count_accessible_idfa",
     "count_idfa_strings_for_flags",
-    "extended_flags",
+    "idfa_extended_flags",
     "first_idfa_string",
     "idfa_string_to_topological_graph",
     "iter_idfa_strings",
     "last_idfa_string",
     "next_idfa_string",
     "rank_idfa_string",
-    "transition_count",
+    "idfa_transition_count",
     "unrank_idfa_string",
     "validate_idfa_string",
 ]
@@ -41,7 +41,7 @@ class IDFAEnumerationError(SoficValidationError):
     """Raised when incomplete accessible DFA enumeration fails."""
 
 
-def extended_flags(flags: Sequence[int], *, n: int, k: int) -> tuple[int, ...]:
+def idfa_extended_flags(flags: Sequence[int], *, n: int, k: int) -> tuple[int, ...]:
     """Return ``(f_0, …, f_n)`` with ``f_0 = -1`` and ``f_n = nk``."""
     return (MISSING_TRANSITION,) + tuple(flags) + (n * k,)
 
@@ -71,12 +71,12 @@ def validate_idfa_string(
             raise IDFAEnumerationError(f"state {state} does not appear in the first {k * state} symbols")
 
 
-def transition_count(transitions: Sequence[int]) -> int:
+def idfa_transition_count(transitions: Sequence[int]) -> int:
     """Return the number of defined transitions in ``transitions``."""
     return sum(1 for value in transitions if value != MISSING_TRANSITION)
 
 
-def string_from_flags(
+def idfa_string_from_flags(
     flags: Sequence[int],
     *,
     n: int,
@@ -98,7 +98,7 @@ def first_idfa_string(*, n: int, k: int) -> tuple[int, ...]:
     if n == 1:
         return (MISSING_TRANSITION,) * k
     flags = tuple(k * state - 1 for state in range(1, n))
-    return string_from_flags(flags, n=n, k=k)
+    return idfa_string_from_flags(flags, n=n, k=k)
 
 
 def last_idfa_string(*, n: int, k: int) -> tuple[int, ...]:
@@ -106,7 +106,7 @@ def last_idfa_string(*, n: int, k: int) -> tuple[int, ...]:
     if n == 1:
         return (n - 1,) * k
     flags = list(range(n - 1))
-    transitions = list(string_from_flags(flags, n=n, k=k))
+    transitions = list(idfa_string_from_flags(flags, n=n, k=k))
     flag_set = set(flags)
     for index in range(k * n):
         if index in flag_set:
@@ -185,7 +185,7 @@ def next_idfa_string(
 
 def count_idfa_strings_for_flags(flags: Sequence[int], *, n: int, k: int) -> int:
     """Return the number of IDFA∅ strings with the given flag sequence."""
-    ext = extended_flags(flags, n=n, k=k)
+    ext = idfa_extended_flags(flags, n=n, k=k)
     product = 1
     for segment_index in range(n):
         segment = ext[segment_index + 1] - ext[segment_index] - 1
@@ -261,17 +261,17 @@ def _iter_idfa_strings_impl(k: int, n: int) -> Iterator[tuple[int, ...]]:
         return
 
     flags = [k * state - 1 for state in range(1, n)]
-    transitions = list(string_from_flags(flags, n=n, k=k))
+    transitions = list(idfa_string_from_flags(flags, n=n, k=k))
     while True:
         yield tuple(transitions)
         try:
             next_idfa_string(transitions, flags, n=n, k=k)
         except StopIteration:
             try:
-                next_flags(flags, k=k)
+                icdfa_next_flags(flags, k=k)
             except StopIteration:
                 break
-            transitions[:] = list(string_from_flags(flags, n=n, k=k))
+            transitions[:] = list(idfa_string_from_flags(flags, n=n, k=k))
 
 
 def iter_idfa_strings(k: int, n: int) -> Iterator[tuple[int, ...]]:

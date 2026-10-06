@@ -112,15 +112,15 @@ class HiddenMarkovModel(StochasticModel):
 
         return log_likelihood(self, observations)
 
-    def forward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
+    def forward(self, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
         from sofic.inference.hmm import forward
 
-        return forward(self, observations, scaled=scaled)
+        return forward(self, observations, normalize=normalize)
 
-    def backward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
+    def backward(self, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
         from sofic.inference.hmm import backward
 
-        return backward(self, observations, scaled=scaled)
+        return backward(self, observations, normalize=normalize)
 
     def viterbi(self, observations: Sequence[Any]) -> list[Hashable]:
         from sofic.inference.hmm import viterbi
@@ -192,16 +192,16 @@ class HiddenMarkovModel(StochasticModel):
 
         return entropy_rate_hmm(self)
 
-    def joint_block_distribution(self, history_length: int = 1) -> Any:
+    def joint_block_distribution(self, block_length: int = 2) -> Any:
         from sofic.generators.measures import joint_block_distribution
 
-        return joint_block_distribution(self, history_length=history_length)
+        return joint_block_distribution(self, block_length=block_length)
 
     def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
         """Return observed words of ``length`` and their probabilities."""
-        from sofic.generators.words import hmm_words_of_length
+        from sofic.generators.words import _hmm_words_of_length
 
-        return hmm_words_of_length(self, length)
+        return _hmm_words_of_length(self, length)
 
     def word_probability(
         self,
@@ -210,9 +210,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return the probability of an observed finite word."""
-        from sofic.generators.words import hmm_word_probability
+        from sofic.generators.words import _hmm_word_probability
 
-        return hmm_word_probability(self, word, start=start)
+        return _hmm_word_probability(self, word, start=start)
 
     def log_word_probability(
         self,
@@ -221,9 +221,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return ``log2`` of an observed finite-word probability."""
-        from sofic.generators.words import hmm_log_word_probability
+        from sofic.generators.words import _hmm_log_word_probability
 
-        return hmm_log_word_probability(self, word, start=start)
+        return _hmm_log_word_probability(self, word, start=start)
 
     def word_probabilities(
         self,
@@ -233,9 +233,9 @@ class HiddenMarkovModel(StochasticModel):
         sparse: bool = True,
     ) -> dict[tuple[Any, ...], float]:
         """Return observed-word probabilities for one or more lengths."""
-        from sofic.generators.words import hmm_word_probabilities
+        from sofic.generators.words import _hmm_word_probabilities
 
-        return hmm_word_probabilities(self, lengths, start=start, sparse=sparse)
+        return _hmm_word_probabilities(self, lengths, start=start, sparse=sparse)
 
     def conditional_word_probability(
         self,
@@ -245,9 +245,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return ``P(word | condition)``."""
-        from sofic.generators.words import hmm_conditional_word_probability
+        from sofic.generators.words import _hmm_conditional_word_probability
 
-        return hmm_conditional_word_probability(self, word, condition, start=start)
+        return _hmm_conditional_word_probability(self, word, condition, start=start)
 
     def is_equal_process(
         self,
@@ -311,16 +311,16 @@ class QuasiStochasticModel(StateMachine):
 
         return stationary_quasidistribution(self)
 
-    def transition_matrices(self) -> dict[Any, np.ndarray]:
-        from sofic.generators.quasi_inference import transition_matrices
+    def symbol_matrices(self) -> dict[Any, np.ndarray]:
+        from sofic.generators.quasi_inference import symbol_matrices
 
-        return transition_matrices(self)
+        return symbol_matrices(self)
 
     def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
         """Return words of ``length`` and their signed quasiprobabilities."""
-        from sofic.generators.words import quasi_words_of_length
+        from sofic.generators.words import _quasi_words_of_length
 
-        return quasi_words_of_length(self, length)
+        return _quasi_words_of_length(self, length)
 
     def collision_entropy(self) -> float:
         from sofic.generators.measures import collision_entropy

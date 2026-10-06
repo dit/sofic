@@ -117,7 +117,7 @@ def _mirror(cls: type[SoficShift], cover: SoficShift) -> SoficShift:
     return cls(graph=cover.graph.reverse(), symbol_alphabet=cover.symbol_alphabet)
 
 
-def right_fischer_from_sofic(shift: SoficShift) -> RightFischerCover:
+def right_fischer_cover(shift: SoficShift) -> RightFischerCover:
     """Return the minimal right-resolving presentation of an irreducible sofic shift.
 
     Raises :class:`~sofic.exceptions.SoficValidationError` when the shift is
@@ -146,9 +146,9 @@ def right_fischer_from_sofic(shift: SoficShift) -> RightFischerCover:
     return _quotient_shift(RightFischerCover, shift, vertices, delta, classes)
 
 
-def left_fischer_from_sofic(shift: SoficShift) -> LeftFischerCover:
+def left_fischer_cover(shift: SoficShift) -> LeftFischerCover:
     """Return the minimal left-resolving presentation (mirror of the right Fischer cover)."""
-    return _mirror(LeftFischerCover, right_fischer_from_sofic(shift.reverse()))
+    return _mirror(LeftFischerCover, right_fischer_cover(shift.reverse()))
 
 
 def _ray_terminal_sets(successors: dict[Hashable, dict[Any, set[Hashable]]]) -> set[Subset]:
@@ -187,7 +187,7 @@ def _ray_terminal_sets(successors: dict[Hashable, dict[Any, set[Hashable]]]) -> 
     return {frozenset(r for _q, r in relation) for relation in recurrent}
 
 
-def right_krieger_from_sofic(shift: SoficShift) -> RightKriegerCover:
+def right_krieger_cover(shift: SoficShift) -> RightKriegerCover:
     """Return the right Krieger (future) cover of ``shift``."""
     trimmed = shift.trim_transient()
     successors = _labeled_successors(trimmed)
@@ -199,6 +199,6 @@ def right_krieger_from_sofic(shift: SoficShift) -> RightKriegerCover:
     return _quotient_shift(RightKriegerCover, shift, vertices, delta, classes)
 
 
-def left_krieger_from_sofic(shift: SoficShift) -> LeftKriegerCover:
+def left_krieger_cover(shift: SoficShift) -> LeftKriegerCover:
     """Return the left Krieger (past) cover: the mirror of the right Krieger cover."""
-    return _mirror(LeftKriegerCover, right_krieger_from_sofic(shift.reverse()))
+    return _mirror(LeftKriegerCover, right_krieger_cover(shift.reverse()))

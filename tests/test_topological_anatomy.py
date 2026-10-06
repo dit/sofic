@@ -153,7 +153,7 @@ def test_nondeterministic_presentation_is_resolved_by_exact_fischer_cover():
     shift.add_transition("u", "v", 1)
     shift.add_transition("v", "u", 0)
     assert not shift.is_unifilar()
-    cover = RightFischerCover.from_sofic(shift)
+    cover = RightFischerCover.from_presentation(shift)
     assert cover.is_unifilar()
     anatomy = shift.topological_anatomy()
     assert anatomy["h_top"] == pytest.approx(cover.topological_entropy(), abs=1e-9)

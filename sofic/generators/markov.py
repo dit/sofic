@@ -77,9 +77,9 @@ class MarkovChain(StochasticModel):
 
     def words_of_length(self, length: int) -> dict[tuple[Hashable, ...], float]:
         """Return visible state paths of ``length`` and their probabilities."""
-        from sofic.generators.words import markov_words_of_length
+        from sofic.generators.words import _markov_words_of_length
 
-        return markov_words_of_length(self, length)
+        return _markov_words_of_length(self, length)
 
     def sample_path(self, n: int, rng: np.random.Generator | None = None) -> list[Hashable]:
         """Sample a state path of length ``n``.

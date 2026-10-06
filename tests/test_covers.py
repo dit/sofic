@@ -53,7 +53,7 @@ def _is_left_resolving(shift: SoficShift) -> bool:
 @pytest.mark.parametrize("builder", [_golden_mean, _even_shift, _nondeterministic_even_shift])
 def test_right_fischer_cover_is_minimal_right_resolving_and_presents_shift(builder):
     shift = builder()
-    cover = RightFischerCover.from_sofic(shift)
+    cover = RightFischerCover.from_presentation(shift)
     cover.validate()
     assert cover.is_unifilar()
     assert nx.is_strongly_connected(cover.graph.nx)
@@ -64,15 +64,15 @@ def test_right_fischer_cover_is_minimal_right_resolving_and_presents_shift(build
 @pytest.mark.parametrize("builder", [_golden_mean, _even_shift, _nondeterministic_even_shift])
 def test_left_fischer_cover_is_left_resolving_and_presents_shift(builder):
     shift = builder()
-    cover = LeftFischerCover.from_sofic(shift)
+    cover = LeftFischerCover.from_presentation(shift)
     assert _is_left_resolving(cover)
     assert _language(cover) == _language(shift)
 
 
 def test_even_shift_krieger_cover_has_three_vertices_and_contains_fischer_cover():
     shift = _even_shift()
-    krieger = RightKriegerCover.from_sofic(shift)
-    fischer = RightFischerCover.from_sofic(shift)
+    krieger = RightKriegerCover.from_presentation(shift)
+    fischer = RightFischerCover.from_presentation(shift)
     assert krieger.is_unifilar()
     assert len(list(krieger.states())) == 3
     assert _language(krieger) == _language(shift)
@@ -84,14 +84,14 @@ def test_even_shift_krieger_cover_has_three_vertices_and_contains_fischer_cover(
 
 def test_golden_mean_krieger_cover_equals_fischer_cover_size():
     shift = _golden_mean()
-    assert len(list(RightKriegerCover.from_sofic(shift).states())) == 2
-    assert len(list(LeftKriegerCover.from_sofic(shift).states())) == 2
+    assert len(list(RightKriegerCover.from_presentation(shift).states())) == 2
+    assert len(list(LeftKriegerCover.from_presentation(shift).states())) == 2
 
 
 @pytest.mark.parametrize("builder", [_golden_mean, _even_shift, _nondeterministic_even_shift])
 def test_left_krieger_cover_is_left_resolving_and_presents_shift(builder):
     shift = builder()
-    cover = LeftKriegerCover.from_sofic(shift)
+    cover = LeftKriegerCover.from_presentation(shift)
     assert _is_left_resolving(cover)
     assert _language(cover) == _language(shift)
 
@@ -99,6 +99,6 @@ def test_left_krieger_cover_is_left_resolving_and_presents_shift(builder):
 def test_fischer_cover_rejects_reducible_shift():
     reducible = _shift([("A", "A", "0"), ("B", "B", "1")])
     with pytest.raises(SoficValidationError, match="irreducible"):
-        RightFischerCover.from_sofic(reducible)
-    krieger = RightKriegerCover.from_sofic(reducible)
+        RightFischerCover.from_presentation(reducible)
+    krieger = RightKriegerCover.from_presentation(reducible)
     assert _language(krieger) == _language(reducible)

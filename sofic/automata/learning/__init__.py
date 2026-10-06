@@ -26,10 +26,10 @@ from sofic.automata.learning.nlstar import learn_prime_atomaton_nlstar, learn_rf
 from sofic.automata.learning.observation import ObservationTable
 from sofic.automata.learning.papni import (
     DyckAlphabet,
+    encode_dyck_samples,
+    encode_dyck_word,
     is_well_matched,
     learn_sofic_dyck_shift_papni,
-    papni_encode,
-    papni_encode_samples,
     sofic_dyck_shift_from_papni_dfa,
 )
 from sofic.automata.learning.rpni import learn_dfa_rpni
@@ -63,7 +63,7 @@ __all__ = [
     "learn_rfsa_from_language",
     "learn_rfsa_nlstar",
     "learn_sofic_dyck_shift_papni",
-    "papni_encode",
-    "papni_encode_samples",
+    "encode_dyck_word",
+    "encode_dyck_samples",
     "sofic_dyck_shift_from_papni_dfa",
 ]

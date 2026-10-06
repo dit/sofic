@@ -34,21 +34,21 @@ images of path relations lying on cycles of the finite relation monoid.
    In [4]: for s, t, a in [("A", "A", "0"), ("A", "B", "1"), ("B", "A", "1")]:
       ...:     even.graph.add_transition(s, t, **{ATTR_SYMBOL: a})
 
-   In [5]: len(list(RightKriegerCover.from_sofic(even).states()))
+   In [5]: len(list(RightKriegerCover.from_presentation(even).states()))
 
 API
 ===
 
 .. autoclass:: LeftFischerCover
-   :members: from_sofic
+   :members: from_presentation
 .. autoclass:: RightFischerCover
-   :members: from_sofic
+   :members: from_presentation
 .. autoclass:: LeftKriegerCover
-   :members: from_sofic
+   :members: from_presentation
 .. autoclass:: RightKriegerCover
-   :members: from_sofic
+   :members: from_presentation
 
-.. autofunction:: sofic.shifts.cover_construction.left_fischer_from_sofic
-.. autofunction:: sofic.shifts.cover_construction.right_fischer_from_sofic
-.. autofunction:: sofic.shifts.cover_construction.left_krieger_from_sofic
-.. autofunction:: sofic.shifts.cover_construction.right_krieger_from_sofic
+.. autofunction:: sofic.shifts.cover_construction.left_fischer_cover
+.. autofunction:: sofic.shifts.cover_construction.right_fischer_cover
+.. autofunction:: sofic.shifts.cover_construction.left_krieger_cover
+.. autofunction:: sofic.shifts.cover_construction.right_krieger_cover

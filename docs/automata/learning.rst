@@ -188,6 +188,6 @@ For fitting probabilities on the learned topology, see
 
 .. autofunction:: sofic.automata.learning.papni.learn_sofic_dyck_shift_papni
 .. autofunction:: sofic.automata.learning.papni.is_well_matched
-.. autofunction:: sofic.automata.learning.papni.papni_encode
-.. autofunction:: sofic.automata.learning.papni.papni_encode_samples
+.. autofunction:: sofic.automata.learning.papni.encode_dyck_word
+.. autofunction:: sofic.automata.learning.papni.encode_dyck_samples
 .. autofunction:: sofic.automata.learning.papni.sofic_dyck_shift_from_papni_dfa

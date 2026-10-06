@@ -19,19 +19,19 @@ from sofic.exceptions import SoficValidationError
 
 __all__ = [
     "ICDFAString",
-    "count_flag_sequences",
+    "icdfa_count_flag_sequences",
     "count_icdfa",
     "count_icdfa_empty",
     "dfa_to_icdfa_string",
     "first_icdfa_empty_string",
-    "flags_from_string",
+    "icdfa_flags_from_string",
     "icdfa_string_to_dfa",
     "iter_icdfa",
     "iter_icdfa_empty_strings",
     "last_icdfa_empty_string",
-    "next_flags",
+    "icdfa_next_flags",
     "next_icdfa_empty_string",
-    "string_from_flags",
+    "icdfa_string_from_flags",
     "validate_icdfa_empty_string",
 ]
 
@@ -79,7 +79,7 @@ def validate_icdfa_empty_string(
             raise ICDFAEnumerationError(f"state {state} does not appear in the first {k * state} symbols")
 
 
-def flags_from_string(transitions: Sequence[int], *, n: int) -> tuple[int, ...]:
+def icdfa_flags_from_string(transitions: Sequence[int], *, n: int) -> tuple[int, ...]:
     """Return first-occurrence indices ``(f_1, …, f_{n-1})`` for ``transitions``."""
     if n <= 1:
         return ()
@@ -104,7 +104,7 @@ def _validate_flags(flags: Sequence[int], *, n: int, k: int) -> None:
             raise ICDFAEnumerationError(f"flag f_{index + 1}={flags[index]} not in ({lower}, {upper}]")
 
 
-def string_from_flags(
+def icdfa_string_from_flags(
     flags: Sequence[int],
     *,
     n: int,
@@ -124,7 +124,7 @@ def first_icdfa_empty_string(*, n: int, k: int) -> tuple[int, ...]:
     if n == 1:
         return (0,) * k
     flags = tuple(k * state - 1 for state in range(1, n))
-    return string_from_flags(flags, n=n, k=k)
+    return icdfa_string_from_flags(flags, n=n, k=k)
 
 
 def last_icdfa_empty_string(*, n: int, k: int) -> tuple[int, ...]:
@@ -132,7 +132,7 @@ def last_icdfa_empty_string(*, n: int, k: int) -> tuple[int, ...]:
     if n == 1:
         return (0,) * k
     flags = list(range(n - 1))
-    transitions = list(string_from_flags(flags, n=n, k=k))
+    transitions = list(icdfa_string_from_flags(flags, n=n, k=k))
     flag_set = set(flags)
     for index in range(k * n):
         if index in flag_set:
@@ -141,7 +141,7 @@ def last_icdfa_empty_string(*, n: int, k: int) -> tuple[int, ...]:
     return tuple(transitions)
 
 
-def next_flags(flags: list[int], *, k: int) -> None:
+def icdfa_next_flags(flags: list[int], *, k: int) -> None:
     """Advance ``flags`` in-place to the next valid flag sequence, or raise ``StopIteration``."""
 
     def nextflags(index: int) -> None:
@@ -233,7 +233,7 @@ def next_icdfa_empty_string(
     nexticdfa(n - 1, k - 1)
 
 
-def count_flag_sequences(k: int, n: int) -> int:
+def icdfa_count_flag_sequences(k: int, n: int) -> int:
     """Return ``F_{k,n}``, the number of valid flag sequences (Fuss--Catalan)."""
     if n <= 1:
         return 1
@@ -284,17 +284,17 @@ def iter_icdfa_empty_strings(k: int, n: int) -> Iterator[tuple[int, ...]]:
         return
 
     flags = [k * state - 1 for state in range(1, n)]
-    transitions = list(string_from_flags(flags, n=n, k=k))
+    transitions = list(icdfa_string_from_flags(flags, n=n, k=k))
     while True:
         yield tuple(transitions)
         try:
             next_icdfa_empty_string(transitions, flags, n=n, k=k)
         except StopIteration:
             try:
-                next_flags(flags, k=k)
+                icdfa_next_flags(flags, k=k)
             except StopIteration:
                 break
-            transitions[:] = list(string_from_flags(flags, n=n, k=k))
+            transitions[:] = list(icdfa_string_from_flags(flags, n=n, k=k))
 
 
 def iter_icdfa(k: int, n: int) -> Iterator[tuple[tuple[int, ...], frozenset[int]]]:
