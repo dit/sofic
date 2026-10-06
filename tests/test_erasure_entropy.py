@@ -66,24 +66,25 @@ def _markov_machine(transition):
 
 def _order_two_machine(conditional):
     """Binary order-2 Markov chain; ``conditional[(a, b)]`` is ``P(X_t = 1 | a, b)``."""
-    pairs = tuple(itertools.product((0, 1), repeat=2))
-    states = tuple(f"{a}{b}" for a, b in pairs)
+    states = tuple(itertools.product((0, 1), repeat=2))
+    index = {s: i for i, s in enumerate(states)}
     matrices = {x: np.zeros((4, 4)) for x in (0, 1)}
-    for a, b in pairs:
+    for a, b in states:
         p1 = conditional[(a, b)]
-        matrices[0][states.index(f"{a}{b}"), states.index(f"{b}0")] = 1.0 - p1
-        matrices[1][states.index(f"{a}{b}"), states.index(f"{b}1")] = p1
+        matrices[0][index[(a, b)], index[(b, 0)]] = 1.0 - p1
+        matrices[1][index[(a, b)], index[(b, 1)]] = p1
     return from_symbol_matrices(states, (0, 1), matrices)
 
 
 def _two_block_coin():
     """``Y_n = (X_{n-1}, X_n)`` for a fair coin ``X``: an isomorphic copy of the coin."""
+    symbols = tuple(itertools.product((0, 1), repeat=2))
     matrices = {}
-    for s, x in itertools.product((0, 1), repeat=2):
+    for s, x in symbols:
         matrix = np.zeros((2, 2))
         matrix[s, x] = 0.5
-        matrices[f"{s}{x}"] = matrix
-    return from_symbol_matrices((0, 1), tuple(matrices), matrices)
+        matrices[(s, x)] = matrix
+    return from_symbol_matrices((0, 1), symbols, matrices)
 
 
 def _gap_conditional(machine, k):
@@ -168,11 +169,11 @@ def test_two_block_coin_is_not_bilaterally_deterministic(length):
 
 def test_erasure_rate_is_not_a_conjugacy_invariant():
     """The full 2-shift and its 2-block presentation are conjugate but have different ``r_top``."""
-    two_block = SoficShift(symbol_alphabet=frozenset({"00", "01", "10", "11"}))
+    two_block = SoficShift(symbol_alphabet=frozenset(itertools.product((0, 1), repeat=2)))
     for state in (0, 1):
         two_block.graph.add_state(state)
     for s, x in itertools.product((0, 1), repeat=2):
-        two_block.add_transition(s, x, f"{s}{x}")
+        two_block.add_transition(s, x, (s, x))
     full = SoficShift(symbol_alphabet=frozenset({0, 1}))
     full.graph.add_state("S")
     full.add_transition("S", "S", 0)
