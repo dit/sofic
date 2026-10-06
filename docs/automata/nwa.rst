@@ -53,6 +53,11 @@ visible roles. Use :meth:`NestedWordAutomaton.to_vpa` to encode an NWA as a VPA;
 by default symbols are tagged with their role so overlapping NWA alphabets still
 become a disjoint visible alphabet.
 
+The closure operations (``union``, ``intersection``, ``complement``,
+``difference``, ``concat``, ``kleene_star``) and decision procedures
+(``is_empty``, ``is_universal``, ``includes``, ``equivalent``) run on the tagged
+VPA encoding (see :doc:`vpa`) and are translated back to an NWA.
+
 API
 ===
 
@@ -60,6 +65,8 @@ API
    :members: from_visible_word, validate
 
 .. autoclass:: NestedWordAutomaton
-   :members: add_call_transition, add_return_transition, add_internal_transition, recognizes, recognizes_visible, from_vpa, to_vpa
+   :members: add_call_transition, add_return_transition, add_internal_transition, recognizes, recognizes_visible,
+             from_vpa, to_vpa, union, intersection, complement, difference, concat, kleene_star, is_empty,
+             is_universal, includes, equivalent
 
 .. autofunction:: sofic.automata.nwa_simulation.recognizes_nwa
