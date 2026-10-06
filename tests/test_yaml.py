@@ -342,3 +342,29 @@ def test_read_write_yaml_file(tmp_path):
 
     assert type(restored) is type(eps)
     assert model_to_dict(restored) == model_to_dict(eps)
+
+
+def test_cover_and_symbolic_models_round_trip():
+    from sofic.shifts.base import SymbolicModel
+    from sofic.shifts.covers import (
+        LeftFischerCover,
+        LeftKriegerCover,
+        RightFischerCover,
+        RightKriegerCover,
+        WheelerCover,
+    )
+
+    shift = SoficShift(symbol_alphabet=frozenset({"0", "1"}))
+    for source, target, symbol in (("A", "A", "0"), ("A", "B", "1"), ("B", "A", "0")):
+        shift.graph.add_state(source)
+        shift.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol})
+    for cls in (LeftFischerCover, RightFischerCover, LeftKriegerCover, RightKriegerCover, WheelerCover):
+        cover = cls.from_sofic(shift)
+        restored = _round_trip(cover)
+        assert type(restored) is cls
+        assert sorted(map(repr, restored.states())) == sorted(map(repr, cover.states()))
+
+    bare = SymbolicModel(symbol_alphabet=frozenset({"x"}))
+    bare.graph.add_state(0)
+    bare.graph.add_transition(0, 0, **{ATTR_SYMBOL: "x"})
+    assert type(_round_trip(bare)) is SymbolicModel

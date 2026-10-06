@@ -189,6 +189,7 @@ def test_rank_topological_epsilon_machines_prefers_two_states():
     assert best.criterion_value < ranked[-1].criterion_value
 
 
+@pytest.mark.filterwarnings("ignore:.*zero probability under the model:RuntimeWarning")
 def test_cross_validation_smoothing_keeps_forbidden_folds_finite():
     """The golden mean forbids 11; a held-out '11' makes an unsmoothed fold -inf."""
     rng = np.random.default_rng(6)

@@ -380,3 +380,22 @@ def test_baum_welch_restarts_reproducible_and_validated():
     assert log_likelihood(first, data) == pytest.approx(log_likelihood(second, data))
     with pytest.raises(ValueError):
         baum_welch(_symmetric_two_state(), data, n_restarts=0)
+
+
+def test_viterbi_impossible_after_first_step_has_no_path():
+    gm = golden_mean(0.5)
+    observations = [0, 1, 1, 0]
+    assert log_likelihood(gm, observations) == float("-inf")
+    assert viterbi(gm, observations) == []
+
+
+def test_baum_welch_rejects_data_with_zero_probability():
+    gm = golden_mean(0.5)
+    with pytest.raises(ValueError, match="zero probability"):
+        baum_welch(gm, [[1, 1], [0, 1, 1]])
+
+
+def test_baum_welch_warns_when_some_sequences_are_impossible():
+    gm = golden_mean(0.5)
+    with pytest.warns(RuntimeWarning, match="zero probability"):
+        baum_welch(gm, [[0, 1, 0, 0], [1, 1]], max_iter=3)

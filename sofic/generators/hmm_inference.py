@@ -8,6 +8,7 @@ the Fisher and Louis identities.
 
 from __future__ import annotations
 
+import warnings
 from collections import defaultdict
 from collections.abc import Hashable, Iterable, Sequence
 from typing import Any
@@ -483,15 +484,25 @@ def _baum_welch_run(
         total_source = np.zeros(n_states, dtype=float)
         gamma0_sum = np.zeros(n_states, dtype=float)
         total_ll = 0.0
+        skipped = 0
         for obs in seqs:
             edge_counts, source_totals, gamma0, loglik = _expected_edge_counts(pi, joint, obs)
             if not np.isfinite(loglik):
+                skipped += 1
                 continue
             for key, value in edge_counts.items():
                 total_edge_counts[key] += value
             total_source += source_totals
             gamma0_sum += gamma0
             total_ll += loglik
+        if seqs and skipped == len(seqs):
+            raise ValueError("every observation sequence has zero probability under the model")
+        if skipped and _iteration == 0:
+            warnings.warn(
+                f"{skipped} of {len(seqs)} sequences have zero probability under the model and are ignored",
+                RuntimeWarning,
+                stacklevel=3,
+            )
         loglik_trace.append(total_ll)
         if prev_ll is not None and abs(total_ll - prev_ll) < tol:
             break

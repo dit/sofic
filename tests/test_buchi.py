@@ -53,3 +53,8 @@ def test_accepts_omega_non_periodic_raises():
     ba = _accepting_loop_ba()
     with pytest.raises(NotImplementedError):
         ba.accepts_omega(("a", "b", "a"))
+
+
+def test_empty_loop_is_not_an_omega_word():
+    with pytest.raises(ValueError, match="non-empty loop"):
+        _accepting_loop_ba().accepts_lasso(("a",), ())

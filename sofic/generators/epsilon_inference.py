@@ -832,7 +832,8 @@ def suggest_lmax(
     select_markov_order = getattr(dit.inference, "select_markov_order", None)
     if select_markov_order is None:  # pragma: no cover - depends on the installed dit
         raise ImportError("suggest_lmax requires a dit release with dit.inference.select_markov_order")
-    seq = [repr(symbol) for symbol in sequence]
+    codes: dict[Any, str] = {}
+    seq = [codes.setdefault(symbol, str(len(codes))) for symbol in sequence]
     if max_order is None:
         k = max(2, len(set(seq)))
         max_order = max(1, min(10, int(np.log(max(len(seq), 1) / 5) / np.log(k)) - 1))

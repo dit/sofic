@@ -66,3 +66,27 @@ def test_memoryless_transducer_round_trip():
     code = BitFlip().to_sliding_block_code()
     assert code.memory == 0
     assert code.apply_word(["0"]) == ("1",)
+
+
+def _golden_mean_shift() -> SoficShift:
+    shift = SoficShift(symbol_alphabet=frozenset({"0", "1"}))
+    shift.graph.add_state("A")
+    shift.graph.add_state("B")
+    shift.add_transition("A", "A", "0")
+    shift.add_transition("A", "B", "1")
+    shift.add_transition("B", "A", "0")
+    return shift
+
+
+def test_apply_keeps_constraints_longer_than_the_window():
+    identity = SlidingBlockCode({("0",): "0", ("1",): "1"})
+    shift = _golden_mean_shift()
+    image = identity.apply(shift)
+    for length in range(1, 7):
+        assert set(image.factor_language(length)) == set(shift.factor_language(length))
+
+
+def test_apply_rejects_partial_block_map():
+    partial = SlidingBlockCode({("0",): "0"}, input_alphabet={"0", "1"})
+    with pytest.raises(ValueError, match="not in block_map"):
+        partial.apply(_golden_mean_shift())
