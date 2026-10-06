@@ -13,7 +13,6 @@ from sofic.automata.transducers import MealyMachine, MooreMachine
 from sofic.automata.vpa import (
     CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
-    CompositeVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
@@ -221,11 +220,10 @@ def test_vpa_variants_round_trip():
     _round_trip(canonical)
 
 
-def test_composite_vpa_round_trip():
-    union = CompositeVisiblyPushdownAutomaton(operation="union", operands=(_base_vpa(), _base_vpa()))
+def test_constructed_vpa_round_trip():
+    union = _base_vpa().union(_base_vpa())
     restored = _round_trip(union)
-    assert restored.operation == "union"
-    assert len(restored.operands) == 2
+    assert restored.equivalent(union)
 
 
 def test_stochastic_generators_round_trip():

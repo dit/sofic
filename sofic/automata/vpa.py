@@ -6,8 +6,9 @@ from collections import deque
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from typing import Any
 
+from sofic.automata import vpa_constructions as vc
 from sofic.base import StateMachine
-from sofic.exceptions import NonDeterministicError
+from sofic.exceptions import NonDeterministicError, NonWellMatchedLanguageError
 from sofic.graph import (
     ATTR_KIND,
     ATTR_STACK_SYMBOL,
@@ -116,9 +117,10 @@ class VisiblyPushdownAutomaton(StateMachine):
     ) -> int:
         """Add a return transition.
 
-        If ``stack_symbol`` is omitted, the transition is a wildcard over
-        non-bottom stack symbols. This preserves the historical unguarded
-        return behavior of :class:`VisiblyPushdownAutomaton`.
+        If ``stack_symbol`` is omitted, the transition is a wildcard: it fires
+        on every stack symbol, and also on the empty stack (leaving it empty)
+        when the VPA has a ``bottom_stack_symbol``. A return guarded by the
+        bottom symbol fires only on the empty stack.
         """
         data = {**attrs, ATTR_KIND: KIND_RETURN, ATTR_SYMBOL: symbol}
         if stack_symbol is not None:
@@ -183,187 +185,66 @@ class VisiblyPushdownAutomaton(StateMachine):
 
         return recognizes_vpa(self, word)
 
-    def union(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for the union with ``other``."""
-        return union_vpa(self, other)
+    def union(self, other: VisiblyPushdownAutomaton) -> VisiblyPushdownAutomaton:
+        """Return a VPA recognizing the union with ``other``."""
+        return _binary(vc.union, self, other)
 
-    def intersection(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for the intersection with ``other``."""
-        return intersection_vpa(self, other)
+    def intersection(self, other: VisiblyPushdownAutomaton) -> VisiblyPushdownAutomaton:
+        """Return a VPA recognizing the intersection with ``other`` (synchronized product)."""
+        return _binary(vc.intersection, self, other)
 
-    def intersect(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Alias for :meth:`intersection`."""
-        return self.intersection(other)
+    def complement(self) -> DeterministicVisiblyPushdownAutomaton:
+        """Return a deterministic VPA recognizing the complement over this visible alphabet."""
+        return vc.denormalize(vc.complement(vc.normalize(self)), DeterministicVisiblyPushdownAutomaton)
 
-    def complement(self) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for the complement over this visible alphabet."""
-        return complement_vpa(self)
+    def difference(self, other: VisiblyPushdownAutomaton) -> VisiblyPushdownAutomaton:
+        """Return a VPA recognizing this language minus ``other``."""
+        return _binary(vc.difference, self, other)
 
-    def difference(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for this language minus ``other``."""
-        return difference_vpa(self, other)
+    def concat(self, other: VisiblyPushdownAutomaton) -> VisiblyPushdownAutomaton:
+        """Return a VPA recognizing concatenation with ``other``.
 
-    def concat(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for concatenation with ``other``."""
-        return concat_vpa(self, other)
+        Each factor is read from an empty stack of its own: a return in the right
+        factor that would pop a pending call of the left factor is a pending
+        return of the right factor.
+        """
+        return _binary(vc.concat, self, other)
 
-    def concatenate(self, other: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-        """Alias for :meth:`concat`."""
-        return self.concat(other)
+    def kleene_star(self) -> VisiblyPushdownAutomaton:
+        """Return a VPA recognizing the Kleene star; each factor starts from its own empty stack."""
+        return vc.denormalize(vc.kleene_star(vc.normalize(self)))
 
-    def kleene_star(self) -> CompositeVisiblyPushdownAutomaton:
-        """Return a VPA recognizer for the Kleene star of this language."""
-        return kleene_star_vpa(self)
+    def determinize(self) -> DeterministicVisiblyPushdownAutomaton:
+        """Return an equivalent complete deterministic VPA :cite:`AlurMadhusudan2009`."""
+        return vc.determinize_vpa(self)
 
-    def star(self) -> CompositeVisiblyPushdownAutomaton:
-        """Alias for :meth:`kleene_star`."""
-        return self.kleene_star()
+    def is_empty(self) -> bool:
+        """Return whether the language is empty."""
+        return vc.is_empty(vc.normalize(self))
 
+    def accepted_word(self) -> tuple[Any, ...] | None:
+        """Return a short accepted word, or ``None`` when the language is empty."""
+        return vc.accepted_word(vc.normalize(self))
 
-class CompositeVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
-    """Lazy VPA language expression built from standard closure operations.
+    def is_universal(self) -> bool:
+        """Return whether every word over the visible alphabet is accepted."""
+        return vc.is_empty(vc.complement(vc.normalize(self)))
 
-    Composite VPAs keep exact language semantics for operations whose concrete
-    graph construction would otherwise need a larger normalization pass. They
-    still expose the regular VPA membership API through :meth:`recognizes`.
-    """
+    def includes(self, other: VisiblyPushdownAutomaton) -> bool:
+        """Return whether ``other``'s language is contained in this one."""
+        return vc.is_empty(vc.difference(vc.normalize(other), vc.normalize(self)))
 
-    operation: str
-    operands: tuple[VisiblyPushdownAutomaton, ...]
+    def equivalent(self, other: VisiblyPushdownAutomaton) -> bool:
+        """Return whether both VPAs recognize the same language."""
+        return self.includes(other) and other.includes(self)
 
-    def __init__(
-        self,
-        *,
-        operation: str,
-        operands: Iterable[VisiblyPushdownAutomaton],
-    ) -> None:
-        operands = tuple(operands)
-        if not operands:
-            raise ValueError("CompositeVisiblyPushdownAutomaton requires at least one operand")
-        call_alphabet, return_alphabet, internal_alphabet = _merge_visible_alphabets(operands)
-        super().__init__(
-            call_alphabet=call_alphabet,
-            return_alphabet=return_alphabet,
-            internal_alphabet=internal_alphabet,
-            stack_alphabet=frozenset(),
-        )
-        self.operation = operation
-        self.operands = operands
-
-    def validate(self) -> None:
-        self._require(
-            self.operation in {"union", "intersection", "complement", "difference", "concat", "kleene_star"},
-            f"unknown composite VPA operation {self.operation!r}",
-        )
-        if self.operation in {"complement", "kleene_star"}:
-            self._require(len(self.operands) == 1, f"{self.operation} requires one operand")
-        elif self.operation in {"difference", "concat"}:
-            self._require(len(self.operands) == 2, f"{self.operation} requires two operands")
-        else:
-            self._require(len(self.operands) >= 2, f"{self.operation} requires at least two operands")
-        for operand in self.operands:
-            operand.validate()
-        call_alphabet, return_alphabet, internal_alphabet = _merge_visible_alphabets(self.operands)
-        self._require(call_alphabet == self.call_alphabet, "composite call alphabet is stale")
-        self._require(return_alphabet == self.return_alphabet, "composite return alphabet is stale")
-        self._require(internal_alphabet == self.internal_alphabet, "composite internal alphabet is stale")
-
-    def recognizes(self, word: Sequence[Any]) -> bool:
-        word = tuple(word)
-        if any(symbol not in self.input_alphabet for symbol in word):
-            return False
-        if self.operation == "union":
-            return any(operand.recognizes(word) for operand in self.operands)
-        if self.operation == "intersection":
-            return all(operand.recognizes(word) for operand in self.operands)
-        if self.operation == "complement":
-            return not self.operands[0].recognizes(word)
-        if self.operation == "difference":
-            return self.operands[0].recognizes(word) and not self.operands[1].recognizes(word)
-        if self.operation == "concat":
-            left, right = self.operands
-            return any(
-                left.recognizes(word[:index]) and right.recognizes(word[index:]) for index in range(len(word) + 1)
-            )
-        if self.operation == "kleene_star":
-            operand = self.operands[0]
-            accepted = [False] * (len(word) + 1)
-            accepted[0] = True
-            for end in range(1, len(word) + 1):
-                accepted[end] = any(accepted[start] and operand.recognizes(word[start:end]) for start in range(end))
-            return accepted[-1]
-        raise ValueError(f"unknown composite VPA operation {self.operation!r}")
+    def has_unmatched_word(self) -> bool:
+        """Return whether some accepted word has a pending call or a pending return."""
+        return vc.has_unmatched_word(vc.normalize(self))
 
 
-def union_vpa(
-    left: VisiblyPushdownAutomaton,
-    right: VisiblyPushdownAutomaton,
-    *rest: VisiblyPushdownAutomaton,
-) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for the union of the operands."""
-    return CompositeVisiblyPushdownAutomaton(operation="union", operands=(left, right, *rest))
-
-
-def intersection_vpa(
-    left: VisiblyPushdownAutomaton,
-    right: VisiblyPushdownAutomaton,
-    *rest: VisiblyPushdownAutomaton,
-) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for the intersection of the operands."""
-    return CompositeVisiblyPushdownAutomaton(operation="intersection", operands=(left, right, *rest))
-
-
-def complement_vpa(vpa: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for complement over ``vpa``'s visible alphabet."""
-    return CompositeVisiblyPushdownAutomaton(operation="complement", operands=(vpa,))
-
-
-def difference_vpa(
-    left: VisiblyPushdownAutomaton,
-    right: VisiblyPushdownAutomaton,
-) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for ``left`` minus ``right``."""
-    return CompositeVisiblyPushdownAutomaton(operation="difference", operands=(left, right))
-
-
-def concat_vpa(
-    left: VisiblyPushdownAutomaton,
-    right: VisiblyPushdownAutomaton,
-) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for language concatenation."""
-    return CompositeVisiblyPushdownAutomaton(operation="concat", operands=(left, right))
-
-
-def kleene_star_vpa(vpa: VisiblyPushdownAutomaton) -> CompositeVisiblyPushdownAutomaton:
-    """Return a VPA recognizer for Kleene star."""
-    return CompositeVisiblyPushdownAutomaton(operation="kleene_star", operands=(vpa,))
-
-
-def _merge_visible_alphabets(
-    vpas: Iterable[VisiblyPushdownAutomaton],
-) -> tuple[frozenset[Any], frozenset[Any], frozenset[Any]]:
-    call_symbols: set[Any] = set()
-    return_symbols: set[Any] = set()
-    internal_symbols: set[Any] = set()
-    owners: dict[Any, str] = {}
-    for vpa in vpas:
-        for kind, symbols in (
-            ("call", vpa.call_alphabet),
-            ("return", vpa.return_alphabet),
-            ("internal", vpa.internal_alphabet),
-        ):
-            for symbol in symbols:
-                existing = owners.get(symbol)
-                if existing is not None and existing != kind:
-                    raise ValueError(f"symbol {symbol!r} is both {existing} and {kind}")
-                owners[symbol] = kind
-                if kind == "call":
-                    call_symbols.add(symbol)
-                elif kind == "return":
-                    return_symbols.add(symbol)
-                else:
-                    internal_symbols.add(symbol)
-    return frozenset(call_symbols), frozenset(return_symbols), frozenset(internal_symbols)
+def _binary(operation, left: VisiblyPushdownAutomaton, right: VisiblyPushdownAutomaton) -> VisiblyPushdownAutomaton:
+    return vc.denormalize(operation(vc.normalize(left), vc.normalize(right)))
 
 
 class DeterministicVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
@@ -473,7 +354,14 @@ class DeterministicVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
 
     @classmethod
     def from_vpa(cls, vpa: VisiblyPushdownAutomaton) -> DeterministicVisiblyPushdownAutomaton:
-        """Copy ``vpa`` into a deterministic VPA and validate determinism."""
+        """Return ``vpa`` as a deterministic VPA, determinizing it when needed.
+
+        An already deterministic ``vpa`` is copied with its states unchanged;
+        otherwise the summary construction of :cite:`AlurMadhusudan2009` is
+        applied (see :func:`~sofic.automata.vpa_constructions.determinize`).
+        """
+        if vpa.initial_state is None or not _is_deterministic(vpa):
+            return vc.determinize_vpa(vpa)
         result = cls(
             input_alphabet=vpa.input_alphabet,
             call_alphabet=vpa.call_alphabet,
@@ -487,6 +375,24 @@ class DeterministicVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
         )
         result.validate()
         return result
+
+
+def _is_deterministic(vpa: VisiblyPushdownAutomaton) -> bool:
+    probe = DeterministicVisiblyPushdownAutomaton(
+        call_alphabet=vpa.call_alphabet,
+        return_alphabet=vpa.return_alphabet,
+        internal_alphabet=vpa.internal_alphabet,
+        stack_alphabet=vpa.stack_alphabet,
+        bottom_stack_symbol=vpa.bottom_stack_symbol,
+        initial_state=vpa.initial_state,
+        accepting_states=vpa.accepting_states,
+        graph=vpa.graph,
+    )
+    try:
+        probe._check_determinism()
+    except NonDeterministicError:
+        return False
+    return True
 
 
 class CallDrivenAutomaton(DeterministicVisiblyPushdownAutomaton):
@@ -770,15 +676,21 @@ class CanonicalVisiblyPushdownAutomaton(DeterministicVisiblyPushdownAutomaton):
 
     @classmethod
     def from_vpa(cls, vpa: VisiblyPushdownAutomaton) -> CanonicalVisiblyPushdownAutomaton:
-        """Build the Myhill-Nerode canonical deterministic VPA for ``vpa``.
+        """Build the Myhill-Nerode canonical deterministic VPA of a well-matched language.
 
-        The construction is finite for deterministic VPAs because states are
-        summary classes of well-matched factors. With an empty call alphabet,
-        this specializes to the usual minimal DFA right-congruence construction.
+        States are classes of the summary algebra of well-matched factors, so
+        the form is canonical for well-matched languages. Raises
+        :class:`~sofic.exceptions.NonWellMatchedLanguageError` when ``vpa``
+        accepts a word with a pending call or return; general VPLs have no
+        unique minimal deterministic VPA :cite:`AlurKumarMadhusudanViswanathan2005`.
+        With an empty call alphabet this is the minimal DFA.
         """
+        if vpa.has_unmatched_word():
+            raise NonWellMatchedLanguageError(
+                "the canonical VPA is defined for well-matched languages; this one accepts a pending call or return"
+            )
         det = DeterministicVisiblyPushdownAutomaton.from_vpa(vpa)
-        algebra = _SummaryAlgebra.from_vpa(det)
-        return algebra.to_canonical_vpa(cls, det)
+        return _SummaryAlgebra(det).to_canonical_vpa(cls)
 
     @classmethod
     def minimize(cls, vpa: VisiblyPushdownAutomaton) -> CanonicalVisiblyPushdownAutomaton:
@@ -833,8 +745,21 @@ def _minimize_modular_vpa(
     call_entries = _metadata_or_argument(vpa, "call_entries", call_entries, None)
     entry_states = _metadata_or_argument(vpa, "entry_states", entry_states, None)
 
-    if modules is None or call_partition is None:
-        raise NotImplementedError("modular VPA minimization requires fixed modules and call_partition")
+    if modules is None:
+        convert = vc.to_multiple_entry if form == "mevpa" else vc.to_single_entry
+        converted = convert(vpa, call_partition)
+        return _minimize_modular_vpa(
+            target_cls,
+            converted,
+            modules=converted.modules,
+            call_partition=converted.call_partition,
+            base_module=converted.base_module,
+            call_entries=converted.call_entries,
+            entry_states=getattr(converted, "entry_states", None) if form != "cda" else None,
+            form=form,
+        )
+    if call_partition is None:
+        raise ValueError("a call_partition is required when modules are given")
 
     det = _deterministic_view(vpa)
     modules = _normalize_modules(modules)
@@ -904,12 +829,14 @@ def _infer_call_entries(
     entries: dict[Any, Hashable] = {}
     for (_source, symbol), (target, _stack) in det.call_transition_map().items():
         if symbol not in call_partition:
-            raise NotImplementedError(f"call_partition missing call symbol {symbol!r}")
+            raise ValueError(f"call_partition missing call symbol {symbol!r}")
         existing = entries.get(symbol, _MISSING)
         if existing is _MISSING:
             entries[symbol] = target
         elif existing != target:
-            raise NotImplementedError(f"call target for {symbol!r} depends on source state")
+            raise ValueError(
+                f"call target for {symbol!r} depends on the source state; omit modules to convert the VPA first"
+            )
     return entries
 
 
@@ -941,7 +868,9 @@ def _infer_entry_states(
             if module == base_module:
                 continue
             if len(states) != 1:
-                raise NotImplementedError("SEVPA minimization requires one inferred entry per non-base module")
+                raise ValueError(
+                    "SEVPA minimization requires one entry per non-base module; omit modules to convert the VPA first"
+                )
             result[module] = next(iter(states))
         return result
     return {}
@@ -1172,94 +1101,150 @@ def _canonical_stack_symbol(stack_symbol: Any, block_of: Mapping[Hashable, Hasha
 
 
 class _SummaryAlgebra:
-    def __init__(
-        self,
-        *,
-        state_order: tuple[Hashable, ...],
-        summaries: frozenset[tuple[int | None, ...]],
-        identity: tuple[int | None, ...],
-        internal_summaries: Mapping[Any, tuple[int | None, ...]],
-        class_of: Mapping[tuple[int | None, ...], int],
-        representatives: Mapping[int, tuple[int | None, ...]],
-    ) -> None:
-        self.state_order = state_order
-        self.summaries = summaries
-        self.identity = identity
-        self.internal_summaries = dict(internal_summaries)
-        self.class_of = dict(class_of)
-        self.representatives = dict(representatives)
+    """Finite algebra of well-matched summaries with top-level and nested congruences.
 
-    @classmethod
-    def from_vpa(cls, vpa: DeterministicVisiblyPushdownAutomaton) -> _SummaryAlgebra:
-        state_order = tuple(sorted(vpa.states(), key=repr))
-        state_index = {state: index for index, state in enumerate(state_order)}
-        internal_summaries = {
-            symbol: _internal_summary(vpa, state_order, state_index, symbol)
+    A summary maps each source state to the state reached along a well-matched
+    word (``None`` when the run dies). Top-level summaries are identified when
+    every well-matched continuation accepts both or neither; nested summaries
+    (inside a pending call) are identified when, for every enclosing context,
+    returning from them lands in the same class. Both partitions are refined
+    together until internal steps, calls, and returns are well defined on
+    classes, which makes the quotient canonical.
+    """
+
+    def __init__(self, vpa: DeterministicVisiblyPushdownAutomaton) -> None:
+        self.vpa = vpa
+        self.state_order = tuple(sorted(vpa.states(), key=repr))
+        state_index = {state: index for index, state in enumerate(self.state_order)}
+        self.internal_summaries = {
+            symbol: _internal_summary(vpa, self.state_order, state_index, symbol)
             for symbol in sorted(vpa.internal_alphabet, key=repr)
         }
-        identity = tuple(range(len(state_order)))
-        summaries = _close_summary_algebra(vpa, state_order, state_index, identity, internal_summaries)
-        class_of, representatives = _quotient_summaries(vpa, state_order, state_index, summaries, identity)
-        return cls(
-            state_order=state_order,
-            summaries=frozenset(summaries),
-            identity=identity,
-            internal_summaries=internal_summaries,
-            class_of=class_of,
-            representatives=representatives,
+        self.identity = tuple(range(len(self.state_order)))
+        self.summaries = sorted(
+            _close_summary_algebra(vpa, self.state_order, state_index, self.identity, self.internal_summaries),
+            key=repr,
         )
+        self.calls = sorted(vpa.call_alphabet, key=repr)
+        self.returns = sorted(vpa.return_alphabet, key=repr)
+        self._wrap_cache: dict[tuple, tuple] = {}
+        self.top, self.nested = self._refine()
 
-    def to_canonical_vpa(
-        self,
-        cls: type[CanonicalVisiblyPushdownAutomaton],
-        source: DeterministicVisiblyPushdownAutomaton,
-    ) -> CanonicalVisiblyPushdownAutomaton:
-        identity_class = self.class_of[self.identity]
-        states = frozenset(self.representatives)
-        stack_alphabet = frozenset(
-            (summary_class, symbol) for summary_class in states for symbol in source.call_alphabet
-        )
-        accepting_states = frozenset(
-            summary_class
-            for summary_class, summary in self.representatives.items()
-            if _summary_accepts(source, self.state_order, summary)
-        )
+    def wrap(self, inner: tuple, call: Any, ret: Any) -> tuple:
+        key = (inner, call, ret)
+        if key not in self._wrap_cache:
+            self._wrap_cache[key] = _wrap_summary(self.vpa, self.state_order, inner, call, ret)
+        return self._wrap_cache[key]
+
+    def accepts(self, summary: tuple) -> bool:
+        return _summary_accepts(self.vpa, self.state_order, summary)
+
+    def _refine(self) -> tuple[dict[tuple, int], dict[tuple, int]]:
+        top = {s: int(self.accepts(s)) for s in self.summaries}
+        nested = dict.fromkeys(self.summaries, 0)
+        internals = list(self.internal_summaries.values())
+        pairs = [(c, r) for c in self.calls for r in self.returns]
+        while True:
+            top_signature = {
+                s: (
+                    top[s],
+                    tuple(top[_compose_summary(s, a)] for a in internals),
+                    tuple(top[_compose_summary(s, self.wrap(x, c, r))] for x in self.summaries for c, r in pairs),
+                )
+                for s in self.summaries
+            }
+            nested_signature = {
+                s: (
+                    nested[s],
+                    tuple(nested[_compose_summary(s, a)] for a in internals),
+                    tuple(nested[_compose_summary(s, self.wrap(x, c, r))] for x in self.summaries for c, r in pairs),
+                    tuple(
+                        (top[_compose_summary(o, self.wrap(s, c, r))], nested[_compose_summary(o, self.wrap(s, c, r))])
+                        for o in self.summaries
+                        for c, r in pairs
+                    ),
+                )
+                for s in self.summaries
+            }
+            new_top = _number_blocks(top_signature, first=top_signature[self.identity])
+            new_nested = _number_blocks(nested_signature, first=nested_signature[self.identity])
+            stable = len(set(new_top.values())) == len(set(top.values())) and len(set(new_nested.values())) == len(
+                set(nested.values())
+            )
+            top, nested = new_top, new_nested
+            if stable:
+                return top, nested
+
+    def to_canonical_vpa(self, cls: type[CanonicalVisiblyPushdownAutomaton]) -> CanonicalVisiblyPushdownAutomaton:
+        representative: dict[Hashable, tuple] = {}
+        for s in self.summaries:
+            representative.setdefault(self.top[s], s)
+            representative.setdefault(("nested", self.nested[s]), s)
+
+        def label(summary: tuple, nested: bool) -> Hashable:
+            return ("nested", self.nested[summary]) if nested else self.top[summary]
+
+        initial = label(self.identity, False)
+        entry = label(self.identity, True)
+        reachable: set[Hashable] = set()
+        internals, calls, returns = set(), set(), set()
+        pushed: set[tuple[Hashable, Any]] = set()
+        frontier = [initial]
+        while frontier:
+            while frontier:
+                state = frontier.pop()
+                if state in reachable:
+                    continue
+                reachable.add(state)
+                summary = representative[state]
+                for symbol, step in self.internal_summaries.items():
+                    target = label(_compose_summary(summary, step), isinstance(state, tuple))
+                    internals.add((state, symbol, target))
+                    frontier.append(target)
+                for call in self.calls:
+                    calls.add((state, call, entry, (state, call)))
+                    pushed.add((state, call))
+                    frontier.append(entry)
+            # Returns pop a pushed (outer, call) from a nested state; both sets
+            # grow together, so repeat until no new state appears.
+            for state in [s for s in reachable if isinstance(s, tuple)]:
+                for outer, call in list(pushed):
+                    for ret in self.returns:
+                        combined = _compose_summary(representative[outer], self.wrap(representative[state], call, ret))
+                        target = label(combined, isinstance(outer, tuple))
+                        returns.add((state, ret, (outer, call), target))
+                        if target not in reachable:
+                            frontier.append(target)
+
         result = cls(
-            input_alphabet=source.input_alphabet,
-            call_alphabet=source.call_alphabet,
-            return_alphabet=source.return_alphabet,
-            internal_alphabet=source.internal_alphabet,
-            stack_alphabet=stack_alphabet,
+            input_alphabet=self.vpa.input_alphabet,
+            call_alphabet=self.vpa.call_alphabet,
+            return_alphabet=self.vpa.return_alphabet,
+            internal_alphabet=self.vpa.internal_alphabet,
+            stack_alphabet=frozenset(pushed),
             bottom_stack_symbol=None,
-            initial_state=identity_class,
-            accepting_states=accepting_states,
-            summary_representatives=self.representatives,
+            initial_state=initial,
+            accepting_states=frozenset(
+                s for s in reachable if not isinstance(s, tuple) and self.accepts(representative[s])
+            ),
+            summary_representatives={s: representative[s] for s in reachable},
         )
-        for state in states:
+        for state in sorted(reachable, key=repr):
             result.graph.add_state(state)
-
-        for summary_class, summary in sorted(self.representatives.items(), key=repr):
-            for symbol, internal in sorted(self.internal_summaries.items(), key=lambda item: repr(item[0])):
-                target_summary = _compose_summary(summary, internal)
-                result.add_internal_transition(summary_class, self.class_of[target_summary], symbol)
-            for symbol in sorted(source.call_alphabet, key=repr):
-                result.add_call_transition(summary_class, identity_class, symbol, (summary_class, symbol))
-
-        for inner_class, inner in sorted(self.representatives.items(), key=repr):
-            for outer_class, outer in sorted(self.representatives.items(), key=repr):
-                for call_symbol in sorted(source.call_alphabet, key=repr):
-                    for return_symbol in sorted(source.return_alphabet, key=repr):
-                        wrapped = _wrap_summary(source, self.state_order, inner, call_symbol, return_symbol)
-                        target = _compose_summary(outer, wrapped)
-                        result.add_return_transition(
-                            inner_class,
-                            self.class_of[target],
-                            return_symbol,
-                            (outer_class, call_symbol),
-                        )
-
+        for source, symbol, target in sorted(internals, key=repr):
+            result.add_internal_transition(source, target, symbol)
+        for source, symbol, target, push in sorted(calls, key=repr):
+            result.add_call_transition(source, target, symbol, push)
+        for source, symbol, guard, target in sorted(returns, key=repr):
+            result.add_return_transition(source, target, symbol, guard)
         result.validate()
         return result
+
+
+def _number_blocks(signatures: Mapping[tuple, Any], *, first: Any) -> dict[tuple, int]:
+    ordered = sorted(set(signatures.values()), key=lambda sig: (sig != first, repr(sig)))
+    index = {signature: position for position, signature in enumerate(ordered)}
+    return {summary: index[signature] for summary, signature in signatures.items()}
 
 
 def _internal_summary(
@@ -1332,33 +1317,6 @@ def _wrap_summary(
         return_target = vpa.return_successor(state_order[inner_target_index], return_symbol, stack_symbol)
         result.append(None if return_target is None else state_index[return_target])
     return tuple(result)
-
-
-def _quotient_summaries(
-    vpa: DeterministicVisiblyPushdownAutomaton,
-    state_order: Sequence[Hashable],
-    state_index: Mapping[Hashable, int],
-    summaries: set[tuple[int | None, ...]],
-    identity: tuple[int | None, ...],
-) -> tuple[dict[tuple[int | None, ...], int], dict[int, tuple[int | None, ...]]]:
-    contexts = tuple(sorted(summaries, key=repr))
-    signatures = {
-        summary: tuple(_summary_accepts(vpa, state_order, _compose_summary(summary, context)) for context in contexts)
-        for summary in summaries
-    }
-    identity_signature = signatures[identity]
-    ordered_signatures = sorted(
-        set(signatures.values()), key=lambda signature: (signature != identity_signature, signature)
-    )
-    signature_class = {signature: index for index, signature in enumerate(ordered_signatures)}
-    class_of = {summary: signature_class[signature] for summary, signature in signatures.items()}
-    representatives = {
-        index: min(
-            (summary for summary, signature in signatures.items() if signature_class[signature] == index), key=repr
-        )
-        for index in signature_class.values()
-    }
-    return class_of, representatives
 
 
 def _summary_accepts(

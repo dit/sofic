@@ -43,3 +43,7 @@ class LumpabilityError(SoficValidationError):
 
 class InfiniteTransductionError(SoficError):
     """Raised when a finite input has infinitely many transducer outputs."""
+
+
+class NonWellMatchedLanguageError(SoficValidationError):
+    """Raised when a construction defined for well-matched languages meets a pending call or return."""

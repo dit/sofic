@@ -106,8 +106,6 @@ def _metadata_for(model: StateMachine, spec: _ModelSpec) -> dict[str, Any]:
 
 
 def _build_model(spec: _ModelSpec, graph: TransitionGraph, metadata: dict[str, Any]) -> StateMachine:
-    if spec.builder == "composite_vpa":
-        return spec.cls(operation=metadata["operation"], operands=metadata["operands"])
     if spec.builder == "hidden_hmm":
         return spec.cls(graph=graph, observation_alphabet=_observation_alphabet(graph), **metadata)
     if spec.builder == "pfa":
@@ -312,7 +310,6 @@ def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.automata.vpa import (
         CallDrivenAutomaton,
         CanonicalVisiblyPushdownAutomaton,
-        CompositeVisiblyPushdownAutomaton,
         DeterministicVisiblyPushdownAutomaton,
         MultipleEntryVisiblyPushdownAutomaton,
         SingleEntryVisiblyPushdownAutomaton,
@@ -409,7 +406,6 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(MultipleEntryVisiblyPushdownAutomaton, (*cda, "entry_states")),
         _spec(SingleEntryVisiblyPushdownAutomaton, (*cda, "entry_states")),
         _spec(CanonicalVisiblyPushdownAutomaton, (*vpa, "summary_representatives")),
-        _spec(CompositeVisiblyPushdownAutomaton, ("operation", "operands"), builder="composite_vpa"),
         _spec(StochasticModel, stochastic),
         _spec(HiddenMarkovModel, hidden, builder="hidden_hmm"),
         _spec(MarkovChain, stochastic),
