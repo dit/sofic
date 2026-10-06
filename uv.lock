@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -505,7 +505,7 @@ wheels = [
 
 [[package]]
 name = "dit"
-version = "2.2"
+version = "2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boltons" },
@@ -518,9 +518,9 @@ dependencies = [
     { name = "scipy" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/e3/17530ca2c0f2bc42f771700ca5ed61fefd0a447f7d593f1221cbcb1c3d1e/dit-2.2.tar.gz", hash = "sha256:957fea2890148c005aca0ed01ebde48ef5aecda8385072dc86c1fb2b0b3dd324", size = 547354, upload-time = "2026-07-14T03:45:02.067Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/e0/626a2915f86f142e6f33a645ce36be2daf9d0ce0462972f3d8a983d581d2/dit-2.3.tar.gz", hash = "sha256:3cd12221de65ead9decadf1107d4b9b534cadf936cfc2e2293cfacc5ce99f56b", size = 593505, upload-time = "2026-09-26T23:47:53.275Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/17/0e18c8c994535bc409f7455a5a34fcaa7e19f8f1a43648b4ffe329ef0718/dit-2.2-py3-none-any.whl", hash = "sha256:e8f1929e201d1229ed333e8032f5e39925f97071331e45e9cff81646dcf9ecdf", size = 540525, upload-time = "2026-07-14T03:44:59.975Z" },
+    { url = "https://files.pythonhosted.org/packages/51/fc/c8a71a3786ecf945154c45e549e27cb904c51b97f95e2416d90ed93a1f25/dit-2.3-py3-none-any.whl", hash = "sha256:6e3390a9c80311f6b740ca322fbc7aff478c6e07f1039d8d2c5b43250e2bff24", size = 581256, upload-time = "2026-09-26T23:47:51.405Z" },
 ]
 
 [package.optional-dependencies]
@@ -2176,10 +2176,10 @@ viz = [
 [package.metadata]
 requires-dist = [
     { name = "arviz", marker = "extra == 'bayes'" },
-    { name = "dit", specifier = ">=2.2" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.2" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.2" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.2" },
+    { name = "dit", specifier = ">=2.3" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.3" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.3" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.3" },
     { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },
