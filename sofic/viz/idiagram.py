@@ -241,7 +241,7 @@ def plot_information_diagram(
         )
 
     if figsize is None:
-        figsize = (max(9.0, 0.55 * n + 1.2), 5.6)
+        figsize = (max(9.0, 0.55 * n + 1.2), 6.4)
     n_legend = len(handles_by_group)
     ncol = _legend_ncols(figsize[0], n_legend)
     empty_patch = mpatches.Patch(facecolor="none", edgecolor="none", label=" ")
@@ -314,8 +314,9 @@ def plot_information_diagram(
     ax_mat.set_ylim(-0.5, top)
     ax_mat.axhline(top, color="0.15", lw=1.0, solid_capstyle="butt", zorder=10)
     ax_mat.set_yticks([])
-    ax_mat.set_xticks([])
-    ax_mat.tick_params(axis="x", bottom=False, labelbottom=False)
+    ax_mat.set_xticks(xs)
+    ax_mat.set_xticklabels([atom.jurgens_label or atom.label for atom in plotted], rotation=90, fontsize=8)
+    ax_mat.tick_params(axis="x", length=0, pad=4)
     for spine in ax_mat.spines.values():
         spine.set_visible(False)
 
@@ -334,7 +335,8 @@ def plot_information_diagram(
         title_fontsize=8,
     )
 
-    fig.subplots_adjust(left=0.075, right=0.98, top=0.93, bottom=0.05)
+    # Reserve a fixed ~0.85 in strip at the bottom for the rotated atom labels.
+    fig.subplots_adjust(left=0.075, right=0.98, top=0.93, bottom=0.85 / figsize[1])
     # After layout, seat the matrix flush under the bar so the bar x-axis
     # (bottom spine) borders the top of the first gray strip.
     bar_pos = ax_bar.get_position()
