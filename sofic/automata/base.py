@@ -47,7 +47,7 @@ class LabeledAutomaton(StateMachine):
 
     def words_of_length(self, length: int) -> Iterator[tuple[Any, ...]]:
         """Yield accepted words of exactly ``length`` symbols."""
-        from sofic.automata.enumeration import words_of_length
+        from sofic.automata.enumeration.words import words_of_length
 
         yield from words_of_length(self, length)
 
@@ -57,7 +57,7 @@ class LabeledAutomaton(StateMachine):
         If ``max_length`` is omitted, the iterator is unbounded and may not
         terminate for finite languages after yielding their last word.
         """
-        from sofic.automata.enumeration import iter_language
+        from sofic.automata.enumeration.words import iter_language
 
         yield from iter_language(self, max_length=max_length)
 

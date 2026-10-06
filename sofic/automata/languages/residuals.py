@@ -19,7 +19,7 @@ def prime_residuals(language: RegularLanguage) -> frozenset[RegularLanguage]:
     """Return the prime residuals of ``language``."""
     lang = as_language(language)  # type: ignore[arg-type]
     if isinstance(lang, AutomatonLanguage):
-        from sofic.automata.canonical_extraction import ResidualTable
+        from sofic.automata.canonical.residual import ResidualTable
 
         table = ResidualTable.from_automaton(lang.automaton)
         return frozenset(AutomatonLanguage(table.residual_automaton(q)) for q in table.prime_states())

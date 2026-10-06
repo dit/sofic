@@ -4,13 +4,13 @@ import pytest
 from hypothesis import given, settings
 
 from sofic.automata.algorithms import equivalent
-from sofic.automata.atomaton import Atomaton, MaximizedPrimeAtomaton, is_atomic
+from sofic.automata.canonical.atomaton import Atomaton, MaximizedPrimeAtomaton, is_atomic
+from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from sofic.automata.dfa import DFA
 from sofic.automata.languages.atoms import atoms, prime_atoms
 from sofic.automata.languages.base import AutomatonLanguage
 from sofic.automata.languages.residuals import prime_residuals
 from sofic.automata.nfa import NFA
-from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from sofic.exceptions import SoficValidationError
 from sofic.testing.strategies import dfas
 
@@ -90,7 +90,7 @@ def test_canonical_rfsa_and_prime_atomaton_recognize_the_language(dfa):
 
 def test_maximized_prime_atomaton_need_not_be_atomic():
     """Its right languages lie between an atom and a maximized atom (Tamm 2015), not on atoms."""
-    from sofic.automata.icdfa import icdfa_string_to_dfa
+    from sofic.automata.enumeration.icdfa import icdfa_string_to_dfa
 
     dfa = icdfa_string_to_dfa((0, 1, 0, 2, 0, 1), ("0", "1"), n=3, k=2, final_states=frozenset({0, 1}))
     mpa = MaximizedPrimeAtomaton.from_language(dfa)

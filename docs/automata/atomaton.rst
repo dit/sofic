@@ -1,5 +1,5 @@
 .. atomaton.rst
-.. py:module:: sofic.automata.atomaton
+.. py:module:: sofic.automata.canonical.atomaton
 
 ********
 Átomaton
@@ -29,7 +29,7 @@ the special case where the reverse is deterministic.
 
 .. code-block:: python
 
-    from sofic.automata.atomaton import Atomaton, atomic_states, is_atomic
+    from sofic.automata.canonical.atomaton import Atomaton, atomic_states, is_atomic
 
     atomaton = Atomaton.from_language(dfa)
     is_atomic(atomaton)          # True
@@ -58,4 +58,4 @@ API
 .. autoclass:: MaximizedPrimeAtomaton
    :members: from_language, from_canonical_rfsa, dual
 
-.. autofunction:: sofic.automata.canonical_extraction.maximized_prime_atomaton_from_language
+.. autofunction:: sofic.automata.canonical.residual.maximized_prime_atomaton_from_language

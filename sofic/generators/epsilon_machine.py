@@ -66,20 +66,20 @@ class EpsilonMachine(MealyHMM):
             ``"spectral"`` for Hankel-SVD learning followed by mixed-state
             extraction.
         **kwargs
-            Forwarded to :func:`~sofic.generators.epsilon_inference.cssr`,
-            :func:`~sofic.generators.epsilon_inference.subtree_merge`, or
-            :func:`~sofic.generators.epsilon_inference.spectral`.
+            Forwarded to :func:`~sofic.inference.cssr.cssr`,
+            :func:`~sofic.inference.cssr.subtree_merge`, or
+            :func:`~sofic.inference.spectral.spectral`.
         """
         if method == "cssr":
-            from sofic.generators.epsilon_inference import cssr
+            from sofic.inference.cssr.process import cssr
 
             return cssr(sequence, **kwargs)
         if method == "subtree":
-            from sofic.generators.epsilon_inference import subtree_merge
+            from sofic.inference.cssr.subtree import subtree_merge
 
             return subtree_merge(sequence, **kwargs)
         if method == "spectral":
-            from sofic.generators.epsilon_inference import spectral
+            from sofic.inference.spectral import spectral
 
             return spectral(sequence, **kwargs)
         raise ValueError(f"unknown inference method {method!r}")

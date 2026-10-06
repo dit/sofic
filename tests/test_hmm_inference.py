@@ -6,24 +6,24 @@ import numpy as np
 import pytest
 
 from sofic.examples import fair_coin, golden_mean
-from sofic.generators.hmm_inference import (
-    _forward_scaled,
+from sofic.generators.matrices import emission_tensors
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.sampling import sample
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.inference.hmm import (
     backward,
     baum_welch,
     forward,
     free_parameter_labels,
     log_likelihood,
     observed_information,
-    sample,
     score,
     smooth,
     standard_errors,
     two_slice_marginals,
     viterbi,
 )
-from sofic.generators.matrices import emission_tensors
-from sofic.generators.mealy import MealyHMM
-from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.inference.hmm.filtering import _forward_scaled
 
 
 def test_forward_coin_initial_and_likelihood():

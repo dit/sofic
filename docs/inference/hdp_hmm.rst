@@ -60,7 +60,7 @@ The HDP-HMM infers the state count nonparametrically, whereas
 :doc:`model_selection` scores a *fixed* set of candidate orders with information
 criteria and :mod:`sofic.inference.bayesian` compares fixed unifilar topologies
 by exact Dirichlet-multinomial evidence. For point-estimate reconstruction see
-CSSR in :doc:`../generators/epsilon_inference`.
+CSSR in :doc:`cssr`.
 
 API
 ===

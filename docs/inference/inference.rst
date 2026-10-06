@@ -33,13 +33,18 @@ The historical names ``InferMC`` and ``InferEM`` are retained as aliases for
    For *non-Bayesian* reconstruction — Causal-State Splitting Reconstruction
    (CSSR), subtree merging, and spectral mixed-state extraction — see the
    point-estimate routines in
-   :doc:`../generators/epsilon_inference`,
-   :doc:`../generators/hmm_inference`, and
-   :doc:`../generators/stack_inference`.
+   :doc:`cssr`,
+   :doc:`transcssr`,
+   :doc:`hmm`, and
+   :doc:`stack_cssr`.
 
 .. toctree::
    :maxdepth: 1
 
+   hmm
+   cssr
+   transcssr
+   stack_cssr
    markov
    epsilon
    spectral

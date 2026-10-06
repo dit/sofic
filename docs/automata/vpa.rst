@@ -74,8 +74,8 @@ forms exist for well-matched languages, or once calls are assigned to modules
    The shared modular generalization: a call's target depends only on the call
    symbol.
 
-:func:`~sofic.automata.vpa_constructions.to_single_entry` and
-:func:`~sofic.automata.vpa_constructions.to_multiple_entry` convert any VPA of a
+:func:`~sofic.automata.vpa.operations.to_single_entry` and
+:func:`~sofic.automata.vpa.operations.to_multiple_entry` convert any VPA of a
 well-matched language into these forms (default: one module per call symbol).
 On a call the state resets to the module's entry and the caller is pushed, so
 the automaton forgets its caller; that is why pending calls -- and hence
@@ -114,8 +114,8 @@ API
 .. autoclass:: CanonicalVisiblyPushdownAutomaton
    :members: from_vpa
 
-.. automodule:: sofic.automata.vpa_constructions
+.. automodule:: sofic.automata.vpa.operations
    :members: normalize, determinize, complement, concat, kleene_star, well_matched_summaries, accepted_word,
              has_unmatched_word, to_single_entry, to_multiple_entry
 
-.. autofunction:: sofic.automata.vpa_simulation.recognizes_vpa
+.. autofunction:: sofic.automata.vpa.simulation.recognizes_vpa

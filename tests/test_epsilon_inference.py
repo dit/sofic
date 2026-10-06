@@ -10,10 +10,11 @@ import numpy as np
 import pytest
 
 from sofic.examples.epsilon_machines import bernoulli, even_process, golden_mean
-from sofic.generators.epsilon_inference import cssr, spectral, subtree_merge
 from sofic.generators.epsilon_machine import EpsilonMachine
-from sofic.generators.hmm_inference import sample
+from sofic.generators.sampling import sample
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.inference.cssr import cssr, subtree_merge
+from sofic.inference.spectral import spectral
 
 
 def _transition_signature(hmm: EpsilonMachine) -> dict[Hashable, tuple[tuple[Any, Hashable, float], ...]]:
@@ -289,7 +290,7 @@ needs_markov_order = pytest.mark.skipif(
 @needs_markov_order
 def test_suggest_lmax_markov_sources():
     from sofic.examples import processes
-    from sofic.generators.epsilon_inference import suggest_lmax
+    from sofic.inference.cssr import suggest_lmax
 
     observations, _ = sample(golden_mean(0.5), 4000, np.random.default_rng(1))
     assert suggest_lmax(observations) == 1
@@ -300,7 +301,7 @@ def test_suggest_lmax_markov_sources():
 @needs_markov_order
 def test_suggest_lmax_grows_for_even_process():
     """The even process has infinite Markov order, so the suggestion grows with data."""
-    from sofic.generators.epsilon_inference import suggest_lmax
+    from sofic.inference.cssr import suggest_lmax
 
     short, _ = sample(even_process(0.5), 300, np.random.default_rng(3))
     long, _ = sample(even_process(0.5), 30000, np.random.default_rng(3))
@@ -317,7 +318,7 @@ def test_cssr_auto_lmax_golden_mean(rng: np.random.Generator):
 
 def test_exact_morph_test_small_counts():
     """With tiny counts the exact test is calibrated where the chi-squared limit is not."""
-    from sofic.generators.epsilon_inference import SuffixCounts, morphs_differ
+    from sofic.inference.cssr import SuffixCounts, morphs_differ
 
     rng = np.random.default_rng(4)
     rejections = {"g": 0, "exact": 0}

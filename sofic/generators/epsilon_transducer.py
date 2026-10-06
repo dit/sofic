@@ -128,7 +128,7 @@ class EpsilonTransducer(MealyMachine):
         **kwargs: Any,
     ) -> EpsilonTransducer:
         """Reconstruct an ε-transducer from paired input/output sequences via transCSSR."""
-        from sofic.generators.epsilon_transducer_inference import transcssr
+        from sofic.inference.cssr.transducer import transcssr
 
         return transcssr(inputs, outputs, **kwargs)
 

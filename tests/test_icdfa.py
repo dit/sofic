@@ -7,7 +7,7 @@ import itertools
 import pytest
 
 from sofic.automata.dfa import DFA
-from sofic.automata.icdfa import (
+from sofic.automata.enumeration.icdfa import (
     ICDFAEnumerationError,
     _upper_bound_at,
     count_flag_sequences,

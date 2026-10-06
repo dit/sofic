@@ -103,39 +103,39 @@ class HiddenMarkovModel(StochasticModel):
         self.observation_alphabet = observation_alphabet if observation_alphabet is not None else frozenset()
 
     def sample(self, n: int, rng: np.random.Generator | None = None) -> tuple[list[Any], list[Hashable]]:
-        from sofic.generators.hmm_inference import sample
+        from sofic.generators.sampling import sample
 
         return sample(self, n, rng)
 
     def log_likelihood(self, observations: Sequence[Any]) -> float:
-        from sofic.generators.hmm_inference import log_likelihood
+        from sofic.inference.hmm import log_likelihood
 
         return log_likelihood(self, observations)
 
     def forward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
-        from sofic.generators.hmm_inference import forward
+        from sofic.inference.hmm import forward
 
         return forward(self, observations, scaled=scaled)
 
     def backward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
-        from sofic.generators.hmm_inference import backward
+        from sofic.inference.hmm import backward
 
         return backward(self, observations, scaled=scaled)
 
     def viterbi(self, observations: Sequence[Any]) -> list[Hashable]:
-        from sofic.generators.hmm_inference import viterbi
+        from sofic.inference.hmm import viterbi
 
         return viterbi(self, observations)
 
     def smooth(self, observations: Sequence[Any]) -> np.ndarray:
         """Return fixed-interval smoothed marginals ``gamma[t, s]``."""
-        from sofic.generators.hmm_inference import smooth
+        from sofic.inference.hmm import smooth
 
         return smooth(self, observations)
 
     def two_slice_marginals(self, observations: Sequence[Any]) -> np.ndarray:
         """Return two-slice smoothed marginals ``xi[t, i, j]``."""
-        from sofic.generators.hmm_inference import two_slice_marginals
+        from sofic.inference.hmm import two_slice_marginals
 
         return two_slice_marginals(self, observations)
 
@@ -151,9 +151,9 @@ class HiddenMarkovModel(StochasticModel):
     ) -> tuple[MealyHMM, list[float]]:
         """Fit parameters by Baum-Welch EM, returning ``(fitted_model, loglik_trace)``.
 
-        ``n_restarts`` and ``rng`` are as in :func:`~sofic.generators.hmm_inference.baum_welch`.
+        ``n_restarts`` and ``rng`` are as in :func:`~sofic.inference.hmm.baum_welch`.
         """
-        from sofic.generators.hmm_inference import baum_welch
+        from sofic.inference.hmm import baum_welch
 
         return baum_welch(
             self,
@@ -167,19 +167,19 @@ class HiddenMarkovModel(StochasticModel):
 
     def score(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
         """Return the log-likelihood gradient (Fisher identity) over edge parameters."""
-        from sofic.generators.hmm_inference import score
+        from sofic.inference.hmm import score
 
         return score(self, observations)
 
     def observed_information(self, observations: Sequence[Any]) -> np.ndarray:
         """Return the observed information matrix (Louis' identity)."""
-        from sofic.generators.hmm_inference import observed_information
+        from sofic.inference.hmm import observed_information
 
         return observed_information(self, observations)
 
     def standard_errors(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
         """Return asymptotic standard errors of the free edge parameters."""
-        from sofic.generators.hmm_inference import standard_errors
+        from sofic.inference.hmm import standard_errors
 
         return standard_errors(self, observations)
 

@@ -298,12 +298,12 @@ def _spec(cls: type[StateMachine], fields: tuple[str, ...], builder: str = "defa
 
 @cache
 def _specs() -> tuple[_ModelSpec, ...]:
-    from sofic.automata.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
     from sofic.automata.buchi import BuchiAutomaton
+    from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+    from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
     from sofic.automata.dfa import DFA
     from sofic.automata.nfa import NFA
     from sofic.automata.nwa import NestedWordAutomaton
-    from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
     from sofic.automata.subsequential import SubsequentialTransducer, WeightedFiniteStateTransducer
     from sofic.automata.transducers import MealyMachine, MooreMachine
     from sofic.automata.unifilar import UnifilarAutomaton

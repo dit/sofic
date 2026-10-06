@@ -41,7 +41,7 @@ Minimize a joint-unifilar stochastic transducer to its causal states:
 The channel can also be read off a joint ``(input, output)`` generator with
 :meth:`~EpsilonTransducer.from_joint_generator`, or reconstructed from paired
 sample sequences with :meth:`~EpsilonTransducer.from_paired_sequences` (the
-transCSSR algorithm, :doc:`epsilon_transducer_inference`).
+transCSSR algorithm, :doc:`../inference/transcssr`).
 
 Channel measures
 ================

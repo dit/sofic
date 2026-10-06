@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from hypothesis import given, settings
 
-from sofic.automata.icdfa import dfa_to_icdfa_string
+from sofic.automata.enumeration.icdfa import dfa_to_icdfa_string
 from sofic.testing.strategies import dfas, epsilon_machines
 
 

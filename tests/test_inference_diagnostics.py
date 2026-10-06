@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from sofic.examples.epsilon_machines import even_process, golden_mean
-from sofic.generators.epsilon_inference import cssr
-from sofic.generators.hmm_inference import sample
+from sofic.generators.sampling import sample
+from sofic.inference.cssr import cssr
 from sofic.inference.diagnostics import (
     goodness_of_fit,
     reconstruction_sweep,

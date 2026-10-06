@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sofic.automata.idfa import (
+from sofic.automata.enumeration.idfa import (
     MISSING_TRANSITION,
     count_accessible_idfa,
     first_idfa_string,
@@ -125,6 +125,6 @@ def test_accessible_idfa_count_grows() -> None:
 
 
 def count_icdfa_placeholder(k: int, n: int) -> int:
-    from sofic.automata.icdfa import count_icdfa_empty
+    from sofic.automata.enumeration.icdfa import count_icdfa_empty
 
     return count_icdfa_empty(k, n)

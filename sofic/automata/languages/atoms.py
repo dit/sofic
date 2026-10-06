@@ -15,7 +15,7 @@ from sofic.automata.languages.base import AutomatonLanguage, RegularLanguage, as
 
 
 def _reversed_table(language: RegularLanguage):
-    from sofic.automata.canonical_extraction import ResidualTable
+    from sofic.automata.canonical.residual import ResidualTable
 
     lang = as_language(language)  # type: ignore[arg-type]
     if not isinstance(lang, AutomatonLanguage):

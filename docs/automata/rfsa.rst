@@ -1,5 +1,5 @@
 .. rfsa.rst
-.. py:module:: sofic.automata.rfsa
+.. py:module:: sofic.automata.canonical.rfsa
 
 ***
 RFSA
@@ -25,7 +25,7 @@ canonical RFSA from queries (:doc:`learning`).
 
 .. code-block:: python
 
-    from sofic.automata.rfsa import CanonicalRFSA
+    from sofic.automata.canonical.rfsa import CanonicalRFSA
 
     rfsa = CanonicalRFSA.from_language(nfa)
     rfsa.validate()               # every state accepts a residual
@@ -38,6 +38,6 @@ API
 .. autoclass:: CanonicalRFSA
    :members: from_language, from_observation_table, dual
 
-.. autofunction:: sofic.automata.canonical_extraction.canonical_rfsa_from_language
-.. autoclass:: sofic.automata.canonical_extraction.ResidualTable
+.. autofunction:: sofic.automata.canonical.residual.canonical_rfsa_from_language
+.. autoclass:: sofic.automata.canonical.residual.ResidualTable
    :members: includes, is_covered, prime_states

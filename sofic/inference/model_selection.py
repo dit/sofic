@@ -8,7 +8,7 @@ criterion (WAIC) :cite:`Watanabe2010`. These complement the exact Bayesian
 evidences of :mod:`sofic.inference.bayesian`: they score any fitted
 :class:`~sofic.generators.base.HiddenMarkovModel` (ε-machine, Mealy HMM, Markov
 chain) using the log-likelihood (in bits) from
-:func:`sofic.generators.hmm_inference.log_likelihood` and a free-parameter count
+:func:`sofic.inference.hmm.log_likelihood` and a free-parameter count
 read off the transition graph, so they are likelihood-agnostic and apply
 directly to discrete-emission models.
 
@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 
 from sofic.generators.base import HiddenMarkovModel
-from sofic.generators.hmm_inference import free_parameter_labels, log_likelihood
+from sofic.inference.hmm import free_parameter_labels, log_likelihood
 
 __all__ = [
     "ModelScores",
@@ -94,7 +94,7 @@ def count_free_parameters(model: HiddenMarkovModel, *, include_initial: bool = F
 
     Counts one free parameter per non-reference outgoing edge at each state (the
     multinomial free-parameterization of the joint emission-transition law used
-    by :func:`sofic.generators.hmm_inference.observed_information`). With
+    by :func:`sofic.inference.hmm.observed_information`). With
     ``include_initial`` the ``n - 1`` free parameters of the initial
     distribution are added; for a stationary presentation the initial law is
     determined by the dynamics, so this defaults to ``False``.

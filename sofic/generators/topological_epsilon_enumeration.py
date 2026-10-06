@@ -11,7 +11,7 @@ from collections.abc import Hashable, Iterator, Mapping, Sequence
 
 import numpy as np
 
-from sofic.automata.idfa import (
+from sofic.automata.enumeration.idfa import (
     MISSING_TRANSITION,
     IDFAEnumerationError,
     _delta_table,
@@ -128,7 +128,7 @@ def epsilon_machine_to_idfa_string(
     """Encode an ε-machine as an incomplete accessible DFA transition string.
 
     Probabilities are ignored.  Missing symbol transitions are encoded with
-    :data:`sofic.automata.idfa.MISSING_TRANSITION`.  If ``canonical`` is true,
+    :data:`sofic.automata.enumeration.idfa.MISSING_TRANSITION`.  If ``canonical`` is true,
     all states are tried as roots and the rank-minimal IDFA string is returned.
     Otherwise, the first state in deterministic label order is used as the root.
     """

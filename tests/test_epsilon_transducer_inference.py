@@ -9,7 +9,7 @@ from hypothesis.extra import numpy as hnp
 from sofic import EpsilonTransducer, MealyHMM
 from sofic.automata.transducer_operations import compose_tg
 from sofic.examples.processes import BinaryChannel, Delay
-from sofic.generators.epsilon_transducer_inference import JointSuffixCounts, transcssr
+from sofic.inference.cssr import JointSuffixCounts, transcssr
 
 
 def _iid_input() -> MealyHMM:
@@ -159,7 +159,7 @@ def test_shared_g_statistic_matches_scipy_log_likelihood(table):
     """The G-test shared with process CSSR is scipy's log-likelihood statistic, Yates-corrected at dof 1."""
     from scipy import stats
 
-    from sofic.generators._morph_tests import g_statistic
+    from sofic.inference.cssr.significance import g_statistic
 
     expected, _p, _dof, _ = stats.chi2_contingency(table, lambda_="log-likelihood")
     assert g_statistic(table.astype(float)) == pytest.approx(expected, rel=1e-9, abs=1e-12)

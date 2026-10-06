@@ -1,7 +1,48 @@
 """Finite automata and transducers."""
 
 # ``atomaton`` is an intentional pun on atomic automaton.
-from sofic.automata.active import (
+from sofic.automata.algorithms import (
+    MinimizationAlgorithm,
+    complete,
+    determinize,
+    equivalent,
+    minimize,
+    trim,
+)
+from sofic.automata.base import LabeledAutomaton
+from sofic.automata.buchi import BuchiAutomaton
+from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+from sofic.automata.dfa import DFA
+from sofic.automata.enumeration.icdfa import (
+    ICDFAString,
+    count_flag_sequences,
+    count_icdfa,
+    count_icdfa_empty,
+    dfa_to_icdfa_string,
+    first_icdfa_empty_string,
+    flags_from_string,
+    icdfa_string_to_dfa,
+    iter_icdfa,
+    iter_icdfa_empty_strings,
+    last_icdfa_empty_string,
+    next_flags,
+    next_icdfa_empty_string,
+    string_from_flags,
+    validate_icdfa_empty_string,
+)
+from sofic.automata.enumeration.idfa import (
+    MISSING_TRANSITION,
+    count_accessible_idfa,
+    first_idfa_string,
+    iter_idfa_strings,
+    rank_idfa_string,
+    reroot_idfa_string,
+    unrank_idfa_string,
+    validate_idfa_string,
+)
+from sofic.automata.languages import AutomatonLanguage, RegularLanguage
+from sofic.automata.learning.active import (
     AutomatonEquivalenceOracle,
     EquivalenceOracle,
     ExhaustiveEquivalenceOracle,
@@ -20,54 +61,12 @@ from sofic.automata.active import (
     learn_mealy_from_transducer,
     learn_mealy_lstar,
 )
-from sofic.automata.alergia import learn_pfa_alergia
-from sofic.automata.algorithms import (
-    MinimizationAlgorithm,
-    complete,
-    determinize,
-    equivalent,
-    minimize,
-    trim,
-)
-from sofic.automata.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
-from sofic.automata.base import LabeledAutomaton
-from sofic.automata.buchi import BuchiAutomaton
-from sofic.automata.dfa import DFA
-from sofic.automata.dfasat import learn_dfa_sat
-from sofic.automata.edsm import learn_dfa_edsm
-from sofic.automata.icdfa import (
-    ICDFAString,
-    count_flag_sequences,
-    count_icdfa,
-    count_icdfa_empty,
-    dfa_to_icdfa_string,
-    first_icdfa_empty_string,
-    flags_from_string,
-    icdfa_string_to_dfa,
-    iter_icdfa,
-    iter_icdfa_empty_strings,
-    last_icdfa_empty_string,
-    next_flags,
-    next_icdfa_empty_string,
-    string_from_flags,
-    validate_icdfa_empty_string,
-)
-from sofic.automata.idfa import (
-    MISSING_TRANSITION,
-    count_accessible_idfa,
-    first_idfa_string,
-    iter_idfa_strings,
-    rank_idfa_string,
-    reroot_idfa_string,
-    unrank_idfa_string,
-    validate_idfa_string,
-)
-from sofic.automata.languages import AutomatonLanguage, RegularLanguage
-from sofic.automata.learning import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
-from sofic.automata.nfa import NFA
-from sofic.automata.nwa import NestedWord, NestedWordAutomaton
-from sofic.automata.observation import ObservationTable
-from sofic.automata.papni import (
+from sofic.automata.learning.alergia import learn_pfa_alergia
+from sofic.automata.learning.dfasat import learn_dfa_sat
+from sofic.automata.learning.edsm import learn_dfa_edsm
+from sofic.automata.learning.nlstar import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
+from sofic.automata.learning.observation import ObservationTable
+from sofic.automata.learning.papni import (
     DyckAlphabet,
     is_well_matched,
     learn_sofic_dyck_shift_papni,
@@ -75,9 +74,10 @@ from sofic.automata.papni import (
     papni_encode_samples,
     sofic_dyck_shift_from_papni_dfa,
 )
+from sofic.automata.learning.rpni import learn_dfa_rpni
+from sofic.automata.nfa import NFA
+from sofic.automata.nwa import NestedWord, NestedWordAutomaton
 from sofic.automata.regex import automaton_to_regex
-from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
-from sofic.automata.rpni import learn_dfa_rpni
 from sofic.automata.subsequential import (
     SubsequentialTransducer,
     WeightedFiniteStateTransducer,

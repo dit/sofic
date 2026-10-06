@@ -29,7 +29,7 @@ usually means ``Lmax`` is shorter than the source's synchronization length.
 
 .. code-block:: python
 
-   from sofic.generators.epsilon_inference import cssr
+   from sofic.inference.cssr import cssr
    from sofic.inference.diagnostics import goodness_of_fit
 
    machine = cssr(data, Lmax=1)

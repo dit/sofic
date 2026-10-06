@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.automata.atomaton import Atomaton
+from sofic.automata.canonical.atomaton import Atomaton
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
 from sofic.automata.nwa import NestedWordAutomaton

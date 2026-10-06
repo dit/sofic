@@ -3,13 +3,13 @@
 import pytest
 from hypothesis import given, settings
 
-from sofic.automata.active import AutomatonEquivalenceOracle, LanguageMembershipOracle
 from sofic.automata.algorithms import equivalent
-from sofic.automata.atomaton import MaximizedPrimeAtomaton
+from sofic.automata.canonical.atomaton import MaximizedPrimeAtomaton
+from sofic.automata.canonical.rfsa import CanonicalRFSA
 from sofic.automata.dfa import DFA
-from sofic.automata.learning import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
+from sofic.automata.learning.active import AutomatonEquivalenceOracle, LanguageMembershipOracle
+from sofic.automata.learning.nlstar import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
 from sofic.automata.nfa import NFA
-from sofic.automata.rfsa import CanonicalRFSA
 from sofic.testing.strategies import dfas
 
 

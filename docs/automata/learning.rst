@@ -1,5 +1,5 @@
 .. learning.rst
-.. py:module:: sofic.automata.learning
+.. py:module:: sofic.automata.learning.nlstar
 
 ********
 Learning
@@ -18,25 +18,25 @@ hypothesis is the canonical RFSA of the target (:doc:`rfsa`). Running NL\* on
 the reversed target and reversing the result learns the maximized prime
 átomaton (:doc:`atomaton`).
 
-:class:`~sofic.automata.active.AutomatonEquivalenceOracle` answers equivalence
+:class:`~sofic.automata.learning.active.AutomatonEquivalenceOracle` answers equivalence
 queries exactly against a target automaton, returning a shortest
 counterexample.
 
-.. autofunction:: sofic.automata.learning.learn_rfsa_nlstar
-.. autofunction:: sofic.automata.learning.learn_prime_atomaton_nlstar
-.. autofunction:: sofic.automata.learning.learn_rfsa_from_language
+.. autofunction:: sofic.automata.learning.nlstar.learn_rfsa_nlstar
+.. autofunction:: sofic.automata.learning.nlstar.learn_prime_atomaton_nlstar
+.. autofunction:: sofic.automata.learning.nlstar.learn_rfsa_from_language
 
 Active learning (L\*, TTT, Mealy)
 =================================
 
-:mod:`sofic.automata.active` learns an automaton from a *teacher* answering
+:mod:`sofic.automata.learning.active` learns an automaton from a *teacher* answering
 **membership** and **equivalence** queries. It provides Angluin's L\*
 :cite:`Angluin1987` and a redundancy-free **discrimination-tree** learner in the
 TTT family :cite:`KearnsVazirani1994,Isberner2014` for
 :class:`~sofic.automata.dfa.DFA`, plus the Mealy variant of L\*
 :cite:`Shahbaz2009`; all use Rivest-Schapire counterexample analysis
 :cite:`RivestSchapire1993`. Oracles adapt sofic models: a
-:class:`~sofic.automata.active.LanguageMembershipOracle` wraps any model exposing
+:class:`~sofic.automata.learning.active.LanguageMembershipOracle` wraps any model exposing
 ``recognizes`` / ``__contains__`` (a :class:`~sofic.automata.dfa.DFA`, NFA,
 átomaton, or ``model.to_support_dfa()`` for a sofic shift or ε-machine), and the
 equivalence oracles offer bounded-exhaustive or random-walk testing.
@@ -53,7 +53,7 @@ equivalence test:
 
 .. code-block:: python
 
-   from sofic.automata.active import (
+   from sofic.automata.learning.active import (
        FunctionMembershipOracle,
        RandomWalkEquivalenceOracle,
        learn_dfa_lstar,
@@ -63,23 +63,23 @@ equivalence test:
    equivalence = RandomWalkEquivalenceOracle(membership, {"a", "b"}, rng=0)
    dfa = learn_dfa_lstar({"a", "b"}, membership, equivalence)
 
-.. autofunction:: sofic.automata.active.learn_dfa_lstar
-.. autofunction:: sofic.automata.active.learn_dfa_ttt
-.. autofunction:: sofic.automata.active.learn_mealy_lstar
-.. autofunction:: sofic.automata.active.learn_dfa_from_language
-.. autofunction:: sofic.automata.active.learn_mealy_from_transducer
+.. autofunction:: sofic.automata.learning.active.learn_dfa_lstar
+.. autofunction:: sofic.automata.learning.active.learn_dfa_ttt
+.. autofunction:: sofic.automata.learning.active.learn_mealy_lstar
+.. autofunction:: sofic.automata.learning.active.learn_dfa_from_language
+.. autofunction:: sofic.automata.learning.active.learn_mealy_from_transducer
 
-.. autoclass:: sofic.automata.active.MembershipOracle
+.. autoclass:: sofic.automata.learning.active.MembershipOracle
    :members:
-.. autoclass:: sofic.automata.active.EquivalenceOracle
+.. autoclass:: sofic.automata.learning.active.EquivalenceOracle
    :members:
-.. autoclass:: sofic.automata.active.LanguageMembershipOracle
-.. autoclass:: sofic.automata.active.FunctionMembershipOracle
-.. autoclass:: sofic.automata.active.AutomatonEquivalenceOracle
-.. autoclass:: sofic.automata.active.ExhaustiveEquivalenceOracle
-.. autoclass:: sofic.automata.active.RandomWalkEquivalenceOracle
-.. autoclass:: sofic.automata.active.TransducerOutputOracle
-.. autoclass:: sofic.automata.active.MealyExhaustiveEquivalenceOracle
+.. autoclass:: sofic.automata.learning.active.LanguageMembershipOracle
+.. autoclass:: sofic.automata.learning.active.FunctionMembershipOracle
+.. autoclass:: sofic.automata.learning.active.AutomatonEquivalenceOracle
+.. autoclass:: sofic.automata.learning.active.ExhaustiveEquivalenceOracle
+.. autoclass:: sofic.automata.learning.active.RandomWalkEquivalenceOracle
+.. autoclass:: sofic.automata.learning.active.TransducerOutputOracle
+.. autoclass:: sofic.automata.learning.active.MealyExhaustiveEquivalenceOracle
 
 Passive learning (RPNI)
 =======================
@@ -95,7 +95,7 @@ consistent with the sample :cite:`Lang1998`:
    dfa = learn_dfa_rpni(positive=["ab", "abab"], negative=["a", "b"])
    dfa.validate()
 
-.. autofunction:: sofic.automata.rpni.learn_dfa_rpni
+.. autofunction:: sofic.automata.learning.rpni.learn_dfa_rpni
 
 Passive learning (EDSM / blue-fringe)
 =====================================
@@ -116,12 +116,12 @@ automaton:
    dfa = learn_dfa_edsm(positive=["a", "aba", "ababa"], negative=["", "b", "ab"])
    dfa.validate()
 
-.. autofunction:: sofic.automata.edsm.learn_dfa_edsm
+.. autofunction:: sofic.automata.learning.edsm.learn_dfa_edsm
 
 Exact minimal DFA (SAT)
 =======================
 
-Where RPNI and EDSM are heuristics, :func:`sofic.automata.dfasat.learn_dfa_sat`
+Where RPNI and EDSM are heuristics, :func:`sofic.automata.learning.dfasat.learn_dfa_sat`
 returns the **provably minimal** DFA consistent with the sample. Following Heule
 & Verwer :cite:`HeuleVerwer2010`, it translates the augmented prefix-tree
 acceptor into a graph-colouring SAT instance and searches the state count ``k``
@@ -136,7 +136,7 @@ satisfiable ``k``. It requires the optional `python-sat
    dfa = learn_dfa_sat(positive=["a", "aba", "ababa"], negative=["", "b", "ab"])
    dfa.validate()
 
-.. autofunction:: sofic.automata.dfasat.learn_dfa_sat
+.. autofunction:: sofic.automata.learning.dfasat.learn_dfa_sat
 
 Probabilistic passive learning (ALERGIA)
 ========================================
@@ -146,7 +146,7 @@ from **unlabeled** positive strings by merging states of a frequency
 prefix-tree acceptor whenever a Hoeffding-bound test cannot distinguish their
 transition statistics :cite:`Carrasco1994`. It is the stochastic, unlabeled
 counterpart of RPNI/EDSM and a state-merging alternative to CSSR
-(:func:`sofic.generators.epsilon_inference.cssr`). The compatibility threshold
+(:func:`sofic.inference.cssr.process.cssr`). The compatibility threshold
 ``alpha`` trades off model size against fidelity: smaller ``alpha`` merges more
 aggressively (fewer states); larger ``alpha`` is more conservative.
 
@@ -159,13 +159,13 @@ aggressively (fewer states); larger ``alpha`` is more conservative.
    pfa = learn_pfa_alergia(samples, alpha=0.05)
    pfa.validate()
 
-.. autofunction:: sofic.automata.alergia.learn_pfa_alergia
+.. autofunction:: sofic.automata.learning.alergia.learn_pfa_alergia
 
 Passive learning (PAPNI)
 ========================
 
 PAPNI extends passive inference to visibly pushdown languages. Words over a
-:class:`~sofic.automata.papni.DyckAlphabet` are stack-encoded, a DFA is
+:class:`~sofic.automata.learning.papni.DyckAlphabet` are stack-encoded, a DFA is
 induced over the encoding, and the result is decoded to a
 :class:`~sofic.shifts.sofic_dyck.SoficDyckShift` :cite:`Muskardin2025`:
 
@@ -181,13 +181,13 @@ induced over the encoding, and the result is decoded to a
    shift = learn_sofic_dyck_shift_papni(positive=["()", "(())"], negative=["("], alphabet=alphabet)
 
 For fitting probabilities on the learned topology, see
-:doc:`../generators/stack_inference`.
+:doc:`../inference/stack_cssr`.
 
-.. autoclass:: sofic.automata.papni.DyckAlphabet
+.. autoclass:: sofic.automata.learning.papni.DyckAlphabet
    :members: classify, symbol_alphabet
 
-.. autofunction:: sofic.automata.papni.learn_sofic_dyck_shift_papni
-.. autofunction:: sofic.automata.papni.is_well_matched
-.. autofunction:: sofic.automata.papni.papni_encode
-.. autofunction:: sofic.automata.papni.papni_encode_samples
-.. autofunction:: sofic.automata.papni.sofic_dyck_shift_from_papni_dfa
+.. autofunction:: sofic.automata.learning.papni.learn_sofic_dyck_shift_papni
+.. autofunction:: sofic.automata.learning.papni.is_well_matched
+.. autofunction:: sofic.automata.learning.papni.papni_encode
+.. autofunction:: sofic.automata.learning.papni.papni_encode_samples
+.. autofunction:: sofic.automata.learning.papni.sofic_dyck_shift_from_papni_dfa

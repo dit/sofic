@@ -14,7 +14,7 @@ from sofic.automata.vpa import (
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
 )
-from sofic.automata.vpa_constructions import to_multiple_entry, to_single_entry
+from sofic.automata.vpa.operations import to_multiple_entry, to_single_entry
 from sofic.exceptions import NonWellMatchedLanguageError
 
 CALLS, RETURNS, INTERNALS = frozenset({"c"}), frozenset({"r"}), frozenset({"i"})

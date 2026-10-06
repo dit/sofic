@@ -2,10 +2,10 @@
 
 import pytest
 
-from sofic.automata.atomaton import Atomaton, MaximizedPrimeAtomaton, atomic_states, is_atomic
+from sofic.automata.canonical.atomaton import Atomaton, MaximizedPrimeAtomaton, atomic_states, is_atomic
+from sofic.automata.canonical.rfsa import CanonicalRFSA
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
-from sofic.automata.rfsa import CanonicalRFSA
 from sofic.exceptions import SoficValidationError
 
 

@@ -5,20 +5,20 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni, papni_encode
-from sofic.automata.rpni import learn_dfa_rpni
+from sofic.automata.learning.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni, papni_encode
+from sofic.automata.learning.rpni import learn_dfa_rpni
 from sofic.examples.shifts import dyck_shift_order, motzkin_shift
-from sofic.generators.epsilon_inference import cssr
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
-from sofic.generators.stack_inference import (
+from sofic.inference.bayesian.stack_hmm import (
+    ModelComparisonStackHMM,
+    StackHMMPosterior,
+)
+from sofic.inference.cssr import cssr
+from sofic.inference.cssr.stack import (
     fit_stack_hmm_mle,
     learn_stack_hmm_papni,
     stack_cssr,
     stack_subtree_merge,
-)
-from sofic.inference.bayesian.stack_hmm import (
-    ModelComparisonStackHMM,
-    StackHMMPosterior,
 )
 from sofic.shifts.dyck_enumeration import (
     count_dyck_graph_strings,

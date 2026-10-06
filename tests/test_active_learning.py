@@ -6,7 +6,8 @@ import itertools
 
 import pytest
 
-from sofic.automata.active import (
+from sofic.automata.dfa import DFA
+from sofic.automata.learning.active import (
     ExhaustiveEquivalenceOracle,
     FunctionMembershipOracle,
     LanguageMembershipOracle,
@@ -16,7 +17,6 @@ from sofic.automata.active import (
     learn_dfa_ttt,
     learn_mealy_from_transducer,
 )
-from sofic.automata.dfa import DFA
 from sofic.automata.transducers import MealyMachine
 
 ALPHABET = ("a", "b")
@@ -159,7 +159,7 @@ def test_mealy_learns_last_symbol_echo():
     def echo(word):
         return tuple(word)
 
-    from sofic.automata.active import FunctionMealyOracle, MealyExhaustiveEquivalenceOracle, learn_mealy_lstar
+    from sofic.automata.learning.active import FunctionMealyOracle, MealyExhaustiveEquivalenceOracle, learn_mealy_lstar
 
     oracle = FunctionMealyOracle(echo)
     alphabet = ("0", "1")
