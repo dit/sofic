@@ -6,8 +6,8 @@ from collections import deque
 from collections.abc import Callable, Hashable, Sequence
 from typing import Any
 
-from sofic.automata.algorithms import complete, determinize, minimize, trim
-from sofic.automata.base import LabeledAutomaton
+from sofic.automata.algorithms import _effective_alphabet, complete, determinize, minimize, trim
+from sofic.automata.base import LabeledAutomaton, run_nfa
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
 from sofic.graph import ATTR_SYMBOL, EPSILON, TransitionGraph
@@ -202,12 +202,7 @@ def kleene_star_nfa(aut: LabeledAutomaton) -> NFA:
 
 def left_quotient_automaton(u: Sequence[Any], aut: LabeledAutomaton) -> NFA:
     nfa = _to_nfa(aut)
-    current = nfa.epsilon_closure(set(nfa.initial_states))
-    for symbol in u:
-        next_states: set[Hashable] = set()
-        for state in current:
-            next_states.update(nfa.delta(state, symbol))
-        current = nfa.epsilon_closure(next_states)
+    current = run_nfa(nfa, u)
     return NFA(
         input_alphabet=nfa.input_alphabet,
         initial_states=frozenset(current),
@@ -235,9 +230,3 @@ def state_residual_languages(dfa: DFA) -> dict[Hashable, DFA]:
         sub.accepting_states = dfa.accepting_states
         residuals[state] = minimize(_to_dfa(sub))
     return residuals
-
-
-def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
-    from sofic.automata.algorithms import _effective_alphabet as _shared
-
-    return _shared(aut)

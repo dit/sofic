@@ -181,6 +181,19 @@ but accepting a ``machine_type`` argument:
    In [3]: gm.entropy_rate()
    Out[3]: 0.6666666666666665
 
+Several factories share one implementation with a curated example and differ only
+in string symbols (``"0"``/``"1"``), state names, or parametrization:
+``BiasedCoin(b)`` is :func:`bernoulli` ``(b)``, ``Even`` is :func:`even_process`,
+``Nemo`` is :func:`nemo_process`, ``GoldenMean(b)`` is
+:func:`golden_mean_forward` ``(1 - b)`` (and :func:`golden_mean_markov` ``(b)``
+with ``A``/``B`` swapped), ``ABC(p, q)`` is :func:`alternating_biased_coins`
+``(1 - p, 1 - q)`` for ``p != q``, ``RestrictedGM`` is
+:func:`restricted_golden_mean`, and ``IrreversibleTwoState()`` is
+:func:`ellison_fig9_forward`. Similar names do not always mean the same process:
+:func:`golden_mean` is the ``0 <-> 1`` mirror of ``GoldenMean``, and ``Butterfly``
+and ``PSB`` differ from :func:`butterfly_process` and
+:func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`.
+
 The module also exposes registries — ``processes.process_list`` and
 ``processes.transducer_list`` — that enumerate every factory, which is handy for
 parametrized tests and sweeps:

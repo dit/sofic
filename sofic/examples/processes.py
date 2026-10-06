@@ -15,12 +15,23 @@ from typing import Any
 import numpy as np
 
 from sofic.automata.transducers import MealyMachine
+from sofic.examples._construction import _edge_machine, _relabel
+from sofic.examples.epsilon_machines import (
+    alternating_biased_coins,
+    bernoulli,
+    even_process,
+    golden_mean_forward,
+    nemo_process,
+    noisy_random_phase_slip,
+)
 from sofic.generators.base import QuasiStochasticModel
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_OUTPUT, ATTR_PROB, ATTR_QUASIPROB, ATTR_SYMBOL
 
 RecurrentEpsilonMachine = EpsilonMachine
+
+_STR_BITS = {0: "0", 1: "1"}
 
 
 def _require_machine_type(machine_type: Any, *allowed: type) -> None:
@@ -37,79 +48,6 @@ def _as_alphabet(symbols: int | Sequence[Any]) -> tuple[Any, ...]:
     if isinstance(symbols, int):
         return tuple(range(symbols))
     return tuple(symbols)
-
-
-def _uniform_initial(states: Sequence[Hashable]) -> dict[Hashable, float]:
-    if not states:
-        return {}
-    mass = 1.0 / len(states)
-    return dict.fromkeys(states, mass)
-
-
-def _stationary_initial(
-    states: Sequence[Hashable],
-    edges: Sequence[tuple[Hashable, Hashable, Any, float]],
-) -> dict[Hashable, float]:
-    from sofic.generators.stationary import stationary_distribution_from_transition
-
-    if not states:
-        return {}
-    index = {state: i for i, state in enumerate(states)}
-    transition = np.zeros((len(states), len(states)), dtype=float)
-    for source, target, _symbol, prob in edges:
-        transition[index[source], index[target]] += float(prob)
-    row_sums = transition.sum(axis=1)
-    if np.any(row_sums <= 0.0):
-        return _uniform_initial(states)
-    transition = transition / row_sums[:, None]
-    try:
-        pi = stationary_distribution_from_transition(transition)
-    except (ValueError, np.linalg.LinAlgError):
-        return _uniform_initial(states)
-    return {state: float(pi[i]) for i, state in enumerate(states)}
-
-
-def _normalize_edges(
-    edges: Sequence[tuple[Hashable, Hashable, Any, float]],
-) -> list[tuple[Hashable, Hashable, Any, float]]:
-    row_totals: dict[Hashable, float] = {}
-    for source, _target, _symbol, prob in edges:
-        row_totals[source] = row_totals.get(source, 0.0) + float(prob)
-    normalized = []
-    for source, target, symbol, prob in edges:
-        total = row_totals[source]
-        normalized.append((source, target, symbol, float(prob) / total if total else 0.0))
-    return normalized
-
-
-def _edge_machine(
-    edges: Iterable[tuple[Hashable, Hashable, Any, float]],
-    *,
-    machine_type: type[MealyHMM] = EpsilonMachine,
-    name: str | None = None,
-    initial_distribution: Mapping[Hashable, float] | None = None,
-    normalize: bool = True,
-    validate: bool = True,
-) -> MealyHMM:
-    edge_list = list(edges)
-    if normalize:
-        edge_list = _normalize_edges(edge_list)
-
-    states = list(dict.fromkeys([source for source, *_ in edge_list] + [target for _source, target, *_ in edge_list]))
-    symbols = frozenset(symbol for _source, _target, symbol, _prob in edge_list)
-    initial = dict(initial_distribution) if initial_distribution is not None else _stationary_initial(states, edge_list)
-
-    machine = machine_type(initial_distribution=initial, observation_alphabet=symbols)
-    if name is not None:
-        machine.name = name
-    for state in states:
-        machine.graph.add_state(state)
-    for source, target, symbol, prob in edge_list:
-        if prob > 0.0:
-            machine.graph.add_transition(source, target, **{ATTR_EMISSION: symbol, ATTR_PROB: float(prob)})
-    if validate:
-        machine.validate()
-    return machine
 
 
 def _from_string(
@@ -173,7 +111,7 @@ def _compatible_machine_type(machine_type: Any, default: type[MealyHMM] = Epsilo
 def ABC(p: float = 0.75, q: float = 0.25) -> EpsilonMachine:
     if math.isclose(p, q):
         return _from_string(f"A A 0 {p}; A A 1 {1 - p}", name="ABC Process")
-    return _from_string(f"A B 0 {p}; A B 1 {1 - p}; B A 0 {q}; B A 1 {1 - q}", name="ABC Process")
+    return _relabel(alternating_biased_coins(1 - p, 1 - q), symbols=_STR_BITS, name="ABC Process")
 
 
 def AFC(n: int) -> EpsilonMachine:
@@ -288,13 +226,7 @@ def BeforeAfter(machine_type: Any = MealyHMM, style: str = "simple") -> MealyHMM
 
 
 def BiasedCoin(bias: float, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
-    cls = _compatible_machine_type(machine_type)
-    return _edge_machine(
-        [("A", "A", "1", bias), ("A", "A", "0", 1 - bias)],
-        machine_type=cls,
-        name=f"Coin, p = {bias}",
-        normalize=False,
-    )
+    return _relabel(bernoulli(bias), machine_type=_compatible_machine_type(machine_type), name=f"Coin, p = {bias}")
 
 
 def FairCoin(machine_type: Any = EpsilonMachine) -> EpsilonMachine:
@@ -436,6 +368,7 @@ def BMC_lohr(p: float) -> MealyHMM:
 
 
 def Butterfly() -> EpsilonMachine:
+    """cmpy's two-branch Butterfly (``h_mu = 1``); not :func:`~sofic.examples.butterfly_process` (8 symbols, ``h_mu = 3``)."""
     return _from_string(
         """
         B C 0 .5; D E 0 .5; C A 1 .5; E A 1 .5; A B 2 .5;
@@ -556,8 +489,7 @@ def Ehrenfest(p: float = 0.5, N: int = 5, machine_type: Any = EpsilonMachine) ->
 
 def Even(machine_type: Any = EpsilonMachine, bias: float = 0.5) -> EpsilonMachine:
     if machine_type in (EpsilonMachine, RecurrentEpsilonMachine, None):
-        edges = [("A", "A", "0", bias), ("A", "B", "1", 1 - bias), ("B", "A", "1", 1)]
-        return _edge_machine(edges, machine_type=EpsilonMachine, name="Even Process", normalize=False)
+        return _relabel(even_process(bias), symbols=_STR_BITS, name="Even Process")
     raise NotImplementedError
 
 
@@ -662,13 +594,9 @@ def Girvan_fig6d(
 
 
 def GoldenMean(bias: float = 0.5, machine_type: Any = EpsilonMachine) -> EpsilonMachine:
+    """Golden mean forbidding ``00``; :func:`~sofic.examples.golden_mean` is its ``0 <-> 1`` mirror (forbids ``11``)."""
     _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
-    return _edge_machine(
-        [("A", "A", "1", 1 - bias), ("A", "B", "0", bias), ("B", "A", "1", 1)],
-        machine_type=EpsilonMachine,
-        name="Golden Mean Process",
-        normalize=False,
-    )
+    return _relabel(golden_mean_forward(1 - bias), symbols=_STR_BITS, name="Golden Mean Process")
 
 
 def RestrictedGM(k: int) -> EpsilonMachine:
@@ -922,10 +850,7 @@ def MultipleN(n: int, machine_type: Any = MealyHMM, bias: float = 0.5) -> MealyH
 
 def Nemo(machine_type: Any = EpsilonMachine, p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
     _require_machine_type(machine_type, EpsilonMachine, RecurrentEpsilonMachine)
-    return _from_string(
-        f"A A 1 {p}; A B 0 {1 - p}; B C 0 1; C A 0 {1 - q}; C A 1 {q};",
-        name="Nemo Process",
-    )
+    return _relabel(nemo_process(p, q), symbols=_STR_BITS, name="Nemo Process")
 
 
 def NemoRedundant(machine_type: Any = MealyHMM, p: float = 0.5, q: float = 0.5) -> MealyHMM:
@@ -950,8 +875,6 @@ def NoisyPeriod2(noise: float = 0.5) -> EpsilonMachine:
 
 
 def NRPS() -> EpsilonMachine:
-    from sofic.examples.epsilon_machines import noisy_random_phase_slip
-
     return noisy_random_phase_slip()
 
 
@@ -1077,6 +1000,7 @@ def PerturbedCoin(p: float = 0.2, q: float | None = None, machine_type: Any = Ep
 
 
 def PSB() -> EpsilonMachine:
+    """cmpy's Phase-Slip Backtrack; a different process from :func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`."""
     return _from_string("A B 1; A D 0; B B 1; B C 0; C D 0; D A 1", name="Phase-Slip Backtrack")
 
 

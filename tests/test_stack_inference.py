@@ -261,3 +261,28 @@ def test_stack_cssr_exact_and_bonferroni_run():
         assert oracle.word_probability(tuple(observations[:12])) > 0.0
     with pytest.raises(ValueError, match="unknown correction"):
         stack_cssr(observations, alphabet=alphabet, Lmax=2, correction="holm")
+
+
+@pytest.mark.parametrize("seed", [1, 5])
+def test_stack_cssr_keeps_histories_when_splitting(seed):
+    """Regression: determinization dropped histories that never emitted the splitting
+    symbol, leaving states whose successors were all unplaced (zero outgoing mass)."""
+    from sofic.shifts.sofic_dyck import transition_ref
+
+    shift = motzkin_shift()
+    rng = np.random.default_rng(seed)
+    refs = [transition_ref(transition) for transition in shift.transitions()]
+    weights = rng.dirichlet(np.ones(len(refs)))
+    oracle = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, dict(zip(refs, map(float, weights), strict=True)))
+    observations, _ = oracle.sample(4000, rng=rng)
+    alphabet = DyckAlphabet(
+        call_alphabet=shift.call_alphabet,
+        return_alphabet=shift.return_alphabet,
+        internal_alphabet=shift.internal_alphabet,
+    )
+    inferred = stack_cssr(observations, alphabet=alphabet, Lmax=3, max_stack_depth=4, alpha=0.01)
+    inferred.validate()
+    held_out, _ = oracle.sample(400, rng=np.random.default_rng(100 + seed))
+    windows = [tuple(held_out[i : i + 6]) for i in range(0, 390, 6)]
+    supported = sum(inferred.word_probability(window) > 0.0 for window in windows)
+    assert supported >= 0.9 * len(windows)

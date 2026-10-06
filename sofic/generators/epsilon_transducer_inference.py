@@ -17,10 +17,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-import numpy as np
-from scipy import stats
-
 from sofic.exceptions import StochasticValidationError
+from sofic.generators._morph_tests import TableTest, contingency_table, table_score, table_significant
+from sofic.generators._suffix_counts import infer_alphabet, iter_suffixes
+from sofic.generators.epsilon_inference import _recurrent_states, suggest_lmax
 from sofic.generators.epsilon_transducer import EpsilonTransducer
 from sofic.graph import ATTR_OUTPUT, ATTR_PROB, ATTR_SYMBOL, TransitionGraph
 
@@ -53,17 +53,12 @@ class JointSuffixCounts:
             raise ValueError("inputs and outputs must have equal length")
         if not xs:
             raise ValueError("sequences must be non-empty")
-        in_alpha = tuple(sorted(set(xs), key=repr)) if input_alphabet is None else tuple(input_alphabet)
-        out_alpha = tuple(sorted(set(ys), key=repr)) if output_alphabet is None else tuple(output_alphabet)
-        counts = cls(input_alphabet=in_alpha, output_alphabet=out_alpha)
-        pairs = tuple(zip(xs, ys, strict=True))
-        n = len(pairs)
-        for t in range(n):
-            for length in range(0, min(t, max_length) + 1):
-                history = pairs[t - length : t]
-                counts.history_counts[history] += 1
-                by_input = counts.next_counts.setdefault(history, {})
-                by_input.setdefault(xs[t], Counter())[ys[t]] += 1
+        counts = cls(
+            input_alphabet=infer_alphabet(xs, input_alphabet), output_alphabet=infer_alphabet(ys, output_alphabet)
+        )
+        for t, history in iter_suffixes(tuple(zip(xs, ys, strict=True)), max_length):
+            counts.history_counts[history] += 1
+            counts.next_counts.setdefault(history, {}).setdefault(xs[t], Counter())[ys[t]] += 1
         return counts
 
     def output_counts(self, histories: set[JointHistory], input_symbol: Any) -> Counter[Any]:
@@ -86,26 +81,6 @@ class JointSuffixCounts:
         return {symbol: observed.get(symbol, 0) / total for symbol in self.output_alphabet}
 
 
-def _output_contingency(left: Counter[Any], right: Counter[Any], alphabet: tuple[Any, ...]) -> np.ndarray | None:
-    active = [symbol for symbol in alphabet if left.get(symbol, 0) + right.get(symbol, 0) > 0]
-    if not active:
-        return None
-    table = np.array(
-        [[left.get(symbol, 0) for symbol in active], [right.get(symbol, 0) for symbol in active]],
-        dtype=float,
-    )
-    if np.allclose(table[0], table[1]):
-        return None
-    if table.shape[1] < 2:
-        left_total = table[0].sum()
-        right_total = table[1].sum()
-        if left_total == 0.0 or right_total == 0.0:
-            return None
-        if np.isclose(table[0, 0] / left_total, table[1, 0] / right_total):
-            return None
-    return table
-
-
 #: Aggregated output counts of a state: ``agg[input_symbol]`` is a Counter over outputs.
 StateAggregate = dict[Any, Counter[Any]]
 
@@ -126,18 +101,23 @@ def aggregates_differ(
     input_alphabet: tuple[Any, ...],
     output_alphabet: tuple[Any, ...],
     alpha: float,
-    test: Literal["g", "chi2", "exact"] = "g",
+    test: TableTest = "g",
 ) -> bool:
-    """Return whether two aggregated morphs differ on ``P(output | ., input)`` for some input."""
+    """Return whether two aggregated morphs differ on ``P(output | ., input)`` for some input.
+
+    Each input symbol's output counts are compared with the same test as process
+    CSSR (:func:`~sofic.generators.epsilon_inference.morphs_differ`); in particular
+    ``"g"`` is the G-test with Yates' continuity correction at one degree of freedom.
+    """
     for input_symbol in input_alphabet:
-        table = _output_contingency(
+        table = contingency_table(
             left.get(input_symbol, Counter()),
             right.get(input_symbol, Counter()),
             output_alphabet,
         )
         if table is None:
             continue
-        if _table_significant(table, alpha=alpha, test=test):
+        if table_significant(table, alpha, test):
             return True
     return False
 
@@ -151,42 +131,14 @@ def _aggregate_score(
 ) -> float:
     total = 0.0
     for input_symbol in input_alphabet:
-        table = _output_contingency(
+        table = contingency_table(
             left.get(input_symbol, Counter()),
             right.get(input_symbol, Counter()),
             output_alphabet,
         )
-        if table is None:
-            continue
-        try:
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p, _dof, _expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-            if np.isfinite(statistic):
-                total += float(statistic)
-        except ValueError:
-            continue
+        if table is not None:
+            total += table_score(table, "g")
     return total
-
-
-def _table_significant(table: np.ndarray, *, alpha: float, test: Literal["g", "chi2", "exact"]) -> bool:
-    if test == "exact":
-        from sofic.generators.epsilon_inference import _exact_significant
-
-        return _exact_significant(table, alpha)
-    try:
-        if test == "g":
-            with np.errstate(invalid="ignore", divide="ignore"):
-                statistic, _p, _dof, expected = stats.chi2_contingency(table, lambda_="log-likelihood")
-            if not np.isfinite(statistic) or np.any(expected == 0):
-                return False
-            dof = max(1, table.shape[1] - 1)
-            return float(statistic) > float(stats.chi2.ppf(1.0 - alpha, dof))
-        statistic, p_value, _dof, expected = stats.chi2_contingency(table)
-    except ValueError:
-        return False
-    if np.any(expected == 0):
-        return False
-    return float(p_value) < alpha
 
 
 def _state_aggregate(counts: JointSuffixCounts, histories: Iterable[JointHistory]) -> StateAggregate:
@@ -205,7 +157,7 @@ def _homogenize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "exact"],
+    test: TableTest,
     min_count: int,
 ) -> list[set[JointHistory]]:
     """transCSSR homogenization: grow joint suffixes one ``(input, output)`` pair into the past.
@@ -272,7 +224,7 @@ def _edges(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "exact"],
+    test: TableTest,
 ) -> dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]:
     """Successor states by ``(input, output)`` pair, with the histories that lead there.
 
@@ -330,22 +282,6 @@ def _edges(
     return edges
 
 
-def _closed_classes(edges: dict[int, dict[tuple[Any, Any], dict[int, set[JointHistory]]]]) -> list[set[int]]:
-    import networkx as nx
-
-    graph = nx.DiGraph()
-    graph.add_nodes_from(edges)
-    for source, by_pair in edges.items():
-        for targets in by_pair.values():
-            graph.add_edges_from((source, target) for target in targets)
-    condensed = nx.condensation(graph)
-    return [
-        set(condensed.nodes[node]["members"])
-        for node in condensed
-        if condensed.out_degree(node) == 0 and graph.subgraph(condensed.nodes[node]["members"]).number_of_edges() > 0
-    ]
-
-
 def _determinize(
     states: list[set[JointHistory]],
     counts: JointSuffixCounts,
@@ -353,7 +289,7 @@ def _determinize(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "exact"],
+    test: TableTest,
 ) -> tuple[list[set[JointHistory]], set[int]]:
     """Split alive states until each ``(input, output)`` pair has one alive successor."""
     states = [set(h) for h in states]
@@ -388,7 +324,7 @@ def _build_transducer(
     *,
     Lmax: int,
     alpha: float,
-    test: Literal["g", "chi2", "exact"],
+    test: TableTest,
 ) -> EpsilonTransducer:
     edges = _edges(states, counts, alive, Lmax=Lmax, alpha=alpha, test=test)
     history_to_state = {h: index for index in alive for h in states[index]}
@@ -402,7 +338,7 @@ def _build_transducer(
                 visits[state] += 1
                 break
 
-    classes = _closed_classes(edges)
+    classes = _recurrent_states(edges)
     if not classes:
         raise StochasticValidationError("no recurrent inferred states; the sample is too short for this Lmax")
     keep = max(classes, key=lambda members: (sum(visits[s] for s in members), -min(members)))
@@ -468,7 +404,7 @@ def transcssr(
     output_alphabet: Sequence[Any] | None = None,
     Lmax: int | Literal["auto"] | None = None,
     alpha: float = 0.001,
-    test: Literal["g", "chi2", "exact"] = "g",
+    test: TableTest = "g",
     min_count: int = 5,
     correction: Literal["bonferroni"] | None = None,
 ) -> EpsilonTransducer:
@@ -498,8 +434,6 @@ def transcssr(
         else len(tuple(input_alphabet)) * len(tuple(output_alphabet))
     )
     if Lmax == "auto":
-        from sofic.generators.epsilon_inference import suggest_lmax
-
         max_length = suggest_lmax(list(zip(xs, ys, strict=True)), alpha=alpha)
     else:
         max_length = Lmax if Lmax is not None else _default_lmax(len(xs), joint_alphabet_size, min_count)
@@ -523,6 +457,6 @@ def transcssr(
     states = _homogenize(counts, Lmax=max_length, alpha=alpha, test=test, min_count=min_count)
     everything = set(range(len(states)))
     edges = _edges(states, counts, everything, Lmax=max_length, alpha=alpha, test=test)
-    alive = set().union(*_closed_classes(edges)) or everything
+    alive = set().union(*_recurrent_states(edges)) or everything
     states, alive = _determinize(states, counts, alive, Lmax=max_length, alpha=alpha, test=test)
     return _build_transducer(states, counts, alive, xs, ys, Lmax=max_length, alpha=alpha, test=test)

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from typing import Any, ClassVar, Literal
 
 from sofic.automata.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni
 from sofic.exceptions import StochasticValidationError
+from sofic.generators._suffix_counts import infer_alphabet, iter_suffixes
 from sofic.generators.epsilon_inference import (
     History,
     MorphTest,
@@ -15,9 +16,7 @@ from sofic.generators.epsilon_inference import (
     _bonferroni_alpha,
     _cluster_histories_by_morph,
     _cssr_default_lmax,
-    _cssr_determinize,
-    _drop_transient_states,
-    _merge_similar_states,
+    _recurrent_states,
     morph_test_score,
     morphs_differ,
     suggest_lmax,
@@ -71,26 +70,28 @@ class StackSuffixCounts(SuffixCounts):
         seq = tuple(sequence)
         if not seq:
             raise ValueError("sequence must be non-empty")
-        visible_alphabet = tuple(sorted(alphabet.symbol_alphabet, key=repr))
-        max_len = max_length if max_length is not None else len(seq)
-        counts = cls(alphabet=visible_alphabet)
-        stack: list[Any] = []
-        for t, symbol in enumerate(seq):
+        stacks: list[tuple[Any, ...]] = []
+        stack: tuple[Any, ...] = ()
+        for symbol in seq:
             if symbol not in alphabet.symbol_alphabet:
                 raise ValueError(f"symbol {symbol!r} not in Dyck alphabet")
-            for length in range(0, min(t, max_len) + 1):
-                suffix = seq[t - length : t]
-                history = (suffix, tuple(stack))
-                counts.history_counts[history] += 1
-                counts.next_counts[history][symbol] += 1
-            if symbol in alphabet.call_alphabet:
-                if len(stack) >= max_stack_depth:
-                    stack = stack[1:]
-                stack.append(symbol)
-            elif symbol in alphabet.return_alphabet:
-                if stack:
-                    stack.pop()
+            stacks.append(stack)
+            stack = _push(stack, symbol, alphabet=alphabet, max_stack_depth=max_stack_depth)
+        counts = cls(alphabet=infer_alphabet(alphabet.symbol_alphabet, None))
+        for t, suffix in iter_suffixes(seq, max_length if max_length is not None else len(seq)):
+            history = (suffix, stacks[t])
+            counts.history_counts[history] += 1
+            counts.next_counts[history][seq[t]] += 1
         return counts
+
+
+def _push(stack: tuple[Any, ...], symbol: Any, *, alphabet: DyckAlphabet, max_stack_depth: int) -> tuple[Any, ...]:
+    """The stack after ``symbol``: calls push (dropping the bottom past ``max_stack_depth``), returns pop."""
+    if symbol in alphabet.call_alphabet:
+        return (*(stack[1:] if len(stack) >= max_stack_depth else stack), symbol)
+    if symbol in alphabet.return_alphabet:
+        return stack[:-1]
+    return stack
 
 
 def _successor_history(
@@ -109,15 +110,7 @@ def _successor_history(
         new_suffix = extended
     else:
         new_suffix = extended[-length:]
-
-    stack_list = list(stack)
-    if symbol in alphabet.call_alphabet:
-        if len(stack_list) >= max_stack_depth:
-            stack_list = stack_list[1:]
-        stack_list.append(symbol)
-    elif symbol in alphabet.return_alphabet and stack_list:
-        stack_list.pop()
-    return new_suffix, tuple(stack_list)
+    return new_suffix, _push(stack, symbol, alphabet=alphabet, max_stack_depth=max_stack_depth)
 
 
 def _stack_successor_fn(
@@ -228,14 +221,48 @@ def _stack_determinize(
     alphabet: DyckAlphabet,
     max_stack_depth: int,
 ) -> dict[int, set[ConfigurationHistory]]:
-    """Split homogeneous states until stack-lifted transitions are unifilar."""
-    return _cssr_determinize(
-        states,
-        history_to_state,
-        counts,
-        length=length,
-        successor_fn=_stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth),
-    )
+    """Split homogeneous states until stack-lifted transitions are unifilar.
+
+    Updates ``history_to_state`` in place for the histories that move.
+    """
+    successor = _stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth)
+    current = {state_id: set(histories) for state_id, histories in states.items()}
+    changed = True
+    next_state_id = max(current) + 1 if current else 0
+
+    while changed:
+        changed = False
+        for state_id in sorted(current):
+            histories = current[state_id]
+            if len(histories) <= 1:
+                continue
+            for symbol in counts.alphabet:
+                buckets: dict[int, set[ConfigurationHistory]] = defaultdict(set)
+                for history in histories:
+                    if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
+                        continue
+                    target = history_to_state.get(successor(history, symbol))
+                    if target is None:
+                        continue
+                    buckets[target].add(history)
+                if len(buckets) <= 1:
+                    continue
+                # Keep the largest bucket -- and every history that never emits
+                # ``symbol`` -- in the original state; split the other buckets off.
+                ordered = sorted(buckets.items(), key=lambda item: (-len(item[1]), min(item[1])))
+                moved = set().union(*(split for _target, split in ordered[1:]))
+                current[state_id] = histories - moved
+                for _target, split_histories in ordered[1:]:
+                    new_id = next_state_id
+                    next_state_id += 1
+                    current[new_id] = split_histories
+                    for history in split_histories:
+                        history_to_state[history] = new_id
+                changed = True
+                break
+            if changed:
+                break
+    return current
 
 
 def _stack_merge(
@@ -247,8 +274,33 @@ def _stack_merge(
     test: MorphTest,
     alphabet: DyckAlphabet,
 ) -> dict[int, set[ConfigurationHistory]]:
-    proxy = _control_counts(counts, alphabet).restricted_to(set(history_to_state))
-    return _merge_similar_states(states, history_to_state, proxy, alpha=alpha, test=test)
+    """Merge states whose pooled control morphs (see :func:`_control_counts`) are indistinguishable.
+
+    Merging on the morph alone can fuse states with incompatible ``symbol ->
+    successor`` maps, so the result need not be unifilar.
+    """
+    control = _control_counts(counts, alphabet)
+    current = {state_id: set(histories) for state_id, histories in states.items()}
+    changed = True
+    while changed:
+        changed = False
+        state_ids = sorted(current)
+        for index, left_id in enumerate(state_ids):
+            if left_id not in current:
+                continue
+            for right_id in state_ids[index + 1 :]:
+                if right_id not in current:
+                    continue
+                if morphs_differ(control, current[left_id], current[right_id], alpha=alpha, test=test):
+                    continue
+                current[left_id].update(current.pop(right_id))
+                for history in current[left_id]:
+                    history_to_state[history] = left_id
+                changed = True
+                break
+            if changed:
+                break
+    return current
 
 
 def _stack_drop_transient(
@@ -260,14 +312,32 @@ def _stack_drop_transient(
     alphabet: DyckAlphabet,
     max_stack_depth: int,
 ) -> dict[int, set[ConfigurationHistory]]:
-    proxy = counts.restricted_to(set(history_to_state))
-    return _drop_transient_states(
-        states,
-        history_to_state,
-        proxy,
-        length=length,
-        successor_fn=_stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth),
-    )
+    """Keep only states in closed communicating classes; all states if there are none.
+
+    States left with no edge into the kept set (their successor configurations
+    were too rare to be placed) are pruned repeatedly, since a generator state
+    needs outgoing mass.
+    """
+    successor = _stack_successor_fn(alphabet=alphabet, length=length, max_stack_depth=max_stack_depth)
+
+    def state_edges(kept: Mapping[int, set[ConfigurationHistory]]) -> dict[int, dict[Any, set[int]]]:
+        edges: dict[int, dict[Any, set[int]]] = {state_id: defaultdict(set) for state_id in kept}
+        for state_id, histories in kept.items():
+            for history in histories:
+                for symbol, count in counts.next_counts.get(history, Counter()).items():
+                    target = history_to_state.get(successor(history, symbol)) if count else None
+                    if target in kept:
+                        edges[state_id][symbol].add(target)
+        return edges
+
+    recurrent = set().union(*_recurrent_states(state_edges(states)))
+    kept = {state_id: histories for state_id, histories in states.items() if not recurrent or state_id in recurrent}
+    while True:
+        edges = state_edges(kept)
+        dead = {state_id for state_id, by_symbol in edges.items() if not any(by_symbol.values())}
+        if not dead or len(dead) == len(kept):
+            return kept
+        kept = {state_id: histories for state_id, histories in kept.items() if state_id not in dead}
 
 
 def _counts_to_stack_hmm(
@@ -282,21 +352,15 @@ def _counts_to_stack_hmm(
 ) -> HiddenMarkovStackModel:
     visits: Counter[int] = Counter()
     seq = tuple(sequence)
-    stack: list[Any] = []
+    stack: tuple[Any, ...] = ()
     for t in range(len(seq)):
         # Each step occupies one state: the one keyed by its longest available suffix.
         for hist_len in range(min(t, length), -1, -1):
-            state = history_to_state.get((seq[t - hist_len : t], tuple(stack)))
+            state = history_to_state.get((seq[t - hist_len : t], stack))
             if state is not None:
                 visits[state] += 1
                 break
-        symbol = seq[t]
-        if symbol in alphabet.call_alphabet:
-            if len(stack) >= max_stack_depth:
-                stack = stack[1:]
-            stack.append(symbol)
-        elif symbol in alphabet.return_alphabet and stack:
-            stack.pop()
+        stack = _push(stack, seq[t], alphabet=alphabet, max_stack_depth=max_stack_depth)
 
     if not visits:
         raise StochasticValidationError("no empirical configuration visits")

@@ -16,125 +16,12 @@ from typing import Any
 import numpy as np
 
 from sofic.generators.base import HiddenMarkovModel
-from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.generators.matrices import emission_tensors, symbol_matrices
 
 
 def _as_mealy_hmm(hmm: HiddenMarkovModel) -> Any:
     """Return a Mealy-style representation through the HMM representation hook."""
     return hmm.to_mealy()
-
-
-def _emission_transition_tensors_from_mealy(
-    hmm: Any,
-) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
-    """Return initial vector ``pi`` and symbol -> joint transition matrices.
-
-    Symbols are keyed in a fixed (``repr``-sorted) order, so seeded sampling is
-    reproducible across interpreter runs. A model without an initial
-    distribution starts from its stationary distribution.
-    """
-    from sofic.generators.prob import as_prob, has_symbolic, zeros
-
-    idx = hmm.reindex()
-    n = len(idx)
-    edge_probs = [transition.data.get(ATTR_PROB, 0.0) for transition in hmm.transitions()]
-    init_probs = list(hmm.initial_distribution.values())
-    symbolic = has_symbolic(edge_probs) or has_symbolic(init_probs)
-
-    pi = zeros((n,), symbolic=symbolic)
-    if hmm.initial_distribution:
-        for state, mass in hmm.initial_distribution.items():
-            pi[idx.index(state)] = as_prob(mass)
-    elif n:
-        pi = np.asarray(hmm.stationary_distribution(), dtype=object if symbolic else float)
-
-    emissions = {transition.data.get(ATTR_EMISSION) for transition in hmm.transitions()} - {None}
-    symbols = sorted(set(hmm.observation_alphabet) | emissions, key=repr)
-    joint: dict[Any, np.ndarray] = {symbol: zeros((n, n), symbolic=symbolic) for symbol in symbols}
-
-    for transition in hmm.transitions():
-        emission = transition.data.get(ATTR_EMISSION)
-        if emission is None:
-            continue
-        i = idx.index(transition.source)
-        j = idx.index(transition.target)
-        joint[emission][i, j] = as_prob(joint[emission][i, j]) + as_prob(transition.data.get(ATTR_PROB, 0.0))
-    return pi, joint
-
-
-def _emission_transition_tensors(
-    hmm: HiddenMarkovModel,
-) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
-    """Return initial vector ``pi`` and symbol -> joint transition matrices."""
-    return _emission_transition_tensors_from_mealy(_as_mealy_hmm(hmm))
-
-
-def _limit_distribution_from_initial(pi_initial: np.ndarray, transition: np.ndarray) -> np.ndarray | None:
-    """Return the limiting occupation law of ``pi_initial`` under ``transition``.
-
-    On reducible chains the left-eigenvector stationary law is not unique; the
-    process measure is the limit reached from the model's initial distribution.
-    """
-    pi = np.asarray(pi_initial, dtype=float).copy()
-    total = float(pi.sum())
-    if total <= 0.0:
-        return None
-    pi /= total
-    matrix = np.asarray(transition, dtype=float)
-    n = len(pi)
-    for _ in range(max(100, 20 * n)):
-        nxt = pi @ matrix
-        mass = float(nxt.sum())
-        if mass <= 0.0:
-            return None
-        nxt /= mass
-        if np.allclose(nxt, pi, rtol=1e-12, atol=1e-14):
-            pi = nxt
-            break
-        pi = nxt
-    pi[np.isclose(pi, 0.0, atol=1e-15)] = 0.0
-    mass = float(pi.sum())
-    if mass <= 0.0:
-        return None
-    return pi / mass
-
-
-def _stationary_emission_tensors(
-    hmm: HiddenMarkovModel,
-) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
-    """Return the stationary state law and symbol -> joint transition matrices.
-
-    Block/word statistics of a *stationary* process must weight the initial state
-    by the stationary distribution, not by the model's (possibly transient)
-    ``initial_distribution``. The stationary vector is recovered directly from the
-    summed emission-transition matrices so it stays aligned with ``joint``'s state
-    indexing.
-
-    When the chain is reducible (multiple absorbing classes), the eigenvector
-    stationary law is not unique — prefer the limiting occupation reached from
-    ``initial_distribution``. Fall back to the eigenvector solution, then to the
-    initial vector, only when the limit cannot be formed.
-    """
-    from sofic.generators.prob import zeros
-    from sofic.generators.stationary import stationary_distribution_from_transition
-
-    pi_initial, joint = _emission_transition_tensors(hmm)
-    n = len(pi_initial)
-    if n == 0:
-        return pi_initial, joint
-    symbolic = pi_initial.dtype == object or any(matrix.dtype == object for matrix in joint.values())
-    transition = zeros((n, n), symbolic=symbolic)
-    for matrix in joint.values():
-        transition = transition + matrix
-    if not symbolic:
-        limited = _limit_distribution_from_initial(pi_initial, transition)
-        if limited is not None and np.allclose(limited @ transition, limited, rtol=1e-8, atol=1e-10):
-            return limited, joint
-    try:
-        pi = stationary_distribution_from_transition(transition)
-    except (np.linalg.LinAlgError, ValueError):
-        pi = pi_initial
-    return pi, joint
 
 
 def _forward_scaled(
@@ -178,7 +65,7 @@ def forward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: bool
     With ``scaled=True`` each row is normalized to sum to one (the numerically
     stable message used for posteriors); otherwise the raw messages are returned.
     """
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
     obs = list(observations)
     if scaled:
         alpha_hat, _log_scales = _forward_scaled(pi, joint, obs)
@@ -202,7 +89,7 @@ def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, scaled: boo
     posterior is then ``normalize(alpha_hat[t] * beta_hat[t])`` (the per-row
     scaling constants cancel on renormalization).
     """
-    _, joint = _emission_transition_tensors(hmm)
+    joint = symbol_matrices(_as_mealy_hmm(hmm))
     n = next(iter(joint.values())).shape[0] if joint else len(_as_mealy_hmm(hmm).reindex())
     obs = list(observations)
     beta = np.zeros((len(obs) + 1, n), dtype=float)
@@ -245,7 +132,7 @@ def log_likelihood(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> float
     Uses the per-step-scaled forward recursion so the result stays finite for long
     sequences instead of underflowing to ``-inf``.
     """
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
     _alpha_hat, log_scales = _forward_scaled(pi, joint, list(observations))
     if not np.all(np.isfinite(log_scales)):
         return float("-inf")
@@ -261,7 +148,7 @@ def smooth(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> np.ndarray:
     forward-backward smoother of Cappe, Moulines & Ryden (2005, Section 3.2).
     Rows for observation sequences of zero probability are returned as zeros.
     """
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
     obs = list(observations)
     n_states = len(pi)
     alpha_hat, log_scales = _forward_scaled(pi, joint, obs)
@@ -283,7 +170,7 @@ def two_slice_marginals(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> 
     2005, Section 3.2). Marginalizing over ``j`` recovers ``gamma[t]`` for
     ``t < n``. Returns an all-zero tensor for zero-probability sequences.
     """
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
     obs = list(observations)
     n_states = len(pi)
     xi = np.zeros((len(obs), n_states, n_states), dtype=float)
@@ -411,7 +298,7 @@ def baum_welch(
     alphabet = frozenset(mealy.observation_alphabet)
     seqs = _as_sequence_list(sequences)
 
-    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    pi, joint = emission_tensors(mealy)
     support = {
         (i, symbol, j)
         for symbol, matrix in joint.items()
@@ -540,7 +427,7 @@ def score(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> dict[tuple[Has
     """
     mealy = hmm.to_mealy()
     idx = mealy.reindex()
-    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    pi, joint = emission_tensors(mealy)
     edge_counts, _source_totals, _gamma0, loglik = _expected_edge_counts(pi, joint, list(observations))
     if not np.isfinite(loglik):
         raise ValueError("observations have zero probability under the model; score is undefined")
@@ -603,7 +490,7 @@ def observed_information(hmm: HiddenMarkovModel, observations: Sequence[Any]) ->
     model has no free parameters.
     """
     mealy = hmm.to_mealy()
-    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    pi, joint = emission_tensors(mealy)
     obs = list(observations)
     n_states = len(pi)
 
@@ -684,7 +571,7 @@ def free_parameter_labels(hmm: HiddenMarkovModel) -> list[tuple[Hashable, Any, H
     """
     mealy = hmm.to_mealy()
     idx = mealy.reindex()
-    _pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    joint = symbol_matrices(mealy)
     free_edges, _reference, _source = _free_parameterization(joint, len(idx))
     return [(idx.state(i), symbol, idx.state(j)) for i, symbol, j in free_edges]
 
@@ -725,7 +612,7 @@ def _log_probabilities(values: np.ndarray) -> np.ndarray:
 def viterbi(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> list[Hashable]:
     mealy = _as_mealy_hmm(hmm)
     idx = mealy.reindex()
-    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    pi, joint = emission_tensors(mealy)
     n = len(idx)
     obs = list(observations)
     if n == 0:
@@ -775,7 +662,7 @@ def sample(
     generator = rng if rng is not None else np.random.default_rng()
     mealy = _as_mealy_hmm(hmm)
     idx = mealy.reindex()
-    pi, joint = _emission_transition_tensors_from_mealy(mealy)
+    pi, joint = emission_tensors(mealy)
     total = float(np.sum(pi))
     if not total > 0.0:
         raise ValueError("cannot sample: the initial state distribution has no mass")

@@ -2,6 +2,9 @@
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from hypothesis.extra import numpy as hnp
 
 from sofic import EpsilonTransducer, MealyHMM
 from sofic.automata.transducer_operations import compose_tg
@@ -146,3 +149,17 @@ def test_auto_lmax_delay():
     xs, ys = _paired_samples(Delay(1), 6000, seed=4)
     eps = transcssr(xs, ys, input_alphabet=("0", "1"), output_alphabet=("0", "1"), Lmax="auto")
     assert len(list(eps.states())) == 2
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    hnp.arrays(np.int64, st.tuples(st.just(2), st.integers(2, 4)), elements=st.integers(1, 40)),
+)
+def test_shared_g_statistic_matches_scipy_log_likelihood(table):
+    """The G-test shared with process CSSR is scipy's log-likelihood statistic, Yates-corrected at dof 1."""
+    from scipy import stats
+
+    from sofic.generators._morph_tests import g_statistic
+
+    expected, _p, _dof, _ = stats.chi2_contingency(table, lambda_="log-likelihood")
+    assert g_statistic(table.astype(float)) == pytest.approx(expected, rel=1e-9, abs=1e-12)

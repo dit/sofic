@@ -50,12 +50,7 @@ def _transduce(transducer: Transducer, word: Sequence[Any], *, moore: bool) -> s
         for transition in transducer.graph.out_transitions(state):
             if transition.data.get(ATTR_SYMBOL) != symbol:
                 continue
-            if moore:
-                extended = output_prefix + _state_output(transducer, transition.target)
-            else:
-                out = transition.data.get(ATTR_OUTPUT)
-                extended = output_prefix + ((out,) if out is not None and out is not EPSILON else ())
-            yield (transition.target, extended)
+            yield (transition.target, output_prefix + _emitted(transducer, transition, moore=moore))
 
     stack = simulate_configs(
         initial,
@@ -85,12 +80,7 @@ def _epsilon_closure(
         for transition in transducer.graph.out_transitions(state):
             if transition.data.get(ATTR_SYMBOL, EPSILON) is not EPSILON:
                 continue
-            if moore:
-                extended = output_prefix + _state_output(transducer, transition.target)
-            else:
-                out = transition.data.get(ATTR_OUTPUT)
-                extended = output_prefix + ((out,) if out is not None and out is not EPSILON else ())
-            config = (transition.target, extended)
+            config = (transition.target, output_prefix + _emitted(transducer, transition, moore=moore))
             if config not in closure:
                 closure.add(config)
                 stack.append(config)
@@ -131,20 +121,14 @@ def _has_productive_epsilon_cycle(
                 if target not in component:
                     continue
                 for edge_data in eps_graph.get_edge_data(source, target).values():
-                    transition = edge_data["transition"]
-                    if _epsilon_edge_is_productive(transducer, transition.target, transition.data, moore=moore):
+                    if _emitted(transducer, edge_data["transition"], moore=moore):
                         return True
     return False
 
 
-def _epsilon_edge_is_productive(
-    transducer: Transducer,
-    target: Hashable,
-    data: dict[str, Any],
-    *,
-    moore: bool,
-) -> bool:
+def _emitted(transducer: Transducer, transition: Any, *, moore: bool) -> tuple[Any, ...]:
+    """Output appended when taking ``transition`` (Moore: the entered state's output)."""
     if moore:
-        return bool(_state_output(transducer, target))
-    output = data.get(ATTR_OUTPUT)
-    return output is not None and output is not EPSILON
+        return _state_output(transducer, transition.target)
+    out = transition.data.get(ATTR_OUTPUT)
+    return (out,) if out is not None and out is not EPSILON else ()

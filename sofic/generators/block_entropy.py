@@ -428,10 +428,10 @@ def _block_entropy_curves(
 
 
 def _stationary_symbol_matrices(machine: EpsilonMachine) -> tuple[np.ndarray, dict[Any, np.ndarray]]:
-    from sofic.generators.hmm_inference import _emission_transition_tensors
+    from sofic.generators.matrices import symbol_matrices
 
     pi = machine.stationary_distribution()
-    _, raw_matrices = _emission_transition_tensors(machine)
+    raw_matrices = symbol_matrices(machine.to_mealy())
     n = len(pi)
     zero = np.zeros((n, n), dtype=float)
     matrices = {

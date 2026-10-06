@@ -294,26 +294,10 @@ def transition_matrix(
     are ignored), otherwise all model states in iteration order. Returns the
     matrix together with the ordered state list defining its axes.
     """
-    ordered = list(states) if states is not None else list(model.states())
-    index = {state: i for i, state in enumerate(ordered)}
-    n = len(ordered)
-    from sofic.generators.prob import as_prob, has_symbolic, zeros
+    from sofic.generators.matrices import accumulate_matrices
 
-    edge_probs = []
-    for state in ordered:
-        for transition in model.graph.out_transitions(state):
-            if transition.target in index:
-                edge_probs.append(transition.data.get(attr, 0.0))
-    symbolic = has_symbolic(edge_probs)
-    matrix = zeros((n, n), symbolic=symbolic)
-    for state in ordered:
-        i = index[state]
-        for transition in model.graph.out_transitions(state):
-            j = index.get(transition.target)
-            if j is None:
-                continue
-            matrix[i, j] = as_prob(matrix[i, j]) + as_prob(transition.data.get(attr, 0.0))
-    return matrix, ordered
+    matrices, ordered = accumulate_matrices(model, attr=attr, states=states, labels=(None,))
+    return matrices[None], ordered
 
 
 def _initial_vector_and_transition(model: StateMachine) -> tuple[np.ndarray, np.ndarray]:
@@ -330,10 +314,9 @@ def _labeled_or_internal_matrices(model: StateMachine) -> list[np.ndarray]:
     observation_alphabet = getattr(model, "observation_alphabet", None)
     to_mealy = getattr(model, "to_mealy", None)
     if observation_alphabet is not None and to_mealy is not None:
-        from sofic.generators.hmm_inference import _emission_transition_tensors_from_mealy
+        from sofic.generators.matrices import symbol_matrices
 
-        _pi, matrices = _emission_transition_tensors_from_mealy(to_mealy())
-        return list(matrices.values())
+        return list(symbol_matrices(to_mealy()).values())
 
     _initial, transition = _initial_vector_and_transition(model)
     return [transition]

@@ -133,9 +133,9 @@ def _smoothed_log_likelihood(
     computed by forward filtering. After a symbol the model forbids, the belief is
     propagated without conditioning on it.
     """
-    from sofic.generators.hmm_inference import _emission_transition_tensors_from_mealy
+    from sofic.generators.matrices import emission_tensors
 
-    pi, joint = _emission_transition_tensors_from_mealy(model.to_mealy())
+    pi, joint = emission_tensors(model)
     total_step = sum(joint.values())
     belief = np.asarray(pi, dtype=float)
     belief = belief / belief.sum()

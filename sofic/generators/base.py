@@ -79,19 +79,18 @@ class StochasticModel(StateMachine):
         """
         from sofic.generators.reversal import is_markov_like, time_reverse_stochastic
 
-        if not is_markov_like(self):
-            from sofic.generators.epsilon_machine import EpsilonMachine
-            from sofic.generators.mealy import MealyHMM
-            from sofic.generators.moore import MooreHMM
+        if is_markov_like(self):
+            return time_reverse_stochastic(self)
 
-            if isinstance(self, (MealyHMM, MooreHMM)):
-                from sofic.generators.epsilon_machine import EpsilonMachine
+        from sofic.generators.epsilon_machine import EpsilonMachine
+        from sofic.generators.mealy import MealyHMM
+        from sofic.generators.moore import MooreHMM
 
-                if isinstance(self, EpsilonMachine):
-                    return EpsilonMachine.from_time_reversed(self)
-                return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
-            raise NotImplementedError("time-reversed generators with edge emissions require EpsilonMachine.from_hmm")
-        return time_reverse_stochastic(self)
+        if isinstance(self, EpsilonMachine):
+            return EpsilonMachine.from_time_reversed(self)
+        if isinstance(self, (MealyHMM, MooreHMM)):
+            return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
+        raise NotImplementedError("time-reversed generators with edge emissions require EpsilonMachine.from_hmm")
 
 
 class HiddenMarkovModel(StochasticModel):

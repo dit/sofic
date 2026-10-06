@@ -9,15 +9,6 @@ from sofic.automata.languages.automaton_ops import minimal_dfa_from_language
 from sofic.automata.languages.base import AutomatonLanguage, ExplicitLanguage
 
 
-def _words_up_to(length: int, alphabet: frozenset[Any]) -> list[tuple[Any, ...]]:
-    if length < 0:
-        return []
-    if length == 0:
-        return [()]
-    shorter = _words_up_to(length - 1, alphabet)
-    return [word + (symbol,) for word in shorter for symbol in alphabet]
-
-
 def _residual_from_state(aut: AutomatonLanguage, state) -> AutomatonLanguage:
     sub = aut.automaton.copy()
     sub.initial_states = frozenset({state})

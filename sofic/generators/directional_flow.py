@@ -19,36 +19,22 @@ def _require_dit():
 
 def _pair_block_distribution(generator: HiddenMarkovModel, *, history: int) -> Any:
     """Joint law over flattened ``(x0, y0, x1, y1, ...)`` windows."""
-    from sofic.generators.hmm_inference import _stationary_emission_tensors
+    from sofic.generators.matrices import emission_tensors
+    from sofic.generators.words import _enumerate_words, _matrix_step
 
     dit = _require_dit()
     # Directional-flow statistics describe the stationary joint process, so weight
     # the initial state by the stationary law rather than ``initial_distribution``.
-    pi, joint = _stationary_emission_tensors(generator)
+    pi, joint = emission_tensors(generator, policy="stationary")
+    if any(not isinstance(symbol, tuple) or len(symbol) != 2 for symbol in joint):
+        raise TypeError("generator must emit length-2 tuple symbols")
 
-    block_length = history + 1
     ones = np.ones(len(pi), dtype=float)
     outcomes: list[tuple[Any, ...]] = []
     probs: list[float] = []
-
-    def walk(
-        mass: np.ndarray,
-        prefix: tuple[Any, ...],
-        steps_remaining: int,
-    ) -> None:
-        if steps_remaining == 0:
-            outcomes.append(prefix)
-            probs.append(float(mass @ ones))
-            return
-        for symbol, matrix in joint.items():
-            if not isinstance(symbol, tuple) or len(symbol) != 2:
-                raise TypeError("generator must emit length-2 tuple symbols")
-            next_mass = mass @ matrix
-            if next_mass.sum() <= 0.0:
-                continue
-            walk(next_mass, prefix + (symbol[0], symbol[1]), steps_remaining - 1)
-
-    walk(pi.copy(), (), block_length)
+    for word, mass in _enumerate_words(list(joint), history + 1, pi.copy(), _matrix_step(joint, len(pi))):
+        outcomes.append(tuple(value for pair in word for value in pair))
+        probs.append(float(mass @ ones))
     total = sum(probs)
     if total > 0.0:
         probs = [p / total for p in probs]

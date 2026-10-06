@@ -84,24 +84,23 @@ def joint_block_distribution(
     ``history_length`` counts symbols before the present symbol, so the emitted
     block length is ``history_length + 1``.
     """
-    from itertools import product
-
-    from sofic.generators.hmm_inference import _stationary_emission_tensors
+    from sofic.generators.matrices import emission_tensors
+    from sofic.generators.words import _enumerate_words, _matrix_step
 
     dit = _require_dit()
     # Blocks of a stationary process are weighted by the stationary state law, not
     # the model's initial distribution (which may describe only the transient).
-    pi, joint = _stationary_emission_tensors(generator)
+    pi, joint = emission_tensors(generator, policy="stationary")
 
     symbol_list = sorted(generator.observation_alphabet, key=repr)
     block_length = max(1, history_length + 1)
     ones = np.ones(len(pi), dtype=float)
-    outcomes = list(product(symbol_list, repeat=block_length))
+    outcomes = []
     probs = []
-    for outcome in outcomes:
-        mass = pi.copy()
-        for symbol in outcome:
-            mass = mass @ joint.get(symbol, np.zeros((len(pi), len(pi)), dtype=float))
+    for outcome, mass in _enumerate_words(
+        symbol_list, block_length, pi.copy(), _matrix_step(joint, len(pi), prune=False)
+    ):
+        outcomes.append(outcome)
         probs.append(float(mass @ ones))
 
     total = sum(probs)
@@ -168,7 +167,7 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
     Returns a sympy :class:`~sympy.Expr` when the stationary law or emission
     tensors are symbolic; otherwise a Python ``float``.
     """
-    from sofic.generators.hmm_inference import _emission_transition_tensors
+    from sofic.generators.matrices import symbol_matrices
     from sofic.generators.prob import (
         array_sum,
         as_prob,
@@ -186,7 +185,7 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
     dit = _require_dit()
     idx = hmm.reindex()
     pi = hmm.stationary_distribution()
-    _, joint = _emission_transition_tensors(hmm)
+    joint = symbol_matrices(hmm.to_mealy())
 
     symbolic = pi.dtype == object or has_symbolic(pi.ravel())
     if not symbolic:

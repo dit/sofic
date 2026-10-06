@@ -7,7 +7,6 @@ import pytest
 
 from sofic.examples import fair_coin, golden_mean
 from sofic.generators.hmm_inference import (
-    _emission_transition_tensors,
     _forward_scaled,
     backward,
     baum_welch,
@@ -22,6 +21,7 @@ from sofic.generators.hmm_inference import (
     two_slice_marginals,
     viterbi,
 )
+from sofic.generators.matrices import emission_tensors
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
@@ -196,7 +196,7 @@ def test_baum_welch_accepts_single_sequence():
 def test_score_matches_finite_difference_gradient():
     gm = golden_mean(0.4)
     obs = [0, 1, 0, 0, 1, 0, 1, 0]
-    pi, joint = _emission_transition_tensors(gm)
+    pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
@@ -217,7 +217,7 @@ def test_score_matches_finite_difference_gradient():
 def test_observed_information_matches_numeric_hessian_scalar():
     gm = golden_mean(0.5)
     obs = [0, 1, 0, 0, 1, 0, 1, 0]
-    pi, joint = _emission_transition_tensors(gm)
+    pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
@@ -246,7 +246,7 @@ def test_observed_information_multi_parameter_symmetric_and_matches_hessian():
     labels = free_parameter_labels(hmm)
     assert labels == [("A", 0, "A"), ("A", 1, "A")]
 
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
 
     def loglik_free(theta: np.ndarray) -> float:
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}

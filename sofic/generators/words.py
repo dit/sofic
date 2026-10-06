@@ -2,26 +2,72 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping, Sequence
-from itertools import product
+from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
 from typing import Any
 
 import numpy as np
 
 from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel
-from sofic.generators.hmm_inference import _emission_transition_tensors
 from sofic.generators.markov import MarkovChain
+from sofic.generators.matrices import emission_tensors, start_vector, symbol_matrices
 from sofic.generators.pfa import ProbabilisticFiniteAutomaton
 from sofic.graph import ATTR_PROB
 
 _TOL = 1e-15
 
 
+def _enumerate_words(
+    alphabet: Sequence[Any],
+    length: int,
+    start: Any = None,
+    step: Callable[[Any, Any], Any] | None = None,
+) -> Iterator[tuple[tuple[Any, ...], Any]]:
+    """Yield ``(word, mass)`` for every word of ``length`` over ``alphabet``.
+
+    Words come in lexicographic (``itertools.product``) order of ``alphabet``.
+    ``mass`` starts at ``start`` and is advanced by ``step(mass, symbol)`` once per
+    symbol, so prefixes are propagated once rather than per word; a step returning
+    ``None`` prunes every extension of that prefix. With ``step=None`` the mass is
+    carried unchanged and every word is yielded.
+    """
+
+    def walk(prefix: tuple[Any, ...], mass: Any, remaining: int) -> Iterator[tuple[tuple[Any, ...], Any]]:
+        if remaining == 0:
+            yield prefix, mass
+            return
+        for symbol in alphabet:
+            if step is None:
+                yield from walk(prefix + (symbol,), mass, remaining - 1)
+                continue
+            nxt = step(mass, symbol)
+            if nxt is not None:
+                yield from walk(prefix + (symbol,), nxt, remaining - 1)
+
+    yield from walk((), start, length)
+
+
+def _matrix_step(matrices: Mapping[Any, np.ndarray], n: int, *, prune: bool = True) -> Callable[[np.ndarray, Any], Any]:
+    """Return a :func:`_enumerate_words` step multiplying a row mass by ``matrices[symbol]``.
+
+    Symbols without a matrix act as the zero matrix. With ``prune`` a numeric
+    prefix whose mass vector is identically zero is dropped.
+    """
+    zero = np.zeros((n, n), dtype=float)
+
+    def step(mass: np.ndarray, symbol: Any) -> np.ndarray | None:
+        nxt = mass @ matrices.get(symbol, zero)
+        if prune and nxt.dtype != object and not np.any(nxt):
+            return None
+        return nxt
+
+    return step
+
+
 def hmm_words_of_length(hmm: HiddenMarkovModel, length: int) -> dict[tuple[Any, ...], float]:
     """Return observed words of ``length`` and their probabilities."""
     if length < 0:
         raise ValueError("length must be nonnegative")
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
     alphabet = sorted(hmm.observation_alphabet, key=repr)
     if length == 0:
         return {(): float(pi.sum())} if pi.sum() > _TOL else {}
@@ -29,12 +75,8 @@ def hmm_words_of_length(hmm: HiddenMarkovModel, length: int) -> dict[tuple[Any, 
         return {}
 
     terminal = np.ones(len(pi), dtype=float)
-    zero = np.zeros((len(pi), len(pi)), dtype=float)
     distribution: dict[tuple[Any, ...], float] = {}
-    for word in product(alphabet, repeat=length):
-        mass = pi.copy()
-        for symbol in word:
-            mass = mass @ joint.get(symbol, zero)
+    for word, mass in _enumerate_words(alphabet, length, pi.copy(), _matrix_step(joint, len(pi))):
         probability = float(mass @ terminal)
         if abs(probability) > _TOL:
             distribution[word] = probability
@@ -53,8 +95,8 @@ def hmm_word_probability(
     a state-probability mapping, or a dense vector in the model's state order.
     """
     mealy = hmm.to_mealy()
-    pi, joint = _emission_transition_tensors(mealy)
-    mass = _start_vector(mealy, pi, start)
+    joint = symbol_matrices(mealy)
+    mass = np.asarray(start_vector(mealy, start), dtype=float)
     if len(word) == 0:
         return float(mass.sum())
     n = len(mass)
@@ -101,7 +143,7 @@ def hmm_word_probabilities(
             if not sparse or abs(probability) > _TOL:
                 distribution[()] = probability
             continue
-        for word in product(alphabet, repeat=length):
+        for word, _ in _enumerate_words(alphabet, length):
             probability = hmm_word_probability(mealy, word, start=start)
             if not sparse or abs(probability) > _TOL:
                 distribution[word] = probability
@@ -134,7 +176,7 @@ def pfa_words_of_length(pfa: ProbabilisticFiniteAutomaton, length: int) -> dict[
     if not alphabet:
         return {}
     distribution: dict[tuple[Any, ...], float] = {}
-    for word in product(alphabet, repeat=length):
+    for word, _ in _enumerate_words(alphabet, length):
         probability = pfa.string_probability(word)
         if probability > _TOL:
             distribution[word] = probability
@@ -152,7 +194,7 @@ def quasi_words_of_length(model: QuasiStochasticModel, length: int) -> dict[tupl
     if not alphabet:
         return {}
     distribution: dict[tuple[Any, ...], float] = {}
-    for word in product(sorted(alphabet, key=repr), repeat=length):
+    for word, _ in _enumerate_words(sorted(alphabet, key=repr), length):
         probability = float(model.word_probability(word))
         if abs(probability) > _TOL:
             distribution[word] = probability
@@ -169,7 +211,7 @@ def markov_words_of_length(chain: MarkovChain, length: int) -> dict[tuple[Hashab
         total = float(sum(start.values()))
         return {(): total} if total > _TOL else {}
     distribution: dict[tuple[Hashable, ...], float] = {}
-    for word in product(states, repeat=length):
+    for word, _ in _enumerate_words(states, length):
         probability = _markov_path_probability(chain, word, start)
         if probability > _TOL:
             distribution[word] = probability
@@ -182,35 +224,6 @@ def _quasi_alphabet(model: QuasiStochasticModel) -> tuple[Any, ...]:
         if alphabet:
             return tuple(alphabet)
     return tuple(model.transition_matrices())
-
-
-def _start_vector(
-    hmm: HiddenMarkovModel,
-    default: np.ndarray,
-    start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None,
-) -> np.ndarray:
-    if start is None:
-        return np.array(default, dtype=float)
-
-    idx = hmm.reindex()
-    n = len(idx)
-    if isinstance(start, Mapping):
-        vector = np.zeros(n, dtype=float)
-        for state, mass in start.items():
-            if not hmm.graph.has_state(state):
-                raise ValueError(f"unknown start state {state!r}")
-            vector[idx.index(state)] = float(mass)
-        return vector
-
-    if hmm.graph.has_state(start):
-        vector = np.zeros(n, dtype=float)
-        vector[idx.index(start)] = 1.0
-        return vector
-
-    vector = np.asarray(start, dtype=float)
-    if vector.shape != (n,):
-        raise ValueError(f"start vector must have shape {(n,)}, got {vector.shape}")
-    return vector.copy()
 
 
 def _markov_start(chain: MarkovChain) -> dict[Hashable, float]:

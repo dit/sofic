@@ -8,17 +8,16 @@ causal states as mixed states of the learned operators :cite:`Ellison2009`.
 
 from __future__ import annotations
 
-import zlib
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import Any, ClassVar, Literal
 
 import numpy as np
-from scipy import stats
 
 from sofic.exceptions import StochasticValidationError
+from sofic.generators._morph_tests import contingency_table, table_score, table_significant
+from sofic.generators._suffix_counts import infer_alphabet, iter_suffixes
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
@@ -50,19 +49,14 @@ class SuffixCounts:
         seq = tuple(sequence)
         if not seq:
             raise ValueError("sequence must be non-empty")
-        alphabet = tuple(sorted(set(seq), key=repr)) if alphabet is None else tuple(alphabet)
+        alphabet = infer_alphabet(seq, alphabet)
         unknown = set(seq) - set(alphabet)
         if unknown:
             raise ValueError(f"symbols {unknown!r} not in alphabet")
-        max_len = max_length if max_length is not None else len(seq)
         counts = cls(alphabet=alphabet)
-        n = len(seq)
-        for t in range(n):
-            for length in range(0, min(t, max_len) + 1):
-                history = seq[t - length : t]
-                counts.history_counts[history] += 1
-                nxt = seq[t]
-                counts.next_counts[history][nxt] += 1
+        for t, history in iter_suffixes(seq, max_length if max_length is not None else len(seq)):
+            counts.history_counts[history] += 1
+            counts.next_counts[history][seq[t]] += 1
         return counts
 
     def morph(self, history: History, *, smoothing: float = 0.0) -> dict[Any, float]:
@@ -129,101 +123,11 @@ def _contingency_rows(
     left_histories: set[History],
     right_histories: set[History],
 ) -> np.ndarray | None:
-    left_obs = _observed_counts_for_morph(counts, left_histories)
-    right_obs = _observed_counts_for_morph(counts, right_histories)
-    active = [symbol for symbol in counts.alphabet if left_obs.get(symbol, 0) + right_obs.get(symbol, 0) > 0]
-    if not active:
-        return None
-    table = np.array(
-        [
-            [left_obs.get(symbol, 0) for symbol in active],
-            [right_obs.get(symbol, 0) for symbol in active],
-        ],
-        dtype=float,
+    return contingency_table(
+        _observed_counts_for_morph(counts, left_histories),
+        _observed_counts_for_morph(counts, right_histories),
+        counts.alphabet,
     )
-    if np.allclose(table[0], table[1]):
-        return None
-    if table.shape[1] < 2:
-        left_total = table[0].sum()
-        right_total = table[1].sum()
-        if left_total == 0.0 or right_total == 0.0:
-            return None
-        left_prob = table[0, 0] / left_total
-        right_prob = table[1, 0] / right_total
-        if np.isclose(left_prob, right_prob):
-            return None
-    return table
-
-
-def _g_statistic(table: np.ndarray) -> float | None:
-    """G-test statistic of a contingency table, as ``scipy.stats.chi2_contingency`` computes it.
-
-    Includes Yates' correction for one degree of freedom, and returns ``None`` if an
-    expected count is zero. Inlined because the test runs once per pair of
-    histories, and the general scipy routine dominated inference time.
-    """
-    expected = table.sum(axis=1, keepdims=True) * table.sum(axis=0, keepdims=True) / table.sum()
-    if np.any(expected == 0):
-        return None
-    observed = table
-    if (table.shape[0] - 1) * (table.shape[1] - 1) == 1:
-        diff = expected - observed
-        observed = observed + np.sign(diff) * np.minimum(0.5, np.abs(diff))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        terms = np.where(observed > 0, observed * np.log(observed / expected), 0.0)
-    return 2.0 * float(terms.sum())
-
-
-@lru_cache(maxsize=256)
-def _chi2_critical(alpha: float, dof: int) -> float:
-    return float(stats.chi2.ppf(1.0 - alpha, dof))
-
-
-#: Monte Carlo tables drawn per ``"exact"`` morph test.
-_EXACT_DRAWS = 999
-
-#: Smallest expected count at which the ``"exact"`` test trusts the chi-squared limit.
-_EXACT_MIN_EXPECTED = 5.0
-
-
-def _exact_g_pvalue(table: np.ndarray) -> float:
-    """Monte Carlo p-value of the G statistic among tables with the same margins.
-
-    Tables are drawn uniformly given both margins (``scipy.stats.random_table``),
-    the exact null of equal morphs. The generator is seeded from the table itself,
-    so reconstruction stays deterministic.
-    """
-    counts = table.astype(np.int64)
-    rows, cols = counts.sum(axis=1), counts.sum(axis=0)
-    expected = np.outer(rows, cols) / counts.sum()
-
-    def g(observed: np.ndarray) -> np.ndarray:
-        with np.errstate(divide="ignore", invalid="ignore"):
-            terms = np.where(observed > 0, observed * np.log(observed / expected), 0.0)
-        return 2.0 * terms.sum(axis=(-2, -1))
-
-    rng = np.random.default_rng(zlib.crc32(counts.tobytes()))
-    draws = stats.random_table(rows, cols, seed=rng).rvs(size=_EXACT_DRAWS)
-    observed = g(counts.astype(float))
-    extreme = np.sum(g(draws.astype(float)) >= observed - 1e-9 * max(1.0, observed))
-    return float((1 + extreme) / (1 + _EXACT_DRAWS))
-
-
-def _exact_significant(table: np.ndarray, alpha: float) -> bool:
-    """The ``"exact"`` decision for a contingency table of next-symbol counts.
-
-    Uses the Monte Carlo exact G-test when an expected count is below
-    ``_EXACT_MIN_EXPECTED`` and the asymptotic G-test otherwise.
-    """
-    if np.any(table.sum(axis=1) == 0):
-        return False
-    expected = np.outer(table.sum(axis=1), table.sum(axis=0)) / table.sum()
-    if expected.min() < _EXACT_MIN_EXPECTED:
-        return _exact_g_pvalue(table) < alpha
-    statistic = _g_statistic(table)
-    if statistic is None or not np.isfinite(statistic):
-        return False
-    return statistic > _chi2_critical(alpha, max(1, table.shape[1] - 1))
 
 
 def _bonferroni_alpha(
@@ -254,10 +158,14 @@ def morphs_differ(
 ) -> bool:
     """Return whether two history sets have significantly different morphs.
 
-    ``"g"`` and ``"chi2"`` use the chi-squared limit, which is unreliable when
-    expected counts are small. ``"exact"`` instead compares the G statistic with
-    tables drawn uniformly given the observed margins whenever an expected count is
-    below 5, and uses the G-test otherwise.
+    ``"g"`` is the G-test (log-likelihood ratio) with Yates' continuity correction
+    when the table has one degree of freedom, i.e. two observed symbols; this is
+    the statistic ``scipy.stats.chi2_contingency(table, lambda_="log-likelihood")``
+    reports. transCSSR uses the same test. ``"g"`` and ``"chi2"`` use the
+    chi-squared limit, which is unreliable when expected counts are small.
+    ``"exact"`` instead compares the G statistic with tables drawn uniformly given
+    the observed margins whenever an expected count is below 5, and uses the
+    G-test otherwise.
     """
     if test == "tv":
         left = counts.state_morph(left_histories)
@@ -268,20 +176,7 @@ def morphs_differ(
     table = _contingency_rows(counts, left_histories, right_histories)
     if table is None:
         return False
-    if test == "exact":
-        return _exact_significant(table, alpha)
-    if test == "g":
-        statistic = _g_statistic(table)
-        if statistic is None or not np.isfinite(statistic):
-            return False
-        return statistic > _chi2_critical(alpha, max(1, table.shape[1] - 1))
-    try:
-        statistic, p_value, _dof, expected = stats.chi2_contingency(table)
-    except ValueError:
-        return False
-    if np.any(expected == 0):
-        return False
-    return float(p_value) < alpha
+    return table_significant(table, alpha, test)
 
 
 def morph_test_score(
@@ -299,231 +194,7 @@ def morph_test_score(
     table = _contingency_rows(counts, left_histories, right_histories)
     if table is None:
         return 0.0
-    try:
-        if test in ("g", "exact"):
-            statistic = _g_statistic(table)
-            return statistic if statistic is not None and np.isfinite(statistic) else 0.0
-        statistic, _p, _dof, _expected = stats.chi2_contingency(table)
-        return float(statistic)
-    except ValueError:
-        return 0.0
-
-
-def _default_lmax(n: int, alphabet_size: int, min_count: int) -> int:
-    if alphabet_size <= 0:
-        return 1
-    return max(1, min(15, n // max(1, alphabet_size * min_count)))
-
-
-def _grow_history(history: History, symbol: Any) -> History:
-    """Default successor: append the symbol without truncation (flat ε-machine CSSR)."""
-    return history + (symbol,)
-
-
-def _cssr_homogenize(
-    counts: SuffixCounts,
-    *,
-    Lmax: int,
-    alpha: float,
-    test: MorphTest,
-    successor_fn: Callable[[History, Any], History] = _grow_history,
-) -> tuple[dict[int, set[History]], dict[History, int]]:
-    """Return state id -> histories and history -> state id."""
-    states: dict[int, set[History]] = {0: {counts.empty_history}}
-    history_to_state: dict[History, int] = {counts.empty_history: 0}
-    next_state_id = 1
-
-    for _length in range(Lmax + 1):
-        for state_id in sorted(states):
-            histories = set(states[state_id])
-            for history in list(histories):
-                for symbol in counts.alphabet:
-                    child = successor_fn(history, symbol)
-                    if child in history_to_state:
-                        continue
-                    if counts.history_counts.get(child, 0) == 0:
-                        continue
-                    child_histories = {child}
-                    if morphs_differ(
-                        counts,
-                        histories,
-                        child_histories,
-                        alpha=alpha,
-                        test=test,
-                    ):
-                        best_state: int | None = None
-                        best_score = float("inf")
-                        for candidate_id, candidate_histories in states.items():
-                            if morphs_differ(
-                                counts,
-                                candidate_histories,
-                                child_histories,
-                                alpha=alpha,
-                                test=test,
-                            ):
-                                continue
-                            score = morph_test_score(
-                                counts,
-                                candidate_histories,
-                                child_histories,
-                                test=test,
-                            )
-                            if score < best_score:
-                                best_score = score
-                                best_state = candidate_id
-                        if best_state is None:
-                            best_state = next_state_id
-                            states[next_state_id] = set()
-                            next_state_id += 1
-                        states[best_state].add(child)
-                        history_to_state[child] = best_state
-                    else:
-                        states[state_id].add(child)
-                        history_to_state[child] = state_id
-    return states, history_to_state
-
-
-def _cssr_determinize(
-    states: dict[int, set[History]],
-    history_to_state: dict[History, int],
-    counts: SuffixCounts,
-    *,
-    length: int,
-    successor_fn: Callable[[History, Any], History] = _grow_history,
-) -> dict[int, set[History]]:
-    """Split homogeneous states until transitions are unifilar."""
-    current = {state_id: set(histories) for state_id, histories in states.items()}
-    changed = True
-    next_state_id = max(current) + 1 if current else 0
-
-    while changed:
-        changed = False
-        for state_id in sorted(current):
-            histories = current[state_id]
-            if len(histories) <= 1:
-                continue
-            for symbol in counts.alphabet:
-                buckets: dict[int, set[History]] = defaultdict(set)
-                for history in histories:
-                    if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
-                        continue
-                    child = successor_fn(history, symbol)
-                    target = history_to_state.get(child)
-                    if target is None:
-                        continue
-                    buckets[target].add(history)
-                if len(buckets) <= 1:
-                    continue
-                # Keep the largest bucket in the original state; split others.
-                ordered = sorted(buckets.items(), key=lambda item: (-len(item[1]), min(item[1])))
-                keep_target, keep_histories = ordered[0]
-                current[state_id] = keep_histories
-                for _target, split_histories in ordered[1:]:
-                    new_id = next_state_id
-                    next_state_id += 1
-                    current[new_id] = split_histories
-                    for history in split_histories:
-                        history_to_state[history] = new_id
-                changed = True
-                break
-            if changed:
-                break
-    return current
-
-
-def _merge_similar_states(
-    states: dict[int, set[History]],
-    history_to_state: dict[History, int],
-    counts: SuffixCounts,
-    *,
-    alpha: float,
-    test: MorphTest,
-) -> dict[int, set[History]]:
-    """Merge inferred states whose pooled morphs are statistically indistinguishable.
-
-    Merging on the morph alone can fuse states with incompatible ``symbol ->
-    successor`` maps, yielding a non-unifilar partition. Callers must re-run
-    :func:`_cssr_determinize` afterwards to restore unifilarity.
-    """
-    current = {state_id: set(histories) for state_id, histories in states.items()}
-    changed = True
-    while changed:
-        changed = False
-        state_ids = sorted(current)
-        for index, left_id in enumerate(state_ids):
-            if left_id not in current:
-                continue
-            for right_id in state_ids[index + 1 :]:
-                if right_id not in current:
-                    continue
-                if morphs_differ(
-                    counts,
-                    current[left_id],
-                    current[right_id],
-                    alpha=alpha,
-                    test=test,
-                ):
-                    continue
-                current[left_id].update(current.pop(right_id))
-                for history in current[left_id]:
-                    history_to_state[history] = left_id
-                changed = True
-                break
-            if changed:
-                break
-    return current
-
-
-def _drop_transient_states(
-    states: dict[int, set[History]],
-    history_to_state: dict[History, int],
-    counts: SuffixCounts,
-    *,
-    length: int,
-    successor_fn: Callable[[History, Any], History] = _grow_history,
-) -> dict[int, set[History]]:
-    """Keep only states in bottom strongly connected components."""
-    import networkx as nx
-
-    successors: dict[int, dict[Any, set[int]]] = defaultdict(lambda: defaultdict(set))
-    for state_id, histories in states.items():
-        for history in histories:
-            for symbol in counts.alphabet:
-                if counts.next_counts.get(history, Counter()).get(symbol, 0) == 0:
-                    continue
-                target = history_to_state.get(successor_fn(history, symbol))
-                if target is None:
-                    continue
-                successors[state_id][symbol].add(target)
-
-    graph = nx.DiGraph()
-    for state_id in states:
-        graph.add_node(state_id)
-    for state_id, by_symbol in successors.items():
-        for targets in by_symbol.values():
-            for target in targets:
-                graph.add_edge(state_id, target)
-
-    if graph.number_of_edges() == 0:
-        return states
-
-    recurrent: set[int] = set()
-    for component in nx.strongly_connected_components(graph):
-        if not component:
-            continue
-        subgraph = graph.subgraph(component)
-        has_cycle = subgraph.number_of_edges() > 0 and (
-            len(component) > 1 or any(subgraph.has_edge(node, node) for node in component)
-        )
-        if not has_cycle:
-            continue
-        outgoing = any(graph.has_edge(v, w) for v in component for w in graph.nodes if w not in component)
-        if not outgoing:
-            recurrent.update(component)
-
-    if not recurrent:
-        return states
-    return {state_id: histories for state_id, histories in states.items() if state_id in recurrent}
+    return table_score(table, test)
 
 
 def _cssr_default_lmax(n: int, alphabet_size: int) -> int:
@@ -638,8 +309,12 @@ def _suffix_edges(
     return edges
 
 
-def _recurrent_states(edges: dict[int, dict[Any, dict[int, set[History]]]]) -> list[set[int]]:
-    """Closed communicating classes (with at least one edge) of the state graph."""
+def _recurrent_states(edges: Mapping[int, Mapping[Any, Iterable[int]]]) -> list[set[int]]:
+    """Closed communicating classes (with at least one edge) of the state graph.
+
+    ``edges[state][label]`` iterates over the successor states on ``label`` (a
+    symbol here, an ``(input, output)`` pair in transCSSR).
+    """
     import networkx as nx
 
     graph = nx.DiGraph()

@@ -99,12 +99,13 @@ def normalize(vpa: VisiblyPushdownAutomaton) -> NormalVPA:
 
     A wildcard return (no stack symbol) fires on every stack symbol, and also on
     the empty stack when ``vpa`` has a bottom symbol; a return guarded by the
-    bottom symbol fires only on the empty stack.
+    bottom symbol fires only on the empty stack. A call without a stack symbol
+    never fires and is dropped.
     """
     bottom = vpa.bottom_stack_symbol
     gamma = {g for g in vpa.stack_alphabet if g != bottom}
     for transition in vpa.transitions():
-        if transition.data.get(ATTR_KIND) == KIND_CALL:
+        if transition.data.get(ATTR_KIND) == KIND_CALL and transition.data.get(ATTR_STACK_SYMBOL) is not None:
             gamma.add(transition.data.get(ATTR_STACK_SYMBOL))
     result = NormalVPA(
         call_alphabet=frozenset(vpa.call_alphabet),
@@ -121,7 +122,8 @@ def normalize(vpa: VisiblyPushdownAutomaton) -> NormalVPA:
             continue
         source, target = transition.source, transition.target
         if kind == KIND_CALL:
-            result.calls.add((source, symbol, target, data.get(ATTR_STACK_SYMBOL)))
+            if data.get(ATTR_STACK_SYMBOL) is not None:
+                result.calls.add((source, symbol, target, data.get(ATTR_STACK_SYMBOL)))
         elif kind == KIND_INTERNAL:
             result.internals.add((source, symbol, target))
         elif kind == KIND_RETURN:

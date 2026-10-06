@@ -76,7 +76,11 @@ it as the longest history the data supports, not as a synchronization length.
 The morph tests also rely on the chi-squared limit, which fails for the sparse
 counts of long suffixes. ``test="exact"`` compares the G statistic with tables
 drawn uniformly given the observed margins whenever an expected count is below 5
-(seeded from the table, so reconstruction stays deterministic).
+(seeded from the table, so reconstruction stays deterministic). The G-test
+(``test="g"``) applies Yates' continuity correction when the table has one degree
+of freedom (two observed symbols), matching
+``scipy.stats.chi2_contingency(table, lambda_="log-likelihood")``; transCSSR and
+stack CSSR share the same implementation.
 ``correction="bonferroni"`` divides ``alpha`` by the number of suffixes eligible
 for testing, bounding the chance of any spurious split. Because CSSR chooses each
 test in light of earlier outcomes, false-discovery-rate step-up procedures do not

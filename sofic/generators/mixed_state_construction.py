@@ -10,6 +10,7 @@ import numpy as np
 
 from sofic.exceptions import MixedStateExplosionError
 from sofic.generators.base import HiddenMarkovModel
+from sofic.generators.matrices import start_vector, symbol_matrices
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.mixed_state import (
     MixedState,
@@ -18,12 +19,10 @@ from sofic.generators.mixed_state import (
 )
 from sofic.generators.prob import (
     as_prob,
-    has_symbolic,
     is_positive_mass,
     matvec,
     simplify_prob,
     sum_probs,
-    zeros,
 )
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
@@ -41,14 +40,8 @@ def _resolve_initial_belief(
         vector = hmm.stationary_distribution()
     elif isinstance(initial_mixed_state, MixedState):
         vector = initial_mixed_state.as_array()
-    elif isinstance(initial_mixed_state, Mapping):
-        index = {state: i for i, state in enumerate(basis)}
-        symbolic = has_symbolic(initial_mixed_state.values())
-        vector = zeros((len(basis),), symbolic=symbolic)
-        for state, mass in initial_mixed_state.items():
-            vector[index[state]] = as_prob(mass)
     else:
-        vector = np.asarray(initial_mixed_state, dtype=object if has_symbolic(initial_mixed_state) else float)
+        vector = start_vector(hmm, initial_mixed_state)
 
     if len(np.asarray(vector).ravel()) != len(basis):
         raise ValueError(f"initial belief has length {len(np.asarray(vector).ravel())}, expected {len(basis)}")
@@ -84,13 +77,11 @@ def build_mixed_state_presentation(
     if not isinstance(hmm, MealyHMM):
         raise TypeError(f"mixed-state presentation requires a MealyHMM, not {type(hmm)!r}")
 
-    from sofic.generators.hmm_inference import _emission_transition_tensors
-
     constraints = getattr(hmm, "symbol_constraints", None)
 
     idx = hmm.reindex()
     basis = idx.states
-    _, joint = _emission_transition_tensors(hmm)
+    joint = symbol_matrices(hmm)
     symbols = tuple(sorted(joint, key=str))
     eta0 = _resolve_initial_belief(hmm, basis, initial_mixed_state)
 

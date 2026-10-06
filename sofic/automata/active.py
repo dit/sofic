@@ -24,6 +24,7 @@ from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 
+from sofic.automata._words import _words_up_to
 from sofic.automata.dfa import DFA
 from sofic.automata.transducers import MealyMachine
 
@@ -135,32 +136,50 @@ class TransducerOutputOracle:
         return next(iter(outputs))
 
 
-def _words_up_to(max_length: int, alphabet: Sequence[Any]) -> Iterator[Word]:
-    frontier: list[Word] = [()]
-    yield ()
-    for _ in range(max_length):
-        nxt: list[Word] = []
-        for word in frontier:
-            for symbol in alphabet:
-                extended = (*word, symbol)
-                yield extended
-                nxt.append(extended)
-        frontier = nxt
+class _BoundedEquivalenceOracle:
+    """Approximate equivalence test over a finite stream of candidate words.
+
+    Subclasses supply the candidate words (:meth:`_words`) and the comparison of
+    target versus hypothesis on one word (:meth:`_disagrees`); the first
+    disagreeing word is the counterexample.
+    """
+
+    def __init__(self, alphabet: Iterable[Any]) -> None:
+        self._alphabet = tuple(sorted(alphabet, key=repr))
+
+    def _words(self) -> Iterator[Word]:
+        raise NotImplementedError
+
+    def _disagrees(self, hypothesis: Any, word: Word) -> bool:
+        raise NotImplementedError
+
+    def find_counterexample(self, hypothesis: Any) -> Word | None:
+        for word in self._words():
+            if self._disagrees(hypothesis, word):
+                return word
+        return None
 
 
-class ExhaustiveEquivalenceOracle:
+class _MembershipBoundedOracle(_BoundedEquivalenceOracle):
+    """Bounded oracle comparing a membership oracle against a DFA hypothesis."""
+
+    def __init__(self, membership: MembershipOracle, alphabet: Iterable[Any]) -> None:
+        super().__init__(alphabet)
+        self._membership = membership
+
+    def _disagrees(self, hypothesis: DFA, word: Word) -> bool:
+        return self._membership.member(word) != hypothesis.recognizes(word)
+
+
+class ExhaustiveEquivalenceOracle(_MembershipBoundedOracle):
     """Bounded exhaustive equivalence test for DFA hypotheses."""
 
     def __init__(self, membership: MembershipOracle, alphabet: Iterable[Any], *, max_length: int = 10) -> None:
-        self._membership = membership
-        self._alphabet = tuple(sorted(alphabet, key=repr))
+        super().__init__(membership, alphabet)
         self._max_length = int(max_length)
 
-    def find_counterexample(self, hypothesis: DFA) -> Word | None:
-        for word in _words_up_to(self._max_length, self._alphabet):
-            if self._membership.member(word) != hypothesis.recognizes(word):
-                return word
-        return None
+    def _words(self) -> Iterator[Word]:
+        return _words_up_to(self._max_length, self._alphabet)
 
 
 class AutomatonEquivalenceOracle:
@@ -206,7 +225,7 @@ def _step(aut: Any, states: frozenset[Any], symbol: Any) -> frozenset[Any]:
     return _closure(aut, targets)
 
 
-class RandomWalkEquivalenceOracle:
+class RandomWalkEquivalenceOracle(_MembershipBoundedOracle):
     """Randomized equivalence test drawing random input words for DFA hypotheses."""
 
     def __init__(
@@ -218,39 +237,33 @@ class RandomWalkEquivalenceOracle:
         max_steps: int = 30,
         rng: np.random.Generator | int | None = None,
     ) -> None:
-        self._membership = membership
-        self._alphabet = tuple(sorted(alphabet, key=repr))
+        super().__init__(membership, alphabet)
         self._num_walks = int(num_walks)
         self._max_steps = int(max_steps)
         self._rng = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
 
-    def find_counterexample(self, hypothesis: DFA) -> Word | None:
+    def _words(self) -> Iterator[Word]:
         n_symbols = len(self._alphabet)
         for _ in range(self._num_walks):
             length = int(self._rng.integers(0, self._max_steps + 1))
-            word = tuple(self._alphabet[int(self._rng.integers(0, n_symbols))] for _ in range(length))
-            if self._membership.member(word) != hypothesis.recognizes(word):
-                return word
-        return None
+            yield tuple(self._alphabet[int(self._rng.integers(0, n_symbols))] for _ in range(length))
 
 
-class MealyExhaustiveEquivalenceOracle:
+class MealyExhaustiveEquivalenceOracle(_BoundedEquivalenceOracle):
     """Bounded exhaustive equivalence test for Mealy hypotheses."""
 
     def __init__(self, oracle: MealyMembershipOracle, alphabet: Iterable[Any], *, max_length: int = 10) -> None:
+        super().__init__(alphabet)
         self._oracle = oracle
-        self._alphabet = tuple(sorted(alphabet, key=repr))
         self._max_length = int(max_length)
 
-    def find_counterexample(self, hypothesis: MealyMachine) -> Word | None:
-        for word in _words_up_to(self._max_length, self._alphabet):
-            if not word:
-                continue
-            produced = hypothesis.transduce(word)
-            hyp_out = next(iter(produced)) if produced else None
-            if self._oracle.output(word) != hyp_out:
-                return word
-        return None
+    def _words(self) -> Iterator[Word]:
+        return (word for word in _words_up_to(self._max_length, self._alphabet) if word)
+
+    def _disagrees(self, hypothesis: MealyMachine, word: Word) -> bool:
+        produced = hypothesis.transduce(word)
+        hyp_out = next(iter(produced)) if produced else None
+        return self._oracle.output(word) != hyp_out
 
 
 # ------------------------------------------------------------------------------ L*
@@ -452,10 +465,6 @@ def learn_dfa_ttt(
     raise RuntimeError("TTT did not converge within max_rounds; check the equivalence oracle")
 
 
-def _hypothesis_access(word: Word, sift: Callable[[Word], _DTNode]) -> Word:
-    return sift(word).access
-
-
 def _split_leaf(
     counterexample: Word,
     sift: Callable[[Word], _DTNode],
@@ -466,7 +475,7 @@ def _split_leaf(
     length = len(counterexample)
 
     def alpha(index: int) -> Word:
-        return _hypothesis_access(counterexample[:index], sift) + counterexample[index:]
+        return sift(counterexample[:index]).access + counterexample[index:]
 
     base = member(alpha(0))
     breakpoint_index = None
@@ -477,7 +486,7 @@ def _split_leaf(
     if breakpoint_index is None:  # pragma: no cover - guaranteed by a valid counterexample
         raise RuntimeError("counterexample analysis found no breakpoint")
 
-    state_access = _hypothesis_access(counterexample[:breakpoint_index], sift)
+    state_access = sift(counterexample[:breakpoint_index]).access
     symbol = counterexample[breakpoint_index]
     discriminator = counterexample[breakpoint_index + 1 :]
     new_access = state_access + (symbol,)

@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from itertools import product
 from typing import Any
 
+from sofic.automata.algorithms import _effective_alphabet
 from sofic.automata.base import LabeledAutomaton
 
 
@@ -36,9 +37,3 @@ def iter_language(
     while max_length is None or length <= max_length:
         yield from words_of_length(automaton, length)
         length += 1
-
-
-def _effective_alphabet(automaton: LabeledAutomaton) -> frozenset[Any]:
-    from sofic.automata.algorithms import _effective_alphabet as _shared
-
-    return _shared(automaton)

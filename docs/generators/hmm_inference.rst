@@ -99,3 +99,27 @@ Score and observed information
 .. autofunction:: observed_information
 .. autofunction:: free_parameter_labels
 .. autofunction:: standard_errors
+
+Transition matrices and start policies
+--------------------------------------
+
+.. py:module:: sofic.generators.matrices
+   :no-index:
+
+Every routine above works with the symbol-labeled joint transition matrices
+:math:`T^{(x)}_{ij} = P(S_{t+1} = j, X_t = x \mid S_t = i)` of the model's
+Mealy presentation :cite:`Rabiner1989,Ellison2009`, built in one place by
+:mod:`sofic.generators.matrices`. The initial state law follows one of two
+policies:
+
+- ``"model"`` (likelihoods, decoding, sampling, word probabilities): the
+  model's ``initial_distribution``, or its stationary distribution when none is
+  given.
+- ``"stationary"`` (block and window statistics such as
+  ``joint_block_distribution`` and directional flow): the stationary process
+  law, preferring the limit reached from ``initial_distribution`` on reducible
+  chains.
+
+.. autofunction:: sofic.generators.matrices.start_vector
+.. autofunction:: sofic.generators.matrices.emission_tensors
+.. autofunction:: sofic.generators.matrices.symbol_matrices
