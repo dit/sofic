@@ -10,11 +10,21 @@ Learning
 Active learning (NL\*)
 ======================
 
-Active learning of maximized prime átomatons via NL\* with a membership
-teacher, following Angluin-style learning and its nondeterministic extension
-:cite:`Angluin1987,Bollig2009`:
+NL\* :cite:`Bollig2009` extends Angluin's L\* :cite:`Angluin1987` to
+nondeterministic automata. It keeps an RFSA-closed, RFSA-consistent observation
+table whose prime rows become the hypothesis states, and adds every suffix of a
+counterexample as a new experiment. When the equivalence oracle accepts, the
+hypothesis is the canonical RFSA of the target (:doc:`rfsa`). Running NL\* on
+the reversed target and reversing the result learns the maximized prime
+átomaton (:doc:`atomaton`).
 
-.. autofunction:: sofic.automata.learning.learn_maximized_prime_atomaton
+:class:`~sofic.automata.active.AutomatonEquivalenceOracle` answers equivalence
+queries exactly against a target automaton, returning a shortest
+counterexample.
+
+.. autofunction:: sofic.automata.learning.learn_rfsa_nlstar
+.. autofunction:: sofic.automata.learning.learn_prime_atomaton_nlstar
+.. autofunction:: sofic.automata.learning.learn_rfsa_from_language
 
 Active learning (L\*, TTT, Mealy)
 =================================
@@ -65,6 +75,7 @@ equivalence test:
    :members:
 .. autoclass:: sofic.automata.active.LanguageMembershipOracle
 .. autoclass:: sofic.automata.active.FunctionMembershipOracle
+.. autoclass:: sofic.automata.active.AutomatonEquivalenceOracle
 .. autoclass:: sofic.automata.active.ExhaustiveEquivalenceOracle
 .. autoclass:: sofic.automata.active.RandomWalkEquivalenceOracle
 .. autoclass:: sofic.automata.active.TransducerOutputOracle

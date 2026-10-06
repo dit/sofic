@@ -17,4 +17,5 @@ API
 
 .. autofunction:: sofic.automata.canonical_extraction.observation_to_canonical_rfsa
 .. autofunction:: sofic.automata.canonical_extraction.observation_to_atomaton
+.. autofunction:: sofic.automata.canonical_extraction.observation_to_maximized_prime_atomaton
 .. autofunction:: sofic.automata.canonical_extraction.observation_to_minimal_dfa

@@ -1,4 +1,9 @@
-"""Dual constructions between canonical RFSA and maximized prime átomaton."""
+"""Duality between canonical RFSAs and maximized prime átomata.
+
+The maximized prime átomaton of ``L`` is the reverse of the canonical RFSA of
+the reversed language :cite:`MaarandTamm2022`. Reversing either object therefore gives
+the other one for the reversed language, and reversing twice is the identity.
+"""
 
 from __future__ import annotations
 
@@ -7,12 +12,14 @@ from sofic.automata.rfsa import CanonicalRFSA
 
 
 def dual_atomaton_from_rfsa(rfsa: CanonicalRFSA) -> MaximizedPrimeAtomaton:
-    from sofic.automata.canonical_extraction import maximized_prime_atomaton_from_language
+    """Reverse the canonical RFSA of ``L`` into the maximized prime átomaton of ``L^R``."""
+    from sofic.automata.canonical_extraction import _reverse_into
 
-    return maximized_prime_atomaton_from_language(rfsa)
+    return _reverse_into(MaximizedPrimeAtomaton, rfsa)
 
 
 def dual_rfsa_from_atomaton(atomaton: MaximizedPrimeAtomaton) -> CanonicalRFSA:
-    from sofic.automata.canonical_extraction import canonical_rfsa_from_language
+    """Reverse the maximized prime átomaton of ``L`` into the canonical RFSA of ``L^R``."""
+    from sofic.automata.canonical_extraction import _reverse_into
 
-    return canonical_rfsa_from_language(atomaton)
+    return _reverse_into(CanonicalRFSA, atomaton)

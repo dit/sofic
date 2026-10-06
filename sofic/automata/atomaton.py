@@ -80,8 +80,15 @@ class Atomaton(AtomicAutomaton):
         return minimize(self, algorithm="brzozowski")
 
 
-class MaximizedPrimeAtomaton(AtomicAutomaton):
-    """Maximized prime átomaton — dual of the canonical RFSA."""
+class MaximizedPrimeAtomaton(NFA):
+    """Maximized prime átomaton: the dual of the canonical RFSA :cite:`MaarandTamm2022`.
+
+    It is the reverse of the canonical RFSA of the reversed language, just as the
+    átomaton is the reverse of the minimal DFA of the reversed language. Its
+    states are the maximized prime atoms; the right language of each lies between
+    its atom and its maximized atom :cite:`Tamm2015`, so -- unlike the átomaton --
+    it need not be atomic.
+    """
 
     @classmethod
     def from_language(cls, language: RegularLanguage | NFA, **kwargs: Any) -> MaximizedPrimeAtomaton:
@@ -97,6 +104,13 @@ class MaximizedPrimeAtomaton(AtomicAutomaton):
 
     @classmethod
     def from_canonical_rfsa(cls, rfsa: CanonicalRFSA, **kwargs: Any) -> MaximizedPrimeAtomaton:
-        from sofic.automata.canonical_dual import dual_atomaton_from_rfsa
+        """Return the maximized prime átomaton of the language ``rfsa`` recognizes."""
+        from sofic.automata.canonical_extraction import maximized_prime_atomaton_from_language
 
-        return dual_atomaton_from_rfsa(rfsa)
+        return maximized_prime_atomaton_from_language(rfsa)
+
+    def dual(self) -> CanonicalRFSA:
+        """Return the reverse automaton: the canonical RFSA of the reversed language."""
+        from sofic.automata.canonical_dual import dual_rfsa_from_atomaton
+
+        return dual_rfsa_from_atomaton(self)

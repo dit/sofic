@@ -36,6 +36,17 @@ the special case where the reverse is deterministic.
     atomic_states(nfa)           # states whose right language is a union of atoms
     is_atomic(nfa.reverse())     # iff nfa.determinize() is minimal
 
+Maximized prime átomaton
+========================
+
+The maximized prime átomaton (:class:`MaximizedPrimeAtomaton`) is the dual of
+the canonical RFSA :cite:`MaarandTamm2022`: the reverse of the canonical RFSA of
+the reversed language, just as the átomaton is the reverse of the minimal DFA of
+the reversed language. Its states are the maximized prime atoms, and the right
+language of each lies between its atom and its maximized atom :cite:`Tamm2015`.
+Unlike the átomaton it need not be atomic, so it is a plain
+:class:`~sofic.automata.nfa.NFA` subclass.
+
 API
 ===
 
@@ -45,3 +56,6 @@ API
 .. autoclass:: AtomicAutomaton
 .. autoclass:: Atomaton
 .. autoclass:: MaximizedPrimeAtomaton
+   :members: from_language, from_canonical_rfsa, dual
+
+.. autofunction:: sofic.automata.canonical_extraction.maximized_prime_atomaton_from_language

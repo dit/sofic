@@ -2,6 +2,7 @@
 
 # ``atomaton`` is an intentional pun on atomic automaton.
 from sofic.automata.active import (
+    AutomatonEquivalenceOracle,
     EquivalenceOracle,
     ExhaustiveEquivalenceOracle,
     FunctionMealyOracle,
@@ -62,6 +63,7 @@ from sofic.automata.idfa import (
     validate_idfa_string,
 )
 from sofic.automata.languages import AutomatonLanguage, RegularLanguage
+from sofic.automata.learning import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
 from sofic.automata.nfa import NFA
 from sofic.automata.nwa import NestedWord, NestedWordAutomaton
 from sofic.automata.observation import ObservationTable
@@ -125,6 +127,7 @@ from sofic.automata.wheeler_index import WheelerIndex, wheeler_index
 __all__ = [
     "Atomaton",
     "AtomicAutomaton",
+    "AutomatonEquivalenceOracle",
     "AutomatonLanguage",
     "BuchiAutomaton",
     "EquivalenceOracle",
@@ -209,6 +212,9 @@ __all__ = [
     "learn_mealy_from_transducer",
     "learn_mealy_lstar",
     "learn_pfa_alergia",
+    "learn_prime_atomaton_nlstar",
+    "learn_rfsa_from_language",
+    "learn_rfsa_nlstar",
     "learn_sofic_dyck_shift_papni",
     "maximum_colex_relation",
     "minimize",

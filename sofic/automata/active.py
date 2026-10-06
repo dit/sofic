@@ -13,8 +13,8 @@ counterexample"). This module provides
 * a redundancy-free **discrimination-tree** learner in the TTT family
   :cite:`KearnsVazirani1994,Isberner2014`.
 
-These complement the existing NL\* átomaton learner
-(:func:`sofic.automata.learning.learn_maximized_prime_atomaton`).
+These complement the NL\* canonical-RFSA learner
+(:func:`sofic.automata.learning.learn_rfsa_nlstar`).
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ __all__ = [
     "LanguageMembershipOracle",
     "FunctionMealyOracle",
     "TransducerOutputOracle",
+    "AutomatonEquivalenceOracle",
     "ExhaustiveEquivalenceOracle",
     "RandomWalkEquivalenceOracle",
     "MealyExhaustiveEquivalenceOracle",
@@ -160,6 +161,49 @@ class ExhaustiveEquivalenceOracle:
             if self._membership.member(word) != hypothesis.recognizes(word):
                 return word
         return None
+
+
+class AutomatonEquivalenceOracle:
+    """Exact equivalence against a target finite automaton.
+
+    Returns a shortest word on which the hypothesis and the target disagree,
+    found by breadth-first search over the product of their subset
+    constructions, or ``None`` when they recognize the same language.
+    """
+
+    def __init__(self, target: Any, alphabet: Iterable[Any] | None = None) -> None:
+        self._target = target
+        self._alphabet = None if alphabet is None else frozenset(alphabet)
+
+    def find_counterexample(self, hypothesis: Any) -> Word | None:
+        from sofic.automata.algorithms import _transition_alphabet
+
+        symbols = (self._alphabet or frozenset()) | _transition_alphabet(self._target)
+        symbols |= _transition_alphabet(hypothesis)
+        ordered = tuple(sorted(symbols, key=repr))
+        start = (_closure(hypothesis, hypothesis.initial_states), _closure(self._target, self._target.initial_states))
+        seen = {start}
+        queue: list[tuple[tuple[frozenset[Any], frozenset[Any]], Word]] = [(start, ())]
+        for (left, right), word in queue:
+            if bool(left & hypothesis.accepting_states) != bool(right & self._target.accepting_states):
+                return word
+            for symbol in ordered:
+                successor = (_step(hypothesis, left, symbol), _step(self._target, right, symbol))
+                if successor not in seen:
+                    seen.add(successor)
+                    queue.append((successor, (*word, symbol)))
+        return None
+
+
+def _closure(aut: Any, states: Iterable[Any]) -> frozenset[Any]:
+    return frozenset(aut.epsilon_closure(set(states)))
+
+
+def _step(aut: Any, states: frozenset[Any], symbol: Any) -> frozenset[Any]:
+    targets: set[Any] = set()
+    for state in states:
+        targets |= aut.delta(state, symbol)
+    return _closure(aut, targets)
 
 
 class RandomWalkEquivalenceOracle:
