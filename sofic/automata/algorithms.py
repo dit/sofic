@@ -244,9 +244,15 @@ def minimize_hopcroft(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DF
 def equivalent(
     aut1: LabeledAutomaton,
     aut2: LabeledAutomaton,
-    alphabet: frozenset[Any],
+    alphabet: frozenset[Any] | None = None,
 ) -> bool:
-    """Return whether two automata recognize the same language over ``alphabet``."""
+    """Return whether two automata recognize the same language.
+
+    The comparison runs over ``alphabet`` together with every symbol either
+    automaton declares or uses, so a too-small ``alphabet`` cannot hide a
+    difference on the omitted symbols.
+    """
+    alphabet = frozenset(alphabet or ()) | _transition_alphabet(aut1) | _transition_alphabet(aut2)
     d1 = minimize(_to_nfa(aut1), alphabet=alphabet, algorithm="hopcroft")
     d2 = minimize(_to_nfa(aut2), alphabet=alphabet, algorithm="hopcroft")
     return _isomorphic_minimal_dfa(d1, d2, alphabet)
@@ -274,6 +280,15 @@ def _effective_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
     symbols = {symbol for symbol in aut.input_alphabet if symbol is not EPSILON}
     if symbols:
         return frozenset(symbols)
+    for transition in aut.transitions():
+        symbol = transition.data.get(ATTR_SYMBOL)
+        if symbol is not None and symbol is not EPSILON:
+            symbols.add(symbol)
+    return frozenset(symbols)
+
+
+def _transition_alphabet(aut: LabeledAutomaton) -> frozenset[Any]:
+    symbols = {symbol for symbol in aut.input_alphabet if symbol is not EPSILON}
     for transition in aut.transitions():
         symbol = transition.data.get(ATTR_SYMBOL)
         if symbol is not None and symbol is not EPSILON:

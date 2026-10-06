@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from sofic.exceptions import SoficError
+
 if TYPE_CHECKING:
     from sofic.generators.epsilon_machine import EpsilonMachine
 
@@ -327,7 +329,10 @@ def block_entropy_estimates(
 
     entropy_asymptote = excess_entropy + h_mu_l
     crypticity_estimate = state_block_entropy - block_state_entropy
-    crypticity = float(crypticity_estimate[-1]) if crypticity_estimate.size else 0.0
+    if use_exact:
+        crypticity = statistical_complexity - excess_entropy
+    else:
+        crypticity = float(crypticity_estimate[-1]) if crypticity_estimate.size else 0.0
 
     cm = _cm_extension_curves(
         lengths,
@@ -453,7 +458,7 @@ def _excess_entropy(
 ) -> float:
     try:
         return float(machine.to_bidirectional().excess_entropy())
-    except Exception:
+    except (SoficError, ValueError, NotImplementedError, np.linalg.LinAlgError):
         return _block_entropy_excess_entropy(machine, entropy_rate=entropy_rate, block_entropy=block_entropy)
 
 
@@ -498,7 +503,7 @@ def _estimated_excess_entropy(machine: EpsilonMachine, estimate: np.ndarray, *, 
     if use_exact:
         try:
             return float(machine.excess_entropy())
-        except Exception:
+        except (SoficError, ValueError, NotImplementedError, np.linalg.LinAlgError):
             pass
     return float(estimate[-1]) if estimate.size else 0.0
 

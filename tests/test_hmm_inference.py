@@ -32,7 +32,7 @@ def test_forward_coin_initial_and_likelihood():
     alpha = forward(coin, observations)
     assert alpha.shape == (4, 1)
     assert alpha[0].sum() == pytest.approx(1.0, abs=1e-9)
-    assert alpha[-1].sum() == pytest.approx(np.exp(log_likelihood(coin, observations)), abs=1e-9)
+    assert alpha[-1].sum() == pytest.approx(2.0 ** log_likelihood(coin, observations), abs=1e-9)
 
 
 def test_backward_coin():
@@ -92,7 +92,7 @@ def test_log_likelihood_long_sequence_stays_finite():
     observations = ["0", "1"] * 1500
     ll = log_likelihood(coin, observations)
     assert np.isfinite(ll)
-    assert ll == pytest.approx(-3000 * np.log(2), rel=1e-9)
+    assert ll == pytest.approx(-3000.0, rel=1e-9)
 
 
 def test_forward_scaled_rows_are_normalized():
@@ -204,7 +204,7 @@ def test_score_matches_finite_difference_gradient():
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}
         perturbed[symbol][i, j] = value
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     analytic = score(gm, obs)
     h = 1e-6
@@ -226,7 +226,7 @@ def test_observed_information_matches_numeric_hessian_scalar():
         perturbed[0][a, a] = theta
         perturbed[1][a, b] = 1.0 - theta
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     assert free_parameter_labels(gm) == [("A", 0, "A")]
     theta0 = 0.5
@@ -254,7 +254,7 @@ def test_observed_information_multi_parameter_symmetric_and_matches_hessian():
         perturbed[1][0, 0] = theta[1]
         perturbed[2][0, 0] = 1.0 - theta[0] - theta[1]
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     base = np.array([0.2, 0.3])
     h = 1e-5

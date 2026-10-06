@@ -1,4 +1,4 @@
-"""Classical model-selection criteria for stochastic generators.
+r"""Classical model-selection criteria for stochastic generators.
 
 Point-estimate information criteria -- AIC :cite:`Akaike1974`, the
 small-sample-corrected AICc :cite:`HurvichTsai1989`, BIC :cite:`Schwarz1978`,
@@ -7,10 +7,14 @@ with cross-validated log-likelihood and the widely applicable information
 criterion (WAIC) :cite:`Watanabe2010`. These complement the exact Bayesian
 evidences of :mod:`sofic.inference.bayesian`: they score any fitted
 :class:`~sofic.generators.base.HiddenMarkovModel` (ε-machine, Mealy HMM, Markov
-chain) using the natural-log likelihood from
+chain) using the log-likelihood (in bits) from
 :func:`sofic.generators.hmm_inference.log_likelihood` and a free-parameter count
 read off the transition graph, so they are likelihood-agnostic and apply
 directly to discrete-emission models.
+
+Log-likelihoods, log scores, and the MDL code length are reported in **bits**.
+AIC, AICc, BIC, and WAIC keep their standard deviance scale: they are computed
+from the natural log-likelihood :math:`\ln L = \ln 2 \cdot \log_2 L`.
 
 All information criteria follow the convention **lower is better**;
 cross-validated and WAIC log scores follow **higher is better** for the raw log
@@ -123,7 +127,7 @@ def _smoothed_log_likelihood(
     smoothing: float,
     alphabet_size: int,
 ) -> float:
-    """Natural-log likelihood with each one-step prediction mixed with the uniform law.
+    """Log-likelihood (bits) with each one-step prediction mixed with the uniform law.
 
     ``P'(x_t | x_{0:t}) = (1 - smoothing) P(x_t | x_{0:t}) + smoothing / alphabet_size``,
     computed by forward filtering. After a symbol the model forbids, the belief is
@@ -140,7 +144,7 @@ def _smoothed_log_likelihood(
         matrix = joint.get(symbol)
         unnormalized = belief @ matrix if matrix is not None else np.zeros_like(belief)
         predicted = float(unnormalized.sum())
-        total += float(np.log((1.0 - smoothing) * predicted + smoothing / alphabet_size))
+        total += float(np.log2((1.0 - smoothing) * predicted + smoothing / alphabet_size))
         if predicted > 0.0:
             belief = unnormalized / predicted
         else:
@@ -158,8 +162,9 @@ def score_model(
     """Score ``model`` on ``data`` with AIC, AICc, BIC, and MDL.
 
     ``data`` may be a single observation sequence or an iterable of sequences.
-    The scores use natural-log likelihoods; the number of observations is the
-    total symbol count. When the data has zero probability under the model the
+    ``log_likelihood`` and ``mdl`` are in bits; AIC, AICc, and BIC use the natural
+    log-likelihood so they keep their usual scale. The number of observations is
+    the total symbol count. When the data has zero probability under the model the
     likelihood is ``-inf`` and every criterion is ``+inf``.
     """
     sequences = _normalize_sequences(data)
@@ -171,12 +176,12 @@ def score_model(
         inf = float("inf")
         return ModelScores(float("-inf"), k, n, inf, inf, inf, inf)
 
-    aic = 2.0 * k - 2.0 * ll
+    ln_l = ll * np.log(2.0)
+    aic = 2.0 * k - 2.0 * ln_l
     denom = n - k - 1
     aicc = aic + (2.0 * k * (k + 1)) / denom if denom > 0 else float("inf")
-    log_n = np.log(n) if n > 0 else 0.0
-    bic = k * log_n - 2.0 * ll
-    mdl = 0.5 * k * log_n - ll
+    bic = k * (np.log(n) if n > 0 else 0.0) - 2.0 * ln_l
+    mdl = 0.5 * k * (np.log2(n) if n > 0 else 0.0) - ll
     return ModelScores(float(ll), k, n, float(aic), float(aicc), float(bic), float(mdl))
 
 
@@ -229,7 +234,7 @@ def cross_validated_log_likelihood(
     gap: int = 0,
     smoothing: float = 0.0,
 ) -> float:
-    """Return the total held-out natural-log likelihood under ``folds``-fold CV.
+    """Return the total held-out log-likelihood (bits) under ``folds``-fold CV.
 
     ``fit(train_sequences)`` must fit and return a model from a list of training
     sequences. When ``data`` is a collection of sequences the folds partition the
@@ -249,7 +254,7 @@ def cross_validated_log_likelihood(
     smoothing
         Mix each one-step held-out prediction with the uniform distribution over
         the observed alphabet, with this weight. Then a single transition that the
-        fitted model forbids costs ``log(smoothing / |A|)`` instead of making the
+        fitted model forbids costs ``log2(smoothing / |A|)`` instead of making the
         whole fold ``-inf``, so models can still be compared.
     """
     if gap < 0:
@@ -307,17 +312,20 @@ def waic(pointwise_log_likelihoods: np.ndarray) -> WAICResult:
     r"""Widely applicable information criterion from posterior samples.
 
     ``pointwise_log_likelihoods`` has shape ``(n_samples, n_points)`` with entry
-    ``[s, i] = log p(y_i | theta_s)`` for posterior draw ``theta_s``. Returns the
-    WAIC on the deviance scale (lower is better),
+    ``[s, i] = log2 p(y_i | theta_s)`` (bits) for posterior draw ``theta_s``, as
+    returned by :func:`posterior_pointwise_log_likelihoods`. Returns the WAIC on
+    the standard (natural-log) deviance scale (lower is better),
     ``WAIC = -2 (lppd - p_waic)`` with the log pointwise predictive density
     ``lppd = sum_i log mean_s p(y_i | theta_s)`` and effective parameter count
-    ``p_waic = sum_i Var_s log p(y_i | theta_s)`` :cite:`Watanabe2010`.
+    ``p_waic = sum_i Var_s log p(y_i | theta_s)`` :cite:`Watanabe2010`. ``waic``,
+    ``p_waic``, and ``standard_error`` use natural logs; ``lppd`` is in bits.
     """
     from scipy.special import logsumexp
 
     matrix = np.asarray(pointwise_log_likelihoods, dtype=float)
     if matrix.ndim != 2 or matrix.size == 0:
         raise ValueError("pointwise_log_likelihoods must be a non-empty (n_samples, n_points) array")
+    matrix = matrix * np.log(2.0)
     n_samples = matrix.shape[0]
     lppd_pointwise = logsumexp(matrix, axis=0) - np.log(n_samples)
     p_waic_pointwise = matrix.var(axis=0, ddof=1) if n_samples > 1 else np.zeros(matrix.shape[1])
@@ -327,7 +335,7 @@ def waic(pointwise_log_likelihoods: np.ndarray) -> WAICResult:
     standard_error = float(np.sqrt(n_points * np.var(-2.0 * elpd_pointwise, ddof=0))) if n_points > 1 else 0.0
     return WAICResult(
         waic=waic_value,
-        lppd=float(lppd_pointwise.sum()),
+        lppd=float(lppd_pointwise.sum() / np.log(2.0)),
         p_waic=float(p_waic_pointwise.sum()),
         standard_error=standard_error,
     )

@@ -239,7 +239,7 @@ def entropy_rate_markov(chain: MarkovChain) -> Any:
 
 
 def collision_entropy(quasi_model: QuasiStochasticModel) -> float:
-    """Second Renyi entropy rate from quasi transition matrices."""
+    """Second Renyi entropy rate (bits) from quasi transition matrices."""
     matrices = quasi_model.transition_matrices()
     pi = quasi_model.stationary_quasidistribution()
     total = 0.0
@@ -247,7 +247,7 @@ def collision_entropy(quasi_model: QuasiStochasticModel) -> float:
         total += float(pi @ (matrix @ matrix) @ np.ones(len(pi)))
     if total <= 0.0:
         return 0.0
-    return float(-np.log(total))
+    return float(-np.log2(total))
 
 
 def process_negativity(quasi_model: QuasiStochasticModel) -> float:

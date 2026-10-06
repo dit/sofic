@@ -5,18 +5,36 @@
 Covers
 ******
 
-Fischer and Krieger covers convert a Sofic shift into unifilar presentations
-:cite:`Fischer1975,Krieger1984,LindMarcus1995`.
+Fischer and Krieger covers are canonical resolving presentations of a sofic
+shift :cite:`Fischer1975,Krieger1984,LindMarcus1995`. Following Lind and Marcus,
+*right* means right-resolving (deterministic reading forward):
 
-* :class:`LeftFischerCover`, :class:`RightFischerCover` — implemented.
-* :class:`LeftKriegerCover`, :class:`RightKriegerCover` — construction raises
-  :exc:`NotImplementedError`.
+* :class:`RightFischerCover` -- the unique minimal right-resolving presentation
+  of an irreducible sofic shift. Reducible shifts raise
+  :exc:`~sofic.exceptions.SoficValidationError`, since their minimal
+  right-resolving presentation need not be unique.
+* :class:`RightKriegerCover` -- the future cover, with one vertex per follower
+  set of a left-infinite ray. Defined for every sofic shift; for an irreducible
+  shift the Fischer cover is its unique terminal component.
+* :class:`LeftFischerCover`, :class:`LeftKriegerCover` -- the left-resolving
+  mirror images, built from the reversed shift.
+
+Both constructions are exact: the Fischer cover is the terminal component of the
+follower-merged subset construction, and the Krieger cover's vertices are the
+images of path relations lying on cycles of the finite relation monoid.
 
 .. ipython::
 
-   In [1]: from sofic.examples import golden_mean_shift_parry; parry = golden_mean_shift_parry()
+   In [1]: from sofic.graph import ATTR_SYMBOL
 
-   In [2]: parry.validate()
+   In [2]: from sofic.shifts import RightKriegerCover, SoficShift
+
+   In [3]: even = SoficShift(symbol_alphabet=frozenset("01"))
+
+   In [4]: for s, t, a in [("A", "A", "0"), ("A", "B", "1"), ("B", "A", "1")]:
+      ...:     even.graph.add_transition(s, t, **{ATTR_SYMBOL: a})
+
+   In [5]: len(list(RightKriegerCover.from_sofic(even).states()))
 
 API
 ===
@@ -26,7 +44,11 @@ API
 .. autoclass:: RightFischerCover
    :members: from_sofic
 .. autoclass:: LeftKriegerCover
+   :members: from_sofic
 .. autoclass:: RightKriegerCover
+   :members: from_sofic
 
 .. autofunction:: sofic.shifts.cover_construction.left_fischer_from_sofic
 .. autofunction:: sofic.shifts.cover_construction.right_fischer_from_sofic
+.. autofunction:: sofic.shifts.cover_construction.left_krieger_from_sofic
+.. autofunction:: sofic.shifts.cover_construction.right_krieger_from_sofic

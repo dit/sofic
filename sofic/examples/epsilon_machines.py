@@ -27,6 +27,7 @@ from typing import Any
 
 import numpy as np
 
+from sofic.exceptions import SoficError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_FUTURE_SYMBOL, ATTR_PROB, TransitionGraph
@@ -1004,7 +1005,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: Any | None = None):
     else:
         try:
             reverse = EpsilonMachine.from_hmm(reverse_raw)
-        except Exception:
+        except SoficError:
             from sofic.generators.epsilon_machine import _row_normalized_presentation
 
             reverse = _row_normalized_presentation(reverse_raw)

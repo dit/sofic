@@ -131,7 +131,7 @@ def _stationary_emission_tensors(
             return limited, joint
     try:
         pi = stationary_distribution_from_transition(transition)
-    except Exception:
+    except (np.linalg.LinAlgError, ValueError):
         pi = pi_initial
     return pi, joint
 
@@ -143,7 +143,7 @@ def _forward_scaled(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return per-step-normalized forward messages and log scaling factors.
 
-    ``alpha_hat[t]`` sums to one; ``log P(obs) = log_scales.sum()``. A ``-inf``
+    ``alpha_hat[t]`` sums to one; ``log2 P(obs) = log_scales.sum()``. A ``-inf``
     entry in ``log_scales`` marks an impossible step. Normalizing each step avoids
     the underflow that makes the raw forward product vanish for long sequences.
     """
@@ -155,7 +155,7 @@ def _forward_scaled(
         log_scales[0] = -np.inf
         return alpha_hat, log_scales
     alpha_hat[0] = pi / total0
-    log_scales[0] = float(np.log(total0))
+    log_scales[0] = float(np.log2(total0))
     for t, symbol in enumerate(obs):
         matrix = joint.get(symbol)
         if matrix is None:
@@ -167,7 +167,7 @@ def _forward_scaled(
             log_scales[t + 1] = -np.inf
             continue
         alpha_hat[t + 1] = row / scale
-        log_scales[t + 1] = float(np.log(scale))
+        log_scales[t + 1] = float(np.log2(scale))
     return alpha_hat, log_scales
 
 
@@ -239,7 +239,7 @@ def _backward_scaled(joint: dict[Any, np.ndarray], obs: list[Any], n_states: int
 
 
 def log_likelihood(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> float:
-    """Natural-log likelihood ``log P(observations)``.
+    """Log-likelihood ``log2 P(observations)`` in bits.
 
     Uses the per-step-scaled forward recursion so the result stays finite for long
     sequences instead of underflowing to ``-inf``.
@@ -316,7 +316,7 @@ def _expected_edge_counts(
     - ``source_totals[i] = \sum_{t=0}^{n-1} P(X_t = i \mid Y)`` is the expected
       number of transitions out of state ``i`` (the Baum-Welch denominator);
     - ``gamma0`` is the smoothed marginal of the initial state ``X_0``;
-    - ``loglik`` is the natural-log likelihood of the sequence.
+    - ``loglik`` is the log-likelihood of the sequence in bits.
 
     Only edges present in ``joint`` (structural support) receive mass, so the
     statistics preserve the model topology.
@@ -391,7 +391,7 @@ def baum_welch(
     so the fit is returned as a plain :class:`~sofic.generators.mealy.MealyHMM`.
 
     Returns ``(fitted_model, loglik_trace)`` where ``loglik_trace`` is the
-    non-decreasing sequence of total natural-log likelihoods observed before each
+    non-decreasing sequence of total log-likelihoods (bits) observed before each
     parameter update.
 
     EM converges to a local maximum of the likelihood. With ``n_restarts > 1`` the
@@ -522,6 +522,10 @@ def score(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> dict[tuple[Has
     ``\nabla \log L(\theta) = E[\nabla \log f(X, Y; \theta) \mid Y]`` (Cappe,
     Moulines & Ryden, 2005, Section 10.2.3), evaluated in the raw (unconstrained)
     joint-edge parameters. Keys are ``(source, symbol, target)`` state labels.
+
+    The score is the gradient of the *natural* log-likelihood
+    :math:`\ln P(Y) = \ln 2 \cdot` :func:`log_likelihood`, the convention under
+    which the observed information and standard errors are standard.
     """
     mealy = hmm.to_mealy()
     idx = mealy.reindex()
@@ -761,7 +765,10 @@ def sample(
     mealy = _as_mealy_hmm(hmm)
     idx = mealy.reindex()
     pi, joint = _emission_transition_tensors_from_mealy(mealy)
-    state = int(generator.choice(len(idx), p=pi / pi.sum()))
+    total = float(np.sum(pi))
+    if not total > 0.0:
+        raise ValueError("cannot sample: the initial state distribution has no mass")
+    state = int(generator.choice(len(idx), p=pi / total))
 
     observations: list[Any] = []
     states: list[Hashable] = []

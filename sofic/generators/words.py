@@ -164,11 +164,13 @@ def markov_words_of_length(chain: MarkovChain, length: int) -> dict[tuple[Hashab
     if length < 0:
         raise ValueError("length must be nonnegative")
     states = tuple(chain.states())
+    start = _markov_start(chain)
     if length == 0:
-        return {(): 1.0}
+        total = float(sum(start.values()))
+        return {(): total} if total > _TOL else {}
     distribution: dict[tuple[Hashable, ...], float] = {}
     for word in product(states, repeat=length):
-        probability = _markov_path_probability(chain, word)
+        probability = _markov_path_probability(chain, word, start)
         if probability > _TOL:
             distribution[word] = probability
     return distribution
@@ -211,10 +213,19 @@ def _start_vector(
     return vector.copy()
 
 
-def _markov_path_probability(chain: MarkovChain, path: tuple[Hashable, ...]) -> float:
+def _markov_start(chain: MarkovChain) -> dict[Hashable, float]:
+    """Initial law of ``chain``, or its stationary law when none is given."""
+    if chain.initial_distribution:
+        return {state: float(mass) for state, mass in chain.initial_distribution.items()}
+    idx = chain.reindex()
+    pi = chain.stationary_distribution()
+    return {idx.state(i): float(mass) for i, mass in enumerate(pi)}
+
+
+def _markov_path_probability(chain: MarkovChain, path: tuple[Hashable, ...], start: Mapping[Hashable, float]) -> float:
     if not path:
-        return 1.0
-    probability = float(chain.initial_distribution.get(path[0], 0.0))
+        return float(sum(start.values()))
+    probability = float(start.get(path[0], 0.0))
     for source, target in zip(path, path[1:], strict=False):
         edge_probability = 0.0
         for transition in chain.graph.out_transitions(source):

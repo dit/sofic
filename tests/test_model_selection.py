@@ -63,9 +63,9 @@ def test_score_model_relationships():
     scores = score_model(golden_mean(0.3), data)
     k, n, ll = scores.num_parameters, scores.num_observations, scores.log_likelihood
     assert n == 2000
-    assert scores.aic == pytest.approx(2 * k - 2 * ll)
-    assert scores.bic == pytest.approx(k * np.log(n) - 2 * ll)
-    assert scores.mdl == pytest.approx(0.5 * k * np.log(n) - ll)
+    assert scores.aic == pytest.approx(2 * k - 2 * ll * np.log(2))
+    assert scores.bic == pytest.approx(k * np.log(n) - 2 * ll * np.log(2))
+    assert scores.mdl == pytest.approx(0.5 * k * np.log2(n) - ll)
     assert scores.aicc == pytest.approx(scores.aic + 2 * k * (k + 1) / (n - k - 1))
 
 
@@ -139,7 +139,7 @@ def test_waic_zero_variance_matches_deviance():
     result = waic(matrix)
     assert result.p_waic == pytest.approx(0.0, abs=1e-12)
     assert result.lppd == pytest.approx(-3.5)
-    assert result.waic == pytest.approx(7.0)
+    assert result.waic == pytest.approx(7.0 * np.log(2))
 
 
 def test_waic_positive_effective_parameters():

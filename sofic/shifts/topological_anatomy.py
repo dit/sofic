@@ -87,10 +87,9 @@ def _right_resolving(shift: SoficShift) -> SoficShift:
     If ``shift`` is already unifilar it is returned unchanged. Otherwise the right
     Fischer cover (:meth:`~sofic.shifts.covers.RightFischerCover.from_sofic`) is
     built and its duplicate labeled edges merged (:func:`_dedup_symbol_edges`).
-    The cover construction uses a bounded follower language, so it is not
-    guaranteed to determinize every presentation; if the result is still not
-    unifilar a :class:`~sofic.exceptions.UnifilarityError` is raised asking for a
-    right-resolving input.
+    The cover is exact for irreducible shifts; a reducible non-unifilar
+    presentation raises :class:`~sofic.exceptions.SoficValidationError` from the
+    cover construction.
     """
     if shift.is_unifilar():
         return shift

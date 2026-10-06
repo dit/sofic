@@ -8,9 +8,11 @@ Model Selection
 Classical model-selection criteria for choosing the order (state count) of a
 fitted generator when a fully-Bayesian evidence is unavailable or undesirable.
 The module scores any fitted :class:`~sofic.generators.base.HiddenMarkovModel`
-using the natural-log likelihood from
+using the log-likelihood (in bits) from
 :func:`sofic.generators.hmm_inference.log_likelihood` and a free-parameter count
-read off the transition graph:
+read off the transition graph. Log-likelihoods, log scores, and the MDL code
+length are in bits; AIC, AICc, BIC, and WAIC are computed from the natural
+log-likelihood so they keep their standard deviance scale:
 
 * **AIC** :cite:`Akaike1974` and the small-sample-corrected **AICc**
   :cite:`HurvichTsai1989`,

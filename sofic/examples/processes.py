@@ -64,7 +64,7 @@ def _stationary_initial(
     transition = transition / row_sums[:, None]
     try:
         pi = stationary_distribution_from_transition(transition)
-    except Exception:
+    except (ValueError, np.linalg.LinAlgError):
         return _uniform_initial(states)
     return {state: float(pi[i]) for i, state in enumerate(states)}
 

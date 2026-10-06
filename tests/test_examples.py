@@ -81,7 +81,7 @@ def test_golden_mean_shift_parry_entropy():
         np.array([[1, 1], [1, 0]], dtype=float),
         symbol_alphabet=frozenset({0, 1}),
     )
-    assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy() / np.log(2), rel=0.05)
+    assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy(), rel=0.05)
 
 
 def test_butterfly_statistical_complexity():

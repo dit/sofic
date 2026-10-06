@@ -214,7 +214,7 @@ def is_detailed_balance(model: StateMachine, *, rtol: float = 1e-8, atol: float 
     """Return whether stationary labeled flows satisfy detailed balance."""
     try:
         pi = np.asarray(model.stationary_distribution(), dtype=float)
-    except Exception:
+    except (AttributeError, ValueError, np.linalg.LinAlgError):
         pi, _transition = _initial_vector_and_transition(model)
 
     matrices = _labeled_or_internal_matrices(model)

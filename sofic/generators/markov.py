@@ -82,10 +82,23 @@ class MarkovChain(StochasticModel):
         return markov_words_of_length(self, length)
 
     def sample_path(self, n: int, rng: np.random.Generator | None = None) -> list[Hashable]:
+        """Sample a state path of length ``n``.
+
+        Starts from :attr:`initial_distribution`, or from the stationary
+        distribution when no initial distribution is given.
+        """
         generator = rng if rng is not None else np.random.default_rng()
         idx = self.reindex()
-        pi = self.stationary_distribution()
-        state = int(generator.choice(len(idx), p=pi))
+        if self.initial_distribution:
+            pi = np.zeros(len(idx), dtype=float)
+            for state, mass in self.initial_distribution.items():
+                pi[idx.index(state)] = float(mass)
+        else:
+            pi = np.asarray(self.stationary_distribution(), dtype=float)
+        total = float(pi.sum())
+        if not total > 0.0:
+            raise ValueError("cannot sample: the initial state distribution has no mass")
+        state = int(generator.choice(len(idx), p=pi / total))
 
         path: list[Hashable] = []
         for _ in range(n):

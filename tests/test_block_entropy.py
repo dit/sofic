@@ -10,6 +10,7 @@ import pytest
 from hypothesis import given, settings
 
 from sofic.examples import fair_coin, golden_mean
+from sofic.exceptions import SoficValidationError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
 from sofic.testing.strategies import epsilon_machines
@@ -144,7 +145,7 @@ def test_golden_mean_block_entropy_estimates_match_finite_order_values():
 
 
 def test_block_entropy_estimates_fallback_when_exact_excess_entropy_fails():
-    with patch.object(EpsilonMachine, "excess_entropy", side_effect=RuntimeError("no bidirectional")):
+    with patch.object(EpsilonMachine, "excess_entropy", side_effect=SoficValidationError("no bidirectional")):
         estimates = golden_mean(0.5).block_entropy_estimates(3, use_exact=True)
 
     assert np.isfinite(estimates.excess_entropy)
@@ -163,7 +164,7 @@ def test_block_entropy_diagram_uses_exact_excess_entropy_when_available():
 
 
 def test_block_entropy_diagram_fallback_when_exact_excess_entropy_fails():
-    with patch.object(EpsilonMachine, "to_bidirectional", side_effect=RuntimeError("no bidirectional")):
+    with patch.object(EpsilonMachine, "to_bidirectional", side_effect=SoficValidationError("no bidirectional")):
         diagram = golden_mean(0.5).block_entropy_diagram(1)
 
     assert diagram.excess_entropy == pytest.approx(0.25162916738782304, abs=1e-12)
