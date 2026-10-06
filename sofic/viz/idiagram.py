@@ -300,16 +300,11 @@ def plot_information_diagram(
     for x, atom in zip(xs, plotted, strict=True):
         inside = set(atom.indices)
         color = colors[atom.role]
-        ys_inside = []
+        ax_mat.plot([x, x], [0, n_vars - 1], color=color, lw=2.0, zorder=2)
         for var_index in range(n_vars):
             y = n_vars - 1 - var_index
-            if var_index in inside:
-                ax_mat.plot(x, y, "o", color=color, ms=8, zorder=3)
-                ys_inside.append(y)
-            else:
-                ax_mat.plot(x, y, "o", color="0.86", ms=8, zorder=2)
-        if len(ys_inside) > 1:
-            ax_mat.plot([x, x], [min(ys_inside), max(ys_inside)], color=color, lw=2.0, zorder=2)
+            face = color if var_index in inside else "white"
+            ax_mat.plot(x, y, "o", mfc=face, mec=color, mew=1.5, ms=8, zorder=3)
 
     ax_mat.set_xlim(-1.4, n - 0.5)
     # First gray strip is the top row at y = n_vars - 1, spanning
