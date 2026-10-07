@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from sofic.automata._sentinel import Sentinel
 from sofic.automata.transducers import ERROR_STATE, ERROR_SYMBOL, MealyMachine
 from sofic.generators.base import HiddenMarkovModel
 from sofic.generators.mealy import MealyHMM
@@ -65,7 +66,14 @@ def transducer_product(
     create_using: type[MealyMachine] | None = None,
     normalize: bool = True,
 ) -> MealyMachine:
-    """Return the Cartesian product transducer with tuple-valued input/output symbols."""
+    """Return the Cartesian product transducer with tuple-valued input/output symbols.
+
+    Components read one symbol each per synchronized step, so the product maps
+    ``(x_1, ..., x_n)`` read position-wise to ``(y_1, ..., y_n)`` exactly when each
+    component maps ``x_i`` to ``y_i``. A component's epsilon-input move is taken
+    alone: it reads :data:`~sofic.graph.EPSILON`, leaves the other components in
+    place, and emits a tuple whose other entries are ``EPSILON``.
+    """
     if not transducers:
         raise ValueError("at least one transducer is required")
     cls = create_using or MealyMachine
@@ -77,7 +85,7 @@ def transducer_product(
     edges: list[tuple[Hashable, Hashable, Any, Any, float]] = []
     for source_tuple in product(*states_by_model):
         outgoing_groups = [
-            list(transducer.graph.out_transitions(state))
+            [edge for edge in transducer.graph.out_transitions(state) if _input(edge.data) is not EPSILON]
             for transducer, state in zip(transducers, source_tuple, strict=True)
         ]
         for edge_tuple in product(*outgoing_groups):
@@ -86,6 +94,13 @@ def transducer_product(
             output_symbol = tuple(_output(edge.data) for edge in edge_tuple)
             prob = float(np.prod([_prob(edge.data) for edge in edge_tuple]))
             edges.append((source_tuple, target, input_symbol, output_symbol, prob))
+        for index, (transducer, state) in enumerate(zip(transducers, source_tuple, strict=True)):
+            for edge in transducer.graph.out_transitions(state):
+                if _input(edge.data) is not EPSILON:
+                    continue
+                target = (*source_tuple[:index], edge.target, *source_tuple[index + 1 :])
+                output_symbol = tuple(_output(edge.data) if i == index else EPSILON for i in range(len(transducers)))
+                edges.append((source_tuple, target, EPSILON, output_symbol, _prob(edge.data)))
 
     result = _build_transducer(
         edges,
@@ -223,25 +238,40 @@ def _compose_transducer_pair(
     input_alphabet = left_work.alphabets()[0]
     output_alphabet = right_work.alphabets()[1]
 
+    # Epsilon-sequencing filter: between synchronized moves, right-only moves
+    # (epsilon input) must precede left-only moves (epsilon middle output), so
+    # each pair of component paths is one composed path and weights are not
+    # summed once per interleaving. States reached by a left-only move are
+    # tagged and may not take right-only moves.
+    right_moves_alone = any(_input(edge.data) is EPSILON for edge in right_work.transitions())
+
+    def label(left_state: Hashable, right_state: Hashable, after_left: bool) -> Hashable:
+        if after_left and right_moves_alone:
+            return (left_state, right_state, _AFTER_LEFT_ONLY)
+        return (left_state, right_state)
+
     edges: list[tuple[Hashable, Hashable, Any, Any, float]] = []
-    for left_state, right_state in states:
-        source = (left_state, right_state)
-        for right_edge in right_work.graph.out_transitions(right_state):
-            if _input(right_edge.data) is EPSILON:
-                edges.append(
-                    (
-                        source,
-                        (left_state, right_edge.target),
-                        EPSILON,
-                        _output(right_edge.data),
-                        _prob(right_edge.data),
-                    )
-                )
+    pending = [(left_state, right_state, False) for left_state, right_state in states]
+    expanded: set[Hashable] = set()
+    while pending:
+        left_state, right_state, after_left = pending.pop()
+        source = label(left_state, right_state, after_left)
+        if source in expanded:
+            continue
+        expanded.add(source)
+        if not after_left:
+            for right_edge in right_work.graph.out_transitions(right_state):
+                if _input(right_edge.data) is EPSILON:
+                    target = label(left_state, right_edge.target, False)
+                    edges.append((source, target, EPSILON, _output(right_edge.data), _prob(right_edge.data)))
         for left_edge in left_work.graph.out_transitions(left_state):
             left_input = _input(left_edge.data)
             middle = _output(left_edge.data)
             if middle is EPSILON:
-                edges.append((source, (left_edge.target, right_state), left_input, EPSILON, _prob(left_edge.data)))
+                edges.append(
+                    (source, label(left_edge.target, right_state, True), left_input, EPSILON, _prob(left_edge.data))
+                )
+                pending.append((left_edge.target, right_state, True))
                 continue
             for right_edge in right_work.graph.out_transitions(right_state):
                 if _input(right_edge.data) != middle:
@@ -249,7 +279,7 @@ def _compose_transducer_pair(
                 edges.append(
                     (
                         source,
-                        (left_edge.target, right_edge.target),
+                        label(left_edge.target, right_edge.target, False),
                         left_input,
                         _output(right_edge.data),
                         _prob(left_edge.data) * _prob(right_edge.data),
@@ -267,6 +297,9 @@ def _compose_transducer_pair(
     if normalize:
         _normalize_transducer_rows(result)
     return result
+
+
+_AFTER_LEFT_ONLY = Sentinel("after_left_only")
 
 
 def _build_transducer(

@@ -35,9 +35,11 @@ def test_even_process_strongly_connected() -> None:
 
 
 def test_even_process_string() -> None:
-    transitions = (0, 1, MISSING_TRANSITION, 0)
+    # Rooted at the state without a 0-transition, which gives the rank-minimal string.
+    transitions = (MISSING_TRANSITION, 1, 1, 0)
     validate_idfa_string(transitions, n=2, k=2)
     assert is_canonical_topological_epsilon(transitions, n=2, k=2)
+    assert not is_canonical_topological_epsilon((0, 1, MISSING_TRANSITION, 0), n=2, k=2)
 
 
 def test_nonminimal_string_is_rejected_by_default() -> None:
@@ -53,10 +55,10 @@ def test_even_process_graph() -> None:
     machines = list(iter_topological_epsilon_machines(2, 2, alphabet=("0", "1")))
     assert all(isinstance(eps, EpsilonMachine) for eps in machines)
     assert any(
-        graph_from_epsilon_machine(eps).delta(0, "0") == 0
+        graph_from_epsilon_machine(eps).delta(0, "0") is None
         and graph_from_epsilon_machine(eps).delta(0, "1") == 1
+        and graph_from_epsilon_machine(eps).delta(1, "0") == 1
         and graph_from_epsilon_machine(eps).delta(1, "1") == 0
-        and graph_from_epsilon_machine(eps).delta(1, "0") is None
         for eps in machines
     )
 
@@ -75,7 +77,8 @@ def test_epsilon_machine_to_idfa_string_even_process() -> None:
     transitions = (0, 1, MISSING_TRANSITION, 0)
     eps = idfa_string_to_epsilon_machine(transitions, n=2, k=2, alphabet=("0", "1"))
 
-    assert epsilon_machine_to_idfa_string(eps, symbol_order=("0", "1")) == transitions
+    assert epsilon_machine_to_idfa_string(eps, symbol_order=("0", "1")) == (MISSING_TRANSITION, 1, 1, 0)
+    assert epsilon_machine_to_idfa_string(eps, symbol_order=("0", "1"), canonical=False) == transitions
 
 
 def test_epsilon_machine_to_idfa_string_round_trip_binary_n2() -> None:
@@ -128,3 +131,49 @@ def count_icdfa_placeholder(k: int, n: int) -> int:
     from sofic.automata.enumeration.icdfa import count_icdfa_empty
 
     return count_icdfa_empty(k, n)
+
+
+def _brute_force_idfa_classes(k, n):
+    """Canonical BFS strings of every accessible incomplete DFA on ``n`` states."""
+    import itertools
+
+    classes = set()
+    for values in itertools.product([None, *range(n)], repeat=n * k):
+        table = [values[state * k : (state + 1) * k] for state in range(n)]
+        order, label = [0], {0: 0}
+        for state in order:
+            for target in table[state]:
+                if target is not None and target not in label:
+                    label[target] = len(order)
+                    order.append(target)
+        if len(order) == n:
+            classes.add(tuple(-1 if table[s][a] is None else label[table[s][a]] for s in order for a in range(k)))
+    return classes
+
+
+@pytest.mark.parametrize(("k", "n"), [(1, 1), (2, 1), (1, 3), (2, 2), (3, 2), (2, 3)])
+def test_idfa_enumeration_matches_brute_force(k, n):
+    import itertools
+
+    from sofic.automata.enumeration.idfa import IDFAEnumerationError
+
+    expected = _brute_force_idfa_classes(k, n)
+    generated = list(iter_idfa_strings(k, n))
+    assert set(generated) == expected
+    assert len(generated) == len(expected) == count_accessible_idfa(k, n)
+    for rank, string in enumerate(generated):
+        assert rank_idfa_string(string, n=n, k=k) == rank
+        assert unrank_idfa_string(rank, n=n, k=k) == string
+    for candidate in itertools.product(range(-1, n), repeat=n * k):
+        try:
+            validate_idfa_string(candidate, n=n, k=k)
+        except IDFAEnumerationError:
+            assert candidate not in expected
+        else:
+            assert candidate in expected
+
+
+def test_idfa_missing_transition_before_first_flag():
+    assert count_accessible_idfa(2, 2) == 45
+    validate_idfa_string((-1, 1, 0, 0), n=2, k=2)
+    assert rank_idfa_string((-1, 1, 0, 0), n=2, k=2) >= 0

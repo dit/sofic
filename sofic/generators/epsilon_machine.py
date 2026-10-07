@@ -202,7 +202,7 @@ class EpsilonMachine(MealyHMM):
         return self.to_bidirectional().reverse_bound_gauge_information()
 
     def information_anatomy(self) -> dict[str, float]:
-        """Return ρ_μ, b_μ, r_μ, h_μ, E, and bidirectional χ for this ε-machine."""
+        """Return ρ_μ, b_μ, r_μ, h_μ, E, χ = C_μ − E, and χ± = C± − E for this ε-machine."""
         return self.to_bidirectional().information_anatomy()
 
     def five_variable_anatomy(self) -> dict[str, float]:
@@ -338,7 +338,7 @@ class EpsilonMachine(MealyHMM):
 
     def bidirectional_crypticity(self) -> float:
         """χ = C± − E (bidirectional statistical complexity minus excess entropy)."""
-        return self.to_bidirectional().crypticity()
+        return self.to_bidirectional().bidirectional_crypticity()
 
     def minimal_generative_model(self, **kwargs: Any) -> MinimalGenerativeModel:
         """Construct the minimal-state-entropy generative presentation."""
@@ -381,7 +381,8 @@ class EpsilonMachine(MealyHMM):
             "bidirectional_complexity": bidirectional,
             "causal_irreversibility": forward - reverse,
             "excess_entropy": bidir.excess_entropy(),
-            "crypticity": bidir.crypticity(),
+            "crypticity": self.crypticity(),
+            "bidirectional_crypticity": bidir.bidirectional_crypticity(),
         }
 
     def transient_information(self, max_length: int) -> float:
@@ -471,7 +472,7 @@ class EpsilonMachine(MealyHMM):
         """Cryptic order ``k_chi``: retrodiction depth after synchronization.
 
         Distinct from :meth:`crypticity` (``χ = C_μ − E``) and from
-        :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.crypticity`
+        :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.bidirectional_crypticity`
         (``χ = C± − E``). See James et al., arXiv:1010.5545.
         """
         from sofic.generators.synchronization import cryptic_order_from_graph, graph_from_epsilon_machine

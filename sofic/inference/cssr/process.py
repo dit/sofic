@@ -357,7 +357,7 @@ def learn_epsilon_machine_cssr(
     alpha: float = 0.01,
     test: MorphTest = "g",
     min_count: int = 5,
-    correction: Literal["bonferroni"] | None = None,
+    correction: Literal["bonferroni"] | None = "bonferroni",
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by Causal-State Splitting Reconstruction :cite:`Shalizi2004`.
 
@@ -389,8 +389,10 @@ def learn_epsilon_machine_cssr(
     min_count
         Suffixes seen fewer than this many times are not tested or placed in a state.
     correction
-        ``"bonferroni"`` divides ``alpha`` by the number of suffixes eligible for
-        testing, bounding the chance of any spurious split. CSSR decides each test
+        ``"bonferroni"`` (the default) divides ``alpha`` by the number of suffixes
+        eligible for testing -- including the length-``max_history + 1`` suffixes
+        tested when resolving transitions -- bounding the chance of any spurious
+        split. ``None`` tests every suffix at level ``alpha``. CSSR decides each test
         in light of earlier ones, so step-up procedures that control the false
         discovery rate (Benjamini–Hochberg) do not apply directly.
 
@@ -413,7 +415,7 @@ def learn_epsilon_machine_cssr(
         raise ValueError("max_history must be non-negative")
     counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
     if correction == "bonferroni":
-        alpha = _bonferroni_alpha(counts, alpha, max_length=max_length, min_count=min_count)
+        alpha = _bonferroni_alpha(counts, alpha, max_length=max_length, min_count=min_count, resolution_tests=True)
     elif correction is not None:
         raise ValueError(f"unknown correction {correction!r}")
 

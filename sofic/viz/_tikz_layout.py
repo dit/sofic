@@ -9,7 +9,7 @@ from collections.abc import Hashable, Mapping
 from typing import Any
 
 from sofic.base import StateMachine
-from sofic.viz._names import node_name
+from sofic.viz._names import node_names
 
 _LOOP_STYLES = ("loop above", "loop right", "loop below", "loop left")
 _BEND_STYLES = ("bend left", "bend right")
@@ -72,8 +72,9 @@ def layout_graphviz(
     plain = dot.pipe(format="plain").decode("utf-8")
     positions = _parse_plain_positions(plain)
     coords: dict[Hashable, str] = {}
+    names = node_names(model.states())
     for state in model.states():
-        node = node_name(state)
+        node = names[state]
         if node not in positions:
             raise RuntimeError(f"graphviz layout missing position for node {node!r}")
         x_cm, y_cm = positions[node]

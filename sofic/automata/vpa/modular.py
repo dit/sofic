@@ -475,16 +475,18 @@ def _refine_modular_partition(
         if rejecting:
             partition.append(rejecting)
 
+    maps = _TransitionMaps(vpa)
     changed = True
     while changed:
         changed = False
         block_of = _block_map(partition)
         context_groups = _stack_context_groups(vpa, block_of)
+        profiles = _return_profiles(vpa, block_of, maps)
         new_partition: list[frozenset[Hashable]] = []
         for block in partition:
             pieces: dict[tuple[Any, ...], set[Hashable]] = {}
             for state in block:
-                signature = _modular_state_signature(vpa, state, block_of, context_groups)
+                signature = _modular_state_signature(vpa, state, block_of, context_groups, profiles, maps)
                 pieces.setdefault(signature, set()).add(state)
             if len(pieces) > 1:
                 changed = True
@@ -511,16 +513,56 @@ def _stack_context_groups(
     return [(canonical, tuple(sorted(actuals, key=repr))) for canonical, actuals in sorted(grouped.items(), key=repr)]
 
 
+class _TransitionMaps:
+    """Transition maps and module lookup of a fixed VPA, built once per refinement."""
+
+    def __init__(self, vpa: ModularVisiblyPushdownAutomaton) -> None:
+        self.modules = {state: module for module, states in vpa.modules.items() for state in states}
+        self.call = vpa.call_transition_map()
+        self.internal = vpa.internal_transition_map()
+        self.ret = vpa.return_transition_map()
+
+
+def _return_profiles(
+    vpa: DeterministicVisiblyPushdownAutomaton,
+    block_of: Mapping[Hashable, Hashable],
+    maps: _TransitionMaps,
+) -> dict[Any, tuple[Any, ...]]:
+    """Map each pushed stack symbol to the blocks every return on it reaches.
+
+    The quotient collapses the stack symbols pushed by callers in one block
+    (per call symbol) into one quotient symbol, so those callers stay together
+    only when their pushed symbols are popped identically from every state.
+    """
+    return_map = maps.ret
+    states = sorted(vpa.states(), key=repr)
+    returns = sorted(vpa.return_alphabet, key=repr)
+    profiles: dict[Any, tuple[Any, ...]] = {}
+    for _target, stack_symbol in maps.call.values():
+        if stack_symbol in profiles:
+            continue
+        profiles[stack_symbol] = tuple(
+            None
+            if (target := return_map.get((state, symbol, stack_symbol), return_map.get((state, symbol, None)))) is None
+            else block_of[target]
+            for state in states
+            for symbol in returns
+        )
+    return profiles
+
+
 def _modular_state_signature(
     vpa: ModularVisiblyPushdownAutomaton,
     state: Hashable,
     block_of: Mapping[Hashable, Hashable],
     context_groups: Sequence[tuple[Any, tuple[Any, ...]]],
+    profiles: Mapping[Any, tuple[Any, ...]],
+    maps: _TransitionMaps,
 ) -> tuple[Any, ...]:
-    state_modules = {state: module for module, states in vpa.modules.items() for state in states}
-    call_map = vpa.call_transition_map()
-    internal_map = vpa.internal_transition_map()
-    return_map = vpa.return_transition_map()
+    state_modules = maps.modules
+    call_map = maps.call
+    internal_map = maps.internal
+    return_map = maps.ret
 
     internal = tuple(
         (
@@ -534,7 +576,7 @@ def _modular_state_signature(
             symbol,
             None
             if (call := call_map.get((state, symbol))) is None
-            else (block_of[call[0]], _canonical_stack_symbol(call[1], block_of)),
+            else (block_of[call[0]], _canonical_stack_symbol(call[1], block_of), profiles[call[1]]),
         )
         for symbol in sorted(vpa.call_alphabet, key=repr)
     )
@@ -545,7 +587,7 @@ def _modular_state_signature(
             for stack_symbol in actual_stacks:
                 target = return_map.get((state, symbol, stack_symbol), return_map.get((state, symbol, None)))
                 targets.append(None if target is None else block_of[target])
-            returns.append((symbol, canonical_stack, tuple(sorted(set(targets), key=repr))))
+            returns.append((symbol, canonical_stack, tuple(targets)))
 
     return (
         state_modules[state],

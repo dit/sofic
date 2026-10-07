@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.examples import fair_coin, golden_mean
+from sofic.examples import bernoulli, golden_mean
 from sofic.generators.mealy import MealyHMM
 from sofic.inference.bayesian import BayesianInferenceError, ModelComparisonEM
 from sofic.inference.bayesian.epsilon import EpsilonMachinePosterior
@@ -22,10 +22,10 @@ from sofic.inference.model_selection import (
 
 
 def _iid_binary(p: float = 0.5) -> MealyHMM:
-    hmm = MealyHMM(initial_distribution={"A": 1.0}, observation_alphabet=frozenset({0, 1}))
+    hmm = MealyHMM(initial_distribution={"A": 1.0}, observation_alphabet=frozenset({"0", "1"}))
     hmm.graph.add_state("A")
-    hmm.add_transition("A", "A", 0, 1.0 - p)
-    hmm.add_transition("A", "A", 1, p)
+    hmm.add_transition("A", "A", "0", 1.0 - p)
+    hmm.add_transition("A", "A", "1", p)
     hmm.validate()
     return hmm
 
@@ -44,7 +44,7 @@ def _iid_ternary() -> MealyHMM:
 
 def test_count_free_parameters():
     assert count_free_parameters(golden_mean(0.3)) == 1  # state A has 2 edges, B has 1
-    assert count_free_parameters(fair_coin()) == 1
+    assert count_free_parameters(bernoulli()) == 1
     assert count_free_parameters(_iid_ternary()) == 2  # 3 symbols -> 2 free
 
 
@@ -70,7 +70,7 @@ def test_score_model_relationships():
 
 
 def test_impossible_data_is_infinite():
-    scores = score_model(fair_coin(), ["2", "2"])  # symbol not in the coin's alphabet
+    scores = score_model(bernoulli(), ["2", "2"])  # symbol not in the coin's alphabet
     assert scores.log_likelihood == float("-inf")
     assert scores.aic == float("inf")
     assert scores.bic == float("inf")
@@ -128,7 +128,7 @@ def test_cross_validated_log_likelihood_prefers_better_fit():
 
 def test_cross_validation_requires_two_folds():
     with pytest.raises(ValueError):
-        cross_validated_log_likelihood(lambda train: fair_coin(), [0, 1, 0], folds=1)
+        cross_validated_log_likelihood(lambda train: bernoulli(), list("010"), folds=1)
 
 
 # --- WAIC ------------------------------------------------------------------
@@ -182,7 +182,7 @@ def test_model_comparison_em_requires_data_for_criteria():
 def test_rank_topological_epsilon_machines_prefers_two_states():
     rng = np.random.default_rng(7)
     data, _ = golden_mean(0.3).sample(3000, rng=rng)
-    ranked = rank_topological_epsilon_machines(data, alphabet=[0, 1], num_states=[1, 2], criterion="bic")
+    ranked = rank_topological_epsilon_machines(data, alphabet=["0", "1"], num_states=[1, 2], criterion="bic")
     assert ranked
     best = ranked[0]
     assert len(list(best.machine.states())) == 2
@@ -195,7 +195,7 @@ def test_cross_validation_smoothing_keeps_forbidden_folds_finite():
     rng = np.random.default_rng(6)
     data, _ = golden_mean(0.5).sample(1000, rng=rng)
     data = list(data)
-    data[500:502] = [1, 1]
+    data[500:502] = ["1", "1"]
 
     def fit_golden(train):
         model, _trace = golden_mean(0.6).baum_welch(train)
@@ -217,7 +217,7 @@ def test_cross_validation_gap_drops_boundary_symbols():
         seen.append(sum(len(seq) for seq in train))
         return _iid_binary(0.5)
 
-    data = [0, 1] * 200
+    data = ["0", "1"] * 200
     cross_validated_log_likelihood(fit_counting, data, folds=4)
     cross_validated_log_likelihood(fit_counting, data, folds=4, gap=10)
     plain, gapped = seen[:4], seen[4:]
@@ -225,3 +225,59 @@ def test_cross_validation_gap_drops_boundary_symbols():
     assert [p - g for p, g in zip(plain, gapped, strict=True)] == [10, 20, 20, 10]
     with pytest.raises(ValueError):
         cross_validated_log_likelihood(fit_counting, data, folds=4, gap=-1)
+
+
+# --- Regressions -------------------------------------------------------------
+
+
+def test_posterior_mean_machine_starts_where_the_data_starts():
+    """The posterior machine's initial law is over start states, not the end state."""
+    gm = golden_mean()
+    data, _ = gm.sample(500, rng=np.random.default_rng(1))
+    data = list(data)
+    posterior = EpsilonMachinePosterior(gm, data)
+    starts = posterior.start_node_probabilities()
+    machine = posterior.posterior_mean_machine()
+    assert machine.initial_distribution == pytest.approx({s: p for s, p in starts.items() if p > 0})
+    for start in starts:
+        assert posterior.posterior_mean_machine(start).initial_distribution == {start: 1.0}
+    scores = score_model(machine, data)
+    assert np.isfinite(scores.log_likelihood)
+    assert np.isfinite(scores.bic)
+    assert -scores.log_likelihood / len(data) < 0.75  # entropy rate of the fair golden mean ~ 0.667
+    comparison = ModelComparisonEM([gm], data)
+    assert all(np.isfinite(s.bic) for s in comparison.information_criteria().values())
+    ranked = rank_topological_epsilon_machines(data, alphabet=["0", "1"], num_states=[1, 2], fit="bayesian")
+    assert np.isfinite(ranked[0].criterion_value)
+    assert len(list(ranked[0].machine.states())) == 2
+    result = waic_epsilon_machine(posterior, [data], n_samples=30, rng=0)
+    assert np.isfinite(result.waic)
+    assert result.waic == pytest.approx(scores.aic, rel=0.05)
+
+
+def test_rank_topologies_bayesian_fits_multiple_sequences_without_junctions():
+    rng = np.random.default_rng(11)
+    sequences = [list(golden_mean(0.3).sample(400, rng=rng)[0]) for _ in range(5)]
+    ranked = rank_topological_epsilon_machines(sequences, alphabet=["0", "1"], num_states=[1, 2], fit="bayesian")
+    best = ranked[0]
+    assert len(list(best.machine.states())) == 2
+    assert np.isfinite(best.scores.log_likelihood)
+    assert best.scores.num_observations == 2000
+
+
+def test_cross_validation_few_sequences_never_joins_sequences():
+    """Fewer sequences than folds: each sequence is split, none are concatenated."""
+    seen_train: list[list[list[str]]] = []
+
+    def fit_recording(train):
+        seen_train.append([list(seq) for seq in train])
+        return _iid_binary(0.5)
+
+    a, b = ["0"] * 40, ["1"] * 40
+    total = cross_validated_log_likelihood(fit_recording, [a, b], folds=4)
+    assert total == pytest.approx(-80.0)
+    assert len(seen_train) == 4
+    for train in seen_train:
+        for seq in train:
+            assert len(set(seq)) == 1  # a training segment never spans both sequences
+        assert sum(len(seq) for seq in train) == 60

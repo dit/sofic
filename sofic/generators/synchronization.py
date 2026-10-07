@@ -95,7 +95,7 @@ def _subset_power_automaton(graph: TopologicalUnifilarGraph) -> PowerAutomaton:
     while queue:
         current = queue.pop(0)
         pa.transitions.setdefault(current, {})
-        for symbol in graph.alphabet:
+        for symbol in sorted(graph.alphabet, key=repr):
             successor = graph.delta_set(current, symbol)
             if not successor:
                 continue
@@ -144,7 +144,7 @@ def _interval_power_automaton(graph: TopologicalUnifilarGraph, order: WheelerOrd
     while queue:
         current = queue.pop(0)
         out_map = pa.transitions.setdefault(as_subset(current), {})
-        for symbol in graph.alphabet:
+        for symbol in sorted(graph.alphabet, key=repr):
             successor = image(current, symbol)
             if successor is None:
                 continue
@@ -286,90 +286,74 @@ def shortest_synchronizing_word_from_graph(
     return word
 
 
-def _predecessors_on_symbol(graph: TopologicalUnifilarGraph, target: Hashable, symbol: Any) -> frozenset[Hashable]:
-    return frozenset(state for state in graph.states if graph.delta(state, symbol) == target)
+def _mergeable_pairs(graph: TopologicalUnifilarGraph) -> set[frozenset[Hashable]]:
+    """Return the distinct state pairs that some common word drives to one state.
 
-
-def _ensure_pa_state(
-    transitions: dict[frozenset[Hashable], dict[Any, frozenset[Hashable]]],
-    states: set[frozenset[Hashable]],
-    graph: TopologicalUnifilarGraph,
-    pa_state: frozenset[Hashable],
-) -> None:
-    """Ensure ``pa_state`` and its subset successors are present in the PA."""
-    queue = [pa_state]
+    Seeded by pairs with a shared successor on one symbol, then closed under
+    taking predecessor pairs along a common symbol.
+    """
+    states = sorted(graph.states, key=repr)
+    predecessors: dict[frozenset[Hashable], set[frozenset[Hashable]]] = {}
+    mergeable: set[frozenset[Hashable]] = set()
+    for index, left in enumerate(states):
+        for right in states[index + 1 :]:
+            pair = frozenset((left, right))
+            for symbol in graph.alphabet:
+                left_next, right_next = graph.delta(left, symbol), graph.delta(right, symbol)
+                if left_next is None or right_next is None:
+                    continue
+                if left_next == right_next:
+                    mergeable.add(pair)
+                else:
+                    predecessors.setdefault(frozenset((left_next, right_next)), set()).add(pair)
+    queue = list(mergeable)
     while queue:
-        current = queue.pop(0)
-        if current in transitions:
-            continue
-        out_map: dict[Any, frozenset[Hashable]] = {}
-        for symbol in graph.alphabet:
-            successor = graph.delta_set(current, symbol)
-            if successor:
-                out_map[symbol] = successor
-                if successor not in transitions:
-                    queue.append(successor)
-        transitions[current] = out_map
-        states.add(current)
-
-
-def _refine_cryptic_pa(pa: PowerAutomaton) -> PowerAutomaton:
-    """Apply veracity refinement (James et al., Sec. VI.1) until quiescent."""
-    graph = pa.graph
-    transitions = {state: dict(out_map) for state, out_map in pa.transitions.items()}
-    states = set(transitions)
-
-    changed = True
-    while changed:
-        changed = False
-        for source in list(states):
-            out_map = transitions.get(source, {})
-            for symbol, target in list(out_map.items()):
-                if not graph.is_recurrent_pa_state(target):
-                    continue
-                target_state = next(iter(target))
-                true_sources = _predecessors_on_symbol(graph, target_state, symbol) & source
-                if not true_sources:
-                    del out_map[symbol]
-                    changed = True
-                    continue
-                if true_sources == source:
-                    continue
-                _ensure_pa_state(transitions, states, graph, true_sources)
-                refined_out = transitions.setdefault(true_sources, {})
-                if refined_out.get(symbol) != target:
-                    refined_out[symbol] = target
-                    changed = True
-                if source != pa.start and symbol in out_map:
-                    del out_map[symbol]
-                    changed = True
-            if not out_map:
-                transitions.pop(source, None)
-                states.discard(source)
-
-    return PowerAutomaton(graph=graph, start=pa.start, transitions=transitions)
-
-
-def _cryptic_order_from_refined_pa(pa: PowerAutomaton) -> int | float:
-    refined = _refine_cryptic_pa(pa)
-    order = _bellman_ford_longest_transient_path(refined)
-    if order == math.inf:
-        return math.inf
-    return int(order)
+        for pair in predecessors.get(queue.pop(), ()):
+            if pair not in mergeable:
+                mergeable.add(pair)
+                queue.append(pair)
+    return mergeable
 
 
 def cryptic_order_from_graph(graph: TopologicalUnifilarGraph) -> int | float:
-    """Cryptic order ``k_chi`` via refined power automaton (James et al., Sec. VI)."""
+    """Cryptic order ``k_chi = min{k : H[S_k | X_{0:inf}] = 0}`` :cite:`James2010`.
+
+    Two distinct states remain confusable given the entire future with positive
+    probability exactly when some common word merges them; on a minimal
+    unifilar presentation two never-merging states have mutually singular
+    future measures. A power-automaton state is therefore *ambiguous* when it
+    contains a mergeable pair, ambiguity is inherited by predecessors, and
+    ``k_chi`` is one more than the longest path from the full-support start
+    through ambiguous states (``math.inf`` when such a path can cycle). Since
+    every non-singleton is transient, ``k_chi`` never exceeds the Markov order.
+    """
     if not graph.states:
         return 0
+    mergeable = _mergeable_pairs(graph)
+
+    def ambiguous(pa_state: frozenset[Hashable]) -> bool:
+        members = sorted(pa_state, key=repr)
+        return any(
+            frozenset((left, right)) in mergeable
+            for index, left in enumerate(members)
+            for right in members[index + 1 :]
+        )
+
     pa = power_automaton(graph)
-    markov_order = _bellman_ford_longest_transient_path(pa)
-    order = _cryptic_order_from_refined_pa(pa)
-    if markov_order != math.inf and (order == math.inf or order > markov_order):
-        return int(markov_order)
-    if order == math.inf:
+    if not ambiguous(pa.start):
+        return 0
+    digraph = nx.DiGraph()
+    digraph.add_node(pa.start)
+    for source, out_map in pa.transitions.items():
+        if not ambiguous(source):
+            continue
+        for target in out_map.values():
+            if ambiguous(target):
+                digraph.add_edge(source, target)
+    reachable = digraph.subgraph(nx.descendants(digraph, pa.start) | {pa.start})
+    if not nx.is_directed_acyclic_graph(reachable):
         return math.inf
-    return int(order)
+    return 1 + nx.dag_longest_path_length(reachable)
 
 
 def is_exactly_synchronizable(graph: TopologicalUnifilarGraph) -> bool:
@@ -448,6 +432,10 @@ def graph_from_epsilon_machine(eps: Any) -> TopologicalUnifilarGraph:
 
 def graph_from_unifilar_automaton(aut: Any) -> TopologicalUnifilarGraph:
     """Build a topological graph from a :class:`~sofic.automata.unifilar.UnifilarAutomaton`."""
+    return _graph_from_symbol_labeled(aut, aut.input_alphabet)
+
+
+def _graph_from_symbol_labeled(aut: Any, declared_alphabet: Any) -> TopologicalUnifilarGraph:
     from sofic.graph import EPSILON
 
     transitions: dict[tuple[Hashable, Any], Hashable] = {}
@@ -462,8 +450,8 @@ def graph_from_unifilar_automaton(aut: Any) -> TopologicalUnifilarGraph:
         transitions[key] = transition.target
         alphabet.add(symbol)
     states = frozenset(aut.states())
-    if aut.input_alphabet:
-        alphabet.update(aut.input_alphabet)
+    if declared_alphabet:
+        alphabet.update(declared_alphabet)
     return TopologicalUnifilarGraph(
         states=states,
         alphabet=frozenset(alphabet),
@@ -473,9 +461,14 @@ def graph_from_unifilar_automaton(aut: Any) -> TopologicalUnifilarGraph:
 
 def graph_from_sofic_shift(shift: Any) -> TopologicalUnifilarGraph:
     """Build a topological graph from a right-resolving sofic presentation."""
-    graph = graph_from_unifilar_automaton(shift)
+    graph = _graph_from_symbol_labeled(shift, None)
     if shift.symbol_alphabet:
         missing = graph.alphabet - shift.symbol_alphabet
         if missing:
             raise UnifilarityError(f"shift alphabet does not cover transition symbols: {missing}")
+        graph = TopologicalUnifilarGraph(
+            states=graph.states,
+            alphabet=graph.alphabet | frozenset(shift.symbol_alphabet),
+            transitions=graph.transitions,
+        )
     return graph

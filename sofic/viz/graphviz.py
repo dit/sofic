@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any
 
 from sofic.base import StateMachine
 from sofic.viz._context import VizContext, viz_context
 from sofic.viz._format import format_state
-from sofic.viz._names import node_name as _node_name
+from sofic.viz._names import node_names
 
 if TYPE_CHECKING:
     import graphviz
@@ -86,15 +87,16 @@ def model_to_graphviz(
         engine=context.graph_engine,
     )
 
-    _add_states(dot, model, context)
-    _add_transitions(dot, model, context)
+    names = node_names(model.states())
+    _add_states(dot, model, context, names)
+    _add_transitions(dot, model, context, names)
     return dot
 
 
-def _add_states(dot: graphviz.Digraph, model: StateMachine, context: VizContext) -> None:
+def _add_states(dot: graphviz.Digraph, model: StateMachine, context: VizContext, names: dict[Hashable, str]) -> None:
     for state in model.states():
         dot.node(
-            _node_name(state),
+            names[state],
             label=context.state_labels.get(state, format_state(state)),
             shape="doublecircle" if state in context.accepting_states else "circle",
             peripheries="2" if state in context.accepting_states else "1",
@@ -106,10 +108,12 @@ def _add_states(dot: graphviz.Digraph, model: StateMachine, context: VizContext)
     if context.show_start_node and context.initial_states:
         dot.node("__start__", label="", shape="point", width="0.12", height="0.12")
         for state in sorted(context.initial_states, key=str):
-            dot.edge("__start__", _node_name(state))
+            dot.edge("__start__", names[state])
 
 
-def _add_transitions(dot: graphviz.Digraph, model: StateMachine, context: VizContext) -> None:
+def _add_transitions(
+    dot: graphviz.Digraph, model: StateMachine, context: VizContext, names: dict[Hashable, str]
+) -> None:
     for transition in model.transitions():
         label = context.edge_label(transition)
         attrs: dict[str, str] = {}
@@ -121,7 +125,7 @@ def _add_transitions(dot: graphviz.Digraph, model: StateMachine, context: VizCon
         style = context.edge_style(transition)
         if style:
             attrs["style"] = style
-        dot.edge(_node_name(transition.source), _node_name(transition.target), **attrs)
+        dot.edge(names[transition.source], names[transition.target], **attrs)
 
 
 def model_to_svg(model: StateMachine, **kwargs: Any) -> str:

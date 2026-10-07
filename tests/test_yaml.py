@@ -31,6 +31,7 @@ from sofic.graph import (
     ATTR_EMISSION,
     ATTR_KIND,
     ATTR_OUTPUT,
+    ATTR_PROB,
     ATTR_QUASIPROB,
     ATTR_STACK_SYMBOL,
     ATTR_SYMBOL,
@@ -236,7 +237,7 @@ def test_stochastic_generators_round_trip():
     mealy.graph.add_state("q")
     mealy.add_transition("q", "q", "0", 1.0)
     restored_mealy = _round_trip(mealy)
-    assert _metadata_keys(mealy) == {"initial_distribution"}
+    assert _metadata_keys(mealy) == {"initial_distribution", "observation_alphabet"}
     assert restored_mealy.observation_alphabet == mealy.observation_alphabet
 
     moore = MooreHMM(initial_distribution={"q": 1.0}, observation_alphabet=frozenset({"0"}))
@@ -244,14 +245,14 @@ def test_stochastic_generators_round_trip():
     moore.set_emission_distribution("q", {"0": 1.0})
     moore.add_transition("q", "q", 1.0)
     restored_moore = _round_trip(moore)
-    assert _metadata_keys(moore) == {"initial_distribution"}
+    assert _metadata_keys(moore) == {"initial_distribution", "observation_alphabet"}
     assert restored_moore.observation_alphabet == moore.observation_alphabet
 
     pfa = ProbabilisticFiniteAutomaton(initial_distribution={"q": 1.0}, output_alphabet=frozenset({"0"}))
     pfa.graph.add_state("q")
     pfa.add_transition("q", "q", "0", 1.0)
     restored_pfa = _round_trip(pfa)
-    assert _metadata_keys(pfa) == {"initial_distribution"}
+    assert _metadata_keys(pfa) == {"initial_distribution", "output_alphabet"}
     assert restored_pfa.output_alphabet == pfa.output_alphabet
 
 
@@ -273,7 +274,7 @@ def test_quasi_models_round_trip():
     nm.graph.add_state("q")
     nm.graph.add_transition("q", "q", **{ATTR_QUASIPROB: 1.0, ATTR_EMISSION: "0"})
     restored_nm = _round_trip(nm)
-    assert _metadata_keys(nm) == {"initial_quasidistribution"}
+    assert _metadata_keys(nm) == {"initial_quasidistribution", "observation_alphabet"}
     assert restored_nm.observation_alphabet == nm.observation_alphabet
 
     qr = QuasiRealization(
@@ -297,7 +298,15 @@ def test_stack_hmm_and_sofic_dyck_edge_refs_round_trip():
     ret = model.add_return_transition("q", "q", "A", 0.4)
     model.add_matched_pair(call, ret)
     restored = _round_trip(model)
-    assert _metadata_keys(model) == {"initial_distribution", "matched_edges", "allow_empty_stack_returns"}
+    assert _metadata_keys(model) == {
+        "initial_distribution",
+        "call_alphabet",
+        "return_alphabet",
+        "internal_alphabet",
+        "symbol_alphabet",
+        "matched_edges",
+        "allow_empty_stack_returns",
+    }
     assert restored.call_alphabet == model.call_alphabet
     assert restored.return_alphabet == model.return_alphabet
     assert restored.matched_edges == model.matched_edges
@@ -366,3 +375,40 @@ def test_cover_and_symbolic_models_round_trip():
     bare.graph.add_state(0)
     bare.graph.add_transition(0, 0, **{ATTR_SYMBOL: "x"})
     assert type(_round_trip(bare)) is SymbolicModel
+
+
+def test_hidden_hmm_round_trip_keeps_unused_observation_symbols():
+    mealy = MealyHMM(initial_distribution={"A": 1.0}, observation_alphabet=frozenset({0, 1, 2}))
+    mealy.graph.add_transition("A", "A", **{ATTR_PROB: 1.0, ATTR_EMISSION: 0})
+    restored = model_from_yaml(mealy.to_yaml())
+    assert restored.observation_alphabet == frozenset({0, 1, 2})
+
+
+def test_pfa_round_trip_keeps_unused_output_symbols():
+    pfa = ProbabilisticFiniteAutomaton(initial_distribution={"A": 1.0}, output_alphabet=frozenset({"x", "y"}))
+    pfa.graph.add_transition("A", "A", **{ATTR_PROB: 1.0, ATTR_EMISSION: "x"})
+    restored = model_from_yaml(pfa.to_yaml(), validate=False)
+    assert restored.output_alphabet == frozenset({"x", "y"})
+
+
+def test_sympy_and_fraction_values_round_trip():
+    sp = pytest.importorskip("sympy")
+    from fractions import Fraction
+
+    machine = golden_mean(sp.Rational(1, 3))
+    restored = model_from_yaml(machine.to_yaml())
+    original = sorted((t.data[ATTR_PROB] for t in machine.transitions()), key=float)
+    probs = sorted((t.data[ATTR_PROB] for t in restored.transitions()), key=float)
+    assert probs == original
+    assert [type(value) for value in probs] == [type(value) for value in original]
+
+    p = sp.Symbol("p", positive=True)
+    chain = MarkovChain(initial_distribution={"A": Fraction(1, 1)})
+    chain.graph.add_transition(
+        "A", "A", **{ATTR_PROB: sp.Integer(1), "weight": sp.sqrt(2) * p / 3, "f": Fraction(2, 7)}
+    )
+    restored_chain = model_from_yaml(chain.to_yaml(), validate=False)
+    data = next(iter(restored_chain.transitions())).data
+    assert data["weight"] == sp.sqrt(2) * p / 3
+    assert data["f"] == Fraction(2, 7)
+    assert isinstance(restored_chain.initial_distribution["A"], Fraction)

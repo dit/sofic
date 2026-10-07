@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from sofic.examples import even_process, fair_coin, golden_mean, noisy_random_phase_slip
+from sofic.examples import bernoulli, even_process, golden_mean, noisy_random_phase_slip
 from sofic.generators.block_convergence import block_caekl
 
 
 def test_fair_coin_block_convergence_independent():
-    diag = fair_coin().block_convergence_diagram(4)
+    diag = bernoulli().block_convergence_diagram(4)
     diag.validate_identities()
     assert diag.block_total_correlation[2:] == pytest.approx(0.0, abs=1e-12)
     assert diag.block_binding_information[2:] == pytest.approx(0.0, abs=1e-12)
@@ -23,7 +23,7 @@ def test_fair_coin_block_convergence_independent():
 
 
 def test_fair_coin_caekl_api():
-    eps = fair_coin()
+    eps = bernoulli()
     assert eps.caekl_block_information(2) == pytest.approx(0.0, abs=1e-12)
     assert eps.caekl_rate(4) == pytest.approx(0.0, abs=1e-12)
     assert eps.caekl_rate_converged(4) is True

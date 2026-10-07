@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterator, Sequence
-from typing import Any
+from copy import deepcopy
+from typing import Any, Self
 
-from sofic.graph import ATTR_KIND, ATTR_SYMBOL, KIND_CALL, KIND_INTERNAL, KIND_RETURN, Transition
+from sofic.graph import (
+    ATTR_KIND,
+    ATTR_SYMBOL,
+    KIND_CALL,
+    KIND_INTERNAL,
+    KIND_RETURN,
+    Transition,
+    TransitionGraph,
+    copy_memo,
+)
 from sofic.shifts.base import SymbolicModel
 
 TransitionRef = tuple[Hashable, Hashable, int]
@@ -97,6 +107,36 @@ class SoficDyckShift(SymbolicModel):
     def add_matched_pair(self, call_ref: TransitionRef, return_ref: TransitionRef) -> None:
         """Mark ``call_ref`` and ``return_ref`` as a legal call-return pair."""
         self.matched_edges = frozenset({*self.matched_edges, (call_ref, return_ref)})
+
+    def reverse(self) -> Self:
+        """Return the presentation of the mirror-image shift.
+
+        Every edge is transposed and call and return roles (and alphabets) swap,
+        since a call read backwards is a return. A matched pair ``(c, r)``
+        becomes ``(r', c')`` on the transposed edges, so a word is admissible
+        here exactly when its mirror image is admissible in the reversed shift.
+        """
+        result = self.copy()
+        graph = TransitionGraph()
+        for state, attrs in self.graph.nx.nodes(data=True):
+            graph.add_state(state, **deepcopy(attrs, copy_memo()))
+        swap = {KIND_CALL: KIND_RETURN, KIND_RETURN: KIND_CALL, KIND_INTERNAL: KIND_INTERNAL}
+        remap: dict[TransitionRef, TransitionRef] = {}
+        for transition in self.transitions():
+            data = deepcopy(transition.data, copy_memo())
+            if ATTR_KIND in data:
+                data[ATTR_KIND] = swap.get(data[ATTR_KIND], data[ATTR_KIND])
+            key = graph.add_transition(transition.target, transition.source, **data)
+            remap[transition_ref(transition)] = (transition.target, transition.source, key)
+        result.graph = graph
+        result.call_alphabet = self.return_alphabet
+        result.return_alphabet = self.call_alphabet
+        result.matched_edges = frozenset(
+            (remap[return_ref], remap[call_ref])
+            for call_ref, return_ref in self.matched_edges
+            if call_ref in remap and return_ref in remap
+        )
+        return result
 
     def is_admissible_word(self, word: Sequence[Any]) -> bool:
         """Return whether ``word`` is a finite factor of this Dyck presentation."""

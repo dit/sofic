@@ -319,18 +319,13 @@ def _linearize_colex_relation(graph: LabeledGraph) -> list[tuple[Hashable, ...]]
     Wheeler. This keeps the hard case polynomial instead of leaving unrelated
     states, sourceless ones above all, to a factorial search.
     """
-    relation = maximum_colex_relation_of_graph(graph)
-    strict = nx.DiGraph()
-    strict.add_nodes_from(relation)
-    for left, rights in relation.items():
-        for right in rights:
-            if left != right and left not in relation[right]:
-                strict.add_edge(left, right)
+    # Pairs related both ways may be ordered either way, so they land in one
+    # strongly connected group whose internal order is left to the caller.
+    condensation = nx.condensation(_relation_digraph(maximum_colex_relation_of_graph(graph)))
 
     # A DAG's reachability order is total exactly when its topological order is
     # unique, i.e. Kahn's algorithm never has two ready nodes at once. That is
     # linear, where materializing the transitive closure is not.
-    condensation = nx.condensation(strict)
     remaining = dict(condensation.in_degree())
     ready = [node for node, degree in remaining.items() if degree == 0]
     chain: list[int] = []
@@ -344,6 +339,27 @@ def _linearize_colex_relation(graph: LabeledGraph) -> list[tuple[Hashable, ...]]
     if len(chain) != condensation.number_of_nodes():
         return None
     return [tuple(condensation.nodes[node]["members"]) for node in chain]
+
+
+def _relation_digraph(
+    relation: dict[Hashable, frozenset[Hashable]],
+    groupable: Callable[[Hashable], bool] | None = None,
+) -> nx.DiGraph:
+    """Digraph with an edge ``u -> v`` for every distinct related pair ``u <= v``.
+
+    A pair related both ways keeps both edges only when ``groupable`` accepts
+    both states; otherwise it is dropped and the two states stay incomparable.
+    """
+    digraph = nx.DiGraph()
+    digraph.add_nodes_from(relation)
+    for left, rights in relation.items():
+        for right in rights:
+            if left == right:
+                continue
+            if left in relation[right] and groupable is not None and not (groupable(left) and groupable(right)):
+                continue
+            digraph.add_edge(left, right)
+    return digraph
 
 
 def _is_deterministic(graph: LabeledGraph) -> bool:
@@ -445,33 +461,32 @@ def colex_width(model: Any, *, symbol_key: Callable[[Any], Any] | None = None) -
     the cost of indexing, encoding, and determinizing it
     :cite:`CotumaccioPrezza2021`.
 
-    A co-lex order must be antisymmetric, so a pair the relation orients in
-    both directions is a pair no co-lex order can compare and is counted here
-    as incomparable. Minimum width over co-lex orders is NP-hard to compute for
-    NFAs and the relation-based estimate can differ from it
-    :cite:`Cotumaccio2023`.
+    A pair of input-consistent states (see :func:`is_input_consistent`) that
+    the relation orients in both directions may be ordered either way by a
+    co-lex order, so such pairs are grouped (strongly connected components of
+    the relation) and each group counts as one element, exactly as
+    :func:`wheeler_order` treats them; hence every Wheeler machine has width
+    one. A mutually related pair involving a state entered on several labels
+    is one axiom one cannot separate, and is counted as incomparable. Minimum width over co-lex orders is
+    NP-hard to compute for NFAs and the relation-based estimate can differ from
+    it :cite:`Cotumaccio2023`; in particular a group need not admit a
+    consistent internal order.
 
-    A Wheeler machine always has width one, but the converse needs
-    :func:`is_input_consistent`: axiom one compares the incoming labels of two
-    *distinct* states, so it cannot see a single state entered on two different
-    symbols. The one-state presentation of the full shift is the smallest
-    example -- width one, yet not Wheeler. Test Wheelerness with
-    :func:`is_wheeler` rather than ``colex_width(...) == 1``.
+    A Wheeler machine always has width one, but the converse fails: axiom one
+    compares the incoming labels of two *distinct* states, so it cannot see a
+    single state entered on two different symbols (see
+    :func:`is_input_consistent`), and a group of mutually related states may
+    admit no consistent internal order. The one-state presentation of the full
+    shift is the smallest example -- width one, yet not Wheeler. Test
+    Wheelerness with :func:`is_wheeler` rather than ``colex_width(...) == 1``.
     """
-    relation = maximum_colex_relation(model, symbol_key=symbol_key)
+    graph = labeled_graph(model, symbol_key=symbol_key)
+    relation = maximum_colex_relation_of_graph(graph)
     if not relation:
         return 0
 
-    strict = nx.DiGraph()
-    strict.add_nodes_from(relation)
-    for left, rights in relation.items():
-        for right in rights:
-            if left != right and left not in relation[right]:
-                strict.add_edge(left, right)
-
-    # The strict part of a transitive relation is acyclic; condense defensively
-    # so a non-transitive fixpoint still yields a DAG to close and match on.
-    condensation = nx.condensation(strict)
+    in_labels = graph.in_labels()
+    condensation = nx.condensation(_relation_digraph(relation, lambda state: len(in_labels[state]) <= 1))
     if condensation.number_of_nodes() <= 1:
         return condensation.number_of_nodes()
 
@@ -506,12 +521,11 @@ def minimize_wheeler(
     :cite:`Gagie2017`, and the resulting automaton is the unique smallest
     Wheeler DFA for the language :cite:`Alanko2020`.
     """
-    from sofic.automata.algorithms import minimize
     from sofic.automata.dfa import DFA
 
     graph, order = _order_of(dfa, symbol_key)
     in_labels = graph.in_labels()
-    classes = _nerode_classes(dfa, minimize(dfa))
+    classes = _nerode_classes(dfa)
 
     runs: list[list[Hashable]] = []
     for state in order.states:
@@ -543,34 +557,56 @@ def minimize_wheeler(
     return result
 
 
-def _nerode_classes(dfa: Any, minimal: Any) -> dict[Hashable, Hashable]:
-    """Map each state of ``dfa`` to the ``minimal`` state it is equivalent to."""
-    from sofic.graph import ATTR_SYMBOL as SYMBOL
+def _nerode_classes(dfa: Any) -> dict[Hashable, Hashable]:
+    """Map each state of ``dfa`` to its Myhill-Nerode class.
 
-    def step(automaton: Any, state: Hashable, symbol: Any) -> Hashable | None:
-        for transition in automaton.graph.out_transitions(state):
-            if transition.data.get(SYMBOL) == symbol:
-                return transition.target
-        return None
-
-    start = next(iter(dfa.initial_states), None)
-    minimal_start = next(iter(minimal.initial_states), None)
-    if start is None or minimal_start is None:
-        return dict.fromkeys(dfa.states(), 0)
-
-    classes: dict[Hashable, Hashable] = {start: minimal_start}
-    queue = [(start, minimal_start)]
+    Reachable states are classed by right language, with missing transitions
+    and dead states (no accepting state reachable) sharing one empty-language
+    class. States unreachable from the start form their own singleton classes.
+    """
     alphabet = sorted(dfa.input_alphabet, key=repr)
-    while queue:
-        state, image = queue.pop()
-        for symbol in alphabet:
-            target = step(dfa, state, symbol)
-            if target is None or target in classes:
-                continue
-            classes[target] = step(minimal, image, symbol)
-            queue.append((target, classes[target]))
+    delta: dict[tuple[Hashable, Any], Hashable] = {}
+    for transition in dfa.transitions():
+        delta[(transition.source, transition.data.get(ATTR_SYMBOL))] = transition.target
 
-    # States unreachable from the start form their own singleton classes.
+    reachable = set(dfa.initial_states)
+    stack = list(reachable)
+    while stack:
+        state = stack.pop()
+        for symbol in alphabet:
+            target = delta.get((state, symbol))
+            if target is not None and target not in reachable:
+                reachable.add(target)
+                stack.append(target)
+
+    live = {state for state in reachable if state in dfa.accepting_states}
+    changed = True
+    while changed:
+        changed = False
+        for state in reachable - live:
+            if any(delta.get((state, symbol)) in live for symbol in alphabet):
+                live.add(state)
+                changed = True
+
+    def image(state: Hashable, symbol: Any) -> Hashable | None:
+        target = delta.get((state, symbol))
+        return target if target in live else None
+
+    block: dict[Hashable, Hashable] = {state: state in dfa.accepting_states for state in live}
+    while True:
+        signatures = {
+            state: (block[state], tuple(None if (t := image(state, a)) is None else block[t] for a in alphabet))
+            for state in live
+        }
+        numbering: dict[Hashable, int] = {}
+        refined = {state: numbering.setdefault(signature, len(numbering)) for state, signature in signatures.items()}
+        if len(numbering) == len(set(block.values())):
+            break
+        block = refined
+
+    classes: dict[Hashable, Hashable] = {state: ("live", block[state]) for state in live}
+    for state in reachable - live:
+        classes[state] = ("dead",)
     for state in dfa.states():
         classes.setdefault(state, ("unreachable", repr(state)))
     return classes
@@ -583,9 +619,17 @@ def determinize_wheeler(
 ) -> Any:
     """Determinize a Wheeler NFA into an equivalent Wheeler DFA.
 
-    Path coherence makes every reachable subset an interval of the Wheeler
-    order, so the subset construction ranges over intervals rather than subsets
-    and yields at most ``2n - 1 - |Sigma|`` states :cite:`Alanko2020`.
+    Path coherence makes the image of every interval of the Wheeler order an
+    interval, so from a single initial state (or initial states consecutive in
+    the order) the subset construction ranges over intervals rather than
+    subsets and yields at most ``2n - 1 - |Sigma|`` states :cite:`Alanko2020`.
+    Non-consecutive initial states are handled by the exact subset
+    construction, whose first few subsets need not be intervals.
+
+    The result always recognizes the language of ``nfa``. It is guaranteed to
+    be Wheeler only in the setting of :cite:`Alanko2020`, a single initial
+    state with no incoming edges; an initial state entered by some edge can
+    yield a DFA that admits no Wheeler order.
     """
     from sofic.automata.dfa import DFA
 
@@ -595,47 +639,39 @@ def determinize_wheeler(
     for source, symbol, target in graph.edges:
         by_symbol[symbol].append((rank[source], rank[target]))
 
-    def successor(interval: tuple[int, int], symbol: Any) -> tuple[int, int] | None:
-        targets = [target for source, target in by_symbol[symbol] if interval[0] <= source <= interval[1]]
-        if not targets:
-            return None
-        return (min(targets), max(targets))
+    def successor(subset: frozenset[int], symbol: Any) -> frozenset[int]:
+        return frozenset(target for source, target in by_symbol[symbol] if source in subset)
 
-    initial_ranks = [rank[state] for state in nfa.initial_states]
-    if not initial_ranks:
+    start = frozenset(rank[state] for state in nfa.initial_states)
+    if not start:
         return DFA(input_alphabet=frozenset(nfa.input_alphabet))
-    start = (min(initial_ranks), max(initial_ranks))
 
-    intervals = {start}
+    subsets = {start}
     queue = [start]
-    edges: list[tuple[tuple[int, int], Any, tuple[int, int]]] = []
+    edges: list[tuple[frozenset[int], Any, frozenset[int]]] = []
     while queue:
-        interval = queue.pop()
+        subset = queue.pop()
         for symbol in graph.alphabet:
-            target = successor(interval, symbol)
-            if target is None:
+            target = successor(subset, symbol)
+            if not target:
                 continue
-            edges.append((interval, symbol, target))
-            if target not in intervals:
-                intervals.add(target)
+            edges.append((subset, symbol, target))
+            if target not in subsets:
+                subsets.add(target)
                 queue.append(target)
 
     accepting_ranks = {rank[state] for state in nfa.accepting_states}
 
-    def label(interval: tuple[int, int]) -> Hashable:
-        return tuple(order.states[index] for index in range(interval[0], interval[1] + 1))
+    def label(subset: frozenset[int]) -> Hashable:
+        return tuple(order.states[index] for index in sorted(subset))
 
     result = DFA(
         input_alphabet=frozenset(nfa.input_alphabet),
         initial_states=frozenset({label(start)}),
-        accepting_states=frozenset(
-            label(interval)
-            for interval in intervals
-            if any(index in accepting_ranks for index in range(interval[0], interval[1] + 1))
-        ),
+        accepting_states=frozenset(label(subset) for subset in subsets if subset & accepting_ranks),
     )
-    for interval in intervals:
-        result.graph.add_state(label(interval))
+    for subset in subsets:
+        result.graph.add_state(label(subset))
     for source, symbol, target in edges:
         result.graph.add_transition(label(source), label(target), **{ATTR_SYMBOL: symbol})
     return result

@@ -17,3 +17,4 @@ shared by automata, generators, and symbolic models.
    properties
    serialization
    exceptions
+   testing

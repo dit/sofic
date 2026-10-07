@@ -58,3 +58,94 @@ def test_accepts_omega_non_periodic_raises():
 def test_empty_loop_is_not_an_omega_word():
     with pytest.raises(ValueError, match="non-empty loop"):
         _accepting_loop_ba().accepts_lasso(("a",), ())
+
+
+def _mid_loop_ba() -> BuchiAutomaton:
+    ba = BuchiAutomaton(
+        input_alphabet=frozenset({"a", "b"}),
+        initial_states=frozenset({0}),
+        accepting_states=frozenset({1}),
+    )
+    ba.graph.add_state(0)
+    ba.graph.add_state(1)
+    ba.add_transition(0, 1, "a")
+    ba.add_transition(1, 0, "b")
+    return ba
+
+
+def test_accepting_state_visited_mid_loop():
+    ba = _mid_loop_ba()
+    assert ba.accepts_lasso((), ("a", "b"))
+    assert ba.accepts_lasso(("a",), ("b", "a"))
+    assert not ba.accepts_lasso((), ("a",))
+
+
+def test_pure_epsilon_cycle_through_accepting_state_rejects():
+    from sofic.graph import EPSILON
+
+    ba = BuchiAutomaton(
+        input_alphabet=frozenset({"a"}),
+        initial_states=frozenset({0}),
+        accepting_states=frozenset({1}),
+    )
+    ba.graph.add_state(0)
+    ba.graph.add_state(1)
+    ba.graph.add_state(2)
+    ba.add_transition(0, 1, EPSILON)
+    ba.add_transition(1, 0, EPSILON)
+    ba.add_transition(0, 2, "a")
+    ba.add_transition(2, 2, "a")
+    assert not ba.accepts_lasso((), ("a",))
+    ba.add_transition(2, 0, "a")
+    assert ba.accepts_lasso((), ("a",))
+
+
+def _brute_lasso(ba: BuchiAutomaton, prefix, loop) -> bool:
+    """Accept iff some infinite path on ``prefix loop^omega`` revisits an accepting (state, phase)."""
+    start = {(q, 0) for q in ba._run_nfa(prefix)}
+
+    def succ(node):
+        q, i = node
+        return {(t, (i + 1) % len(loop)) for t in ba.delta(q, loop[i])}
+
+    seen, stack = set(start), list(start)
+    while stack:
+        for y in succ(stack.pop()):
+            if y not in seen:
+                seen.add(y)
+                stack.append(y)
+    for x in seen:
+        if x[0] not in ba.accepting_states:
+            continue
+        visited, stack = set(), list(succ(x))
+        while stack:
+            y = stack.pop()
+            if y == x:
+                return True
+            if y not in visited:
+                visited.add(y)
+                stack.extend(succ(y))
+    return False
+
+
+def test_lasso_acceptance_matches_brute_force():
+    import itertools
+    import random
+
+    rng = random.Random(0)
+    for _ in range(150):
+        n = rng.randint(1, 3)
+        ba = BuchiAutomaton(
+            input_alphabet=frozenset("ab"),
+            initial_states=frozenset({0}),
+            accepting_states=frozenset(s for s in range(n) if rng.random() < 0.4),
+        )
+        for s in range(n):
+            ba.graph.add_state(s)
+        for s, t, c in itertools.product(range(n), range(n), "ab"):
+            if rng.random() < 0.35:
+                ba.add_transition(s, t, c)
+        for pl, ll in itertools.product(range(3), range(1, 4)):
+            for p in itertools.product("ab", repeat=pl):
+                for loop in itertools.product("ab", repeat=ll):
+                    assert ba.accepts_lasso(p, loop) == _brute_lasso(ba, p, loop)

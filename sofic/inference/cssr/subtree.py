@@ -91,7 +91,7 @@ def learn_epsilon_machine_subtree(
     alphabet: Sequence[Any] | None = None,
     alpha: float = _SUBTREE_ALPHA,
     test: MorphTest = "g",
-    correction: Literal["bonferroni"] | None = None,
+    correction: Literal["bonferroni"] | None = "bonferroni",
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by merging depth-``max_history`` subtrees (Crutchfield--Young).
 
@@ -100,10 +100,10 @@ def learn_epsilon_machine_subtree(
     (``test``, at level ``alpha``) tells them apart. The clusters are then
     determinized as in :func:`learn_epsilon_machine_cssr`.
 
-    ``max_history="auto"`` uses :func:`suggest_max_history`. ``correction="bonferroni"`` divides
-    ``alpha`` by the number of history pairs compared, so that no pair is split
-    apart by chance; since a rejected test *separates* histories, this makes the
-    reconstruction more conservative (fewer states).
+    ``max_history="auto"`` uses :func:`suggest_max_history`. ``correction="bonferroni"`` (the
+    default) divides ``alpha`` by the number of history pairs compared, so that no pair is
+    split apart by chance; since a rejected test *separates* histories, this makes the
+    reconstruction more conservative (fewer states). ``correction=None`` disables it.
     """
     if max_history == "auto":
         max_history = suggest_max_history(sequence, alpha=alpha)

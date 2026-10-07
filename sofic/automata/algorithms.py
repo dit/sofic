@@ -6,6 +6,7 @@ from collections import deque
 from collections.abc import Hashable, Sequence
 from typing import Any, Literal, TypeVar
 
+from sofic.automata._sentinel import Sentinel
 from sofic.automata.base import LabeledAutomaton
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
@@ -13,7 +14,7 @@ from sofic.graph import ATTR_SYMBOL, EPSILON
 
 MinimizationAlgorithm = Literal["hopcroft", "moore", "brzozowski"]
 
-_TRAP = object()
+_TRAP = Sentinel("trap")
 
 L = TypeVar("L", bound=LabeledAutomaton)
 
@@ -121,9 +122,15 @@ def minimize_brzozowski(
     *,
     alphabet: frozenset[Any] | None = None,
 ) -> DFA:
-    """Minimize via Brzozowski double reversal: det(rev(det(rev(A))))."""
+    """Minimize via Brzozowski double reversal: det(rev(det(rev(A)))).
+
+    The result is trimmed like :func:`minimize_hopcroft` and
+    :func:`minimize_moore`, so all three return the same partial DFA.
+    """
     nfa = aut if isinstance(aut, NFA) else _dfa_as_nfa(aut)
-    return determinize(trim(nfa).reverse().determinize(alphabet=alphabet).reverse().determinize(alphabet=alphabet))
+    return trim(
+        determinize(trim(nfa).reverse().determinize(alphabet=alphabet).reverse().determinize(alphabet=alphabet))
+    )
 
 
 def minimize_moore(dfa: DFA, *, alphabet: frozenset[Any] | None = None) -> DFA:

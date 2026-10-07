@@ -12,8 +12,12 @@ from sofic.automata.languages.operations import (
     reverse,
     union,
 )
-from sofic.automata.languages.quotients import left_quotient, left_quotients, residuals, right_quotient
+from sofic.automata.languages.quotients import left_quotient, left_quotients, right_quotient
+from sofic.automata.languages.quotients import residuals as _residuals
 from sofic.automata.languages.residuals import is_composed_residual, prime_residuals
+
+# Importing the ``residuals`` submodule rebinds the package attribute of that name.
+residuals = _residuals
 
 __all__ = [
     "AutomatonLanguage",

@@ -85,6 +85,8 @@ is nothing to optimize, so this factory takes no optimizer arguments; the
 model's state entropy equals the Gács-Körner common information
 :math:`K[S^+ : S^-]` and keeps only the conserved "core" (phase /
 ergodic-component structure), which is often trivial for mixing processes.
+Unlike the other variants it is not a generative model of the process: in
+general ``ggm.is_equal_process(bidir.forward_machine)`` is ``False``.
 
 .. ipython::
 
@@ -119,20 +121,20 @@ follows from the determinism of the forward transition function.
 
 .. ipython::
 
-   In [13]: from sofic.examples import butterfly_process
+   In [13]: from sofic.examples import nemo_process
 
-   In [14]: bidir = butterfly_process().to_bidirectional()
+   In [14]: bidir = nemo_process().to_bidirectional()
 
    @doctest float
    In [15]: bidir.structural_ephemeral_information()
-   Out[15]: 2.25
+   Out[15]: 0.16666666666666666
 
    @doctest float
    In [16]: bidir.parallel_edge_information()
-   Out[16]: 0.75
+   Out[16]: 0.25
 
 API
 ===
 
 .. autoclass:: BidirectionalEpsilonMachine
-   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, structural_ephemeral_information, parallel_edge_information, bound_structural_information, bound_parallel_edge_information, information_anatomy, caekl_causal_information
+   :members: from_forward, from_pair, joint_distribution, step_distribution, forward_epsilon_machine, reverse_epsilon_machine, entropy_rate, statistical_complexity, excess_entropy, bidirectional_crypticity, minimal_generative_model, wyner_generative_model, functional_generative_model, gacs_korner_generative_model, generative_complexity, predicted_information, bound_information, ephemeral_information, structural_ephemeral_information, parallel_edge_information, bound_structural_information, bound_parallel_edge_information, information_anatomy, caekl_causal_information

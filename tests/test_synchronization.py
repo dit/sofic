@@ -2,20 +2,23 @@
 
 import math
 
+import numpy as np
 import pytest
 from hypothesis import given, settings
 
+from sofic.examples import odd, period, stretched_gm
 from sofic.examples.epsilon_machines import (
     alternating_biased_coins,
     bernoulli,
     butterfly_process,
     even_process,
     golden_mean,
-    golden_mean_markov,
     nemo_process,
     phase_slip_backtrack,
     restricted_golden_mean,
 )
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.matrices import symbol_matrices
 from sofic.generators.synchronization import (
     graph_from_epsilon_machine,
     is_asymptotically_synchronizable_from_graph,
@@ -26,6 +29,7 @@ from sofic.generators.synchronization import (
     shortest_synchronizing_word_from_graph,
 )
 from sofic.serialization import model_from_yaml
+from sofic.shifts.sofic import SoficShift
 from sofic.testing.strategies import epsilon_machines
 
 INFINITE_ORDER_EPSILON_MACHINE_YAML = """
@@ -130,7 +134,7 @@ def test_golden_mean_orders():
 
 
 def test_golden_mean_markov_order():
-    assert golden_mean_markov().markov_order() == 1
+    assert golden_mean().markov_order() == 1
 
 
 @pytest.mark.parametrize("k", [1, 2, 3])
@@ -145,15 +149,13 @@ def test_phase_slip_backtrack_markov_order():
     assert eps.markov_order() == math.inf
 
 
-def test_butterfly_infinite_orders():
+def test_butterfly_orders():
     eps = butterfly_process()
-    assert eps.markov_order() == math.inf
-    assert eps.cryptic_order() == math.inf
-    # Exactly synchronizable (a single sync symbol resets it) despite infinite
-    # Markov order -- so it is not definite.
+    assert eps.markov_order() == 2
+    assert eps.cryptic_order() == 2
     assert eps.is_exactly_synchronizable()
     assert eps.reset_threshold() == 1
-    assert not eps.is_definite()
+    assert eps.is_definite()
 
 
 def test_nemo_infinite_orders():
@@ -191,6 +193,82 @@ def test_cryptic_order_bounded_by_markov_order_when_finite():
     assert k <= r
 
 
+def _vectors(start, matrices, length, side):
+    vectors = [start]
+    for _ in range(length):
+        vectors = [
+            nxt
+            for vector in vectors
+            for matrix in matrices
+            if (nxt := vector @ matrix if side == "left" else matrix @ vector).sum() > 0
+        ]
+    return np.array(vectors)
+
+
+def _entropy(probs):
+    probs = probs[probs > 0]
+    return float(-(probs * np.log2(probs)).sum())
+
+
+def _state_uncertainty_given_future(eps, k, budget=2**14):
+    """Brute-force ``H[S_k | X_{0:k+M}]`` with ``M`` as large as ``budget`` allows."""
+    matrices = [np.asarray(matrix, dtype=float) for matrix in symbol_matrices(eps).values()]
+    pi = np.asarray(eps.stationary_distribution(), dtype=float)
+    future = int(np.log(budget) / np.log(len(matrices)))
+    past = _vectors(pi, matrices, k, "left")
+    ahead = _vectors(np.ones(len(pi)), matrices, future, "right")
+    joint = past[:, None, :] * ahead[None, :, :]
+    return _entropy(joint.ravel()) - _entropy(joint.sum(axis=-1).ravel())
+
+
+@pytest.mark.parametrize(
+    ("make", "expected"),
+    [
+        (golden_mean, 1),
+        (even_process, 0),
+        (lambda: EpsilonMachine.from_hmm(period(2)), 0),
+        (lambda: EpsilonMachine.from_hmm(period(3)), 0),
+        (lambda: restricted_golden_mean(2), 2),
+        (lambda: restricted_golden_mean(3), 3),
+        (lambda: stretched_gm(2), 1),
+        (odd, 1),
+    ],
+)
+def test_cryptic_order_matches_brute_force(make, expected):
+    eps = make()
+    assert eps.cryptic_order() == expected
+    assert _state_uncertainty_given_future(eps, expected) < 1e-2
+    if expected > 0:
+        assert _state_uncertainty_given_future(eps, expected - 1) > 0.1
+
+
+def test_zero_crypticity_processes_have_zero_cryptic_order():
+    for eps in (even_process(), EpsilonMachine.from_hmm(period(2)), EpsilonMachine.from_hmm(period(3))):
+        assert eps.crypticity() == pytest.approx(0.0, abs=1e-9)
+        assert eps.cryptic_order() == 0
+
+
+def _golden_mean_shift():
+    shift = SoficShift(symbol_alphabet=frozenset({0, 1}))
+    for state in ("A", "B"):
+        shift.graph.add_state(state)
+    shift.add_transition("A", "B", 1)
+    shift.add_transition("B", "A", 0)
+    shift.add_transition("A", "A", 0)
+    return shift
+
+
+def test_sofic_shift_synchronization_methods():
+    shift = _golden_mean_shift()
+    assert shift.markov_order() == 1
+    assert shift.cryptic_order() == 1
+    assert shift.reset_threshold() == 1
+    assert shift.synchronizing_word() == [0]
+    assert shift.is_exactly_synchronizable()
+    assert shift.is_asymptotically_synchronizable()
+    assert shift.is_definite()
+
+
 @given(machine=epsilon_machines(max_states=3))
 @settings(max_examples=25)
 def test_cryptic_order_never_exceeds_markov_order(machine):
@@ -202,7 +280,7 @@ def test_golden_mean_reset_threshold_and_definite():
     assert eps.reset_threshold() == 1
     assert eps.is_exactly_synchronizable()
     assert eps.is_definite()
-    assert eps.synchronizing_word() == [0]
+    assert eps.synchronizing_word() == ["0"]
 
 
 def test_even_process_exact_but_not_definite():
@@ -243,7 +321,7 @@ def test_reset_threshold_at_most_markov_order_when_finite():
 
 
 def test_definite_implies_exactly_synchronizable():
-    for eps in (bernoulli(), golden_mean(), golden_mean_markov(), restricted_golden_mean(3)):
+    for eps in (bernoulli(), golden_mean(), restricted_golden_mean(3)):
         assert eps.is_definite()
         assert eps.is_exactly_synchronizable()
 

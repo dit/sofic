@@ -15,18 +15,25 @@ Catalog
 Bernoulli and coin processes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* :func:`bernoulli` — biased i.i.d. coin
-* :func:`fair_coin` — fair coin
+* :func:`bernoulli` — biased i.i.d. coin (fair at the default ``p = 1/2``)
 * :func:`alternating_biased_coins` — alternating bias pattern
 
 Golden mean family
 ~~~~~~~~~~~~~~~~~~
 
-* :func:`golden_mean` — forbid-``11`` shift convention (not the paper's forbid-``00``)
-* :func:`golden_mean_forward`, :func:`golden_mean_reverse` — directional presentations
+Every golden-mean factory uses the Lind & Marcus :cite:`LindMarcus1995`
+convention: the restricted word is ``11`` (Example 1.2.3, :math:`\mathcal{F} = \{11\}`).
+Papers that forbid ``00`` (e.g. Ellison et al. :cite:`Ellison2011`) are the
+``0 <-> 1`` mirror image.
+
+* :func:`golden_mean` — the golden mean process; it is also its own reverse
+  ε-machine, and ``p = 1/phi`` is the Parry (maximal-entropy) measure
 * :func:`golden_mean_bidirectional` — bidirectional ε-machine (Ellison et al. Fig. 4)
-* :func:`golden_mean_markov`, :func:`golden_mean_shift_parry` — Markov and Parry variants
-* :func:`restricted_golden_mean` — restricted variant
+* :func:`restricted_golden_mean` — every ``1`` followed by at least ``k`` ``0`` symbols
+* ported variants in :mod:`sofic.examples.processes`: ``stretched_gm``,
+  ``rk_gm``, ``rn_gm``, ``random_golden_mean``, ``nonunifilar_golden_mean``,
+  ``golden_mean_ghmm`` and the ``gm_to_even`` transducer; ``coupled_gmps`` and
+  ``uncoupled_gmps`` pair the golden mean with its mirror image
 
 Other literature processes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,7 +41,7 @@ Other literature processes
 * :func:`even_process` — even parity process
 * :func:`noisy_random_phase_slip` — NRPS prototype (James et al. :cite:`James2011`, Fig.~11c)
 * :func:`butterfly_process`, :func:`nemo_process`
-* :func:`ellison_fig9_forward`, :func:`ellison_fig9_reverse` — Ellison et al. :cite:`Ellison2011`
+* :func:`irreversible_two_state`, :func:`ellison_fig9_reverse` — Ellison et al. :cite:`Ellison2011`
 * :func:`ellison_fig15_bidirectional` — bidirectional presentation
 
 Tent map (Misiurewicz point)
@@ -153,8 +160,9 @@ such as TGM's initial history and the first-piece S/Z/O ban are omitted).
 * :func:`tetris_iid` — uniform i.i.d. draws
 * :func:`tetris_nes` — idealized NES one-reroll randomizer :cite:`TetrisWikiNES`
 * :func:`tetris_bag` — Guideline 7-bag (Random Generator) :cite:`TetrisWikiRandomGenerator`
-* :func:`tetris_history` — TGM-style history window with a reroll budget :cite:`TetrisWikiTGM`
-* :func:`tetris_tgm`, :func:`tetris_tgm2` — TGM1 (4 history / 4 rolls) and TGM2 (4 / 6)
+* :func:`tetris_history` — TGM-style history window with a reroll budget
+  :cite:`TetrisWikiTGM`; the defaults (4 history / 4 rolls) are TGM1
+* :func:`tetris_tgm2` — TGM2 (4 history / 6 rolls)
 * :func:`tetris_gameboy` — Game Boy 1989 bitwise-OR randomizer :cite:`HardDropGameBoy`
 
 TGM3's 35-pool drought randomizer is not expanded: its state space is millions
@@ -166,7 +174,7 @@ Process library
 
 In addition to the curated ε-machines above, :mod:`sofic.examples.processes`
 ports a large library of parametrized process factories from cmpy
-(``golden_mean_forbid_00``, ``iid``, ``ising``, ``ehrenfest``, the periodic and
+(``iid``, ``ising``, ``ehrenfest``, ``rip``, the periodic and
 ``misiurewicz`` families, and many more). Every factory name is snake_case. Each
 is a function that returns a generator, defaulting to an
 :class:`~sofic.generators.epsilon_machine.EpsilonMachine` but accepting a
@@ -174,33 +182,40 @@ is a function that returns a generator, defaulting to an
 
 .. ipython::
 
-   In [1]: from sofic.examples import golden_mean_forbid_00
+   In [1]: from sofic.examples import ising
 
-   In [2]: gm = golden_mean_forbid_00(bias=0.5)
+   In [2]: chain = ising(J=1.0, B=0.3, T=1.0)
 
-   @doctest float
-   In [3]: gm.entropy_rate()
-   Out[3]: 0.6666666666666665
+   In [3]: sorted(chain.observation_alphabet)
+   Out[3]: ['0', '1']
 
-cmpy factories that merely duplicated a curated example are not ported; use the
-curated function instead: cmpy's ``BiasedCoin(b)`` is :func:`bernoulli` ``(b)``,
-``FairCoin`` is :func:`fair_coin`, ``Even(bias=b)`` is :func:`even_process`
-``(b)``, ``Nemo(p=p, q=q)`` is :func:`nemo_process` ``(p, q)``, ``NRPS`` is
-:func:`noisy_random_phase_slip`, and ``ABC(p, q)`` is
-:func:`alternating_biased_coins` ``(1 - p, 1 - q)``. The curated versions emit
-integer symbols ``0``/``1`` (except :func:`bernoulli`), whereas the ported
-factories emit strings ``"0"``/``"1"``.
+Every example factory, curated or ported, emits string symbols (``"0"``/``"1"``,
+or the labels of the source, e.g. ``"a1"`` for Dyck shifts and ``"I"`` … ``"Z"``
+for Tetris); state labels are unchanged.
 
-Several remaining factories share an implementation with a curated example and
-differ only in string symbols, state names, or parametrization:
-``golden_mean_forbid_00(b)`` is :func:`golden_mean_forward` ``(1 - b)`` (and
-:func:`golden_mean_markov` ``(b)`` with ``A``/``B`` swapped), ``restricted_gm``
-is :func:`restricted_golden_mean`, and ``irreversible_two_state()`` is
-:func:`ellison_fig9_forward`. Similar names do not always mean the same process:
-:func:`golden_mean` (forbids ``11``) is the ``0 <-> 1`` mirror of
-``golden_mean_forbid_00``, and ``butterfly_two_branch`` and
-``phase_slip_backtrack_cmpy`` differ from :func:`butterfly_process` and
-:func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`.
+cmpy factories that duplicate a curated example are not ported; use the curated
+function instead. cmpy's ``BiasedCoin(b)`` is :func:`bernoulli` ``(b)``,
+``FairCoin`` is :func:`bernoulli` ``()``, ``Even(bias=b)`` is
+:func:`even_process` ``(b)``, ``Nemo(p=p, q=q)`` is :func:`nemo_process`
+``(p, q)``, ``NRPS`` is :func:`noisy_random_phase_slip`, ``ABC(p, q)`` is
+:func:`alternating_biased_coins` ``(1 - p, 1 - q)``. Likewise the ports
+``golden_mean_forbid_00(b)``, ``butterfly_two_branch``, ``restricted_gm(k)`` and
+``period7`` were removed as duplicates of :func:`golden_mean` ``(1 - b)`` (with
+``0`` and ``1`` exchanged), :func:`butterfly_process`,
+:func:`restricted_golden_mean` ``(k)`` and ``period8`` (``period7`` used the
+period-8 word ``10101110``). The former ``golden_mean_forward(p)`` (forbid
+``00``) is :func:`golden_mean` ``(p)`` with ``0`` and ``1`` exchanged, and
+``golden_mean_shift_parry()`` is :func:`golden_mean` ``(1/phi)``. The forward
+ε-machine of Ellison et al. :cite:`Ellison2011` Fig. 9 is
+:func:`irreversible_two_state` ``()``.
+
+Similar names do not always mean the same process: ``phase_slip_backtrack_cmpy``
+differs from :func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`.
+Some factories are deliberately different *presentations* of a curated process
+and are kept for that reason: ``even_redundant`` and ``nemo_redundant`` are
+non-minimal, ``nonunifilar_golden_mean`` and :func:`tent_map_misiurewicz_hmm`
+are non-unifilar, ``golden_mean_ghmm`` has negative weights, and the reverse and
+bidirectional machines present the same process as their forward machine.
 
 The module also exposes registries — ``processes.process_list`` and
 ``processes.transducer_list`` — that enumerate every factory, which is handy for
@@ -240,20 +255,15 @@ API
 ---
 
 .. autofunction:: bernoulli
-.. autofunction:: fair_coin
 .. autofunction:: golden_mean
-.. autofunction:: golden_mean_forward
-.. autofunction:: golden_mean_reverse
 .. autofunction:: golden_mean_bidirectional
-.. autofunction:: golden_mean_markov
-.. autofunction:: golden_mean_shift_parry
 .. autofunction:: even_process
 .. autofunction:: noisy_random_phase_slip
 .. autofunction:: alternating_biased_coins
 .. autofunction:: restricted_golden_mean
 .. autofunction:: butterfly_process
 .. autofunction:: nemo_process
-.. autofunction:: ellison_fig9_forward
+.. autofunction:: irreversible_two_state
 .. autofunction:: ellison_fig9_reverse
 .. autofunction:: ellison_fig15_bidirectional
 .. autofunction:: tent_map_misiurewicz_hmm
@@ -276,6 +286,5 @@ API
 .. autofunction:: tetris_nes
 .. autofunction:: tetris_bag
 .. autofunction:: tetris_history
-.. autofunction:: tetris_tgm
 .. autofunction:: tetris_tgm2
 .. autofunction:: tetris_gameboy

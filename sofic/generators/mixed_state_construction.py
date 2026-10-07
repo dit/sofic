@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 from collections import deque
 from collections.abc import Hashable, Mapping, Sequence
 from typing import Any
@@ -20,11 +21,16 @@ from sofic.generators.mixed_state import (
 from sofic.generators.prob import (
     as_prob,
     is_positive_mass,
+    is_symbolic,
     matvec,
     simplify_prob,
     sum_probs,
 )
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
+
+# Covers the numeric tolerance of :func:`~sofic.generators.prob.probs_equal`
+# (``atol=1e-12``, ``rtol=1e-9``) on the leading belief coordinate.
+_NUMERIC_WINDOW = 1e-9
 
 
 def _terminal_recurrent_states(graph: TransitionGraph) -> frozenset[Any]:
@@ -87,21 +93,41 @@ def build_mixed_state_presentation(
 
     graph = TransitionGraph()
     discovered: dict[MixedState, MixedState] = {}
+    unique: list[MixedState] = []
+    symbolic_unique: list[MixedState] = []
+    numeric_keys: list[float] = []
+    numeric_unique: list[MixedState] = []
     queue: deque[MixedState] = deque()
+
+    def candidates(state: MixedState) -> Sequence[MixedState]:
+        if is_symbolic(state.belief[0]):
+            return unique
+        lead = float(state.belief[0])
+        window = _NUMERIC_WINDOW * (1.0 + abs(lead))
+        low = bisect.bisect_left(numeric_keys, lead - window)
+        high = bisect.bisect_right(numeric_keys, lead + window)
+        return [*numeric_unique[low:high], *symbolic_unique]
 
     def register(state: MixedState) -> MixedState:
         existing = discovered.get(state)
         if existing is not None:
             return existing
-        for known in discovered:
+        for known in candidates(state):
             if _beliefs_equal(known, state, constraints=constraints):
                 discovered[state] = known
                 return known
-        if len(discovered) >= max_states:
+        if len(unique) >= max_states:
             raise MixedStateExplosionError(
                 f"mixed-state presentation exceeded max_states={max_states}; the reachable belief set may be infinite"
             )
         discovered[state] = state
+        unique.append(state)
+        if is_symbolic(state.belief[0]):
+            symbolic_unique.append(state)
+        else:
+            position = bisect.bisect_right(numeric_keys, float(state.belief[0]))
+            numeric_keys.insert(position, float(state.belief[0]))
+            numeric_unique.insert(position, state)
         graph.add_state(state)
         queue.append(state)
         return state

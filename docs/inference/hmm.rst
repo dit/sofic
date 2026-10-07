@@ -17,13 +17,13 @@ via the Fisher and Louis :cite:`Louis1982` identities.
 
    In [2]: eps = golden_mean(0.5)
 
-   In [3]: obs = [0, 1, 0, 0, 1]
+   In [3]: obs = list("01001")
 
    In [4]: from sofic.generators.sampling import sample; from sofic.inference.hmm import forward, viterbi
 
    In [5]: alpha = forward(eps, obs)
 
-   In [6]: path = viterbi(eps, obs)
+   In [6]: path = viterbi(eps, obs)  # X_0, ..., X_n: len(obs) + 1 states, aligned with smooth
 
    In [7]: seq = sample(eps, n=10)
 

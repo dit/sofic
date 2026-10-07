@@ -47,7 +47,7 @@ costs a full bit of memory for a symbol the process will never reuse.
 
 .. ipython::
 
-   In [1]: from sofic.examples import golden_mean, fair_coin
+   In [1]: from sofic.examples import golden_mean, bernoulli
 
    In [2]: from sofic.generators.wheeler_epsilon import colex_cdf, wheeler_complexity_gap
 
@@ -57,7 +57,7 @@ costs a full bit of memory for a symbol the process will never reuse.
 
    In [5]: machine.wheeler_statistical_complexity(), machine.statistical_complexity()
 
-   In [6]: coin = fair_coin(); coin.is_wheeler(), coin.statistical_complexity()
+   In [6]: coin = bernoulli(); coin.is_wheeler(), coin.statistical_complexity()
 
    In [7]: coin.wheeler_statistical_complexity(), wheeler_complexity_gap(coin)
 

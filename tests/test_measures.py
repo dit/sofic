@@ -5,17 +5,13 @@ import pytest
 from sofic.examples.epsilon_machines import (
     bernoulli,
     butterfly_process,
-    fair_coin,
-    golden_mean_forward,
-    golden_mean_reverse,
-    golden_mean_shift_parry,
+    golden_mean,
 )
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.moore import MooreHMM
 from sofic.generators.nmachine import NMachine
 from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, ATTR_QUASIPROB
-from sofic.shifts.tmc import TopologicalMarkovChain
 
 pytest.importorskip("dit")
 
@@ -55,7 +51,7 @@ def test_state_distribution_edge_machine_tuple_states_roundtrip():
     """Edge-machine states are tuples; state_distribution must encode them losslessly."""
     from sofic.generators.edge_machine import parse_edge_state_label
 
-    edge = fair_coin().to_edge_machine()
+    edge = bernoulli().to_edge_machine()
     dist = edge.state_distribution()
     idx = edge.reindex()
     assert float(dist.pmf.sum()) == pytest.approx(1.0)
@@ -66,7 +62,7 @@ def test_state_distribution_edge_machine_tuple_states_roundtrip():
 
 def test_state_entropy_edge_machine():
     """state_entropy must not crash on tuple-valued edge-machine states."""
-    edge = fair_coin().to_edge_machine()
+    edge = bernoulli().to_edge_machine()
     assert edge.state_entropy() == pytest.approx(1.0, abs=1e-9)
 
 
@@ -101,21 +97,21 @@ def test_state_entropy_and_statistical_complexity():
 
 
 def test_fair_coin_excess_entropy_and_crypticity():
-    coin = fair_coin()
+    coin = bernoulli()
     assert coin.excess_entropy() == pytest.approx(0.0, abs=1e-9)
     assert coin.crypticity() == pytest.approx(0.0, abs=1e-9)
 
 
-def test_golden_mean_forward_excess_entropy():
-    forward = golden_mean_forward(0.5)
-    reverse = golden_mean_reverse(0.5)
+def test_golden_mean_excess_entropy():
+    forward = golden_mean(0.5)
+    reverse = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-9)
     assert forward.excess_entropy() == pytest.approx(0.25162916738782304, abs=1e-9)
 
 
-def test_golden_mean_forward_crypticity():
-    forward = golden_mean_forward(0.5)
+def test_golden_mean_crypticity():
+    forward = golden_mean(0.5)
     assert forward.crypticity() == pytest.approx(forward.statistical_complexity() - forward.excess_entropy(), abs=1e-12)
     assert forward.crypticity() == pytest.approx(2.0 / 3.0, abs=1e-9)
 
@@ -126,17 +122,6 @@ def test_butterfly_statistical_complexity():
     dit = pytest.importorskip("dit")
     expected = float(dit.shannon.entropy(dit.Distribution([(i,) for i in range(len(pi))], pi)))
     assert butterfly.statistical_complexity() == pytest.approx(expected, abs=1e-9)
-
-
-def test_golden_mean_shift_parry_entropy_rate():
-    import numpy as np
-
-    parry = golden_mean_shift_parry()
-    tmc = TopologicalMarkovChain.from_adjacency(
-        np.array([[1, 1], [1, 0]], dtype=float),
-        symbol_alphabet=frozenset({0, 1}),
-    )
-    assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy(), rel=0.05)
 
 
 def test_collision_entropy_nmachine():
@@ -154,3 +139,13 @@ def test_bernoulli_state_distribution_single_outcome():
     eps = bernoulli(0.5)
     dist = eps.state_distribution()
     assert len(list(dist.outcomes)) == 1
+
+
+def test_structural_information_is_excess_entropy_not_limiting_state_uncertainty():
+    eps = golden_mean(0.5)
+    excess = eps.excess_entropy()
+    assert eps.structural_information() == pytest.approx(excess, abs=1e-12)
+    diagram = eps.block_entropy_diagram(6)
+    state_uncertainty = diagram.block_state_entropy - diagram.block_entropy
+    assert state_uncertainty[-1] == pytest.approx(0.0, abs=1e-12)
+    assert excess > 0.2

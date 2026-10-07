@@ -32,6 +32,7 @@ from collections.abc import Hashable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from sofic.automata._sentinel import Sentinel
 from sofic.exceptions import NonWellMatchedLanguageError
 from sofic.graph import ATTR_KIND, ATTR_STACK_SYMBOL, ATTR_SYMBOL, KIND_CALL, KIND_INTERNAL, KIND_RETURN
 
@@ -248,6 +249,10 @@ def intersection(left: NormalVPA, right: NormalVPA) -> NormalVPA:
     frontier = [(p, q) for p in left.initial for q in right.initial]
     result.initial = set(frontier)
     result.states = set(frontier)
+    # A return guarded by (g1, g2) can only fire once some reachable call pushes
+    # that pair, so such returns wait until the pair is pushed.
+    pushed: set[tuple[Any, Any]] = set()
+    deferred: dict[tuple[Any, Any], list[tuple[Hashable, Any, Hashable]]] = defaultdict(list)
     while frontier:
         state = frontier.pop()
         p, q = state
@@ -264,10 +269,18 @@ def intersection(left: NormalVPA, right: NormalVPA) -> NormalVPA:
                 for t2, g2 in rc.get((q, a), ()):
                     result.calls.add((state, a, (t1, t2), (g1, g2)))
                     successors.append((t1, t2))
+                    if (g1, g2) not in pushed:
+                        pushed.add((g1, g2))
+                        for source, symbol, target in deferred.pop((g1, g2), ()):
+                            result.returns.add((source, symbol, (g1, g2), target))
+                            successors.append(target)
         for a in alphabets[1]:
             for g1, t1 in lr.get((p, a), ()):
                 for g2, t2 in rr.get((q, a), ()):
                     if (g1 == BOTTOM) != (g2 == BOTTOM):
+                        continue
+                    if g1 != BOTTOM and (g1, g2) not in pushed:
+                        deferred[(g1, g2)].append((state, a, (t1, t2)))
                         continue
                     guard = BOTTOM if g1 == BOTTOM else (g1, g2)
                     result.returns.add((state, a, guard, (t1, t2)))
@@ -308,21 +321,31 @@ def determinize(machine: NormalVPA, alphabets: tuple[frozenset, frozenset, froze
                     out |= {(p, t) for guard, t in rmap.get((q3, a), ()) if guard == g}
         return frozenset(out)
 
+    # Matched returns depend on (state, pushed symbol) pairs. Each pair is
+    # queued exactly once: when its state or its stack symbol first appears.
     stack_symbols: list[tuple[frozenset, frozenset, Any]] = []
     known_stack: set[tuple[frozenset, frozenset, Any]] = set()
-    done: set[tuple[Any, Any]] = set()
+    seen_states: list[Any] = [start]
+    pairs_to_do: list[tuple[Any, Any]] = []
     pending = [start]
-    while True:
-        while pending:
+
+    def add_state(target: Any) -> None:
+        if target not in result.states:
+            result.states.add(target)
+            seen_states.append(target)
+            pending.append(target)
+            pairs_to_do.extend((target, symbol) for symbol in stack_symbols)
+
+    while pending or pairs_to_do:
+        if pending:
             state = pending.pop()
             pairs, current = state
             if current & machine.accepting:
                 result.accepting.add(state)
-            successors = []
             for a in internals_a:
                 target = (after_internal(pairs, a), frozenset(t for q in current for t in imap.get((q, a), ())))
-                successors.append(target)
                 result.internals.add((state, a, target))
+                add_state(target)
             for c in calls_a:
                 entered = frozenset(t for q in current for t, _g in cmap.get((q, c), ()))
                 target = (identity, entered)
@@ -330,42 +353,89 @@ def determinize(machine: NormalVPA, alphabets: tuple[frozenset, frozenset, froze
                 if symbol not in known_stack:
                     known_stack.add(symbol)
                     stack_symbols.append(symbol)
-                successors.append(target)
+                    pairs_to_do.extend((known, symbol) for known in seen_states)
                 result.calls.add((state, c, target, symbol))
+                add_state(target)
             for a in returns_a:
                 moved = after_pending_return(pairs, a)
                 current_after = frozenset(t for q in current for g, t in rmap.get((q, a), ()) if g == BOTTOM)
                 target = (moved, current_after)
-                successors.append(target)
                 result.returns.add((state, a, BOTTOM, target))
-            for successor in successors:
-                if successor not in result.states:
-                    result.states.add(successor)
-                    pending.append(successor)
-        new_work = False
-        for state in list(result.states):
-            pairs, _current = state
-            for symbol in list(stack_symbols):
-                if (state, symbol) in done:
-                    continue
-                done.add((state, symbol))
-                caller_pairs, caller_current, c = symbol
-                for a in returns_a:
-                    moved = after_matched_return(caller_pairs, c, pairs, a)
-                    reached = after_matched_return(frozenset((q, q) for q in caller_current), c, pairs, a)
-                    target = (moved, frozenset(t for _p, t in reached))
-                    result.returns.add((state, a, symbol, target))
-                    if target not in result.states:
-                        result.states.add(target)
-                        pending.append(target)
-                        new_work = True
-        if not new_work and not pending:
-            return result
+                add_state(target)
+            continue
+        state, symbol = pairs_to_do.pop()
+        pairs, _current = state
+        caller_pairs, caller_current, c = symbol
+        for a in returns_a:
+            moved = after_matched_return(caller_pairs, c, pairs, a)
+            reached = after_matched_return(frozenset((q, q) for q in caller_current), c, pairs, a)
+            target = (moved, frozenset(t for _p, t in reached))
+            result.returns.add((state, a, symbol, target))
+            add_state(target)
+    return result
+
+
+def is_deterministic(machine: NormalVPA) -> bool:
+    """Whether ``machine`` has one initial state and at most one move per visible configuration."""
+    if len(machine.initial) != 1:
+        return False
+    calls = [(q, a) for q, a, _t, _g in machine.calls]
+    internals = [(q, a) for q, a, _t in machine.internals]
+    returns = [(q, a, g) for q, a, g, _t in machine.returns]
+    return all(len(keys) == len(set(keys)) for keys in (calls, internals, returns))
+
+
+_SINK = Sentinel("vpa_sink")
+_SINK_SYMBOL = Sentinel("vpa_sink_symbol")
+
+
+def complete_deterministic(machine: NormalVPA, alphabets=None) -> NormalVPA:
+    """Add a rejecting sink so a deterministic ``machine`` moves on every configuration."""
+    calls_a, returns_a, internals_a = alphabets or (
+        machine.call_alphabet,
+        machine.return_alphabet,
+        machine.internal_alphabet,
+    )
+    result = NormalVPA(
+        calls_a,
+        returns_a,
+        internals_a,
+        states=set(machine.states) | {_SINK},
+        initial=set(machine.initial),
+        accepting=set(machine.accepting),
+        calls={call for call in machine.calls if call[1] in calls_a},
+        internals={internal for internal in machine.internals if internal[1] in internals_a},
+        returns={ret for ret in machine.returns if ret[1] in returns_a},
+    )
+    calls = {(q, a) for q, a, _t, _g in result.calls}
+    internals = {(q, a) for q, a, _t in result.internals}
+    for state in result.states:
+        for c in calls_a:
+            if (state, c) not in calls:
+                result.calls.add((state, c, _SINK, _SINK_SYMBOL))
+        for a in internals_a:
+            if (state, a) not in internals:
+                result.internals.add((state, a, _SINK))
+    guards = {g for _q, _a, _t, g in result.calls} | {BOTTOM}
+    returns = {(q, a, g) for q, a, g, _t in result.returns}
+    for state in result.states:
+        for a in returns_a:
+            for guard in guards:
+                if (state, a, guard) not in returns:
+                    result.returns.add((state, a, guard, _SINK))
+    return result
 
 
 def complement(machine: NormalVPA, alphabets=None) -> NormalVPA:
-    """Complement over the visible alphabet (or ``alphabets``)."""
-    deterministic = determinize(machine, alphabets)
+    """Complement over the visible alphabet (or ``alphabets``).
+
+    A machine that is already deterministic is completed with a sink rather
+    than determinized again.
+    """
+    if is_deterministic(machine):
+        deterministic = complete_deterministic(machine, alphabets)
+    else:
+        deterministic = determinize(machine, alphabets)
     deterministic.accepting = deterministic.states - deterministic.accepting
     return deterministic
 
@@ -450,33 +520,52 @@ def kleene_star(machine: NormalVPA) -> NormalVPA:
 
 
 def well_matched_summaries(machine: NormalVPA) -> dict[tuple[Hashable, Hashable], Word]:
-    """Pairs ``(p, q)`` joined by a well-matched word, each with a witness word."""
-    witness: dict[tuple[Hashable, Hashable], Word] = {(q, q): () for q in machine.states}
-    rmap = machine.return_map()
-    changed = True
-    while changed:
-        changed = False
-        updates: dict[tuple[Hashable, Hashable], Word] = {}
-        by_source: dict[Hashable, list[tuple[Hashable, Word]]] = defaultdict(list)
-        for (p, q), word in witness.items():
-            by_source[p].append((q, word))
-        for (p, q), word in witness.items():
-            for source, a, target in machine.internals:
-                if source == q:
-                    updates.setdefault((p, target), (*word, a))
-            for r, word2 in by_source.get(q, ()):
-                updates.setdefault((p, r), word + word2)
-        for p0, c, p, g in machine.calls:
-            for q, word in by_source.get(p, ()):
-                for a in machine.return_alphabet:
-                    for guard, target in rmap.get((q, a), ()):
-                        if guard == g:
-                            updates.setdefault((p0, target), (c, *word, a))
-        for pair, word in updates.items():
-            if pair not in witness or len(word) < len(witness[pair]):
-                if pair not in witness:
-                    changed = True
-                witness[pair] = word
+    """Pairs ``(p, q)`` joined by a well-matched word, each with a shortest witness word.
+
+    Saturates the summary rules in order of witness length (Knuth's
+    generalization of Dijkstra's algorithm): every rule builds a witness at
+    least as long as the ones it combines, so a pair's first witness is shortest.
+    """
+    internal_successors: dict[Hashable, list[tuple[Any, Hashable]]] = defaultdict(list)
+    for source, a, target in machine.internals:
+        internal_successors[source].append((a, target))
+    callers: dict[Hashable, list[tuple[Hashable, Any, Any]]] = defaultdict(list)
+    for p0, c, p, g in machine.calls:
+        callers[p].append((p0, c, g))
+    matched_returns: dict[tuple[Hashable, Any], list[tuple[Any, Hashable]]] = defaultdict(list)
+    for q, a, g, t in machine.returns:
+        matched_returns[(q, g)].append((a, t))
+
+    witness: dict[tuple[Hashable, Hashable], Word] = {}
+    by_source: dict[Hashable, list[Hashable]] = defaultdict(list)
+    by_target: dict[Hashable, list[Hashable]] = defaultdict(list)
+    queue: list[tuple[int, int, Hashable, Hashable, Word]] = []
+    counter = 0
+
+    def offer(p: Hashable, q: Hashable, word: Word) -> None:
+        nonlocal counter
+        if (p, q) not in witness:
+            heapq.heappush(queue, (len(word), counter, p, q, word))
+            counter += 1
+
+    for q in sorted(machine.states, key=repr):
+        offer(q, q, ())
+    while queue:
+        _length, _tie, p, q, word = heapq.heappop(queue)
+        if (p, q) in witness:
+            continue
+        witness[(p, q)] = word
+        by_source[p].append(q)
+        by_target[q].append(p)
+        for a, target in internal_successors.get(q, ()):
+            offer(p, target, (*word, a))
+        for r in by_source.get(q, ()):
+            offer(p, r, word + witness[(q, r)])
+        for o in by_target.get(p, ()):
+            offer(o, q, witness[(o, p)] + word)
+        for p0, c, g in callers.get(p, ()):
+            for a, target in matched_returns.get((q, g), ()):
+                offer(p0, target, (c, *word, a))
     return witness
 
 
@@ -487,6 +576,13 @@ def accepted_word(machine: NormalVPA) -> Word | None:
     for (p, q), word in summaries.items():
         if word:
             by_source[p].append((q, word))
+    call_moves: dict[Hashable, list[tuple[Hashable, Any]]] = defaultdict(list)
+    for q, a, t, _g in machine.calls:
+        call_moves[q].append((t, a))
+    pending_returns: dict[Hashable, list[tuple[Hashable, Any]]] = defaultdict(list)
+    for q, a, g, t in machine.returns:
+        if g == BOTTOM:
+            pending_returns[q].append((t, a))
     queue: list[tuple[int, int, Hashable, bool, Word]] = []
     counter = 0
     for q in machine.initial:
@@ -501,9 +597,9 @@ def accepted_word(machine: NormalVPA) -> Word | None:
         if state in machine.accepting:
             return word
         moves: list[tuple[Hashable, bool, Word]] = [(t, stack_empty, word + w) for t, w in by_source.get(state, ())]
-        moves += [(t, False, (*word, a)) for q, a, t, _g in machine.calls if q == state]
+        moves += [(t, False, (*word, a)) for t, a in call_moves.get(state, ())]
         if stack_empty:
-            moves += [(t, True, (*word, a)) for q, a, g, t in machine.returns if q == state and g == BOTTOM]
+            moves += [(t, True, (*word, a)) for t, a in pending_returns.get(state, ())]
         for target, empty, extended in moves:
             if (target, empty) not in seen:
                 heapq.heappush(queue, (len(extended), counter, target, empty, extended))

@@ -115,11 +115,26 @@ def _hmm_log_word_probability(
     *,
     start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
 ) -> float:
-    """Return ``log2(P(word))`` or ``-inf`` for forbidden words."""
-    probability = _hmm_word_probability(hmm, word, start=start)
-    if probability <= 0.0:
-        return float("-inf")
-    return float(np.log2(probability))
+    """Return ``log2(P(word))`` or ``-inf`` for forbidden words.
+
+    Uses the scaled forward recursion :cite:`Rabiner1989`: the state mass is
+    renormalized after every symbol and the log normalizers are summed, so long
+    words do not underflow to ``-inf``.
+    """
+    mealy = hmm.to_mealy()
+    joint = symbol_matrices(mealy)
+    mass = np.asarray(start_vector(mealy, start), dtype=float)
+    zero = np.zeros((len(mass), len(mass)), dtype=float)
+    log_probability = 0.0
+    for matrix in (None, *(joint.get(symbol, zero) for symbol in word)):
+        if matrix is not None:
+            mass = mass @ matrix
+        total = float(mass.sum())
+        if total <= 0.0:
+            return float("-inf")
+        log_probability += float(np.log2(total))
+        mass = mass / total
+    return log_probability
 
 
 def _hmm_word_probabilities(

@@ -8,9 +8,11 @@ References
   Mahoney et al., arXiv:0906.5099.
 - Reversible / Fig.~9 example: Ellison, Mahoney, James & Crutchfield,
   arXiv:1107.2168.
-- Golden-mean Markov chain (forbid ``00``): Ellison et al., arXiv:0905.3587.
-- Golden-mean shift (forbid ``11``, Parry max-entropy): standard symbolic
-  dynamics; see e.g. Ellison et al., arXiv:1107.2168 Fig.~2.
+- Golden-mean shift: Lind & Marcus, *An Introduction to Symbolic Dynamics and
+  Coding*, Example 1.2.3 (forbidden block ``11``).  Every golden-mean-family
+  example here forbids ``11``; papers drawn with ``00`` forbidden are cited with
+  ``0`` and ``1`` exchanged.  Bidirectional machine: Ellison et al.,
+  arXiv:0905.3587.
 - Tent map (Misiurewicz point): James, Burke & Crutchfield (2013), supplement
   to *Chaos Forgets and Remembers*; Figs.~6--8.  The ``partition`` family reads
   the same dynamics through all four generating partitions built from the
@@ -27,12 +29,11 @@ from typing import Any
 
 import numpy as np
 
-from sofic.examples._construction import _edge_machine, _relabel, _stationary_initial
+from sofic.examples._construction import _edge_machine, _stationary_initial
 from sofic.exceptions import SoficError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_FUTURE_SYMBOL, ATTR_PROB, TransitionGraph
-from sofic.shifts.tmc import TopologicalMarkovChain
 from sofic.states import sequential_labels
 
 
@@ -107,11 +108,6 @@ def bernoulli(p: float = 0.5, *, symbols: tuple[Any, Any] = ("0", "1")) -> Epsil
     )
 
 
-def fair_coin() -> EpsilonMachine:
-    """Fair binary memoryless source (``p = 1/2``)."""
-    return bernoulli(0.5)
-
-
 def even_process(p: float = 0.5) -> EpsilonMachine:
     """Even Process: even-length blocks of 1s bounded by 0s.
 
@@ -122,10 +118,10 @@ def even_process(p: float = 0.5) -> EpsilonMachine:
         raise ValueError("p must be in (0, 1)")
     return from_symbol_matrices(
         sequential_labels(2),
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array([[p, 0.0], [0.0, 0.0]]),
-            1: np.array([[0.0, 1.0 - p], [1.0, 0.0]]),
+            "0": np.array([[p, 0.0], [0.0, 0.0]]),
+            "1": np.array([[0.0, 1.0 - p], [1.0, 0.0]]),
         },
     )
 
@@ -141,13 +137,13 @@ def noisy_random_phase_slip() -> EpsilonMachine:
     a, b, c, d, e = states
     return _edge_machine(
         [
-            (a, a, 0, 0.5),
-            (a, b, 1, 0.5),
-            (b, c, 0, 1.0),
-            (c, d, 1, 1.0),
-            (d, e, 0, 0.5),
-            (d, e, 1, 0.5),
-            (e, a, 0, 1.0),
+            (a, a, "0", 0.5),
+            (a, b, "1", 0.5),
+            (b, c, "0", 1.0),
+            (c, d, "1", 1.0),
+            (d, e, "0", 0.5),
+            (d, e, "1", 0.5),
+            (e, a, "0", 1.0),
         ],
         machine_type=EpsilonMachine,
         normalize=False,
@@ -155,98 +151,45 @@ def noisy_random_phase_slip() -> EpsilonMachine:
 
 
 def golden_mean(p: float = 0.5) -> EpsilonMachine:
-    """Golden Mean Process (two-state presentation, forbid consecutive ``11``).
+    """Golden Mean Process: the golden-mean shift (forbid ``11``) with a Markov measure.
 
-    State ``A`` self-loops on ``0`` (probability ``p``) and moves to ``B``
-    on ``1``; ``B`` always returns to ``A`` on ``0``.  This is the
-    standard golden-mean *shift* topology (Mahoney et al., arXiv:0905.4787,
-    Fig.~2 style).  For the order-1 Markov presentation that forbids ``00``,
-    see :func:`golden_mean_markov`; for the bidirectional machine in Ellison et
-    al., arXiv:0905.3587, Fig.~4, see :func:`golden_mean_forward` and
-    :func:`golden_mean_reverse`; for the Parry max-entropy measure on the
-    same shift, see :func:`golden_mean_shift_parry`.  cmpy's
-    :func:`~sofic.examples.processes.golden_mean_forbid_00` is the ``0 <-> 1`` mirror
-    (forbids ``00``) and equals :func:`golden_mean_forward`.
+    The golden-mean shift is the shift of finite type with forbidden block set
+    ``F = {11}`` (Lind & Marcus :cite:`LindMarcus1995`, Example 1.2.3).  State
+    ``A`` (the last symbol was ``0``) self-loops on ``0`` with probability ``p``
+    and moves to ``B`` on ``1``; ``B`` (the last symbol was ``1``) always
+    returns to ``A`` on ``0``.  This two-state machine is the ε-machine, the
+    order-1 Markov presentation, and -- since the process is reversible -- also
+    its own reverse ε-machine (Ellison, Mahoney & Crutchfield, arXiv:0905.3587,
+    Figs.~1 and 4, there drawn with ``0`` and ``1`` exchanged).
+
+    At ``p = 1/phi``, with ``phi = (1 + sqrt(5))/2`` the golden ratio, this is
+    the Parry measure, the unique measure of maximal entropy on the shift, with
+    entropy rate ``log2(phi)`` (Parry :cite:`Parry1964`).
     """
     if not 0.0 < p < 1.0:
         raise ValueError("p must be in (0, 1)")
     return from_symbol_matrices(
         sequential_labels(2),
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array([[p, 0.0], [1.0, 0.0]]),
-            1: np.array([[0.0, 1.0 - p], [0.0, 0.0]]),
+            "0": np.array([[p, 0.0], [1.0, 0.0]]),
+            "1": np.array([[0.0, 1.0 - p], [0.0, 0.0]]),
         },
     )
-
-
-def golden_mean_forward(p: float = 0.5) -> EpsilonMachine:
-    """Forward ε-machine M⁺ for the golden mean (forbid ``00``).
-
-    States ``A`` and ``B``; self-loop probability ``p = Pr(1|A)``.
-    Ellison, Mahoney & Crutchfield, arXiv:0905.3587, Fig.~4(a).
-    """
-    if not 0.0 < p < 1.0:
-        raise ValueError("p must be in (0, 1)")
-    return from_symbol_matrices(
-        ("A", "B"),
-        (0, 1),
-        {
-            0: np.array([[0.0, 1.0 - p], [0.0, 0.0]]),
-            1: np.array([[p, 0.0], [1.0, 0.0]]),
-        },
-    )
-
-
-def golden_mean_reverse(p: float = 0.5) -> EpsilonMachine:
-    """Reverse ε-machine M⁻ for the golden mean (forbid ``00``).
-
-    Isomorphic to :func:`golden_mean_forward` with states ``A`` and ``B``.
-    When paired for a bidirectional presentation, reverse states are relabeled
-    to continue the alphabet (``C``, ``D``, ...). Ellison, Mahoney & Crutchfield,
-    arXiv:0905.3587, Fig.~4(b).
-    """
-    return golden_mean_forward(p)
 
 
 def golden_mean_bidirectional(p: float = 0.5):
-    """Bidirectional ε-machine M± for the golden mean (forbid ``00``).
+    """Bidirectional ε-machine M± for the golden mean (forbid ``11``).
 
-    Joint states ``(A, C)``, ``(A, D)``, ``(B, C)`` as in Ellison et al.,
-    arXiv:0905.3587, Fig.~4(c).
+    Both halves are :func:`golden_mean`, the reverse states relabeled to
+    continue the alphabet (``C``, ``D``).  The joint states are ``(A, C)``,
+    ``(A, D)`` and ``(B, C)``; ``(B, D)`` would straddle a ``11``.  Ellison,
+    Mahoney & Crutchfield, arXiv:0905.3587, Fig.~4(c), with ``0`` and ``1``
+    exchanged.
     """
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
-    return BidirectionalEpsilonMachine.from_pair(
-        golden_mean_forward(p),
-        golden_mean_reverse(p),
-    )
-
-
-def golden_mean_markov(p: float = 0.5) -> EpsilonMachine:
-    """Order-1 Markov presentation of the golden mean (forbid ``00``).
-
-    States are the most recent symbol ``0`` or ``1``. Ellison et al.,
-    arXiv:0905.3587, Fig.~1; stationary ``pi(1) = 2/3`` at ``p = 1/2``.
-    For the paper's ``A``/``B`` labeling and bidirectional machine, prefer
-    :func:`golden_mean_forward`.
-    """
-    return _relabel(golden_mean_forward(1 - p), states={"B": "A", "A": "B"})
-
-
-def golden_mean_shift_parry() -> EpsilonMachine:
-    """Max-entropy (Parry) measure on the golden-mean shift (forbid 11).
-
-    This is the symbolic-dynamics convention (adjacency ``[[1,1],[1,0]]``),
-    distinct from :func:`golden_mean` / :func:`golden_mean_markov`, which
-    forbid consecutive 0s in the CM literature cited above.
-    """
-    tmc = TopologicalMarkovChain.from_adjacency(
-        np.array([[1, 1], [1, 0]], dtype=float),
-        symbol_alphabet=frozenset({0, 1}),
-    )
-    parry = tmc.parry_measure()
-    return EpsilonMachine.from_hmm(parry)
+    return BidirectionalEpsilonMachine.from_pair(golden_mean(p), golden_mean(p))
 
 
 def alternating_biased_coins(p: float = 0.5, q: float = 0.4) -> EpsilonMachine:
@@ -258,25 +201,29 @@ def alternating_biased_coins(p: float = 0.5, q: float = 0.4) -> EpsilonMachine:
         raise ValueError("p and q must be in (0, 1)")
     return from_symbol_matrices(
         sequential_labels(2),
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array([[0.0, 1.0 - p], [1.0 - q, 0.0]]),
-            1: np.array([[0.0, p], [q, 0.0]]),
+            "0": np.array([[0.0, 1.0 - p], [1.0 - q, 0.0]]),
+            "1": np.array([[0.0, p], [q, 0.0]]),
         },
     )
 
 
 def restricted_golden_mean(k: int = 1) -> EpsilonMachine:
-    """Restricted Golden Mean family (``k``-cryptic); distinct from :func:`golden_mean`.
+    """Restricted Golden Mean family (``k``-cryptic), forbidding ``11``.
 
-    Mahoney et al., arXiv:0906.5099, Sec.~III.
+    ``A`` emits ``0`` and stays, or emits ``1`` and must then emit ``k`` further
+    ``0`` symbols before returning, so every ``1`` is followed by at least ``k``
+    zeros; ``k = 1`` is :func:`golden_mean` at ``p = 1/2``.  Mahoney et al.,
+    arXiv:0906.5099, Sec.~III, there drawn with ``0`` and ``1`` exchanged.
     """
     if k < 1:
         raise ValueError("k must be >= 1")
-    from sofic.examples.processes import restricted_gm
-
-    states = {str(i): label for i, label in enumerate(sequential_labels(k + 1))}
-    return _relabel(restricted_gm(k), symbols={"0": 0, "1": 1}, states=states)
+    states = sequential_labels(k + 1)
+    edges = [(states[0], states[0], "0", 0.5), (states[0], states[1], "1", 0.5)]
+    edges += [(states[i - 1], states[i], "0", 1.0) for i in range(2, k + 1)]
+    edges.append((states[k], states[0], "0", 1.0))
+    return _edge_machine(edges, name=f"Restricted Golden Mean Process, k={k}", normalize=False)
 
 
 def nemo_process(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
@@ -289,16 +236,16 @@ def nemo_process(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
     states = ("A", "B", "C")
     return from_symbol_matrices(
         states,
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array(
+            "0": np.array(
                 [
                     [0.0, 1.0 - p, 0.0],
                     [0.0, 0.0, 1.0],
                     [1.0 - q, 0.0, 0.0],
                 ]
             ),
-            1: np.array(
+            "1": np.array(
                 [
                     [p, 0.0, 0.0],
                     [0.0, 0.0, 0.0],
@@ -320,9 +267,9 @@ def phase_slip_backtrack(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
     states = ("A", "B", "C", "D")
     return from_symbol_matrices(
         states,
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array(
+            "0": np.array(
                 [
                     [0.0, 0.0, 1.0 - p, 0.0],
                     [0.0, 0.0, 0.0, 1.0 - q],
@@ -330,7 +277,7 @@ def phase_slip_backtrack(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
                     [0.0, 0.0, 0.0, 0.0],
                 ]
             ),
-            1: np.array(
+            "1": np.array(
                 [
                     [0.0, p, 0.0, 0.0],
                     [0.0, 0.0, q, 0.0],
@@ -343,43 +290,34 @@ def phase_slip_backtrack(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
 
 
 def butterfly_process() -> EpsilonMachine:
-    """Butterfly Process (five-state, ``2``-cryptic) over symbols ``0``--``7``.
+    """Butterfly Process (five-state, ``2``-cryptic, Markov order ``2``) over symbols ``0``--``7``.
 
-    Mahoney et al., arXiv:0906.5099, Fig.~1. Each causal state emits every
-    symbol with probability ``1/8``; synchronizing symbols ``2``--``7`` always
-    reach the same causal state regardless of the source.  Not cmpy's
-    :func:`~sofic.examples.processes.butterfly_two_branch` (two branches per state, ``h_mu = 1``).
+    Mahoney, Ellison & Crutchfield, arXiv:0906.5099, Fig.~3. Every state has two
+    branches of probability ``1/2``: ``A`` emits ``2``/``3`` into the wings
+    ``B``/``D``, each wing steps ``0`` then ``1`` back to ``A`` (``B -> C -> A``,
+    ``D -> E -> A``), and ``B, C, D, E`` carry the self-loops ``4, 6, 5, 7``.
+    The transition matrix is doubly stochastic, so ``C_mu = log2(5)``,
+    ``h_mu = 1`` and the crypticity is ``chi = 3/10`` bits.
     """
     states = ("A", "B", "C", "D", "E")
-    prob = 1.0 / 8.0
-    targets = {
-        0: {"A": "B", "B": "B", "C": "D", "D": "B", "E": "D"},
-        1: {"A": "C", "B": "C", "C": "C", "D": "E", "E": "E"},
-        2: "A",
-        3: "A",
-        4: "B",
-        5: "D",
-        6: "C",
-        7: "E",
-    }
-    edges = []
-    for source in states:
-        for symbol in range(8):
-            target_spec = targets[symbol]
-            target = target_spec if isinstance(target_spec, str) else target_spec[source]
-            edges.append((source, target, symbol, prob))
+    branches = [
+        ("A", "B", "2"),
+        ("A", "D", "3"),
+        ("B", "C", "0"),
+        ("B", "B", "4"),
+        ("C", "A", "1"),
+        ("C", "C", "6"),
+        ("D", "E", "0"),
+        ("D", "D", "5"),
+        ("E", "A", "1"),
+        ("E", "E", "7"),
+    ]
+    edges = [(source, target, symbol, 0.5) for source, target, symbol in branches]
     return _edge_machine(
         edges,
         initial_distribution=dict.fromkeys(states, 0.2),
         normalize=False,
     )
-
-
-def ellison_fig9_forward() -> EpsilonMachine:
-    """Forward ε-machine from Ellison et al., arXiv:1107.2168, Fig.~9."""
-    from sofic.examples.processes import irreversible_two_state
-
-    return _relabel(irreversible_two_state(0.5, 0.5), symbols={"0": 0, "1": 1, "2": 2})
 
 
 def tent_map_misiurewicz_a(symbolic: bool = False):
@@ -399,7 +337,7 @@ def tent_map_misiurewicz_a(symbolic: bool = False):
 
 def tent_map_misiurewicz_fig7_symbol_matrices(
     a: Any | None = None,
-) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, np.ndarray]]:
     """Return Fig.~7 ε-machine symbol matrices for the tent map at parameter ``a``.
 
     James, Burke & Crutchfield, *Chaos Forgets and Remembers* (2013), supplement
@@ -429,7 +367,7 @@ def tent_map_misiurewicz_fig7_symbol_matrices(
     t1[2, 3] = (a + 1) / (a + 2)  # C → D on 1
     t0[3, 2] = (a**2 + 2 * a) / denom  # D → C on 0
     t1[3, 3] = (a**2 + 2 * a + 2) / denom  # D → D on 1
-    return states, (0, 1), {0: t0, 1: t1}
+    return states, ("0", "1"), {"0": t0, "1": t1}
 
 
 def tent_map_misiurewicz_forward(a: Any | None = None) -> EpsilonMachine:
@@ -453,63 +391,63 @@ TENT_MAP_MISIUREWICZ_PARTITIONS: tuple[str, ...] = ("c", "Lc", "cR", "LcR")
 #: decreasing stationary probability, uniformly across the four partitions.
 _TENT_MAP_PARTITION_EDGES: dict[
     str,
-    tuple[tuple[str, ...], tuple[int, ...], tuple[tuple[str, int, str, tuple[int, int, int], int], ...]],
+    tuple[tuple[str, ...], tuple[str, ...], tuple[tuple[str, str, str, tuple[int, int, int], int], ...]],
 ] = {
     "c": (
         ("A", "B", "C", "D"),
-        (0, 1),
+        ("0", "1"),
         (
-            ("A", 0, "B", (4, 0, -1), 2),
-            ("A", 1, "A", (-2, 0, 1), 2),
-            ("B", 0, "D", (2, -2, 1), 6),
-            ("B", 1, "A", (4, 2, -1), 6),
-            ("C", 0, "B", (0, -1, 1), 2),
-            ("C", 1, "D", (2, 1, -1), 2),
-            ("D", 1, "C", (1, 0, 0), 1),
+            ("A", "0", "B", (4, 0, -1), 2),
+            ("A", "1", "A", (-2, 0, 1), 2),
+            ("B", "0", "D", (2, -2, 1), 6),
+            ("B", "1", "A", (4, 2, -1), 6),
+            ("C", "0", "B", (0, -1, 1), 2),
+            ("C", "1", "D", (2, 1, -1), 2),
+            ("D", "1", "C", (1, 0, 0), 1),
         ),
     ),
     "Lc": (
         ("A", "B", "C", "D", "E"),
-        (0, 1, 2),
+        ("0", "1", "2"),
         (
-            ("A", 0, "E", (2, -1, 0), 2),
-            ("A", 1, "B", (2, 1, -1), 2),
-            ("A", 2, "A", (-2, 0, 1), 2),
-            ("B", 2, "A", (1, 0, 0), 1),
-            ("C", 0, "E", (-1, -1, 1), 2),
-            ("C", 1, "B", (1, 0, 0), 2),
-            ("C", 2, "D", (2, 1, -1), 2),
-            ("D", 2, "C", (1, 0, 0), 1),
-            ("E", 1, "D", (1, 0, 0), 1),
+            ("A", "0", "E", (2, -1, 0), 2),
+            ("A", "1", "B", (2, 1, -1), 2),
+            ("A", "2", "A", (-2, 0, 1), 2),
+            ("B", "2", "A", (1, 0, 0), 1),
+            ("C", "0", "E", (-1, -1, 1), 2),
+            ("C", "1", "B", (1, 0, 0), 2),
+            ("C", "2", "D", (2, 1, -1), 2),
+            ("D", "2", "C", (1, 0, 0), 1),
+            ("E", "1", "D", (1, 0, 0), 1),
         ),
     ),
     "cR": (
         ("A", "B", "C", "D", "E"),
-        (0, 1, 2),
+        ("0", "1", "2"),
         (
-            ("A", 0, "B", (1, 0, 0), 1),
-            ("B", 0, "D", (2, -2, 1), 6),
-            ("B", 1, "C", (-2, -1, 2), 6),
-            ("B", 2, "A", (2, 1, -1), 2),
-            ("C", 1, "C", (-2, 0, 1), 2),
-            ("C", 2, "A", (4, 0, -1), 2),
-            ("D", 1, "E", (2, 1, -1), 2),
-            ("D", 2, "A", (0, -1, 1), 2),
-            ("E", 1, "D", (1, 0, 0), 1),
+            ("A", "0", "B", (1, 0, 0), 1),
+            ("B", "0", "D", (2, -2, 1), 6),
+            ("B", "1", "C", (-2, -1, 2), 6),
+            ("B", "2", "A", (2, 1, -1), 2),
+            ("C", "1", "C", (-2, 0, 1), 2),
+            ("C", "2", "A", (4, 0, -1), 2),
+            ("D", "1", "E", (2, 1, -1), 2),
+            ("D", "2", "A", (0, -1, 1), 2),
+            ("E", "1", "D", (1, 0, 0), 1),
         ),
     ),
     "LcR": (
         ("A", "B", "C", "D", "E"),
-        (0, 1, 2, 3),
+        ("0", "1", "2", "3"),
         (
-            ("A", 2, "A", (-2, 0, 1), 2),
-            ("A", 3, "B", (4, 0, -1), 2),
-            ("B", 0, "D", (2, -2, 1), 6),
-            ("B", 1, "A", (4, 2, -1), 6),
-            ("C", 2, "E", (2, 1, -1), 2),
-            ("C", 3, "B", (0, -1, 1), 2),
-            ("D", 1, "C", (1, 0, 0), 1),
-            ("E", 2, "C", (1, 0, 0), 1),
+            ("A", "2", "A", (-2, 0, 1), 2),
+            ("A", "3", "B", (4, 0, -1), 2),
+            ("B", "0", "D", (2, -2, 1), 6),
+            ("B", "1", "A", (4, 2, -1), 6),
+            ("C", "2", "E", (2, 1, -1), 2),
+            ("C", "3", "B", (0, -1, 1), 2),
+            ("D", "1", "C", (1, 0, 0), 1),
+            ("E", "2", "C", (1, 0, 0), 1),
         ),
     ),
 }
@@ -569,7 +507,7 @@ def tent_map_misiurewicz_partition_cuts(partition: str, a: Any | None = None) ->
 def tent_map_misiurewicz_partition_symbol_matrices(
     partition: str,
     a: Any | None = None,
-) -> tuple[tuple[str, ...], tuple[int, ...], dict[int, np.ndarray]]:
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, np.ndarray]]:
     """Symbol matrices ``T^(x)`` for one of the tent map's four generating partitions.
 
     At the Misiurewicz parameter the interval ``[0, 1]`` can be cut at the
@@ -711,17 +649,17 @@ def tent_map_misiurewicz_hmm(a: Any | None = None) -> MealyHMM:
         inv_a1 = 1.0 / (a + 1.0)
         half_a_a1 = a / (2.0 * (a + 1.0))
 
-    hmm = MealyHMM(observation_alphabet=frozenset({0, 1}))
+    hmm = MealyHMM(observation_alphabet=frozenset({"0", "1"}))
     for state in ("A", "B", "C", "D"):
         hmm.graph.add_state(state)
     edges = [
-        ("A", "B", 0, half),
-        ("A", "C", 0, half),
-        ("B", "D", 0, one),
-        ("C", "D", 1, one),
-        ("D", "A", 1, inv_a1),
-        ("D", "B", 1, half_a_a1),
-        ("D", "C", 1, half_a_a1),
+        ("A", "B", "0", half),
+        ("A", "C", "0", half),
+        ("B", "D", "0", one),
+        ("C", "D", "1", one),
+        ("D", "A", "1", inv_a1),
+        ("D", "B", "1", half_a_a1),
+        ("D", "C", "1", half_a_a1),
     ]
     for source, target, symbol, prob in edges:
         hmm.add_transition(source, target, symbol, as_prob(prob))
@@ -758,7 +696,7 @@ def tent_map_misiurewicz_reverse(a: float | None = None) -> EpsilonMachine:
 def _annotate_tent_map_misiurewicz_reverse_future_symbols(reverse: EpsilonMachine) -> None:
     """Attach synchronization symbols to reverse causal states (supplement Fig.~8)."""
     # Present-symbol constraints on reverse components E,F,G; H is outside support.
-    futures = {"E": 0, "F": 1, "G": 1, "H": -1}
+    futures = {"E": "0", "F": "1", "G": "1", "H": -1}
     for state, symbol in futures.items():
         if not reverse.graph.has_state(state):
             continue
@@ -783,7 +721,7 @@ def _tent_map_misiurewicz_fig8_joint_state(
 
 def _tent_map_misiurewicz_fig8_edges(
     a: Any,
-) -> list[tuple[tuple[str, str], tuple[str, str], int, Any]]:
+) -> list[tuple[tuple[str, str], tuple[str, str], str, Any]]:
     """Directed edges for supplement Fig.~8 with reverse states relabeled E--H.
 
     Joint labels use ``S⁺:S⁻`` from James et al. (2013), supplement Fig.~8.
@@ -815,22 +753,22 @@ def _tent_map_misiurewicz_fig8_edges(
         frac_a1 = a / (a + 1.0)
         one = 1.0
     edge_specs = [
-        ("BA", "CC", 0, one),
-        ("CC", "AB", 0, half),
-        ("CC", "DB", 1, half),
-        ("AB", "BA", 1, inv_a1),
-        ("AB", "BC", 1, frac_a1),
-        ("BC", "AB", 1, half),
-        ("BC", "CB", 0, half),
-        ("DA", "CC", 0, one),
-        ("DB", "DA", 1, inv_a1),
-        ("DB", "DC", 1, frac_a1),
-        ("DC", "DB", 1, half),
-        ("DC", "CB", 0, half),
-        ("CB", "DC", 1, frac_a1),
-        ("CB", "DA", 1, inv_a1),
+        ("BA", "CC", "0", one),
+        ("CC", "AB", "0", half),
+        ("CC", "DB", "1", half),
+        ("AB", "BA", "1", inv_a1),
+        ("AB", "BC", "1", frac_a1),
+        ("BC", "AB", "1", half),
+        ("BC", "CB", "0", half),
+        ("DA", "CC", "0", one),
+        ("DB", "DA", "1", inv_a1),
+        ("DB", "DC", "1", frac_a1),
+        ("DC", "DB", "1", half),
+        ("DC", "CB", "0", half),
+        ("CB", "DC", "1", frac_a1),
+        ("CB", "DA", "1", inv_a1),
     ]
-    edges: list[tuple[tuple[str, str], tuple[str, str], int, Any]] = []
+    edges: list[tuple[tuple[str, str], tuple[str, str], str, Any]] = []
     for row, target, symbol, prob in edge_specs:
         source = _tent_map_misiurewicz_fig8_joint_state(name[row][0], name[row][1], relabel=relabel)
         dest = _tent_map_misiurewicz_fig8_joint_state(name[target][0], name[target][1], relabel=relabel)
@@ -922,7 +860,7 @@ def _project_bidirectional_side(
     eps = EpsilonMachine(
         graph=side_graph,
         initial_distribution=marginal,
-        observation_alphabet=frozenset({0, 1}),
+        observation_alphabet=frozenset({"0", "1"}),
     )
     eps.validate_stochastic()
     return eps
@@ -952,7 +890,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: Any | None = None):
         graph,
         joint_pi,
         project_forward=False,
-        future_symbols={"E": 0, "F": 1, "G": 1, "H": -1},
+        future_symbols={"E": "0", "F": "1", "G": "1", "H": -1},
     )
     if is_symbolic(a):
         from sofic.generators.epsilon_machine import _row_normalized_presentation
@@ -969,7 +907,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: Any | None = None):
     bidir = BidirectionalEpsilonMachine(
         graph=graph,
         initial_distribution=joint_pi,
-        observation_alphabet=frozenset({0, 1}),
+        observation_alphabet=frozenset({"0", "1"}),
         forward_machine=forward,
         reverse_machine=reverse,
     )
@@ -1040,9 +978,9 @@ def wheeler_infinite_order_process(p: float = 0.5, q: float = 0.5, r: float = 0.
     states = ("A", "B", "C", "D", "E")
     return from_symbol_matrices(
         states,
-        (0, 1),
+        ("0", "1"),
         {
-            0: np.array(
+            "0": np.array(
                 [
                     [p, 0.0, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1051,7 +989,7 @@ def wheeler_infinite_order_process(p: float = 0.5, q: float = 0.5, r: float = 0.
                     [r, 0.0, 0.0, 0.0, 0.0],
                 ]
             ),
-            1: np.array(
+            "1": np.array(
                 [
                     [0.0, 1.0 - p, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 1.0, 0.0, 0.0],
@@ -1069,9 +1007,10 @@ def ellison_fig9_reverse() -> EpsilonMachine:
 
     MSP-derived presentation used for Fig.~15 bidirectional pairing via Eq.~(15).
     """
+    from sofic.examples.processes import irreversible_two_state
     from sofic.generators.reversal import time_reverse_stochastic
 
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = EpsilonMachine.from_hmm(time_reverse_stochastic(forward))
     reverse.validate()
     return reverse
@@ -1083,9 +1022,10 @@ def ellison_fig15_bidirectional():
     Built from the separate forward and reverse presentations in Fig.~9 via
     Eq.~(15) in the same paper.
     """
+    from sofic.examples.processes import irreversible_two_state
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
     return BidirectionalEpsilonMachine.from_pair(
-        ellison_fig9_forward(),
+        irreversible_two_state(),
         ellison_fig9_reverse(),
     )

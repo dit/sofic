@@ -7,13 +7,12 @@ import math
 import pytest
 
 from sofic.examples import (
-    ellison_fig9_forward,
+    bernoulli,
     ellison_fig9_reverse,
     ellison_fig15_bidirectional,
     even_process,
-    fair_coin,
-    golden_mean_forward,
-    golden_mean_reverse,
+    golden_mean,
+    irreversible_two_state,
     tent_map_misiurewicz_bidirectional,
 )
 from sofic.generators.bidirectional_construction import infer_reverse_epsilon_machine
@@ -24,7 +23,7 @@ from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 
 def test_bidirectional_reversible_coin():
-    coin = fair_coin()
+    coin = bernoulli()
     bidir = BidirectionalEpsilonMachine.from_pair(coin, coin)
     bidir.validate()
     assert len(list(bidir.states())) == 1
@@ -33,7 +32,7 @@ def test_bidirectional_reversible_coin():
 def test_reversible_excess_entropy_near_zero():
     dit = pytest.importorskip("dit")
     del dit
-    coin = fair_coin()
+    coin = bernoulli()
     bidir = BidirectionalEpsilonMachine.from_pair(coin, coin)
     assert bidir.excess_entropy() == pytest.approx(0.0, abs=1e-9)
 
@@ -41,7 +40,7 @@ def test_reversible_excess_entropy_near_zero():
 def test_from_forward_matches_reverse_pipeline():
     import networkx as nx
 
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     derived = BidirectionalEpsilonMachine.from_forward(forward)
     assert len(list(derived.states())) == 4
     assert len(list(nx.weakly_connected_components(derived.to_networkx()))) == 1
@@ -52,11 +51,11 @@ def test_from_forward_matches_reverse_pipeline():
     assert derived.excess_entropy() == pytest.approx(0.5, abs=1e-9)
 
 
-def test_from_forward_golden_mean_forward_three_states():
+def test_from_forward_golden_mean_three_states():
     """Causally reversible golden mean yields three recurrent joint states."""
     import networkx as nx
 
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_forward(forward)
     assert len(list(bidir.states())) == 3
     graph = bidir.to_networkx()
@@ -79,7 +78,7 @@ def test_from_forward_golden_mean_shift_three_states():
 
 
 def test_from_forward_transition_endpoints_canonical():
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_forward(forward)
     states = list(bidir.states())
     for transition in bidir.transitions():
@@ -88,7 +87,7 @@ def test_from_forward_transition_endpoints_canonical():
 
 
 def test_forward_epsilon_machine_fig9():
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = ellison_fig9_reverse()
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     recovered = bidir.forward_epsilon_machine()
@@ -106,7 +105,7 @@ def test_forward_epsilon_machine_fig9():
 
 
 def test_reverse_epsilon_machine_fig9():
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = ellison_fig9_reverse()
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     recovered = bidir.reverse_epsilon_machine()
@@ -131,7 +130,7 @@ def test_reverse_epsilon_machine_fig9():
 
 def test_fig9_information_identities():
     pytest.importorskip("dit")
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = ellison_fig9_reverse()
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
 
@@ -163,8 +162,8 @@ def test_bidirectional_even_process_single_weak_component_and_anatomy():
 
 def test_bidirectional_golden_mean_paper_topology():
     """Ellison et al., arXiv:0905.3587 Fig. 4(c): three joint states, one SCC."""
-    forward = golden_mean_forward(0.5)
-    reverse = golden_mean_reverse(0.5)
+    forward = golden_mean(0.5)
+    reverse = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     import networkx as nx
 
@@ -182,15 +181,15 @@ def test_bidirectional_golden_mean_paper_invariants():
     """Fig. 5 spot-check at p = 1/2: C±μ, E, χ from arXiv:0905.3587."""
     pytest.importorskip("dit")
     p = 0.5
-    forward = golden_mean_forward(p)
-    reverse = golden_mean_reverse(p)
+    forward = golden_mean(p)
+    reverse = golden_mean(p)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
 
     c_plus = forward.statistical_complexity()
     c_minus = reverse.statistical_complexity()
     excess = bidir.excess_entropy()
     c_bidir = bidir.statistical_complexity()
-    chi = bidir.crypticity()
+    chi = bidir.bidirectional_crypticity()
 
     assert c_plus == pytest.approx(c_minus, abs=1e-9)
     assert c_plus == pytest.approx(math.log2(3) - 2 / 3, abs=1e-9)
@@ -203,7 +202,7 @@ def test_bidirectional_golden_mean_paper_invariants():
 
 def test_bidirectional_fig9_d_sector_is_connected():
     # Fig. 15 D-sector (reverse future symbol 1): (A,D) and (B,D) form one weak component.
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = ellison_fig9_reverse()
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     import networkx as nx
@@ -216,8 +215,8 @@ def test_bidirectional_fig9_d_sector_is_connected():
 
 
 def test_bidirectional_copy_clears_joint_pi_cache():
-    forward = golden_mean_forward(0.5)
-    reverse = golden_mean_reverse(0.5)
+    forward = golden_mean(0.5)
+    reverse = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     assert bidir._joint_pi is not None
     cloned = bidir.copy()
@@ -228,8 +227,8 @@ def test_bidirectional_copy_clears_joint_pi_cache():
 def test_bidirectional_joint_pi_matches_marginals():
     """Joint π from IPF matches forward/reverse stationary marginals."""
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
-    reverse = golden_mean_reverse(0.5)
+    forward = golden_mean(0.5)
+    reverse = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
     joint = bidir.joint_distribution()
     pi_plus = dict.fromkeys(forward.states(), 0.0)
@@ -295,20 +294,20 @@ def test_bidirectional_tent_map_fig8_edges():
     inv_a1 = 1.0 / (a + 1.0)
     frac_a1 = a / (a + 1.0)
     expected = [
-        (("B", "E"), 0, ("C", "G"), 1.0),
-        (("C", "G"), 0, ("A", "F"), half),
-        (("C", "G"), 1, ("D", "F"), half),
-        (("A", "F"), 1, ("B", "E"), inv_a1),
-        (("A", "F"), 1, ("B", "G"), frac_a1),
-        (("B", "G"), 1, ("A", "F"), half),
-        (("B", "G"), 0, ("C", "F"), half),
-        (("D", "E"), 0, ("C", "G"), 1.0),
-        (("D", "F"), 1, ("D", "E"), inv_a1),
-        (("D", "F"), 1, ("D", "G"), frac_a1),
-        (("D", "G"), 1, ("D", "F"), half),
-        (("D", "G"), 0, ("C", "F"), half),
-        (("C", "F"), 1, ("D", "G"), frac_a1),
-        (("C", "F"), 1, ("D", "E"), inv_a1),
+        (("B", "E"), "0", ("C", "G"), 1.0),
+        (("C", "G"), "0", ("A", "F"), half),
+        (("C", "G"), "1", ("D", "F"), half),
+        (("A", "F"), "1", ("B", "E"), inv_a1),
+        (("A", "F"), "1", ("B", "G"), frac_a1),
+        (("B", "G"), "1", ("A", "F"), half),
+        (("B", "G"), "0", ("C", "F"), half),
+        (("D", "E"), "0", ("C", "G"), 1.0),
+        (("D", "F"), "1", ("D", "E"), inv_a1),
+        (("D", "F"), "1", ("D", "G"), frac_a1),
+        (("D", "G"), "1", ("D", "F"), half),
+        (("D", "G"), "0", ("C", "F"), half),
+        (("C", "F"), "1", ("D", "G"), frac_a1),
+        (("C", "F"), "1", ("D", "E"), inv_a1),
     ]
     actual = sorted(
         (source, symbol, target, prob) for source, target, symbol, prob in _tent_map_misiurewicz_fig8_edges(a)
@@ -381,7 +380,7 @@ def _assert_isomorphic_epsilon_machines(left, right):
 
 
 def test_infer_reverse_matches_msp_pipeline():
-    for factory in (ellison_fig9_forward, lambda: golden_mean_forward(0.5), lambda: even_process(0.5)):
+    for factory in (irreversible_two_state, lambda: golden_mean(0.5), lambda: even_process(0.5)):
         forward = factory()
         inferred = infer_reverse_epsilon_machine(forward)
         from_rev = EpsilonMachine.from_hmm(time_reverse_stochastic(forward))
@@ -453,7 +452,7 @@ def test_ellison_fig9_fig15_process():
     """
     import networkx as nx
 
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     reverse = ellison_fig9_reverse()
     bidir = ellison_fig15_bidirectional()
 
@@ -477,14 +476,14 @@ def test_ellison_fig9_fig15_process():
 
     # Fig. 15 transition topology (reverse states relabelled C,D,E after collision-free merge).
     expected_edges = {
-        (("A", "D"), 1, ("B", "C"), 0.5),
-        (("A", "D"), 1, ("B", "D"), 0.5),
-        (("A", "E"), 0, ("A", "D"), 0.5),
-        (("A", "E"), 0, ("A", "E"), 0.5),
-        (("B", "C"), 2, ("A", "D"), 0.5),
-        (("B", "C"), 2, ("A", "E"), 0.5),
-        (("B", "D"), 1, ("B", "C"), 0.5),
-        (("B", "D"), 1, ("B", "D"), 0.5),
+        (("A", "D"), "1", ("B", "C"), 0.5),
+        (("A", "D"), "1", ("B", "D"), 0.5),
+        (("A", "E"), "0", ("A", "D"), 0.5),
+        (("A", "E"), "0", ("A", "E"), 0.5),
+        (("B", "C"), "2", ("A", "D"), 0.5),
+        (("B", "C"), "2", ("A", "E"), 0.5),
+        (("B", "D"), "1", ("B", "C"), 0.5),
+        (("B", "D"), "1", ("B", "D"), 0.5),
     }
     assert _bidirectional_edge_set(bidir) == expected_edges
 

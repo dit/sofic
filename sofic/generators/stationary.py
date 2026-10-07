@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from sofic.exceptions import StochasticValidationError
@@ -28,7 +30,9 @@ def stationary_distribution_from_transition(transition: np.ndarray) -> np.ndarra
     """Return a normalized left eigenvector of ``transition`` for eigenvalue one.
 
     When ``transition`` contains sympy expressions, solve ``π P = π`` and
-    ``sum(π) = 1`` exactly via sympy linear algebra.
+    ``sum(π) = 1`` exactly via sympy linear algebra. A numeric chain with more
+    than one closed recurrent class has no unique stationary distribution; a
+    :class:`RuntimeWarning` is emitted and one stationary vector is returned.
     """
     matrix = np.asarray(transition)
     if matrix.dtype == object or has_symbolic(matrix.ravel()):
@@ -43,6 +47,15 @@ def _stationary_distribution_numeric(matrix: np.ndarray) -> np.ndarray:
         raise ValueError("transition matrix must be square")
     if n == 0:
         return np.array([], dtype=float)
+
+    multiplicity = n - int(np.linalg.matrix_rank(matrix.T - np.eye(n), tol=1e-9))
+    if multiplicity > 1:
+        warnings.warn(
+            f"stationary distribution is not unique: the chain has {multiplicity} closed recurrent classes; "
+            "returning an arbitrary stationary vector",
+            RuntimeWarning,
+            stacklevel=3,
+        )
 
     eigenvalues, eigenvectors = np.linalg.eig(matrix.T)
     candidates = sorted(range(n), key=lambda i: abs(eigenvalues[i] - 1.0))

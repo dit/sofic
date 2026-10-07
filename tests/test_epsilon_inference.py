@@ -215,7 +215,7 @@ def test_from_sequence_unknown_method():
 
 @pytest.mark.parametrize(
     ("name", "max_history"),
-    [("even_process", 3), ("even_process", 5), ("golden_mean_forbid_00", 3), ("nemo_process", 4), ("rk_gm", 5)],
+    [("even_process", 3), ("even_process", 5), ("golden_mean", 3), ("nemo_process", 4), ("rk_gm", 5)],
 )
 def test_cssr_recovers_synchronizable_processes(name: str, max_history: int):
     """Regression: appended (not prepended) suffixes and untruncated successors
@@ -268,9 +268,7 @@ def test_cssr_non_synchronizable_process_returns_valid_machine():
     assert inferred.entropy_rate() >= oracle.entropy_rate() - 0.02
 
 
-@pytest.mark.parametrize(
-    ("name", "L", "n_states"), [("even_process", 3, 2), ("golden_mean_forbid_00", 2, 2), ("rk_gm", 5, 8)]
-)
+@pytest.mark.parametrize(("name", "L", "n_states"), [("even_process", 3, 2), ("golden_mean", 2, 2), ("rk_gm", 5, 8)])
 def test_subtree_merge_default_delta_recovers_process(name: str, L: int, n_states: int):
     """Regression: the default delta = 0 compared sampled morphs to within 1e-3 and
     successors were never truncated, so this raised StochasticValidationError."""
@@ -373,3 +371,37 @@ def test_subtree_merge_options_golden_mean(kwargs):
 def test_subtree_merge_auto_depth():
     observations, _ = sample(golden_mean(0.5), 6000, np.random.default_rng(8))
     assert len(list(learn_epsilon_machine_subtree(observations, max_history="auto").states())) == 2
+
+
+@pytest.mark.parametrize(
+    ("make", "states"),
+    [(lambda: bernoulli(0.3), 1), (golden_mean, 2), (even_process, 2)],
+    ids=["biased_coin", "golden_mean", "even_process"],
+)
+def test_cssr_default_bonferroni_recovers_simple_processes(make, states):
+    """Regression: with uncorrected per-test alpha, a few seeds in 20 grew spurious states
+    (e.g. the even process came out with 4-7 states); Bonferroni is now the default."""
+    machine = make()
+    sizes = []
+    for seed in range(20):
+        observations, _ = machine.sample(20_000, rng=np.random.default_rng(seed))
+        sizes.append(len(list(learn_epsilon_machine_cssr(observations).states())))
+    assert sizes == [states] * 20
+
+
+def test_cssr_bonferroni_counts_resolution_suffixes():
+    from sofic.inference.cssr.counts import SuffixCounts
+    from sofic.inference.cssr.significance import _bonferroni_alpha
+
+    observations, _ = even_process().sample(5_000, rng=np.random.default_rng(0))
+    counts = SuffixCounts.from_sequence(tuple(observations), max_length=4)
+    plain = _bonferroni_alpha(counts, 0.01, max_length=3, min_count=5)
+    with_resolution = _bonferroni_alpha(counts, 0.01, max_length=3, min_count=5, resolution_tests=True)
+    assert with_resolution < plain
+
+
+def test_cssr_correction_none_disables_bonferroni():
+    observations, _ = even_process().sample(20_000, rng=np.random.default_rng(13))
+    learn_epsilon_machine_cssr(observations, correction=None).validate()
+    with pytest.raises(ValueError, match="unknown correction"):
+        learn_epsilon_machine_cssr(observations, correction="holm")

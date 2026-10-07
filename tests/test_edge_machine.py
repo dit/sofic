@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sofic.examples import fair_coin, golden_mean
+from sofic.examples import bernoulli, golden_mean
 from sofic.generators.edge_machine import ATTR_EDGE_SOURCE, ATTR_EDGE_TARGET, hmm_to_edge_machine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
@@ -56,7 +56,7 @@ def _period_two_hmm() -> MealyHMM:
     return hmm
 
 
-@pytest.mark.parametrize("builder", [fair_coin, golden_mean])
+@pytest.mark.parametrize("builder", [bernoulli, golden_mean])
 def test_edge_machine_preserves_entropy_rate(builder):
     pytest.importorskip("dit")
     hmm = builder()
@@ -65,7 +65,7 @@ def test_edge_machine_preserves_entropy_rate(builder):
     assert edge.entropy_rate() == pytest.approx(hmm.entropy_rate(), abs=1e-9)
 
 
-@pytest.mark.parametrize("builder", [fair_coin, golden_mean])
+@pytest.mark.parametrize("builder", [bernoulli, golden_mean])
 def test_edge_machine_preserves_block_distribution(builder):
     pytest.importorskip("dit")
     hmm = builder()
@@ -92,18 +92,18 @@ def test_edge_machine_state_count():
 
 
 def test_fair_coin_edge_machine_has_two_states():
-    edge = fair_coin().to_edge_machine()
+    edge = bernoulli().to_edge_machine()
     assert len(list(edge.states())) == 2
 
 
 def test_edge_machine_uses_cmpy_style_tuple_states():
     edge = golden_mean(0.5).to_edge_machine()
 
-    state = ("A", 0, "A")
+    state = ("A", "0", "A")
     assert state in set(edge.states())
     attrs = edge.graph.state_attrs(state)
     assert attrs[ATTR_EDGE_SOURCE] == "A"
-    assert attrs[ATTR_EMISSION] == 0
+    assert attrs[ATTR_EMISSION] == "0"
     assert attrs[ATTR_EDGE_TARGET] == "A"
 
 

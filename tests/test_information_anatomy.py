@@ -11,9 +11,7 @@ from sofic.examples import (
     bernoulli,
     butterfly_process,
     even_process,
-    fair_coin,
-    golden_mean_forward,
-    golden_mean_reverse,
+    golden_mean,
     nemo_process,
     noisy_random_phase_slip,
     tent_map_misiurewicz_a,
@@ -29,7 +27,7 @@ from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonM
 
 def test_fair_coin_predicted_information_near_zero():
     pytest.importorskip("dit")
-    coin = fair_coin()
+    coin = bernoulli()
     bidir = BidirectionalEpsilonMachine.from_pair(coin, coin)
     assert bidir.predicted_information() == pytest.approx(0.0, abs=1e-9)
 
@@ -61,8 +59,8 @@ def test_golden_mean_anatomy_identities():
     pytest.importorskip("dit")
     import dit
 
-    forward = golden_mean_forward(0.5)
-    reverse = golden_mean_reverse(0.5)
+    forward = golden_mean(0.5)
+    reverse = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(forward, reverse)
 
     h_mu = bidir.entropy_rate()
@@ -73,7 +71,9 @@ def test_golden_mean_anatomy_identities():
     assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
     h_x0 = dit.shannon.entropy(bidir.step_distribution().marginal([2]))
     assert h_mu + rho == pytest.approx(h_x0, abs=1e-9)
-    assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
+    assert bidir.bidirectional_crypticity() == pytest.approx(
+        bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9
+    )
 
     anatomy = bidir.information_anatomy()
     assert anatomy["rho_mu"] == pytest.approx(rho, abs=1e-12)
@@ -85,15 +85,32 @@ def test_golden_mean_anatomy_identities():
 def test_golden_mean_anatomy_matches_component_methods():
     pytest.importorskip("dit")
     bidir = BidirectionalEpsilonMachine.from_pair(
-        golden_mean_forward(0.5),
-        golden_mean_reverse(0.5),
+        golden_mean(0.5),
+        golden_mean(0.5),
     )
     anatomy = bidir.information_anatomy()
     assert anatomy["rho_mu"] == pytest.approx(bidir.predicted_information(), abs=1e-12)
     assert anatomy["bound_mu"] == pytest.approx(bidir.bound_information(), abs=1e-12)
     assert anatomy["ephemeral_mu"] == pytest.approx(bidir.ephemeral_information(), abs=1e-12)
     assert anatomy["excess_entropy"] == pytest.approx(bidir.excess_entropy(), abs=1e-12)
-    assert anatomy["crypticity"] == pytest.approx(bidir.crypticity(), abs=1e-12)
+    assert anatomy["bidirectional_crypticity"] == pytest.approx(bidir.bidirectional_crypticity(), abs=1e-12)
+
+
+def test_anatomy_crypticity_key_is_forward_crypticity_everywhere():
+    pytest.importorskip("dit")
+    forward = golden_mean(0.5)
+    chi = forward.crypticity()
+    assert chi == pytest.approx(2.0 / 3.0, abs=1e-9)
+    assert forward.information_anatomy()["crypticity"] == pytest.approx(chi, abs=1e-9)
+    assert forward.to_bidirectional().information_anatomy()["crypticity"] == pytest.approx(chi, abs=1e-9)
+    assert forward.block_entropy_estimates(4).information_anatomy()["crypticity"] == pytest.approx(chi, abs=1e-9)
+    assert forward.stored_information_decomposition()["crypticity"] == pytest.approx(chi, abs=1e-9)
+    bidirectional = forward.to_bidirectional().bidirectional_crypticity()
+    assert bidirectional > chi + 1e-6
+    assert forward.information_anatomy()["bidirectional_crypticity"] == pytest.approx(bidirectional, abs=1e-9)
+    assert forward.stored_information_decomposition()["bidirectional_crypticity"] == pytest.approx(
+        bidirectional, abs=1e-9
+    )
 
 
 # --- structural / gauge refinement of the anatomy ------------------------------
@@ -104,7 +121,7 @@ def _anatomy_processes():
     return {
         "bernoulli_half": bernoulli(0.5).to_bidirectional(),
         "bernoulli_biased": bernoulli(0.3).to_bidirectional(),
-        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean(0.5), golden_mean(0.5)),
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
     }
@@ -144,7 +161,7 @@ def test_bernoulli_ephemeral_is_pure_gauge():
 def test_golden_mean_ephemeral_is_pure_structural():
     """Golden mean has no parallel edges: r_μ is entirely structural."""
     pytest.importorskip("dit")
-    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5))
+    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean(0.5), golden_mean(0.5))
     assert bidir.parallel_edge_information() == pytest.approx(0.0, abs=1e-9)
     assert bidir.structural_ephemeral_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
     # Its bound information is likewise entirely structural.
@@ -152,15 +169,13 @@ def test_golden_mean_ephemeral_is_pure_structural():
     assert bidir.bound_structural_information() == pytest.approx(bidir.bound_information(), abs=1e-9)
 
 
-def test_butterfly_ephemeral_is_mixed():
-    """Butterfly process populates both ephemeral atoms simultaneously."""
+def test_butterfly_ephemeral_is_pure_structural():
+    """Butterfly has no parallel edges: its r_mu = 1/20 (from A, the 2/3 choice hides behind 0 1) is structural."""
     pytest.importorskip("dit")
     bidir = butterfly_process().to_bidirectional()
-    r_struct = bidir.structural_ephemeral_information()
-    r_gauge = bidir.parallel_edge_information()
-    assert r_struct > 1e-6
-    assert r_gauge > 1e-6
-    assert r_struct + r_gauge == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
+    assert bidir.parallel_edge_information() == pytest.approx(0.0, abs=1e-9)
+    assert bidir.structural_ephemeral_information() == pytest.approx(1.0 / 20.0, abs=1e-9)
+    assert bidir.ephemeral_information() == pytest.approx(1.0 / 20.0, abs=1e-9)
 
 
 def test_information_anatomy_exposes_refinement_keys():
@@ -181,7 +196,7 @@ def test_information_anatomy_exposes_refinement_keys():
 def test_epsilon_machine_refinement_delegates_to_bidirectional():
     """EpsilonMachine forwards the structural/gauge accessors to its bidirectional presentation."""
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     bidir = forward.to_bidirectional()
     assert forward.structural_ephemeral_information() == pytest.approx(
         bidir.structural_ephemeral_information(), abs=1e-12
@@ -201,7 +216,7 @@ def _five_variable_processes():
     return {
         "bernoulli_half": bernoulli(0.5).to_bidirectional(),
         "bernoulli_biased": bernoulli(0.3).to_bidirectional(),
-        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean(0.5), golden_mean(0.5)),
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
         "nemo": nemo_process().to_bidirectional(),
@@ -328,7 +343,7 @@ def test_internal_markov_rate_arrow_of_time(name: str, symmetric: bool):
 def test_golden_mean_ephemeral_is_pure_joint():
     """Golden mean: the single branch is resolved by *both* time directions (r_joint)."""
     pytest.importorskip("dit")
-    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5))
+    bidir = BidirectionalEpsilonMachine.from_pair(golden_mean(0.5), golden_mean(0.5))
     r_mu = bidir.ephemeral_information()
     assert bidir.joint_structural_ephemeral() == pytest.approx(r_mu, abs=1e-9)
     assert bidir.joint_structural_ephemeral() == pytest.approx(0.459147917, abs=1e-6)
@@ -360,12 +375,12 @@ def test_nemo_four_atoms_pinned():
     assert bidir.pure_gauge_information() == pytest.approx(1.0 / 12.0, abs=1e-9)
 
 
-def test_butterfly_ephemeral_is_forward_plus_gauge():
-    """Butterfly: forward-branching plus parallel-edge relabeling, no reverse/joint atom."""
+def test_butterfly_ephemeral_is_forward_only():
+    """Butterfly: all ephemeral information is forward branching, no gauge/reverse/joint atom."""
     pytest.importorskip("dit")
     bidir = butterfly_process().to_bidirectional()
-    assert bidir.forward_only_structural_ephemeral() == pytest.approx(2.25, abs=1e-9)
-    assert bidir.pure_gauge_information() == pytest.approx(0.75, abs=1e-9)
+    assert bidir.forward_only_structural_ephemeral() == pytest.approx(1.0 / 20.0, abs=1e-9)
+    assert bidir.pure_gauge_information() == pytest.approx(0.0, abs=1e-9)
     assert bidir.reverse_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
     assert bidir.joint_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
 
@@ -373,7 +388,7 @@ def test_butterfly_ephemeral_is_forward_plus_gauge():
 def test_fair_coin_ephemeral_is_pure_gauge_atom():
     """Fair coin: every ephemeral bit is the transient pure-gauge atom."""
     pytest.importorskip("dit")
-    bidir = BidirectionalEpsilonMachine.from_pair(fair_coin(), fair_coin())
+    bidir = BidirectionalEpsilonMachine.from_pair(bernoulli(), bernoulli())
     assert bidir.pure_gauge_information() == pytest.approx(bidir.ephemeral_information(), abs=1e-9)
     assert bidir.pure_gauge_information() == pytest.approx(1.0, abs=1e-9)
     assert bidir.forward_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
@@ -412,7 +427,7 @@ def test_five_variable_anatomy_exposes_atoms_matching_methods():
 def test_epsilon_machine_five_variable_delegates_to_bidirectional():
     """EpsilonMachine forwards the five-variable accessors to its bidirectional presentation."""
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     bidir = forward.to_bidirectional()
 
     assert forward.forward_only_structural_ephemeral() == pytest.approx(
@@ -485,16 +500,18 @@ def test_tent_map_misiurewicz_bidirectional_regression():
     assert r_mu == pytest.approx(expected["ephemeral_mu"], abs=1e-4)
     assert b_mu == pytest.approx(expected["bound_mu"], abs=1e-4)
     assert b_mu + r_mu == pytest.approx(h_mu, abs=1e-9)
-    assert bidir.crypticity() == pytest.approx(bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9)
+    assert bidir.bidirectional_crypticity() == pytest.approx(
+        bidir.statistical_complexity() - bidir.excess_entropy(), abs=1e-9
+    )
 
 
 # The four generating partitions of the tent map at the Misiurewicz point, each
 # built from the critical point plus zero, one or both of its order-1 preimages.
 TENT_MAP_PARTITION_SHAPE = {
-    "c": (["A", "B", "C", "D"], [0, 1]),
-    "Lc": (["A", "B", "C", "D", "E"], [0, 1, 2]),
-    "cR": (["A", "B", "C", "D", "E"], [0, 1, 2]),
-    "LcR": (["A", "B", "C", "D", "E"], [0, 1, 2, 3]),
+    "c": (["A", "B", "C", "D"], ["0", "1"]),
+    "Lc": (["A", "B", "C", "D", "E"], ["0", "1", "2"]),
+    "cR": (["A", "B", "C", "D", "E"], ["0", "1", "2"]),
+    "LcR": (["A", "B", "C", "D", "E"], ["0", "1", "2", "3"]),
 }
 
 TENT_MAP_PARTITION_WEIGHTS = {
@@ -525,9 +542,19 @@ TENT_MAP_PARTITION_WEIGHTS = {
 # Two-letter blocks the partition forbids; the coarsest partition forbids none.
 TENT_MAP_PARTITION_FORBIDDEN_PAIRS = {
     "c": set(),
-    "Lc": {(0, 0), (0, 2), (1, 0), (1, 1)},
-    "cR": {(1, 0), (2, 1), (2, 2)},
-    "LcR": {(0, 0), (0, 2), (0, 3), (1, 0), (1, 1), (2, 0), (2, 1), (3, 2), (3, 3)},
+    "Lc": {("0", "0"), ("0", "2"), ("1", "0"), ("1", "1")},
+    "cR": {("1", "0"), ("2", "1"), ("2", "2")},
+    "LcR": {
+        ("0", "0"),
+        ("0", "2"),
+        ("0", "3"),
+        ("1", "0"),
+        ("1", "1"),
+        ("2", "0"),
+        ("2", "1"),
+        ("3", "2"),
+        ("3", "3"),
+    },
 }
 
 TENT_MAP_PARTITION_EPHEMERAL = {
@@ -587,45 +614,45 @@ def test_tent_map_partition_edge_probabilities_are_quadratics_in_a():
     a = tent_map_misiurewicz_a()
     expected = {
         "c": {
-            ("A", 0, "B"): (4 - a**2) / 2,
-            ("A", 1, "A"): (a**2 - 2) / 2,
-            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
-            ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
-            ("C", 0, "B"): (a**2 - a) / 2,
-            ("C", 1, "D"): (2 + a - a**2) / 2,
-            ("D", 1, "C"): 1.0,
+            ("A", "0", "B"): (4 - a**2) / 2,
+            ("A", "1", "A"): (a**2 - 2) / 2,
+            ("B", "0", "D"): (2 - 2 * a + a**2) / 6,
+            ("B", "1", "A"): (4 + 2 * a - a**2) / 6,
+            ("C", "0", "B"): (a**2 - a) / 2,
+            ("C", "1", "D"): (2 + a - a**2) / 2,
+            ("D", "1", "C"): 1.0,
         },
         "Lc": {
-            ("A", 0, "E"): (2 - a) / 2,
-            ("A", 1, "B"): (2 + a - a**2) / 2,
-            ("A", 2, "A"): (a**2 - 2) / 2,
-            ("B", 2, "A"): 1.0,
-            ("C", 0, "E"): (a**2 - a - 1) / 2,
-            ("C", 1, "B"): 0.5,
-            ("C", 2, "D"): (2 + a - a**2) / 2,
-            ("D", 2, "C"): 1.0,
-            ("E", 1, "D"): 1.0,
+            ("A", "0", "E"): (2 - a) / 2,
+            ("A", "1", "B"): (2 + a - a**2) / 2,
+            ("A", "2", "A"): (a**2 - 2) / 2,
+            ("B", "2", "A"): 1.0,
+            ("C", "0", "E"): (a**2 - a - 1) / 2,
+            ("C", "1", "B"): 0.5,
+            ("C", "2", "D"): (2 + a - a**2) / 2,
+            ("D", "2", "C"): 1.0,
+            ("E", "1", "D"): 1.0,
         },
         "cR": {
-            ("A", 0, "B"): 1.0,
-            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
-            ("B", 1, "C"): (2 * a**2 - a - 2) / 6,
-            ("B", 2, "A"): (2 + a - a**2) / 2,
-            ("C", 1, "C"): (a**2 - 2) / 2,
-            ("C", 2, "A"): (4 - a**2) / 2,
-            ("D", 1, "E"): (2 + a - a**2) / 2,
-            ("D", 2, "A"): (a**2 - a) / 2,
-            ("E", 1, "D"): 1.0,
+            ("A", "0", "B"): 1.0,
+            ("B", "0", "D"): (2 - 2 * a + a**2) / 6,
+            ("B", "1", "C"): (2 * a**2 - a - 2) / 6,
+            ("B", "2", "A"): (2 + a - a**2) / 2,
+            ("C", "1", "C"): (a**2 - 2) / 2,
+            ("C", "2", "A"): (4 - a**2) / 2,
+            ("D", "1", "E"): (2 + a - a**2) / 2,
+            ("D", "2", "A"): (a**2 - a) / 2,
+            ("E", "1", "D"): 1.0,
         },
         "LcR": {
-            ("A", 2, "A"): (a**2 - 2) / 2,
-            ("A", 3, "B"): (4 - a**2) / 2,
-            ("B", 0, "D"): (2 - 2 * a + a**2) / 6,
-            ("B", 1, "A"): (4 + 2 * a - a**2) / 6,
-            ("C", 2, "E"): (2 + a - a**2) / 2,
-            ("C", 3, "B"): (a**2 - a) / 2,
-            ("D", 1, "C"): 1.0,
-            ("E", 2, "C"): 1.0,
+            ("A", "2", "A"): (a**2 - 2) / 2,
+            ("A", "3", "B"): (4 - a**2) / 2,
+            ("B", "0", "D"): (2 - 2 * a + a**2) / 6,
+            ("B", "1", "A"): (4 + 2 * a - a**2) / 6,
+            ("C", "2", "E"): (2 + a - a**2) / 2,
+            ("C", "3", "B"): (a**2 - a) / 2,
+            ("D", "1", "C"): 1.0,
+            ("E", "2", "C"): 1.0,
         },
     }
 
@@ -774,10 +801,10 @@ def test_tent_forward_matches_generator_path():
 
 def test_epsilon_machine_anatomy_matches_bidirectional():
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     bidir = BidirectionalEpsilonMachine.from_pair(
         forward,
-        golden_mean_reverse(0.5),
+        golden_mean(0.5),
     )
 
     assert forward.predicted_information() == pytest.approx(bidir.predicted_information(), abs=1e-12)
@@ -786,12 +813,12 @@ def test_epsilon_machine_anatomy_matches_bidirectional():
     assert forward.information_anatomy() == pytest.approx(bidir.information_anatomy(), abs=1e-12)
     assert forward.excess_entropy() == pytest.approx(bidir.excess_entropy(), abs=1e-12)
     assert forward.bidirectional_statistical_complexity() == pytest.approx(bidir.statistical_complexity(), abs=1e-12)
-    assert forward.bidirectional_crypticity() == pytest.approx(bidir.crypticity(), abs=1e-12)
+    assert forward.bidirectional_crypticity() == pytest.approx(bidir.bidirectional_crypticity(), abs=1e-12)
 
 
 def test_epsilon_machine_bidirectional_cache():
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     first = forward.to_bidirectional()
     second = forward.to_bidirectional()
     assert first is second
@@ -814,14 +841,14 @@ def test_iid_caekl_causal_information_is_zero(p: float):
 
 def test_fair_coin_caekl_causal_information_is_zero():
     pytest.importorskip("dit")
-    bidir = BidirectionalEpsilonMachine.from_pair(fair_coin(), fair_coin())
+    bidir = BidirectionalEpsilonMachine.from_pair(bernoulli(), bernoulli())
     assert bidir.caekl_causal_information() == pytest.approx(0.0, abs=1e-9)
 
 
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda: golden_mean_forward(0.5),
+        lambda: golden_mean(0.5),
         lambda: even_process(0.5),
         tent_map_misiurewicz_forward,
     ],
@@ -836,8 +863,8 @@ def test_caekl_causal_information_golden_mean_value():
     """Exact J[S⁺₀ : X₀ : S⁻₁] for the golden-mean process at p = 1/2."""
     pytest.importorskip("dit")
     bidir = BidirectionalEpsilonMachine.from_pair(
-        golden_mean_forward(0.5),
-        golden_mean_reverse(0.5),
+        golden_mean(0.5),
+        golden_mean(0.5),
     )
     assert bidir.caekl_causal_information() == pytest.approx(0.25162916738782304, abs=1e-9)
 
@@ -852,7 +879,7 @@ def test_caekl_causal_information_tent_map_value():
 def test_epsilon_machine_caekl_causal_information_matches_bidirectional():
     """EpsilonMachine delegates caekl_causal_information() to its bidirectional presentation."""
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     assert forward.caekl_causal_information() == pytest.approx(
         forward.to_bidirectional().caekl_causal_information(), abs=1e-12
     )

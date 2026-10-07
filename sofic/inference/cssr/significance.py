@@ -191,13 +191,22 @@ def _bonferroni_alpha(
     max_length: int,
     min_count: int,
     suffix_length: Callable[[History], int] = len,
+    resolution_tests: bool = False,
 ) -> float:
-    """``alpha`` divided by the number of suffixes eligible for a split test."""
-    eligible = sum(
-        1
-        for history, following in counts.next_counts.items()
-        if 0 < suffix_length(history) <= max_length and sum(following.values()) >= max(1, min_count)
-    )
+    """``alpha`` divided by the number of suffixes eligible for a split test.
+
+    With ``resolution_tests`` the observed length-``max_length + 1`` suffixes are
+    counted too: process CSSR tests each of them when resolving the successor of a
+    length-``max_length`` suffix.
+    """
+    eligible = 0
+    for history, following in counts.next_counts.items():
+        length = suffix_length(history)
+        total = sum(following.values())
+        if (0 < length <= max_length and total >= max(1, min_count)) or (
+            resolution_tests and length == max_length + 1 and total > 0
+        ):
+            eligible += 1
     return alpha / max(1, eligible)
 
 

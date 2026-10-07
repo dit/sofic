@@ -10,6 +10,8 @@ instances. The implementations cover subset construction, DFA equivalence and
 minimization, Brzozowski double reversal, Moore refinement, Hopcroft refinement,
 and state-elimination conversion to regular expressions
 :cite:`RabinScott1959,Brzozowski1962,Moore1956,Hopcroft1971,Kleene1956`.
+All three minimizers return the same trimmed (partial) minimal DFA; use
+:func:`complete` for the version with a sink state.
 
 .. ipython::
 

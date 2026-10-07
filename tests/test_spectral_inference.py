@@ -7,7 +7,7 @@ import itertools
 import numpy as np
 import pytest
 
-from sofic.examples import even_process, fair_coin, golden_mean
+from sofic.examples import bernoulli, even_process, golden_mean
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.nmachine import NMachine
 from sofic.generators.quasi_realization import QuasiRealization
@@ -54,7 +54,7 @@ def test_recovers_even_process():
 
 
 def test_fair_coin_is_rank_one():
-    model = fair_coin()
+    model = bernoulli()
     alphabet = sorted(model.observation_alphabet, key=repr)
     learned = learn_spectral_wfa(word_probability=model.word_probability, alphabet=alphabet, prefix_length=2)
     assert learned.pi.shape[0] == 1
@@ -118,7 +118,7 @@ def test_project_to_nmachine_reproduces_word_probabilities():
 
 
 def test_project_to_mealy_on_nonnegative_process():
-    model = fair_coin()
+    model = bernoulli()
     alphabet = sorted(model.observation_alphabet, key=repr)
     learned = learn_spectral_wfa(word_probability=model.word_probability, alphabet=alphabet, prefix_length=2)
     machine = project_to_mealy(learned)
@@ -168,3 +168,57 @@ def test_alphabet_required_without_sequences():
     model = golden_mean(0.4)
     with pytest.raises(SpectralInferenceError):
         learn_spectral_wfa(word_probability=model.word_probability)
+
+
+# --- Regressions -------------------------------------------------------------
+
+
+@pytest.mark.parametrize("make", [golden_mean, even_process])
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_epsilon_machine_spectral_from_samples_recovers_two_states_quickly(make, seed):
+    """Regression: a relative rank cutoff kept sampling-noise singular values, and
+    mixed-state extraction then enumerated noise states for seconds before failing."""
+    import time
+
+    from sofic.inference.spectral import learn_epsilon_machine_spectral
+
+    model = make()
+    observations, _ = model.sample(50_000, rng=np.random.default_rng(seed))
+    assert spectral_singular_values(observations, prefix_length=3)[2] < 0.01  # noise, not structure
+    start = time.perf_counter()
+    machine = learn_epsilon_machine_spectral(observations)
+    assert time.perf_counter() - start < 5.0
+    assert len(list(machine.states())) == 2
+    assert machine.entropy_rate() == pytest.approx(model.entropy_rate(), abs=0.02)
+
+
+def test_sampled_rank_selection_uses_noise_floor():
+    observations, _ = golden_mean().sample(50_000, rng=np.random.default_rng(0))
+    assert learn_spectral_wfa(observations, prefix_length=3).pi.shape[0] == 2
+    # Without the noise floor the relative threshold alone keeps the noise.
+    assert learn_spectral_wfa(observations, prefix_length=3, noise_scale=0.0).pi.shape[0] > 2
+
+
+def test_mixed_state_extraction_fails_fast_on_noise():
+    import time
+
+    observations, _ = even_process().sample(20_000, rng=np.random.default_rng(0))
+    learned = learn_spectral_wfa(observations, prefix_length=3, rank=4)
+    start = time.perf_counter()
+    with pytest.raises(SpectralInferenceError, match="max_states"):
+        project_to_epsilon_machine(learned, max_states=200)
+    assert time.perf_counter() - start < 2.0
+
+
+@pytest.mark.parametrize(("make", "states"), [("period3", 3), ("golden", 2), ("even", 2)])
+def test_epsilon_machine_spectral_exact_has_no_negligible_states(make, states):
+    """Regression: 6-decimal belief rounding leaked ~1e-8 emission masses that seeded a
+    spurious mixed state (period-3 came out with 4 states, one of mass 2.8e-8)."""
+    from sofic.examples.processes import period
+    from sofic.inference.spectral import learn_epsilon_machine_spectral
+
+    model = {"period3": lambda: period(3), "golden": golden_mean, "even": even_process}[make]()
+    alphabet = sorted(model.observation_alphabet, key=repr)
+    machine = learn_epsilon_machine_spectral(word_probability=model.word_probability, alphabet=alphabet)
+    assert len(list(machine.states())) == states
+    assert min(machine.stationary_distribution()) > 1e-3

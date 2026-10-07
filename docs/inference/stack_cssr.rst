@@ -50,7 +50,12 @@ them.
 
 ``learn_stack_hmm_cssr`` accepts the same calibration options as
 :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`: ``test="exact"``,
-``correction="bonferroni"`` (over eligible configurations), and ``max_history="auto"``.
+``correction="bonferroni"`` (the default, over eligible configurations; ``None``
+disables it), and ``max_history="auto"``. The fitted edge weights are the
+maximum-likelihood weights of a choice among the moves legal in each
+configuration (no return on an empty stack, only matched returns), and
+:func:`~sofic.inference.cssr.stack.learn_stack_hmm_mle` fits a fixed Dyck topology
+the same way.
 Stack processes generally have infinite Markov order, so the automatic depth is
 a lower bound on the suffix length the data support.
 

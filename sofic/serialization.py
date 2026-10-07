@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from fractions import Fraction
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -101,12 +102,18 @@ def _metadata_for(model: StateMachine, spec: _ModelSpec) -> dict[str, Any]:
 
 
 def _build_model(spec: _ModelSpec, graph: TransitionGraph, metadata: dict[str, Any]) -> StateMachine:
+    # Files written before alphabets were serialized explicitly fall back to the
+    # symbols that appear on the graph.
     if spec.builder == "hidden_hmm":
-        return spec.cls(graph=graph, observation_alphabet=_observation_alphabet(graph), **metadata)
+        metadata.setdefault("observation_alphabet", _observation_alphabet(graph))
+        return spec.cls(graph=graph, **metadata)
     if spec.builder == "pfa":
-        return spec.cls(graph=graph, output_alphabet=_edge_emission_alphabet(graph), **metadata)
+        metadata.setdefault("output_alphabet", _edge_emission_alphabet(graph))
+        return spec.cls(graph=graph, **metadata)
     if spec.builder == "stack_hmm":
-        return spec.cls(graph=graph, **_stack_alphabets(graph), **metadata)
+        for name, alphabet in _stack_alphabets(graph).items():
+            metadata.setdefault(name, alphabet)
+        return spec.cls(graph=graph, **metadata)
     if spec.builder == "sft":
         has_spec = bool(metadata.pop("_has_forbidden_word_spec"))
         forbidden = metadata.pop("_forbidden_words")
@@ -220,6 +227,10 @@ def _encode(value: Any) -> Any:
         return _encode(value.item())
     if value is None or isinstance(value, str | bool | int | float):
         return value
+    if isinstance(value, Fraction):
+        return {_TYPE_KEY: "fraction", "numerator": value.numerator, "denominator": value.denominator}
+    if _is_sympy(value):
+        return {_TYPE_KEY: "sympy", "expr": _encode_sympy(value)}
     if isinstance(value, tuple):
         return {_TYPE_KEY: "tuple", "items": [_encode(item) for item in value]}
     if isinstance(value, frozenset):
@@ -255,6 +266,10 @@ def _decode(value: Any, *, validate: bool = True) -> Any:
     if tag == "ndarray":
         array = np.asarray(_decode(value["data"], validate=validate), dtype=value["dtype"])
         return array.reshape(tuple(value["shape"]))
+    if tag == "fraction":
+        return Fraction(value["numerator"], value["denominator"])
+    if tag == "sympy":
+        return _decode_sympy(value["expr"])
     if tag == "tuple":
         return tuple(_decode(item, validate=validate) for item in value["items"])
     if tag == "frozenset":
@@ -267,6 +282,57 @@ def _decode(value: Any, *, validate: bool = True) -> Any:
             for item in value["items"]
         }
     raise ValueError(f"unknown sofic YAML value tag {tag!r}")
+
+
+def _is_sympy(value: Any) -> bool:
+    module = type(value).__module__
+    if not module.startswith("sympy"):
+        return False
+    import sympy as sp
+
+    return isinstance(value, sp.Basic)
+
+
+def _encode_sympy(expr: Any) -> dict[str, Any]:
+    """Encode a sympy expression as a tree of sympy class names (no ``eval`` on load)."""
+    import sympy as sp
+
+    if expr.is_Integer:
+        return {"integer": str(int(expr))}
+    if expr.is_Rational:
+        return {"rational": [str(expr.p), str(expr.q)]}
+    if expr.is_Float:
+        return {"float": str(expr), "precision": int(expr._prec)}
+    if expr.is_Symbol:
+        return {"symbol": expr.name, "assumptions": dict(expr.assumptions0)}
+    name = type(expr).__name__
+    if not expr.args:
+        if getattr(sp.S, name, None) is not expr:
+            raise TypeError(f"cannot YAML-serialize sympy atom {expr!r}")
+        return {"singleton": name}
+    if getattr(sp, name, None) is not type(expr):
+        raise TypeError(f"cannot YAML-serialize sympy expression of type {name}: {expr!r}")
+    return {"func": name, "args": [_encode_sympy(arg) for arg in expr.args]}
+
+
+def _decode_sympy(data: Mapping[str, Any]) -> Any:
+    import sympy as sp
+
+    if "integer" in data:
+        return sp.Integer(int(data["integer"]))
+    if "rational" in data:
+        numerator, denominator = data["rational"]
+        return sp.Rational(int(numerator), int(denominator))
+    if "float" in data:
+        return sp.Float(data["float"], precision=int(data["precision"]))
+    if "symbol" in data:
+        return sp.Symbol(data["symbol"], **data.get("assumptions", {}))
+    if "singleton" in data:
+        return getattr(sp.S, data["singleton"])
+    func = getattr(sp, data["func"], None)
+    if not (isinstance(func, type) and issubclass(func, sp.Basic)):
+        raise ValueError(f"unknown sympy class {data['func']!r}")
+    return func(*(_decode_sympy(arg) for arg in data["args"]))
 
 
 def _stable_iterable(values: set[Any] | frozenset[Any]) -> list[Any]:
@@ -342,7 +408,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
     epsilon_transducer = ("input_alphabet", "output_alphabet", "initial_states", "initial_distribution")
     symbolic = ("symbol_alphabet",)
     stochastic = ("initial_distribution",)
-    hidden = ("initial_distribution",)
+    hidden = ("initial_distribution", "observation_alphabet")
     quasi = ("initial_quasidistribution",)
     vpa = (
         "input_alphabet",
@@ -420,18 +486,22 @@ def _specs() -> tuple[_ModelSpec, ...]:
             ),
             builder="hidden_hmm",
         ),
-        _spec(ProbabilisticFiniteAutomaton, ("initial_distribution",), builder="pfa"),
+        _spec(ProbabilisticFiniteAutomaton, ("initial_distribution", "output_alphabet"), builder="pfa"),
         _spec(
             HiddenMarkovStackModel,
             (
                 "initial_distribution",
+                "call_alphabet",
+                "return_alphabet",
+                "internal_alphabet",
+                "symbol_alphabet",
                 "matched_edges",
                 "allow_empty_stack_returns",
             ),
             builder="stack_hmm",
         ),
         _spec(QuasiStochasticModel, quasi),
-        _spec(NMachine, quasi, builder="hidden_hmm"),
+        _spec(NMachine, (*quasi, "observation_alphabet"), builder="hidden_hmm"),
         _spec(QuasiRealization, (*quasi, "pi", "tau", "symbol_maps")),
         _spec(SymbolicModel, symbolic),
         _spec(SoficShift, symbolic),

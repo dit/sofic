@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from hypothesis import given, settings
 
-from sofic.examples import fair_coin, golden_mean
+from sofic.examples import bernoulli, golden_mean
 from sofic.exceptions import SoficValidationError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.topological_epsilon_enumeration import idfa_string_to_epsilon_machine
@@ -17,7 +17,7 @@ from sofic.testing.strategies import epsilon_machines
 
 
 def test_fair_coin_block_entropy_diagram_is_linear():
-    diagram = fair_coin().block_entropy_diagram(3)
+    diagram = bernoulli().block_entropy_diagram(3)
 
     assert diagram.lengths.tolist() == [0, 1, 2, 3]
     assert diagram.block_entropy == pytest.approx([0.0, 1.0, 2.0, 3.0], abs=1e-12)
@@ -48,7 +48,7 @@ def test_golden_mean_diagram_marks_order_one_convergence():
 
 def test_block_entropy_diagram_rejects_negative_length():
     with pytest.raises(ValueError, match="max_length"):
-        fair_coin().block_entropy_diagram(-1)
+        bernoulli().block_entropy_diagram(-1)
 
 
 def test_plot_block_entropy_diagram_feature_flags():
@@ -122,7 +122,7 @@ def test_plot_block_entropy_diagram_hidden_features_can_be_enabled():
 
 
 def test_fair_coin_block_entropy_estimates_anatomy_rates():
-    estimates = fair_coin().block_entropy_estimates(3)
+    estimates = bernoulli().block_entropy_estimates(3)
 
     assert estimates.h_mu == pytest.approx(1.0, abs=1e-12)
     assert pytest.approx(0.0, abs=1e-12) == estimates.E

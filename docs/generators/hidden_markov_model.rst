@@ -35,7 +35,7 @@ Finite observed-word probabilities can be queried directly:
 .. ipython::
 
    @doctest float
-   In [4]: eps.word_probability((0, 1))
+   In [4]: eps.word_probability(("0", "1"))
    Out[4]: 0.3333333333333333
 
    In [5]: eps.word_probabilities(1)

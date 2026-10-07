@@ -23,6 +23,6 @@ API
 ===
 
 .. autoclass:: ShiftOfFiniteType
-   :members: from_forbidden_words, from_presentation
+   :members: from_forbidden_words, from_presentation, topological_entropy, forbidden_words
 
 .. autofunction:: sofic.shifts.sft_construction.from_forbidden_words

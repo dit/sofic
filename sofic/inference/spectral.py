@@ -55,6 +55,8 @@ __all__ = [
 
 _BELIEF_DECIMALS = 6
 _MASS_ATOL = 1e-12
+_SAMPLED_MASS_FACTOR = 3.0
+_SAMPLED_MERGE_FACTOR = 5.0
 
 
 class SpectralInferenceError(ValueError):
@@ -164,10 +166,28 @@ def hankel_matrices(
     return hankel, shifted, prefixes, suffixes
 
 
-def _select_rank(singular_values: np.ndarray, relative_threshold: float, min_singular_value: float) -> int:
+def _sampling_noise_floor(n_symbols: int, prefix_length: int, suffix_length: int, scale: float) -> float:
+    """Typical spectral norm of the Hankel estimation noise from ``n_symbols`` samples.
+
+    Each Hankel entry is an empirical block frequency with variance about
+    ``f(uv) / n``, and for fixed prefix and suffix lengths the block probabilities
+    sum to one, so the Frobenius norm of the noise is about
+    ``sqrt((prefix_length + 1) (suffix_length + 1) / n)``. ``scale`` multiplies it.
+    """
+    if n_symbols <= 0:
+        return float("inf")
+    return float(scale * np.sqrt((prefix_length + 1) * (suffix_length + 1) / n_symbols))
+
+
+def _select_rank(
+    singular_values: np.ndarray,
+    relative_threshold: float,
+    min_singular_value: float,
+    noise_floor: float = 0.0,
+) -> int:
     if singular_values.size == 0:
         return 1
-    cutoff = max(min_singular_value, relative_threshold * float(singular_values[0]))
+    cutoff = max(min_singular_value, relative_threshold * float(singular_values[0]), noise_floor)
     keep = int(np.count_nonzero(singular_values > cutoff))
     return max(1, keep)
 
@@ -210,6 +230,7 @@ def learn_spectral_wfa(
     suffix_length: int | None = None,
     singular_value_threshold: float = 1e-3,
     min_singular_value: float = 1e-12,
+    noise_scale: float = 1.0,
 ) -> QuasiRealization:
     """Learn a WFA / observable-operator model by Hankel-matrix SVD.
 
@@ -226,9 +247,11 @@ def learn_spectral_wfa(
     alphabet
         Observation alphabet. Inferred from ``sequences`` when omitted.
     rank
-        Number of latent states. When ``None`` the rank is chosen from the
-        singular-value spectrum (values exceeding
-        ``singular_value_threshold`` times the largest).
+        Number of latent states. When ``None`` the rank is the number of
+        singular values exceeding ``singular_value_threshold`` times the largest,
+        ``min_singular_value``, and -- for sampled data -- the sampling noise
+        floor ``noise_scale * sqrt((prefix_length + 1) (suffix_length + 1) / n)``
+        with ``n`` the number of observed symbols.
     prefix_length, suffix_length
         Maximum lengths of the prefix and suffix bases. ``suffix_length``
         defaults to ``prefix_length``. Larger values are the small-alphabet
@@ -237,6 +260,15 @@ def learn_spectral_wfa(
         Relative cutoff for automatic rank selection.
     min_singular_value
         Absolute floor below which singular values are treated as zero.
+    noise_scale
+        Multiplier of the sampling noise floor (ignored for exact
+        ``word_probability`` input). Each Hankel entry is a block frequency with
+        variance about ``f(uv) / n`` and, at fixed prefix and suffix lengths,
+        the ``f(uv)`` sum to one, so the noise matrix has Frobenius norm about
+        ``sqrt((prefix_length + 1) (suffix_length + 1) / n)``; singular values
+        below it are indistinguishable from sampling noise. The default ``1.0``
+        is conservative for i.i.d. and short-memory processes; lower it to keep
+        weak structure at small ``n``.
 
     Returns
     -------
@@ -280,7 +312,12 @@ def learn_spectral_wfa(
     if available == 0:
         raise SpectralInferenceError("Hankel matrix is numerically zero; no signal to learn")
     if rank is None:
-        rank = _select_rank(s_full, singular_value_threshold, min_singular_value)
+        noise_floor = (
+            0.0
+            if word_probability is not None
+            else _sampling_noise_floor(sum(len(seq) for seq in seqs), prefix_length, suffix_length, noise_scale)
+        )
+        rank = _select_rank(s_full, singular_value_threshold, min_singular_value, noise_floor)
     rank = max(1, min(int(rank), available))
 
     u_n = u_full[:, :rank]
@@ -458,6 +495,9 @@ def project_to_epsilon_machine(
     *,
     tol: float = 1e-8,
     max_states: int = 10_000,
+    belief_tolerance: float | None = None,
+    predictive_length: int | None = None,
+    mass_tolerance: float | None = None,
 ) -> Any:
     """Extract an ε-machine from a learned spectral model.
 
@@ -469,6 +509,16 @@ def project_to_epsilon_machine(
     predictively equivalent recurrent states :cite:`Ellison2009`. This is the
     computational-mechanics extraction, not a clustering heuristic.
 
+    Mixed states whose beliefs agree within ``belief_tolerance`` (max-norm) are
+    identified -- or, with ``predictive_length`` set, mixed states whose predicted
+    probabilities of all words of length ``1..predictive_length`` agree within
+    ``belief_tolerance`` -- and emissions with probability at most
+    ``mass_tolerance`` are dropped (also used as the clipping tolerance of the
+    non-negative projection). Both default to ``1e-6``, matching the belief
+    rounding, which suits operators learned from exact statistics; operators
+    estimated from samples need tolerances of the order of the estimation error
+    (see :func:`learn_epsilon_machine_spectral`).
+
     Raises
     ------
     SpectralInferenceError
@@ -478,9 +528,15 @@ def project_to_epsilon_machine(
     from sofic.generators.epsilon_machine import EpsilonMachine
 
     try:
-        mealy = project_to_mealy(qr, tol=tol, validate=True)
+        mealy = project_to_mealy(qr, tol=max(tol, mass_tolerance or 0.0), validate=True)
     except SpectralInferenceError:
-        mealy = _mealy_from_operator_mixed_states(qr, max_states=max_states)
+        mealy = _mealy_from_operator_mixed_states(
+            qr,
+            max_states=max_states,
+            tolerance=belief_tolerance,
+            predictive_length=predictive_length,
+            mass_tolerance=mass_tolerance,
+        )
     return EpsilonMachine.from_hmm(mealy)
 
 
@@ -489,8 +545,20 @@ def _mealy_from_operator_mixed_states(
     *,
     max_states: int = 10_000,
     decimals: int = _BELIEF_DECIMALS,
+    tolerance: float | None = None,
+    predictive_length: int | None = None,
+    mass_tolerance: float | None = None,
 ) -> Any:
-    """Build a unifilar Mealy HMM whose states are mixed states of ``qr``."""
+    """Build a unifilar Mealy HMM whose states are mixed states of ``qr``.
+
+    Mixed states are identified when their beliefs agree within ``tolerance``
+    (max-norm; default ``10**-decimals``), or -- with ``predictive_length`` set --
+    when their predicted probabilities of every word of length
+    ``1..predictive_length`` agree within ``tolerance``. The predictive comparison
+    does not depend on the arbitrary basis of the learned operators. Emissions with
+    probability at most ``mass_tolerance`` (default ``10**-decimals``, the belief
+    rounding) are dropped.
+    """
     from collections import deque
 
     from sofic.generators.mealy import MealyHMM
@@ -504,24 +572,56 @@ def _mealy_from_operator_mixed_states(
     if eta0 is None:
         raise SpectralInferenceError("degenerate initial vector; cannot extract mixed states")
 
+    if predictive_length:
+        # Columns are A_w tau for every word w of length 1..predictive_length.
+        columns = []
+        frontier = [tau]
+        for _ in range(predictive_length):
+            frontier = [maps[symbol] @ column for column in frontier for symbol in symbols]
+            columns.extend(frontier)
+        predictor = np.column_stack(columns)
+
+        def signature(state: MixedState) -> np.ndarray:
+            return state.as_array() @ predictor
+    else:
+
+        def signature(state: MixedState) -> np.ndarray:
+            return state.as_array()
+
     graph = TransitionGraph()
     discovered: dict[MixedState, MixedState] = {}
+    unique: list[MixedState] = []
+    beliefs = np.empty((max(1, min(max_states, 1024)), len(signature(eta0))), dtype=float)
     queue: deque[MixedState] = deque()
+    rounding = 10.0 ** (-decimals)
+    atol = rounding if tolerance is None else max(float(tolerance), rounding)
+    # Beliefs are rounded to ``decimals`` places, so emission probabilities computed
+    # from them carry errors of that order; smaller masses are rounding noise.
+    mass_atol = max(_MASS_ATOL, rounding, float(mass_tolerance or 0.0))
 
     def register(state: MixedState) -> MixedState:
+        nonlocal beliefs
         existing = discovered.get(state)
         if existing is not None:
             return existing
-        atol = 10 ** (-decimals)
-        for known in discovered:
-            if all(np.isclose(a, b, rtol=0.0, atol=atol) for a, b in zip(known.belief, state.belief, strict=True)):
+        key = signature(state)
+        if unique:
+            distance = np.max(np.abs(beliefs[: len(unique)] - key), axis=1)
+            nearest = int(np.argmin(distance))
+            if distance[nearest] <= atol * (1 + 1e-9):
+                known = unique[nearest]
                 discovered[state] = known
                 return known
-        if len(discovered) >= max_states:
+        if len(unique) >= max_states:
             raise SpectralInferenceError(
-                f"mixed-state extraction exceeded max_states={max_states}; "
-                "use project_to_nmachine for the signed observable-operator model"
+                f"mixed-state extraction exceeded max_states={max_states}: the learned operators do not "
+                "close on a finite set of mixed states (often noise kept by too high a rank). "
+                "Pass a smaller rank, use more data, or use project_to_nmachine for the signed model"
             )
+        if len(unique) == beliefs.shape[0]:
+            beliefs = np.vstack([beliefs, np.empty_like(beliefs)])
+        beliefs[len(unique)] = key
+        unique.append(state)
         discovered[state] = state
         graph.add_state(state)
         queue.append(state)
@@ -535,14 +635,14 @@ def _mealy_from_operator_mixed_states(
         for symbol in symbols:
             nxt = row @ maps[symbol]
             prob = float(nxt @ tau)
-            if prob <= _MASS_ATOL:
+            if prob <= mass_atol:
                 continue
             successor = MixedState.from_vector(nxt, decimals=decimals)
             if successor is None:
                 continue
             emissions.append((symbol, register(successor), prob))
         total = sum(prob for _symbol, _successor, prob in emissions)
-        if total <= _MASS_ATOL:
+        if total <= mass_atol:
             continue
         for symbol, successor, prob in emissions:
             graph.add_transition(
@@ -578,7 +678,9 @@ def learn_epsilon_machine_spectral(
     suffix_length: int | None = None,
     singular_value_threshold: float = 1e-3,
     min_singular_value: float = 1e-12,
-    max_states: int = 10_000,
+    max_states: int = 2_000,
+    noise_scale: float = 1.0,
+    belief_tolerance: float | None = None,
 ) -> EpsilonMachine:
     """Reconstruct an ε-machine by spectral learning then mixed-state extraction.
 
@@ -605,12 +707,37 @@ def learn_epsilon_machine_spectral(
     prefix_length, suffix_length
         Maximum lengths of the prefix and suffix bases. ``suffix_length``
         defaults to ``prefix_length``.
-    singular_value_threshold, min_singular_value
+    singular_value_threshold, min_singular_value, noise_scale
         Cutoffs for automatic rank selection; see
         :func:`~sofic.inference.spectral.learn_spectral_wfa`.
     max_states
-        Safety cap on enumerated mixed states.
+        Cap on enumerated mixed states; exceeding it raises
+        :class:`SpectralInferenceError` instead of enumerating indefinitely.
+    belief_tolerance
+        Mixed-state merge tolerance; see :func:`project_to_epsilon_machine`.
+        For exact ``word_probability`` input it defaults to ``1e-6`` on the
+        beliefs. For sampled input, mixed states are compared by their predicted
+        probabilities of all words up to ``suffix_length`` and the tolerance
+        defaults to ``5 * noise_scale / sqrt(n)`` for ``n`` observed symbols;
+        emissions with probability below ``3 * noise_scale / sqrt(n)`` (three
+        standard errors of a frequency estimated from ``n`` symbols) are
+        dropped. The larger merge factor allows for the error amplification of
+        the spectral estimate and the smaller effective sample of rarely visited
+        states. These constants were calibrated on the golden mean and even
+        processes; processes with emission probabilities near ``3 / sqrt(n)``
+        need more data or explicit tolerances.
     """
+    predictive_length = None
+    mass_tolerance = None
+    if word_probability is None and sequences is not None:
+        sequences = _normalize_sequences(sequences)
+        n_symbols = sum(len(seq) for seq in sequences)
+        if n_symbols:
+            predictive_length = suffix_length if suffix_length is not None else prefix_length
+            standard_error = noise_scale / np.sqrt(n_symbols)
+            mass_tolerance = _SAMPLED_MASS_FACTOR * standard_error
+            if belief_tolerance is None:
+                belief_tolerance = _SAMPLED_MERGE_FACTOR * standard_error
     model = learn_spectral_wfa(
         sequences,
         word_probability=word_probability,
@@ -620,5 +747,12 @@ def learn_epsilon_machine_spectral(
         suffix_length=suffix_length,
         singular_value_threshold=singular_value_threshold,
         min_singular_value=min_singular_value,
+        noise_scale=noise_scale,
     )
-    return project_to_epsilon_machine(model, max_states=max_states)
+    return project_to_epsilon_machine(
+        model,
+        max_states=max_states,
+        belief_tolerance=belief_tolerance,
+        predictive_length=predictive_length,
+        mass_tolerance=mass_tolerance,
+    )

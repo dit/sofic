@@ -32,7 +32,17 @@ implements the WFA recursion directly.
 
    spectral_singular_values(data, prefix_length=3)   # gap reveals the model order
    model = learn_spectral_wfa(data, prefix_length=3, rank=2)
-   model.word_probability((0, 1, 0))                 # WFA recursion pi @ A_0 A_1 A_0 @ tau
+   model.word_probability(("0", "1", "0"))           # WFA recursion pi @ A_0 A_1 A_0 @ tau
+
+Without an explicit ``rank``, the order is the number of Hankel singular values
+above ``singular_value_threshold`` times the largest and, for sampled data,
+above the sampling noise floor ``noise_scale * sqrt((prefix_length + 1)
+(suffix_length + 1) / n)`` for ``n`` observed symbols. Each Hankel entry is an
+empirical block frequency with variance about ``f(uv) / n``, and the ``f(uv)``
+of one prefix and suffix length sum to one, so this is the typical size of the
+noise matrix; a relative cutoff alone keeps noise singular values (about
+``0.003`` for the golden mean at ``n = 50000``). Exact ``word_probability``
+input has no noise floor.
 
 Small alphabets
 ===============
@@ -71,13 +81,22 @@ mixed-state enumeration of the observable operators
 :func:`~sofic.inference.spectral.learn_epsilon_machine_spectral` /
 ``EpsilonMachine.from_sequence(..., method="spectral")``.
 
+Learned from exact statistics, mixed states are rounded to six decimals and
+emissions of probability below ``1e-6`` are dropped as rounding noise. Learned
+from samples, the operators are only accurate to the sampling error, so mixed
+states are identified when their predicted probabilities of all words up to
+``suffix_length`` agree within ``5 / sqrt(n)`` and emissions below ``3 / sqrt(n)``
+are dropped (both scaled by ``noise_scale``, and the merge tolerance can be set
+with ``belief_tolerance``). Enumeration stops with
+:class:`SpectralInferenceError` after ``max_states`` mixed states.
+
 .. code-block:: python
 
    from sofic.inference.spectral import learn_epsilon_machine_spectral
    from sofic.examples import golden_mean
 
    process = golden_mean(0.5)
-   eps = learn_epsilon_machine_spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
+   eps = learn_epsilon_machine_spectral(word_probability=process.word_probability, alphabet=("0", "1"), prefix_length=3, rank=2)
    len(list(eps.states()))  # 2
 
 API

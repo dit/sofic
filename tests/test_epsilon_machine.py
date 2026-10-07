@@ -1,6 +1,6 @@
 """Tests for epsilon machine construction."""
 
-from sofic.examples.epsilon_machines import ellison_fig9_forward, golden_mean
+from sofic.examples import golden_mean, irreversible_two_state
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.reversal import time_reverse_stochastic
@@ -48,7 +48,7 @@ def test_from_hmm_merges_golden_mean_msp_to_two_states():
 
 
 def test_from_hmm_via_msp_on_nonunifilar_reverse():
-    forward = ellison_fig9_forward()
+    forward = irreversible_two_state()
     rev_hmm = time_reverse_stochastic(forward)
     direct = EpsilonMachine.from_hmm(rev_hmm)
     via_msp = EpsilonMachine.from_hmm(rev_hmm.mixed_state_presentation())
@@ -60,12 +60,12 @@ def test_from_hmm_via_msp_on_nonunifilar_reverse():
 def test_row_normalized_presentation_fallback():
     from unittest.mock import patch
 
-    from sofic.examples import golden_mean_forward
+    from sofic.examples import golden_mean
     from sofic.exceptions import UnifilarityError
     from sofic.generators.epsilon_machine import _row_normalized_presentation
     from sofic.generators.reversal import time_reverse_stochastic
 
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     rev_hmm = time_reverse_stochastic(forward)
     with patch.object(EpsilonMachine, "from_hmm", side_effect=UnifilarityError("non-unifilar")):
         eps = EpsilonMachine.from_time_reversed(forward)
@@ -120,11 +120,11 @@ def test_explosive_reverse_belief_set_does_not_close():
 
 
 def test_reverse_is_finite_decides_explosion():
-    from sofic.examples import golden_mean_forward
+    from sofic.examples import golden_mean
 
     assert not _explosive_forward().reverse_is_finite()
-    assert golden_mean_forward(0.5).reverse_is_finite()
-    assert ellison_fig9_forward().reverse_is_finite()
+    assert golden_mean(0.5).reverse_is_finite()
+    assert irreversible_two_state().reverse_is_finite()
 
 
 def test_reverse_is_finite_sees_parallel_pair_edges():
