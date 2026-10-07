@@ -23,7 +23,7 @@ from sofic.generators.prob import (
     sum_probs,
     zeros,
 )
-from sofic.generators.reversal import time_reverse_stochastic
+from sofic.generators.reversal import time_reverse_stochastic, warn_if_reverse_truncated
 from sofic.generators.stationary import (
     stationary_distribution_from_transition,
     stationary_distribution_hmm,
@@ -539,6 +539,7 @@ def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
     """
     rev_hmm = time_reverse_stochastic(forward)
     reverse = EpsilonMachine.from_hmm(rev_hmm)
+    warn_if_reverse_truncated(forward)
     return _relabel_collision_free(reverse, forward)
 
 

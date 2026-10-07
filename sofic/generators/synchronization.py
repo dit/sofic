@@ -222,7 +222,14 @@ def _bellman_ford_longest_transient_path(pa: PowerAutomaton) -> float:
 
 
 def markov_order_from_graph(graph: TopologicalUnifilarGraph) -> int | float:
-    """Longest prefix-free synchronizing word length (Markov order ``R``)."""
+    """Longest prefix-free synchronizing word length (Markov order ``R``).
+
+    Power-automaton subsets that can never synchronize are skipped, so the
+    result is the Markov order only for a minimal presentation (an
+    ε-machine, or a minimal right-resolving cover). On a non-minimal
+    presentation, equivalent states that no word separates can make it finite
+    even though some infinite words never fix the presentation state.
+    """
     if not graph.states:
         return 0
     pa = power_automaton(graph)
@@ -377,7 +384,8 @@ def is_definite_from_graph(graph: TopologicalUnifilarGraph) -> bool:
     state is fixed by the last ``R`` symbols regardless of the start state
     :cite:`Cerny1964`; this coincides with finite Markov order ``R`` for a
     right-resolving epsilon-machine :cite:`James2010`. Definiteness implies
-    exact synchronizability, but not conversely.
+    exact synchronizability, but not conversely. Like
+    :func:`markov_order_from_graph`, it assumes a minimal presentation.
     """
     return markov_order_from_graph(graph) != math.inf
 

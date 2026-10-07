@@ -54,13 +54,24 @@ brute-force reference or a closed-form value and has a regression test.
   `reverse()` returns the mirror-image shift; `from_adjacency` assigns symbols in
   sorted order and honors subclasses; the synchronization methods on
   `SoficShift` (`markov_order`, `reset_threshold`, ...) no longer raise
-  `AttributeError`.
+  `AttributeError`; the Fischer cover raises on reducible shifts instead of
+  returning a single terminal component; the Parry measure drops transient
+  states.
 - **Generators:** `cryptic_order` is 0 for zero-crypticity processes (even,
   periodic) via a new algorithm checked against brute force;
   `log_word_probability` no longer underflows; channel statistical complexity
   uses the driven process's occupation law (it was hash-seed dependent);
   mixed-state enumeration of infinite belief sets fails in under a second;
-  numeric stationary distributions warn when not unique.
+  numeric stationary distributions warn when not unique;
+  `EpsilonMachine.from_hmm` handles more than 26 causal states;
+  `word_probability` no longer returns 0 below 1e-15 (and
+  `conditional_word_probability` no longer raises `ZeroDivisionError` there);
+  `backward(normalize=True)` normalizes the final row; `reverse_is_finite` is
+  documented as deciding finiteness of the reverse mixed states, a sufficient
+  but not necessary condition for a finite reverse ε-machine (alternating
+  biased coins has infinitely many reverse beliefs but a two-state reverse
+  machine); `from_time_reversed` and `to_bidirectional` warn when numeric belief
+  merging returns a finite truncation of an infinite reverse machine.
 - **Inference:** Bayesian posterior machines start where the data start (they
   started in its final state, giving −∞ likelihoods and infinite BIC); WAIC
   scores from the stationary distribution; `learn_stack_hmm_mle` and the stack
@@ -75,6 +86,8 @@ brute-force reference or a closed-form value and has a regression test.
   `wheeler_index`, word counting, empty marks, `minimize_wheeler` on dead
   states, and `colex_width`; modular VPA `minimize` on valid well-matched VPAs;
   intersection, difference and complement with empty-language operands;
+  `complete()` no longer reuses an accepting trap left by a previous
+  complement (double complement could return the wrong language);
   `right_quotient` by the empty word; `sofic.automata.languages.residuals`
   callable again; IDFA enumeration includes missing transitions before the first
   flag (`count_accessible_idfa(2, 2)` is 45), which changes some canonical
@@ -88,13 +101,21 @@ brute-force reference or a closed-form value and has a regression test.
 - **Serialization and viz:** YAML stores observation, output and stack
   alphabets and supports sympy and `Fraction` values; `copy()` deep-copies
   attributes; Graphviz/TikZ node names are unique; TikZ escapes `^`, `~`, `\`
-  for math mode.
+  for math mode and handles newlines in labels; YAML uses libyaml's C loader
+  and dumper when available.
 
 ### New
 
 - Hypothesis strategies in `sofic.testing` for NFAs, Büchi automata and lassos,
   Wheeler NFAs, Markov chains, Mealy HMMs, sofic shifts, SFTs, VPAs, NWAs, and
   Mealy transducers; `ci` and `nightly` Hypothesis profiles (`HYPOTHESIS_PROFILE`).
+- Experimental `EpsilonMachine.reverse_epsilon_machine_is_finite()` (and
+  `sofic.generators.reversal.reverse_epsilon_machine_is_finite`): decides whether
+  the reverse ε-machine has finitely many *recurrent* causal states, which
+  `reverse_is_finite` only bounds from one side.
+- A property and metamorphic test suite (`tests/test_properties_*.py`) checking
+  shifts, generators, inference, automata, serialization, viz and examples
+  against brute-force oracles and invariants.
 
 ## 0.3.0
 

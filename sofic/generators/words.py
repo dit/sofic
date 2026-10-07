@@ -104,7 +104,7 @@ def _hmm_word_probability(
     for symbol in word:
         matrix = joint.get(symbol, zero)
         mass = mass @ matrix
-        if not np.any(np.abs(mass) > _TOL):
+        if not np.any(mass):
             return 0.0
     return float(mass.sum())
 
@@ -174,7 +174,7 @@ def _hmm_conditional_word_probability(
 ) -> float:
     """Return ``P(word | condition)`` from the requested start distribution."""
     condition_probability = _hmm_word_probability(hmm, condition, start=start)
-    if condition_probability <= _TOL:
+    if condition_probability <= 0.0:
         raise ZeroDivisionError("condition has zero probability")
     joint_word = tuple(condition) + tuple(word)
     return _hmm_word_probability(hmm, joint_word, start=start) / condition_probability
