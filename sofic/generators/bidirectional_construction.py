@@ -23,7 +23,7 @@ from sofic.generators.prob import (
     sum_probs,
     zeros,
 )
-from sofic.generators.reversal import time_reverse_stochastic
+from sofic.generators.reversal import time_reverse_stochastic, warn_if_reverse_truncated
 from sofic.generators.stationary import (
     stationary_distribution_from_transition,
     stationary_distribution_hmm,
@@ -389,6 +389,7 @@ def _joint_pi_minimum_support(
     *,
     tol: float = 1e-12,
     marginal_tol: float = 1e-6,
+    anatomy_tol: float = 1e-9,
 ) -> dict[tuple[Hashable, Hashable], Any]:
     """Pick the closed undirected component that is the true bidirectional class.
 
@@ -431,10 +432,12 @@ def _joint_pi_minimum_support(
         matching = [candidate for candidate in candidates if candidate[0] == 0.0]
     else:
         matching = [candidate for candidate in candidates if candidate[0] <= marginal_tol]
-    if matching:
-        best = min(matching, key=lambda candidate: (candidate[1], candidate[2]))
-    else:
-        best = min(candidates, key=lambda candidate: (candidate[0], candidate[1], candidate[2]))
+    pool = matching or [min(candidates, key=lambda candidate: candidate[0])]
+    # Anatomy gaps that agree to round-off are ties; comparing them exactly made
+    # the choice depend on the platform's floating-point kernels.
+    best_gap = min(candidate[1] for candidate in pool)
+    tied = [candidate for candidate in pool if candidate[1] <= best_gap + anatomy_tol]
+    best = min(tied, key=lambda candidate: (candidate[2], sorted(map(repr, candidate[3]))))
     return best[3]
 
 
@@ -539,6 +542,7 @@ def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
     """
     rev_hmm = time_reverse_stochastic(forward)
     reverse = EpsilonMachine.from_hmm(rev_hmm)
+    warn_if_reverse_truncated(forward)
     return _relabel_collision_free(reverse, forward)
 
 

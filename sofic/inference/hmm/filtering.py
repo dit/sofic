@@ -89,7 +89,7 @@ def backward(hmm: HiddenMarkovModel, observations: Sequence[Any], *, normalize: 
     n = next(iter(joint.values())).shape[0] if joint else len(_as_mealy_hmm(hmm).reindex())
     obs = list(observations)
     beta = np.zeros((len(obs) + 1, n), dtype=float)
-    beta[len(obs)] = 1.0
+    beta[len(obs)] = 1.0 / n if normalize and n else 1.0
     for t in range(len(obs) - 1, -1, -1):
         matrix = joint.get(obs[t])
         if matrix is None:

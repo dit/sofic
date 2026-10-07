@@ -142,8 +142,44 @@ def right_fischer_cover(shift: SoficShift) -> RightFischerCover:
     members = set(condensation.nodes[terminal[0]]["members"])
     if not any(classes[s] in members and delta[s] for s in delta):
         return RightFischerCover(symbol_alphabet=shift.symbol_alphabet)
+    if not _presents_every_word(frozenset(trimmed.states()), delta, classes, members):
+        raise SoficValidationError("the Fischer cover is defined for irreducible sofic shifts; this shift is reducible")
     vertices = [subset for subset in delta if classes[subset] in members]
     return _quotient_shift(RightFischerCover, shift, vertices, delta, classes)
+
+
+def _presents_every_word(
+    start: Subset,
+    delta: dict[Subset, dict[Any, Subset]],
+    classes: dict[Subset, int],
+    members: set[int],
+) -> bool:
+    """Whether the terminal component reads every word the whole presentation reads.
+
+    A unique terminal component does not make the shift irreducible (``0^inf``,
+    ``1^inf`` and ``0...01...1`` have one), but the shift is irreducible exactly
+    when that component presents all of it. Both sides are deterministic, so
+    walk their product from (all vertices, all component classes).
+    """
+    moves: dict[int, dict[Any, int]] = defaultdict(dict)
+    for subset, edges in delta.items():
+        if classes[subset] in members:
+            for symbol, target in edges.items():
+                moves[classes[subset]][symbol] = classes[target]
+    initial = (start, frozenset(members))
+    seen = {initial}
+    queue = deque([initial])
+    while queue:
+        subset, component = queue.popleft()
+        for symbol, target in delta[subset].items():
+            following = frozenset(moves[c][symbol] for c in component if symbol in moves[c])
+            if not following:
+                return False
+            pair = (target, following)
+            if pair not in seen:
+                seen.add(pair)
+                queue.append(pair)
+    return True
 
 
 def left_fischer_cover(shift: SoficShift) -> LeftFischerCover:

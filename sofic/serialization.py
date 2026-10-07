@@ -30,6 +30,10 @@ SCHEMA = "sofic.model"
 VERSION = 1
 _TYPE_KEY = "__sofic_type__"
 
+# libyaml's C implementations are ~10x faster on large models; same safe subset.
+_SafeLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+_SafeDumper = getattr(yaml, "CSafeDumper", yaml.SafeDumper)
+
 
 @dataclass(frozen=True, slots=True)
 class _ModelSpec:
@@ -40,12 +44,12 @@ class _ModelSpec:
 
 def model_to_yaml(model: StateMachine) -> str:
     """Return a YAML representation of ``model``."""
-    return yaml.safe_dump(model_to_dict(model), sort_keys=False)
+    return yaml.dump(model_to_dict(model), Dumper=_SafeDumper, sort_keys=False)
 
 
 def model_from_yaml(text: str, *, validate: bool = True) -> StateMachine:
     """Reconstruct a sofic model from YAML text."""
-    loaded = yaml.safe_load(text)
+    loaded = yaml.load(text, Loader=_SafeLoader)
     if not isinstance(loaded, dict):
         raise TypeError("sofic model YAML must load to a mapping")
     return model_from_dict(loaded, validate=validate)

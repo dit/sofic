@@ -37,10 +37,22 @@ def trim(aut: L) -> L:  # noqa: UP047 - keep Python 3.11 compatibility.
 
 def complete(dfa: DFA, alphabet: frozenset[Any] | None = None) -> DFA:
     """Add a trap state so every state has one outgoing transition per symbol."""
+    return _complete_with_trap(dfa, alphabet)[0]
+
+
+def _complete_with_trap(dfa: DFA, alphabet: frozenset[Any] | None = None) -> tuple[DFA, Hashable | None]:
+    """Complete ``dfa``; also return the trap state if it was newly added.
+
+    An existing ``_TRAP`` state is reused only while it is still a rejecting
+    sink: a complemented DFA keeps its trap but makes it accepting.
+    """
     symbols = alphabet if alphabet is not None else _effective_alphabet(dfa)
     result = dfa.copy()
-    trap = _TRAP
-    if trap not in result.graph.nx:
+    trap: Hashable = _TRAP
+    if trap in result.graph.nx and not _is_rejecting_sink(result, trap):
+        trap = Sentinel("trap")
+    added = trap not in result.graph.nx
+    if added:
         result.graph.add_state(trap)
 
     for state in list(result.states()):
@@ -51,11 +63,18 @@ def complete(dfa: DFA, alphabet: frozenset[Any] | None = None) -> DFA:
                 result.add_transition(state, trap, symbol)
 
     for symbol in symbols:
-        result.add_transition(trap, trap, symbol)
+        if not result.delta(trap, symbol):
+            result.add_transition(trap, trap, symbol)
 
     if symbols:
         result.input_alphabet = frozenset(symbols) | result.input_alphabet
-    return result
+    return result, trap if added else None
+
+
+def _is_rejecting_sink(dfa: DFA, state: Hashable) -> bool:
+    return state not in dfa.accepting_states and all(
+        transition.target == state for transition in dfa.graph.out_transitions(state)
+    )
 
 
 def reverse(aut: NFA | DFA) -> NFA:
@@ -160,13 +179,13 @@ def nerode_partition(
     -- need that distinction.
     """
     symbols = alphabet if alphabet is not None else _effective_alphabet(dfa)
-    work = complete(dfa, symbols)
+    work, trap = _complete_with_trap(dfa, symbols)
     states = sorted(work.states(), key=repr)
     if not states:
         return ()
 
     partition = _moore_refine(work, states, symbols)
-    blocks = (frozenset(block) - {_TRAP} for block in partition)
+    blocks = (frozenset(block) - {trap} for block in partition)
     return tuple(block for block in blocks if block)
 
 

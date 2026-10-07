@@ -34,22 +34,29 @@ def is_markov_like(model: StateMachine) -> bool:
 
 
 def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
-    """Decide whether the reverse ε-machine of a unifilar ``model`` has finitely many states.
+    """Decide whether the reverse mixed-state presentation of a unifilar ``model`` is finite.
 
     A finite forward ε-machine does not imply a finite reverse one
     (:cite:`Ellison2011`). Because the
-    seed belief is uniform and ``model`` is unifilar, the retrodictive causal
-    states are exactly the normalized vectors :math:`(\\Pr(x \\mid s))_{s}` over
-    all words :math:`x`, so the reverse machine is finite iff every
-    log-likelihood ratio :math:`\\log \\Pr(x \\mid s) - \\log \\Pr(x \\mid s')`
-    takes finitely many values.
+    seed belief is uniform and ``model`` is unifilar, the reverse mixed states
+    -- the retrodictive beliefs after finitely many symbols, transient and
+    recurrent -- are exactly the normalized vectors
+    :math:`(\\Pr(x \\mid s))_{s}` over all words :math:`x`, so they are finite
+    iff every log-likelihood ratio
+    :math:`\\log \\Pr(x \\mid s) - \\log \\Pr(x \\mid s')` takes finitely many
+    values.
+
+    ``True`` implies a finite reverse ε-machine. ``False`` does not imply an
+    infinite one: infinitely many transient beliefs may converge to finitely
+    many recurrent causal states. Alternating biased coins is an example -- its
+    likelihood ratio diverges, yet its reverse ε-machine has two states.
 
     Reading a symbol ``a`` moves the pair ``(s, s')`` to
     ``(delta(s, a), delta(s', a))`` and multiplies the ratio by
     ``p(a|s) / p(a|s')``. Placing that weight on the pair graph over
     ``states x states`` gives
 
-        the reverse ε-machine is finite
+        the reverse mixed states are finite
           iff every directed cycle of the pair graph has weight one.
 
     A cycle of weight :math:`\\gamma \\neq 1` traversed :math:`k` times yields
@@ -82,6 +89,65 @@ def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
     transition structure can differ, since a cycle weight can equal one by
     algebraic coincidence.
     """
+    _pair_graph, inconsistent = _inconsistent_pair_components(model, rtol=rtol)
+    return not inconsistent
+
+
+def reverse_epsilon_machine_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
+    """Decide whether the reverse ε-machine of a unifilar ``model`` has finitely many recurrent states.
+
+    .. warning::
+       Experimental. The criterion below has a proof sketch and agrees with
+       sampled posterior limits on every strongly connected 3-state binary
+       machine tested, but it has not been published.
+
+    :func:`reverse_is_finite` tests the stronger property that *every* reverse
+    belief after finitely many symbols is one of finitely many. A pair of
+    forward states ``(s, s')`` whose paths never merge has a log-likelihood
+    ratio that diverges almost surely, sending the posterior to a face of the
+    simplex; those infinitely many transient beliefs leave no recurrent trace.
+    Infinitely many recurrent states need a ratio that grows around a cycle and
+    is then *frozen* by the two paths merging, so
+
+        the reverse ε-machine is finite
+          iff no strongly connected component of the pair graph that contains
+          a cycle of weight other than one can reach the diagonal.
+
+    If such a component exists, traversing its cycle ``k`` times and then
+    merging happens with positive probability and freezes the ratio at
+    :math:`c \\gamma^k`, a distinct recurrent belief for each ``k``. If none
+    exists, merging pairs only cross components with consistent potentials, so
+    their frozen ratios take finitely many values. :cite:`Ellison2011`'s
+    explosive example and the single-atom binary witness fail it; alternating
+    biased coins passes it although :func:`reverse_is_finite` is ``False``.
+    """
+    import networkx as nx
+
+    pair_graph, inconsistent = _inconsistent_pair_components(model, rtol=rtol)
+    if not inconsistent:
+        return True
+    diagonal = [node for node in pair_graph.nodes if node[0] == node[1]]
+    can_merge = set(diagonal)
+    for node in diagonal:
+        can_merge |= nx.ancestors(pair_graph, node)
+    return not any(component & can_merge for component in inconsistent)
+
+
+def warn_if_reverse_truncated(forward: StateMachine, *, stacklevel: int = 3) -> None:
+    """Warn when a numerically built reverse ε-machine must be a finite truncation."""
+    import warnings
+
+    if not reverse_epsilon_machine_is_finite(forward):
+        warnings.warn(
+            "the reverse ε-machine of this process is infinite; the returned machine merges "
+            "beliefs within numerical tolerance and is a finite approximation",
+            RuntimeWarning,
+            stacklevel=stacklevel,
+        )
+
+
+def _inconsistent_pair_components(model: StateMachine, *, rtol: float) -> tuple[Any, list[set[Any]]]:
+    """Return the pair graph and its strongly connected components with a non-unit cycle."""
     import math
 
     import networkx as nx
@@ -126,6 +192,7 @@ def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
             return is_zero(simplify_prob(left - right))
         return abs(left - right) <= rtol
 
+    inconsistent: list[set[Any]] = []
     for component in nx.strongly_connected_components(pair_graph):
         if len(component) == 1:
             node = next(iter(component))
@@ -141,10 +208,12 @@ def reverse_is_finite(model: StateMachine, *, rtol: float = 1e-9) -> bool:
                 if successor not in potential:
                     potential[successor] = combine(potential[current], data["weight"])
                     stack.append(successor)
-        for source, target, data in sub.edges(data=True):
-            if not agrees(combine(potential[source], data["weight"]), potential[target]):
-                return False
-    return True
+        if any(
+            not agrees(combine(potential[source], data["weight"]), potential[target])
+            for source, target, data in sub.edges(data=True)
+        ):
+            inconsistent.append(set(component))
+    return pair_graph, inconsistent
 
 
 def time_reverse_stochastic(model: S) -> S:  # noqa: UP047 - keep Python 3.11 compatibility.
