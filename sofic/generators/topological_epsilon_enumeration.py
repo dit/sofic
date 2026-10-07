@@ -11,15 +11,15 @@ from collections.abc import Hashable, Iterator, Mapping, Sequence
 
 import numpy as np
 
-from sofic.automata.idfa import (
+from sofic.automata.enumeration.idfa import (
     MISSING_TRANSITION,
     IDFAEnumerationError,
     _delta_table,
     idfa_string_to_topological_graph,
+    idfa_transition_count,
     iter_idfa_strings,
     rank_idfa_string,
     reroot_idfa_string,
-    transition_count,
     validate_idfa_string,
 )
 from sofic.exceptions import SoficValidationError
@@ -128,7 +128,7 @@ def epsilon_machine_to_idfa_string(
     """Encode an ε-machine as an incomplete accessible DFA transition string.
 
     Probabilities are ignored.  Missing symbol transitions are encoded with
-    :data:`sofic.automata.idfa.MISSING_TRANSITION`.  If ``canonical`` is true,
+    :data:`sofic.automata.enumeration.idfa.MISSING_TRANSITION`.  If ``canonical`` is true,
     all states are tried as roots and the rank-minimal IDFA string is returned.
     Otherwise, the first state in deterministic label order is used as the root.
     """
@@ -274,7 +274,7 @@ def is_topological_epsilon_string(
 ) -> bool:
     """Return whether ``transitions`` passes the structural ε-machine tests."""
     validate_idfa_string(transitions, n=n, k=k)
-    defined = transition_count(transitions)
+    defined = idfa_transition_count(transitions)
     if defined < n:
         return False
     if n > 1 and defined >= n * k:

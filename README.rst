@@ -171,7 +171,7 @@ read off computational-mechanics quantities:
    from sofic import EpsilonMachine
 
    eps = EpsilonMachine.from_hmm(gm)          # minimize an HMM presentation
-   # eps = EpsilonMachine.from_sequence(data, method="cssr", Lmax=4)  # infer
+   # eps = EpsilonMachine.from_sequence(data, method="cssr", max_history=4)  # infer
    # eps = EpsilonMachine.from_sequence(data, method="spectral", prefix_length=3, rank=2)
 
    eps.statistical_complexity()   # 0.9183 bits  (C_mu)

@@ -35,19 +35,19 @@ class TextileSystem:
         """Return the underlying Mealy machine."""
         return self._transducer.copy()
 
-    def to_sofic_relation(self) -> Any:
+    def to_product_alphabet_shift(self) -> Any:
         """Return the product-alphabet subshift of paired labels."""
-        from sofic.shifts.sofic_relation import SoficRelation
+        from sofic.shifts.product_alphabet_shift import ProductAlphabetShift
 
-        return SoficRelation.from_transducer(self._transducer)
+        return ProductAlphabetShift.from_transducer(self._transducer)
 
     def input_shift(self) -> SoficShift:
         """Return the input subshift (``p`` labeling)."""
-        return self.to_sofic_relation().input_shift()
+        return self.to_product_alphabet_shift().input_shift()
 
     def output_shift(self) -> SoficShift:
         """Return the output subshift (``q`` labeling)."""
-        return self.to_sofic_relation().output_shift()
+        return self.to_product_alphabet_shift().output_shift()
 
     def induced_code(self, *, max_window: int = 4) -> SlidingBlockCode:
         """Return the induced sliding block code (memory only), if it has finite window.

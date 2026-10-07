@@ -120,7 +120,7 @@ forward and reverse structural ephemeral branches match.
 
 .. ipython::
 
-   In [1]: from sofic.examples import nemo_process, NRPS
+   In [1]: from sofic.examples import nemo_process, noisy_random_phase_slip
 
    In [2]: nemo = nemo_process().to_bidirectional()
 
@@ -128,7 +128,7 @@ forward and reverse structural ephemeral branches match.
    In [3]: round(nemo.internal_markov_entropy_rate(), 6), round(nemo.reverse_internal_markov_entropy_rate(), 6)
    Out[3]: (0.5, 0.5)
 
-   In [4]: nrps = NRPS().to_bidirectional()
+   In [4]: nrps = noisy_random_phase_slip().to_bidirectional()
 
    # An arrow of time (r_fwd != r_rev): forward and reverse chain rates differ.
    In [5]: round(nrps.internal_markov_entropy_rate(), 6), round(nrps.reverse_internal_markov_entropy_rate(), 6)

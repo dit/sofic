@@ -4,7 +4,7 @@ Following Barnett & Crutchfield (J. Stat. Phys. 161:2 (2015)), a transducer's
 structural quantities are defined relative to a driving input process. Each
 measure here drives the transducer with a supplied input generator, forms the
 joint ``(input, output)`` process via
-:func:`~sofic.automata.transducer_operations.compose_tg`, and reads off the
+:func:`~sofic.automata.transducer_operations.compose_transducer_generator`, and reads off the
 quantity -- reusing the directional-flow estimators in
 :mod:`sofic.generators.directional_flow`.
 """
@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 
 def driven_joint_generator(transducer: MealyMachine, input_process: HiddenMarkovModel) -> MealyHMM:
     """Return the joint ``(input, output)`` generator induced by ``input_process``."""
-    from sofic.automata.transducer_operations import compose_tg
+    from sofic.automata.transducer_operations import compose_transducer_generator
 
-    return compose_tg(transducer, input_process, joint=True)
+    return compose_transducer_generator(transducer, input_process, joint=True)
 
 
 def channel_statistical_complexity(transducer: MealyMachine, input_process: HiddenMarkovModel) -> float:
@@ -35,6 +35,8 @@ def channel_statistical_complexity(transducer: MealyMachine, input_process: Hidd
     ``S`` is the transducer's causal-state component of the driven joint process,
     weighted by its stationary occupation distribution.
     """
+    from sofic.generators.stochastic import shannon_entropy
+
     joint = driven_joint_generator(transducer, input_process)
     idx = joint.reindex()
     if len(idx) == 0:
@@ -44,11 +46,7 @@ def channel_statistical_complexity(transducer: MealyMachine, input_process: Hidd
     for state, weight in zip(idx.states, pi, strict=True):
         transducer_state = state[1] if isinstance(state, tuple) and len(state) == 2 else state
         mass[transducer_state] += float(weight)
-    probs = np.array([value for value in mass.values() if value > 0.0], dtype=float)
-    if probs.size == 0:
-        return 0.0
-    probs = probs / probs.sum()
-    return float(-(probs * np.log2(probs)).sum())
+    return shannon_entropy(mass.values(), normalize=True)
 
 
 def driven_entropy_rate(transducer: MealyMachine, input_process: HiddenMarkovModel) -> float:

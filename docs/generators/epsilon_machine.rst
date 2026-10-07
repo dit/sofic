@@ -87,7 +87,7 @@ structure can differ, because a cycle weight may equal one only by algebraic
 coincidence in the probabilities.
 
 See also :doc:`bidirectional_epsilon_machine`, :doc:`information_anatomy`,
-:doc:`block_convergence`, and :doc:`epsilon_inference` (sample-based reconstruction).
+:doc:`block_convergence`, and :doc:`../inference/cssr` (sample-based reconstruction).
 
 API
 ===

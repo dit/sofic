@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from fractions import Fraction
 from typing import Any
 
 from sofic.viz import _labels
-from sofic.viz._rational import two_digit_rational
 
 
 def dot_escape(text: str) -> str:
@@ -34,42 +34,26 @@ def format_prob(value: float, *, precision: int = 3) -> str:
     return dot_escape(f"{value:.{precision}g}")
 
 
+def _dot_fraction(frac: Fraction) -> str:
+    return dot_escape(f"{frac.numerator}/{frac.denominator}")
+
+
+def _dot_sympy(expr: Any) -> str:
+    import sympy as sp
+
+    return dot_escape(sp.sstr(expr))
+
+
 def format_prob_rational(value: float, *, precision: int = 3) -> str:
     """Format a probability as p/q when exact with two-digit numerator and denominator."""
-    if value <= 0.0:
-        return "0"
-    if value >= 1.0:
-        return "1"
-    frac = two_digit_rational(value)
-    if frac is not None:
-        if frac.numerator == frac.denominator:
-            return "1"
-        return dot_escape(f"{frac.numerator}/{frac.denominator}")
-    return format_prob(value, precision=precision)
+    return format_prob_label(float(value), precision=precision)
 
 
 def format_prob_label(value: Any, *, precision: int = 3) -> str:
     """Format a probability for Graphviz edge/π labels (float or sympy Expr)."""
-    try:
-        from sofic.generators.prob import is_symbolic, simplify_prob
-    except ImportError:  # pragma: no cover
-
-        def is_symbolic(_v: Any) -> bool:
-            return False
-
-        def simplify_prob(v: Any) -> Any:
-            return v
-
-    if is_symbolic(value):
-        simplified = simplify_prob(value)
-        try:
-            import sympy as sp
-
-            text = sp.sstr(simplified)
-        except Exception:
-            text = str(simplified)
-        return dot_escape(text)
-    return format_prob_rational(float(value), precision=precision)
+    return _labels.format_prob(
+        value, escape=dot_escape, fraction=_dot_fraction, symbolic=_dot_sympy, precision=precision
+    )
 
 
 def format_distribution(dist: Mapping[Any, Any], *, precision: int = 3) -> str:

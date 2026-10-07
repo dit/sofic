@@ -1,7 +1,49 @@
 """Finite automata and transducers."""
 
 # ``atomaton`` is an intentional pun on atomic automaton.
-from sofic.automata.active import (
+from sofic.automata.algorithms import (
+    MinimizationAlgorithm,
+    complete,
+    determinize,
+    equivalent,
+    minimize,
+    trim,
+)
+from sofic.automata.base import LabeledAutomaton
+from sofic.automata.buchi import BuchiAutomaton
+from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+from sofic.automata.dfa import DFA
+from sofic.automata.enumeration.icdfa import (
+    ICDFAString,
+    count_icdfa,
+    count_icdfa_empty,
+    dfa_to_icdfa_string,
+    first_icdfa_empty_string,
+    icdfa_count_flag_sequences,
+    icdfa_flags_from_string,
+    icdfa_next_flags,
+    icdfa_string_from_flags,
+    icdfa_string_to_dfa,
+    iter_icdfa,
+    iter_icdfa_empty_strings,
+    last_icdfa_empty_string,
+    next_icdfa_empty_string,
+    validate_icdfa_empty_string,
+)
+from sofic.automata.enumeration.idfa import (
+    MISSING_TRANSITION,
+    count_accessible_idfa,
+    first_idfa_string,
+    iter_idfa_strings,
+    rank_idfa_string,
+    reroot_idfa_string,
+    unrank_idfa_string,
+    validate_idfa_string,
+)
+from sofic.automata.languages import AutomatonLanguage, RegularLanguage
+from sofic.automata.learning.active import (
+    AutomatonEquivalenceOracle,
     EquivalenceOracle,
     ExhaustiveEquivalenceOracle,
     FunctionMealyOracle,
@@ -19,63 +61,23 @@ from sofic.automata.active import (
     learn_mealy_from_transducer,
     learn_mealy_lstar,
 )
-from sofic.automata.alergia import learn_pfa_alergia
-from sofic.automata.algorithms import (
-    MinimizationAlgorithm,
-    complete,
-    determinize,
-    equivalent,
-    minimize,
-    trim,
-)
-from sofic.automata.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
-from sofic.automata.base import LabeledAutomaton
-from sofic.automata.buchi import BuchiAutomaton
-from sofic.automata.dfa import DFA
-from sofic.automata.dfasat import learn_dfa_sat
-from sofic.automata.edsm import learn_dfa_edsm
-from sofic.automata.icdfa import (
-    ICDFAString,
-    count_flag_sequences,
-    count_icdfa,
-    count_icdfa_empty,
-    dfa_to_icdfa_string,
-    first_icdfa_empty_string,
-    flags_from_string,
-    icdfa_string_to_dfa,
-    iter_icdfa,
-    iter_icdfa_empty_strings,
-    last_icdfa_empty_string,
-    next_flags,
-    next_icdfa_empty_string,
-    string_from_flags,
-    validate_icdfa_empty_string,
-)
-from sofic.automata.idfa import (
-    MISSING_TRANSITION,
-    count_accessible_idfa,
-    first_idfa_string,
-    iter_idfa_strings,
-    rank_idfa_string,
-    reroot_idfa_string,
-    unrank_idfa_string,
-    validate_idfa_string,
-)
-from sofic.automata.languages import AutomatonLanguage, RegularLanguage
-from sofic.automata.nfa import NFA
-from sofic.automata.nwa import NestedWord, NestedWordAutomaton
-from sofic.automata.observation import ObservationTable
-from sofic.automata.papni import (
+from sofic.automata.learning.alergia import learn_pfa_alergia
+from sofic.automata.learning.dfasat import learn_dfa_sat
+from sofic.automata.learning.edsm import learn_dfa_edsm
+from sofic.automata.learning.nlstar import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
+from sofic.automata.learning.observation import ObservationTable
+from sofic.automata.learning.papni import (
     DyckAlphabet,
+    encode_dyck_samples,
+    encode_dyck_word,
     is_well_matched,
     learn_sofic_dyck_shift_papni,
-    papni_encode,
-    papni_encode_samples,
     sofic_dyck_shift_from_papni_dfa,
 )
+from sofic.automata.learning.rpni import learn_dfa_rpni
+from sofic.automata.nfa import NFA
+from sofic.automata.nwa import NestedWord, NestedWordAutomaton
 from sofic.automata.regex import automaton_to_regex
-from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
-from sofic.automata.rpni import learn_dfa_rpni
 from sofic.automata.subsequential import (
     SubsequentialTransducer,
     WeightedFiniteStateTransducer,
@@ -83,48 +85,42 @@ from sofic.automata.subsequential import (
 from sofic.automata.transducer_operations import (
     ERROR_STATE,
     ERROR_SYMBOL,
-    cartesian_product_gg,
-    cartesian_product_tt,
-    compose_tg,
-    compose_tt,
+    compose_transducer_generator,
+    compose_transducers,
+    generator_product,
     transduce_generator,
+    transducer_product,
 )
 from sofic.automata.transducers import MealyMachine, MooreMachine, Transducer
 from sofic.automata.unifilar import UnifilarAutomaton
 from sofic.automata.vpa import (
-    CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
-    CompositeVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
+    ModularVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
-    complement_vpa,
-    concat_vpa,
-    difference_vpa,
-    intersection_vpa,
-    kleene_star_vpa,
-    union_vpa,
 )
 from sofic.automata.wheeler import (
     WheelerError,
     WheelerOrder,
     colex_width,
+    determinize_wheeler,
     is_input_consistent,
     is_wheeler,
     maximum_colex_relation,
-    minimum_wdfa,
+    minimize_wheeler,
     wheeler_canonical_form,
     wheeler_isomorphic,
     wheeler_order,
     wheeler_state_index,
-    wnfa_to_wdfa,
 )
 from sofic.automata.wheeler_index import WheelerIndex, wheeler_index
 
 __all__ = [
     "Atomaton",
     "AtomicAutomaton",
+    "AutomatonEquivalenceOracle",
     "AutomatonLanguage",
     "BuchiAutomaton",
     "EquivalenceOracle",
@@ -138,10 +134,9 @@ __all__ = [
     "MembershipOracle",
     "RandomWalkEquivalenceOracle",
     "TransducerOutputOracle",
-    "CallDrivenAutomaton",
+    "ModularVisiblyPushdownAutomaton",
     "CanonicalVisiblyPushdownAutomaton",
     "CanonicalRFSA",
-    "CompositeVisiblyPushdownAutomaton",
     "DFA",
     "DeterministicVisiblyPushdownAutomaton",
     "DyckAlphabet",
@@ -171,26 +166,22 @@ __all__ = [
     "VisiblyPushdownAutomaton",
     "automaton_to_regex",
     "colex_width",
-    "cartesian_product_gg",
-    "cartesian_product_tt",
-    "complement_vpa",
-    "compose_tg",
-    "compose_tt",
-    "concat_vpa",
+    "generator_product",
+    "transducer_product",
+    "compose_transducer_generator",
+    "compose_transducers",
     "complete",
     "count_accessible_idfa",
-    "count_flag_sequences",
+    "icdfa_count_flag_sequences",
     "count_icdfa",
     "count_icdfa_empty",
     "determinize",
-    "difference_vpa",
     "dfa_to_icdfa_string",
     "equivalent",
     "first_icdfa_empty_string",
     "first_idfa_string",
-    "flags_from_string",
+    "icdfa_flags_from_string",
     "icdfa_string_to_dfa",
-    "intersection_vpa",
     "is_input_consistent",
     "is_well_matched",
     "is_wheeler",
@@ -199,7 +190,6 @@ __all__ = [
     "iter_idfa_strings",
     "last_icdfa_empty_string",
     "MISSING_TRANSITION",
-    "kleene_star_vpa",
     "learn_dfa_edsm",
     "learn_dfa_from_language",
     "learn_dfa_lstar",
@@ -209,22 +199,24 @@ __all__ = [
     "learn_mealy_from_transducer",
     "learn_mealy_lstar",
     "learn_pfa_alergia",
+    "learn_prime_atomaton_nlstar",
+    "learn_rfsa_from_language",
+    "learn_rfsa_nlstar",
     "learn_sofic_dyck_shift_papni",
     "maximum_colex_relation",
     "minimize",
-    "minimum_wdfa",
-    "next_flags",
+    "minimize_wheeler",
+    "icdfa_next_flags",
     "next_icdfa_empty_string",
-    "papni_encode",
-    "papni_encode_samples",
+    "encode_dyck_word",
+    "encode_dyck_samples",
     "rank_idfa_string",
     "reroot_idfa_string",
     "sofic_dyck_shift_from_papni_dfa",
-    "string_from_flags",
+    "icdfa_string_from_flags",
     "trim",
     "transduce_generator",
     "unrank_idfa_string",
-    "union_vpa",
     "validate_idfa_string",
     "validate_icdfa_empty_string",
     "wheeler_canonical_form",
@@ -232,5 +224,5 @@ __all__ = [
     "wheeler_isomorphic",
     "wheeler_order",
     "wheeler_state_index",
-    "wnfa_to_wdfa",
+    "determinize_wheeler",
 ]

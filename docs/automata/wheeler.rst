@@ -71,7 +71,7 @@ What the order buys
   uses this to replace ``2^n`` subsets with ``n(n+1)/2`` intervals, which makes
   the Markov order, cryptic order, and reset threshold polynomial.
 * Determinization to at most ``2n - 1 - |Sigma|`` states
-  (:func:`wnfa_to_wdfa`) and a unique minimal WDFA (:func:`minimum_wdfa`),
+  (:func:`determinize_wheeler`) and a unique minimal WDFA (:func:`minimize_wheeler`),
   both of which fail for general automata.
 * A succinct index — see below.
 
@@ -100,8 +100,8 @@ Width
 Canonical forms and minimization
 ================================
 
-.. autofunction:: minimum_wdfa
-.. autofunction:: wnfa_to_wdfa
+.. autofunction:: minimize_wheeler
+.. autofunction:: determinize_wheeler
 .. autofunction:: wheeler_canonical_form
 .. autofunction:: wheeler_isomorphic
 .. autofunction:: wheeler_state_index

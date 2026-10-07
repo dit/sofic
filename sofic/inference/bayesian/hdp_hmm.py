@@ -47,7 +47,7 @@ class HDPHMMPosterior:
     state_counts
         Number of occupied states in each retained draw (``len == len(samples)``).
     log_likelihoods
-        Data log-likelihood (natural log) of each retained draw.
+        Data log-likelihood (bits) of each retained draw.
     alphabet
         Sorted observation alphabet used by the sampler.
     """
@@ -110,7 +110,7 @@ def _ffbs(
     emit: np.ndarray,
     rng: np.random.Generator,
 ) -> tuple[np.ndarray, float]:
-    """Forward-filter backward-sample one sequence; return states and log-likelihood."""
+    """Forward-filter backward-sample one sequence; return states and log-likelihood (bits)."""
     n_states = trans.shape[0]
     length = obs_idx.shape[0]
     alpha = np.empty((length, n_states))
@@ -122,7 +122,7 @@ def _ffbs(
         weights = emit[:, obs_idx[0]].copy()
         scale = weights.sum()
     alpha[0] = weights / scale
-    loglik += np.log(scale)
+    loglik += np.log2(scale)
 
     for t in range(1, length):
         predicted = alpha[t - 1] @ trans
@@ -132,7 +132,7 @@ def _ffbs(
             weights = emit[:, obs_idx[t]].copy()
             scale = weights.sum()
         alpha[t] = weights / scale
-        loglik += np.log(scale)
+        loglik += np.log2(scale)
 
     states = np.empty(length, dtype=int)
     states[length - 1] = rng.choice(n_states, p=alpha[length - 1])

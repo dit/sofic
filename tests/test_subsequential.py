@@ -5,7 +5,7 @@ import math
 import pytest
 
 from sofic.automata.subsequential import SubsequentialTransducer, WeightedFiniteStateTransducer
-from sofic.examples.processes import BinaryChannel, BitFlip
+from sofic.examples.processes import binary_channel, bit_flip
 from sofic.exceptions import SoficValidationError
 from sofic.properties import is_sequential_transducer, is_subsequential_transducer
 
@@ -44,27 +44,27 @@ def test_subsequential_rejects_nondeterministic():
 
 
 def test_wfst_probability_weight():
-    w = WeightedFiniteStateTransducer.from_transducer(BinaryChannel(0.1, 0.2), semiring="probability")
+    w = WeightedFiniteStateTransducer.from_transducer(binary_channel(0.1, 0.2), semiring="probability")
     assert w.weight(["0"], ["0"]) == pytest.approx(0.9)
     assert w.weight(["0"], ["1"]) == pytest.approx(0.1)
     assert w.weight(["0", "1"], ["0", "1"]) == pytest.approx(0.9 * 0.8)
 
 
 def test_wfst_tropical_weight():
-    w = WeightedFiniteStateTransducer.from_transducer(BinaryChannel(0.1, 0.2), semiring="tropical")
+    w = WeightedFiniteStateTransducer.from_transducer(binary_channel(0.1, 0.2), semiring="tropical")
     assert w.weight(["0"], ["0"]) == pytest.approx(-math.log(0.9))
     assert math.isinf(w.weight(["0"], ["0", "0"]))
 
 
 def test_wfst_bad_semiring():
-    w = WeightedFiniteStateTransducer.from_transducer(BitFlip(), semiring="probability")
+    w = WeightedFiniteStateTransducer.from_transducer(bit_flip(), semiring="probability")
     w.semiring = "nonsense"
     with pytest.raises(SoficValidationError):
         w.validate()
 
 
 def test_wfst_yaml_round_trip():
-    w = WeightedFiniteStateTransducer.from_transducer(BinaryChannel(0.1, 0.2), semiring="tropical")
+    w = WeightedFiniteStateTransducer.from_transducer(binary_channel(0.1, 0.2), semiring="tropical")
     restored = WeightedFiniteStateTransducer.from_yaml(w.to_yaml())
     assert restored.semiring == "tropical"
     assert restored.weight(["1"], ["1"]) == pytest.approx(w.weight(["1"], ["1"]))

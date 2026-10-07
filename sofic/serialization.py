@@ -50,11 +50,6 @@ def model_from_yaml(text: str, *, validate: bool = True) -> StateMachine:
     return model_from_dict(loaded, validate=validate)
 
 
-def from_yaml(text: str, *, validate: bool = True) -> StateMachine:
-    """Alias for :func:`model_from_yaml`."""
-    return model_from_yaml(text, validate=validate)
-
-
 def read_yaml(path: str | Path, *, validate: bool = True) -> StateMachine:
     """Read a sofic model from a YAML file."""
     return model_from_yaml(Path(path).read_text(encoding="utf-8"), validate=validate)
@@ -106,8 +101,6 @@ def _metadata_for(model: StateMachine, spec: _ModelSpec) -> dict[str, Any]:
 
 
 def _build_model(spec: _ModelSpec, graph: TransitionGraph, metadata: dict[str, Any]) -> StateMachine:
-    if spec.builder == "composite_vpa":
-        return spec.cls(operation=metadata["operation"], operands=metadata["operands"])
     if spec.builder == "hidden_hmm":
         return spec.cls(graph=graph, observation_alphabet=_observation_alphabet(graph), **metadata)
     if spec.builder == "pfa":
@@ -300,20 +293,19 @@ def _spec(cls: type[StateMachine], fields: tuple[str, ...], builder: str = "defa
 
 @cache
 def _specs() -> tuple[_ModelSpec, ...]:
-    from sofic.automata.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
     from sofic.automata.buchi import BuchiAutomaton
+    from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+    from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
     from sofic.automata.dfa import DFA
     from sofic.automata.nfa import NFA
     from sofic.automata.nwa import NestedWordAutomaton
-    from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
     from sofic.automata.subsequential import SubsequentialTransducer, WeightedFiniteStateTransducer
     from sofic.automata.transducers import MealyMachine, MooreMachine
     from sofic.automata.unifilar import UnifilarAutomaton
     from sofic.automata.vpa import (
-        CallDrivenAutomaton,
         CanonicalVisiblyPushdownAutomaton,
-        CompositeVisiblyPushdownAutomaton,
         DeterministicVisiblyPushdownAutomaton,
+        ModularVisiblyPushdownAutomaton,
         MultipleEntryVisiblyPushdownAutomaton,
         SingleEntryVisiblyPushdownAutomaton,
         VisiblyPushdownAutomaton,
@@ -339,10 +331,10 @@ def _specs() -> tuple[_ModelSpec, ...]:
         WheelerCover,
     )
     from sofic.shifts.markov_dyck import MarkovDyckShift
+    from sofic.shifts.product_alphabet_shift import ProductAlphabetShift
     from sofic.shifts.sft import ShiftOfFiniteType
     from sofic.shifts.sofic import SoficShift
     from sofic.shifts.sofic_dyck import SoficDyckShift
-    from sofic.shifts.sofic_relation import SoficRelation
     from sofic.shifts.tmc import TopologicalMarkovChain
 
     labeled = ("input_alphabet", "initial_states", "accepting_states")
@@ -405,11 +397,10 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(NestedWordAutomaton, nwa),
         _spec(VisiblyPushdownAutomaton, vpa),
         _spec(DeterministicVisiblyPushdownAutomaton, vpa),
-        _spec(CallDrivenAutomaton, cda),
+        _spec(ModularVisiblyPushdownAutomaton, cda),
         _spec(MultipleEntryVisiblyPushdownAutomaton, (*cda, "entry_states")),
         _spec(SingleEntryVisiblyPushdownAutomaton, (*cda, "entry_states")),
         _spec(CanonicalVisiblyPushdownAutomaton, (*vpa, "summary_representatives")),
-        _spec(CompositeVisiblyPushdownAutomaton, ("operation", "operands"), builder="composite_vpa"),
         _spec(StochasticModel, stochastic),
         _spec(HiddenMarkovModel, hidden, builder="hidden_hmm"),
         _spec(MarkovChain, stochastic),
@@ -444,7 +435,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(QuasiRealization, (*quasi, "pi", "tau", "symbol_maps")),
         _spec(SymbolicModel, symbolic),
         _spec(SoficShift, symbolic),
-        _spec(SoficRelation, symbolic),
+        _spec(ProductAlphabetShift, symbolic),
         _spec(TopologicalMarkovChain, symbolic),
         _spec(ShiftOfFiniteType, (*symbolic, "_forbidden_words", "_has_forbidden_word_spec"), builder="sft"),
         _spec(SoficDyckShift, dyck),

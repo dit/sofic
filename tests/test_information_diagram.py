@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 
 from sofic.examples import (
-    NRPS,
     bernoulli,
     butterfly_process,
     even_process,
     golden_mean_forward,
     golden_mean_reverse,
     nemo_process,
+    noisy_random_phase_slip,
 )
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.information_diagram import (
@@ -32,7 +32,7 @@ def _processes() -> dict[str, BidirectionalEpsilonMachine]:
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
         "nemo": nemo_process().to_bidirectional(),
-        "nrps": NRPS().to_bidirectional(),
+        "nrps": noisy_random_phase_slip().to_bidirectional(),
     }
 
 

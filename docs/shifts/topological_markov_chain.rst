@@ -15,7 +15,7 @@ adjacency matrix. Its Parry measure is the maximum-entropy stochastic generator
 
    @doctest float
    In [2]: tmc.topological_entropy()
-   Out[2]: 0.48121182505960347
+   Out[2]: 0.6942419136306174
 
 API
 ===

@@ -9,7 +9,12 @@ from sofic.automata.buchi import BuchiAutomaton
 
 
 def accepts_lasso_buchi(ba: BuchiAutomaton, prefix: Sequence[Any], loop: Sequence[Any]) -> bool:
-    """Accept if repeating ``loop`` after ``prefix`` visits an accepting state infinitely often."""
+    """Accept if repeating ``loop`` after ``prefix`` visits an accepting state infinitely often.
+
+    ``loop`` must be non-empty: ``prefix loop^omega`` is an infinite word only then.
+    """
+    if not loop:
+        raise ValueError("an ultimately periodic omega-word needs a non-empty loop")
     post = ba._run_nfa(prefix)
     if not post:
         return False

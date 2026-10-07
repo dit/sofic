@@ -61,6 +61,37 @@ def test_sofic_dyck_tikz_marks_matched_edges():
     assert tikz.count("m_{1}") == 2
 
 
+def test_vpa_tikz_separates_kind_from_mid():
+    from sofic.automata.vpa import VisiblyPushdownAutomaton
+
+    vpa = VisiblyPushdownAutomaton(call_alphabet=frozenset({"a"}), stack_alphabet=frozenset({"A"}))
+    vpa.graph.add_state("q")
+    vpa.add_call_transition("q", "q", "a", "A")
+
+    tikz = model_to_tikz(vpa)
+    assert r"$a\mid call\mid \uparrow A$" in tikz
+    assert r"\midcall" not in tikz
+
+
+def test_tmc_tikz_multiplicity_is_math_times():
+    from sofic.graph import ATTR_MULTIPLICITY, ATTR_SYMBOL
+    from sofic.shifts.tmc import TopologicalMarkovChain
+
+    tmc = TopologicalMarkovChain(symbol_alphabet=frozenset({"a"}))
+    tmc.graph.add_state("s")
+    tmc.graph.add_transition("s", "s", **{ATTR_SYMBOL: "a", ATTR_MULTIPLICITY: 2})
+
+    assert r"$a\mid\times 2$" in model_to_tikz(tmc)
+
+
+def test_symbolic_prob_latex_is_not_escaped():
+    sp = pytest.importorskip("sympy")
+    from sofic.viz._tikz_format import format_prob_latex
+
+    a = sp.Symbol("a", positive=True)
+    assert format_prob_latex(a / (a + 1)) == r"\frac{a}{a + 1}"
+
+
 def test_bidirectional_tikz_uses_edge_labels():
     tikz = model_to_tikz(golden_mean_bidirectional(0.5), style="paper")
     assert r"\Edge{" in tikz

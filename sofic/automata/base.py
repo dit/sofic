@@ -47,7 +47,7 @@ class LabeledAutomaton(StateMachine):
 
     def words_of_length(self, length: int) -> Iterator[tuple[Any, ...]]:
         """Yield accepted words of exactly ``length`` symbols."""
-        from sofic.automata.enumeration import words_of_length
+        from sofic.automata.enumeration.words import words_of_length
 
         yield from words_of_length(self, length)
 
@@ -57,7 +57,7 @@ class LabeledAutomaton(StateMachine):
         If ``max_length`` is omitted, the iterator is unbounded and may not
         terminate for finite languages after yielding their last word.
         """
-        from sofic.automata.enumeration import iter_language
+        from sofic.automata.enumeration.words import iter_language
 
         yield from iter_language(self, max_length=max_length)
 
@@ -79,10 +79,6 @@ class LabeledAutomaton(StateMachine):
 
         return intersection_dfa(self, other)
 
-    def intersect(self, other: LabeledAutomaton) -> DFA:
-        """Alias for :meth:`intersection`."""
-        return self.intersection(other)
-
     def complement(self, alphabet: frozenset[Any] | None = None) -> DFA:
         """Return a complete DFA recognizing the complement over ``alphabet``."""
         from sofic.automata.languages.automaton_ops import complement_dfa
@@ -101,19 +97,11 @@ class LabeledAutomaton(StateMachine):
 
         return concat_nfa(self, other)
 
-    def concatenate(self, other: LabeledAutomaton) -> NFA:
-        """Alias for :meth:`concat`."""
-        return self.concat(other)
-
     def kleene_star(self) -> NFA:
         """Return an NFA recognizing the Kleene star of this language."""
         from sofic.automata.languages.automaton_ops import kleene_star_nfa
 
         return kleene_star_nfa(self)
-
-    def star(self) -> NFA:
-        """Alias for :meth:`kleene_star`."""
-        return self.kleene_star()
 
     def is_deterministic(self) -> bool:
         """Return whether this automaton is DFA-deterministic."""
@@ -140,14 +128,7 @@ class LabeledAutomaton(StateMachine):
         return closure
 
     def _run_nfa(self, word: Sequence[Any], start: set[Hashable] | None = None) -> set[Hashable]:
-        seed = set(self.initial_states) if start is None else set(start)
-        current = self.epsilon_closure(seed)
-        for symbol in word:
-            next_states: set[Hashable] = set()
-            for state in current:
-                next_states.update(self.delta(state, symbol))
-            current = self.epsilon_closure(next_states)
-        return current
+        return run_nfa(self, word, start=start)
 
     def reverse(self) -> NFA:
         """Return an NFA recognizing the reversed language."""
@@ -159,3 +140,22 @@ class LabeledAutomaton(StateMachine):
             accepting_states=frozenset(self.epsilon_closure(set(self.initial_states))),
             graph=self.graph.reverse(),
         )
+
+
+def run_nfa(
+    aut: LabeledAutomaton,
+    word: Sequence[Any],
+    start: set[Hashable] | frozenset[Hashable] | None = None,
+) -> set[Hashable]:
+    """Return the epsilon-closed state set reached by reading ``word``.
+
+    Simulation starts from ``start`` (default: ``aut.initial_states``).
+    """
+    seed = set(aut.initial_states) if start is None else set(start)
+    current = aut.epsilon_closure(seed)
+    for symbol in word:
+        next_states: set[Hashable] = set()
+        for state in current:
+            next_states.update(aut.delta(state, symbol))
+        current = aut.epsilon_closure(next_states)
+    return current

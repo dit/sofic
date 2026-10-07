@@ -3,8 +3,8 @@
 import pytest
 
 from sofic import EpsilonTransducer, MealyHMM
-from sofic.automata.transducer_operations import compose_tg
-from sofic.examples.processes import GME, RCT, BinaryChannel, GMtoEven
+from sofic.automata.transducer_operations import compose_transducer_generator
+from sofic.examples.processes import binary_channel, gm_to_even, gme, rct
 from sofic.exceptions import StochasticValidationError, UnifilarityError
 from sofic.graph import ATTR_OUTPUT, ATTR_PROB, ATTR_SYMBOL
 
@@ -21,10 +21,10 @@ def _iid_input() -> MealyHMM:
 @pytest.mark.parametrize(
     ("channel", "expected_states"),
     [
-        (BinaryChannel(0.1, 0.2), 1),
-        (GMtoEven(), 2),
-        (RCT(0.5), 3),
-        (GME(), 2),
+        (binary_channel(0.1, 0.2), 1),
+        (gm_to_even(), 2),
+        (rct(0.5), 3),
+        (gme(), 2),
     ],
 )
 def test_from_channel_minimizes(channel, expected_states):
@@ -35,7 +35,7 @@ def test_from_channel_minimizes(channel, expected_states):
 
 
 def test_memoryless_channel_is_single_causal_state():
-    eps = EpsilonTransducer.from_channel(BinaryChannel(0.1, 0.2))
+    eps = EpsilonTransducer.from_channel(binary_channel(0.1, 0.2))
     assert len(eps.causal_states()) == 1
     rows = {}
     for transition in eps.transitions():
@@ -48,7 +48,7 @@ def test_memoryless_channel_is_single_causal_state():
 
 
 def test_initial_distribution_normalized():
-    eps = EpsilonTransducer.from_channel(GMtoEven())
+    eps = EpsilonTransducer.from_channel(gm_to_even())
     assert sum(eps.initial_distribution.values()) == pytest.approx(1.0)
     assert set(eps.initial_distribution) <= set(eps.states())
 
@@ -79,7 +79,7 @@ def _non_unifilar_channel():
 
 
 def test_validate_rejects_bad_initial_distribution():
-    eps = EpsilonTransducer.from_channel(BinaryChannel(0.1, 0.2))
+    eps = EpsilonTransducer.from_channel(binary_channel(0.1, 0.2))
     eps.initial_distribution = {next(iter(eps.states())): 0.5}
     with pytest.raises(StochasticValidationError):
         eps.validate()
@@ -103,7 +103,7 @@ def test_validate_rejects_non_unifilar_direct():
 
 
 def test_from_joint_generator_recovers_memoryless():
-    joint = compose_tg(BinaryChannel(0.1, 0.2), _iid_input(), joint=True)
+    joint = compose_transducer_generator(binary_channel(0.1, 0.2), _iid_input(), joint=True)
     eps = EpsilonTransducer.from_joint_generator(joint)
     eps.validate()
     assert len(list(eps.states())) == 1
@@ -111,13 +111,13 @@ def test_from_joint_generator_recovers_memoryless():
 
 
 def test_from_iohmm_alias():
-    eps = EpsilonTransducer.from_iohmm(GMtoEven())
+    eps = EpsilonTransducer.from_iohmm(gm_to_even())
     assert isinstance(eps, EpsilonTransducer)
     assert len(list(eps.states())) == 2
 
 
 def test_yaml_round_trip():
-    eps = EpsilonTransducer.from_channel(RCT(0.5))
+    eps = EpsilonTransducer.from_channel(rct(0.5))
     restored = EpsilonTransducer.from_yaml(eps.to_yaml())
     assert isinstance(restored, EpsilonTransducer)
     assert len(list(restored.states())) == len(list(eps.states()))
@@ -125,7 +125,7 @@ def test_yaml_round_trip():
 
 
 def test_wfst_round_trip_preserves_structure():
-    eps = EpsilonTransducer.from_channel(GMtoEven())
+    eps = EpsilonTransducer.from_channel(gm_to_even())
     wfst = eps.to_wfst()
     recovered = EpsilonTransducer.from_wfst(wfst)
     assert len(list(recovered.states())) == len(list(eps.states()))

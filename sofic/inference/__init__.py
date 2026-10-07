@@ -1,6 +1,23 @@
-"""Inference algorithms for stochastic generators."""
+"""Inference algorithms for stochastic generators.
 
-from sofic.inference import bayesian
+Learners are named ``learn_<target>_<method>``; the subpackages and modules
+(:mod:`~sofic.inference.bayesian`, :mod:`~sofic.inference.cssr`,
+:mod:`~sofic.inference.diagnostics`, :mod:`~sofic.inference.hmm`,
+:mod:`~sofic.inference.model_selection`, :mod:`~sofic.inference.spectral`) are
+bound under their module names.
+"""
+
+from sofic.inference import bayesian, cssr, diagnostics, hmm, model_selection, spectral
+from sofic.inference.cssr import (
+    learn_epsilon_machine_cssr,
+    learn_epsilon_machine_subtree,
+    learn_epsilon_transducer_cssr,
+    learn_stack_hmm_cssr,
+    learn_stack_hmm_mle,
+    learn_stack_hmm_papni,
+    learn_stack_hmm_subtree,
+    suggest_max_history,
+)
 from sofic.inference.diagnostics import (
     GoodnessOfFit,
     StructureStability,
@@ -8,6 +25,19 @@ from sofic.inference.diagnostics import (
     reconstruction_sweep,
     structure_stability,
     topology_key,
+)
+from sofic.inference.hmm import (
+    backward,
+    baum_welch,
+    forward,
+    free_parameter_labels,
+    log_likelihood,
+    observed_information,
+    score,
+    smooth,
+    standard_errors,
+    two_slice_marginals,
+    viterbi,
 )
 from sofic.inference.model_selection import (
     ModelScores,
@@ -24,6 +54,7 @@ from sofic.inference.model_selection import (
 from sofic.inference.spectral import (
     SpectralInferenceError,
     hankel_matrices,
+    learn_epsilon_machine_spectral,
     learn_spectral_wfa,
     project_to_epsilon_machine,
     project_to_mealy,
@@ -33,6 +64,12 @@ from sofic.inference.spectral import (
 
 __all__ = [
     "bayesian",
+    "cssr",
+    "diagnostics",
+    "hmm",
+    "model_selection",
+    "spectral",
+    "learn_epsilon_machine_cssr",
     "GoodnessOfFit",
     "StructureStability",
     "goodness_of_fit",
@@ -55,5 +92,24 @@ __all__ = [
     "project_to_epsilon_machine",
     "project_to_mealy",
     "project_to_nmachine",
+    "learn_epsilon_machine_spectral",
     "spectral_singular_values",
+    "learn_epsilon_machine_subtree",
+    "suggest_max_history",
+    "learn_epsilon_transducer_cssr",
+    "learn_stack_hmm_cssr",
+    "learn_stack_hmm_subtree",
+    "learn_stack_hmm_mle",
+    "learn_stack_hmm_papni",
+    "baum_welch",
+    "viterbi",
+    "forward",
+    "backward",
+    "smooth",
+    "two_slice_marginals",
+    "log_likelihood",
+    "score",
+    "observed_information",
+    "standard_errors",
+    "free_parameter_labels",
 ]

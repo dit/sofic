@@ -1,6 +1,6 @@
 """Regular-language algebra for automata constructions."""
 
-from sofic.automata.languages.atoms import atoms, is_prime_atom, prime_atoms
+from sofic.automata.languages.atoms import atoms, prime_atoms
 from sofic.automata.languages.base import AutomatonLanguage, ExplicitLanguage, RegularLanguage
 from sofic.automata.languages.operations import (
     complement,
@@ -25,7 +25,6 @@ __all__ = [
     "difference",
     "intersection",
     "is_composed_residual",
-    "is_prime_atom",
     "kleene_star",
     "left_quotient",
     "left_quotients",

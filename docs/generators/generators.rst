@@ -50,17 +50,6 @@ Constructions and conversions
    conversions
    lumping
 
-Inference
-=========
-
-.. toctree::
-   :maxdepth: 1
-
-   hmm_inference
-   epsilon_inference
-   epsilon_transducer_inference
-   stack_inference
-
 Advanced
 ========
 

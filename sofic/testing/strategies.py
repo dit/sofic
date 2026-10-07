@@ -11,7 +11,7 @@ from functools import cache
 from typing import Any
 
 from sofic.automata.dfa import DFA
-from sofic.automata.icdfa import icdfa_string_to_dfa, iter_icdfa_empty_strings
+from sofic.automata.enumeration.icdfa import icdfa_string_to_dfa, iter_icdfa_empty_strings
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.topological_epsilon_enumeration import (
     idfa_string_to_epsilon_machine,

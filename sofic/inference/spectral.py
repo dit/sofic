@@ -33,11 +33,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable, Hashable, Iterable, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from sofic.generators.quasi_realization import QuasiRealization
+
+if TYPE_CHECKING:
+    from sofic.generators.epsilon_machine import EpsilonMachine
 
 __all__ = [
     "SpectralInferenceError",
@@ -46,6 +49,7 @@ __all__ = [
     "project_to_epsilon_machine",
     "project_to_mealy",
     "project_to_nmachine",
+    "learn_epsilon_machine_spectral",
     "spectral_singular_values",
 ]
 
@@ -62,7 +66,7 @@ def _normalize_sequences(sequences: Iterable[Any]) -> list[tuple[Any, ...]]:
 
     Accepts either a single flat observation sequence (e.g. ``[0, 1, 0]``) or an
     iterable of sequences (e.g. ``[[0, 1], [1, 0]]``), mirroring
-    :func:`sofic.generators.hmm_inference.baum_welch`.
+    :func:`sofic.inference.hmm.baum_welch`.
     """
     seqs = list(sequences)
     if not seqs:
@@ -562,3 +566,59 @@ def _mealy_from_operator_mixed_states(
         initial_distribution=initial,
         observation_alphabet=frozenset(symbols),
     )
+
+
+def learn_epsilon_machine_spectral(
+    sequences: Iterable[Any] | None = None,
+    *,
+    word_probability: Callable[[Sequence[Any]], float] | None = None,
+    alphabet: Sequence[Any] | None = None,
+    rank: int | None = None,
+    prefix_length: int = 3,
+    suffix_length: int | None = None,
+    singular_value_threshold: float = 1e-3,
+    min_singular_value: float = 1e-12,
+    max_states: int = 10_000,
+) -> EpsilonMachine:
+    """Reconstruct an ε-machine by spectral learning then mixed-state extraction.
+
+    Learns a weighted finite automaton / observable-operator model from block
+    statistics :cite:`Balle2014,Hsu2012`, then extracts causal states as the
+    mixed states of those operators :cite:`Ellison2009`. When the learned
+    operators are non-negative this is a Mealy projection followed by
+    :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.from_hmm`; signed
+    operators use mixed-state enumeration rather than a clustering heuristic.
+
+    Parameters
+    ----------
+    sequences
+        A single observed realization or an iterable of realizations. Ignored
+        when ``word_probability`` is given.
+    word_probability
+        Optional exact block-probability function ``f(word) -> float``.
+        ``alphabet`` is then required.
+    alphabet
+        Observation alphabet. Inferred from ``sequences`` when omitted.
+    rank
+        Number of latent states. When ``None`` the rank is chosen from the
+        Hankel singular-value spectrum.
+    prefix_length, suffix_length
+        Maximum lengths of the prefix and suffix bases. ``suffix_length``
+        defaults to ``prefix_length``.
+    singular_value_threshold, min_singular_value
+        Cutoffs for automatic rank selection; see
+        :func:`~sofic.inference.spectral.learn_spectral_wfa`.
+    max_states
+        Safety cap on enumerated mixed states.
+    """
+    model = learn_spectral_wfa(
+        sequences,
+        word_probability=word_probability,
+        alphabet=alphabet,
+        rank=rank,
+        prefix_length=prefix_length,
+        suffix_length=suffix_length,
+        singular_value_threshold=singular_value_threshold,
+        min_singular_value=min_singular_value,
+    )
+    return project_to_epsilon_machine(model, max_states=max_states)

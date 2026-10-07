@@ -31,4 +31,4 @@ def test_parry_measure():
     tmc = TopologicalMarkovChain.from_adjacency(np.array([[0, 1], [1, 1]]), symbol_alphabet=frozenset({"0", "1"}))
     parry = tmc.parry_measure()
     parry.validate()
-    assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy() / np.log(2), rel=0.1)
+    assert parry.entropy_rate() == pytest.approx(tmc.topological_entropy(), rel=0.1)

@@ -1,8 +1,8 @@
 """Tests for residual and canonical RFSA skeletons."""
 
+from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from sofic.automata.dfa import DFA
-from sofic.automata.observation import ObservationTable
-from sofic.automata.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
+from sofic.automata.learning.observation import ObservationTable
 
 
 def test_rfsa_validate():

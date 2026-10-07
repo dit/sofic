@@ -27,25 +27,13 @@ from typing import Any
 
 import numpy as np
 
+from sofic.examples._construction import _edge_machine, _relabel, _stationary_initial
+from sofic.exceptions import SoficError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
 from sofic.graph import ATTR_EMISSION, ATTR_FUTURE_SYMBOL, ATTR_PROB, TransitionGraph
 from sofic.shifts.tmc import TopologicalMarkovChain
 from sofic.states import sequential_labels
-
-
-def _stationary_distribution(
-    states: Sequence[Hashable],
-    symbol_matrices: Mapping[Any, np.ndarray],
-) -> dict[Hashable, Any]:
-    from sofic.generators.prob import as_prob, has_symbolic
-    from sofic.generators.stationary import stationary_distribution_from_transition
-
-    transition = sum(symbol_matrices.values())
-    pi = stationary_distribution_from_transition(transition)
-    if pi.dtype == object or has_symbolic(pi.ravel()):
-        return {states[i]: as_prob(pi[i]) for i in range(len(states))}
-    return {states[i]: float(pi[i]) for i in range(len(states))}
 
 
 def from_symbol_matrices(
@@ -75,7 +63,9 @@ def from_symbol_matrices(
         arrays[symbol] = arr
 
     pi = (
-        dict(initial_distribution) if initial_distribution is not None else _stationary_distribution(state_list, arrays)
+        dict(initial_distribution)
+        if initial_distribution is not None
+        else _stationary_initial(state_list, sum(arrays.values()))
     )
     eps = EpsilonMachine(
         initial_distribution=pi,
@@ -105,8 +95,6 @@ def bernoulli(p: float = 0.5, *, symbols: tuple[Any, Any] = ("0", "1")) -> Epsil
     """Memoryless (Bernoulli) source with ``P(symbols[0]) = 1 - p``."""
     if not 0.0 < p < 1.0:
         raise ValueError("p must be in (0, 1)")
-    from sofic.examples.processes import _edge_machine
-
     zero, one = symbols
     state = sequential_labels(1)[0]
     return _edge_machine(
@@ -149,8 +137,6 @@ def noisy_random_phase_slip() -> EpsilonMachine:
     emission noise at state ``D``.  Prototype for block-convergence figures in
     *Anatomy of a Bit* :cite:`James2011`.
     """
-    from sofic.examples.processes import _edge_machine
-
     states = sequential_labels(5)
     a, b, c, d, e = states
     return _edge_machine(
@@ -178,7 +164,9 @@ def golden_mean(p: float = 0.5) -> EpsilonMachine:
     see :func:`golden_mean_markov`; for the bidirectional machine in Ellison et
     al., arXiv:0905.3587, Fig.~4, see :func:`golden_mean_forward` and
     :func:`golden_mean_reverse`; for the Parry max-entropy measure on the
-    same shift, see :func:`golden_mean_shift_parry`.
+    same shift, see :func:`golden_mean_shift_parry`.  cmpy's
+    :func:`~sofic.examples.processes.golden_mean_forbid_00` is the ``0 <-> 1`` mirror
+    (forbids ``00``) and equals :func:`golden_mean_forward`.
     """
     if not 0.0 < p < 1.0:
         raise ValueError("p must be in (0, 1)")
@@ -243,16 +231,7 @@ def golden_mean_markov(p: float = 0.5) -> EpsilonMachine:
     For the paper's ``A``/``B`` labeling and bidirectional machine, prefer
     :func:`golden_mean_forward`.
     """
-    if not 0.0 < p < 1.0:
-        raise ValueError("p must be in (0, 1)")
-    return from_symbol_matrices(
-        sequential_labels(2),
-        (0, 1),
-        {
-            0: np.array([[0.0, 0.0], [p, 0.0]]),
-            1: np.array([[0.0, 1.0], [0.0, 1.0 - p]]),
-        },
-    )
+    return _relabel(golden_mean_forward(1 - p), states={"B": "A", "A": "B"})
 
 
 def golden_mean_shift_parry() -> EpsilonMachine:
@@ -294,16 +273,10 @@ def restricted_golden_mean(k: int = 1) -> EpsilonMachine:
     """
     if k < 1:
         raise ValueError("k must be >= 1")
-    states = sequential_labels(k + 1)
-    n = k + 1
-    t0 = np.zeros((n, n), dtype=float)
-    t1 = np.zeros((n, n), dtype=float)
-    t0[0, 1] = 0.5
-    t1[0, 0] = 0.5
-    for i in range(1, k):
-        t1[i, i + 1] = 1.0
-    t1[k, 0] = 1.0
-    return from_symbol_matrices(states, (0, 1), {0: t0, 1: t1})
+    from sofic.examples.processes import restricted_gm
+
+    states = {str(i): label for i, label in enumerate(sequential_labels(k + 1))}
+    return _relabel(restricted_gm(k), symbols={"0": 0, "1": 1}, states=states)
 
 
 def nemo_process(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
@@ -339,7 +312,8 @@ def nemo_process(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
 def phase_slip_backtrack(p: float = 0.5, q: float = 0.5) -> EpsilonMachine:
     """Phase-Slip Backtrack (PSB) Process (``R=3``, ``k_chi=2``).
 
-    James, Mahoney, Ellison & Crutchfield, arXiv:1010.5545, Fig.~2.
+    James, Mahoney, Ellison & Crutchfield, arXiv:1010.5545, Fig.~2.  A different
+    process from cmpy's :func:`~sofic.examples.processes.phase_slip_backtrack_cmpy`.
     """
     if not 0.0 < p < 1.0 or not 0.0 < q < 1.0:
         raise ValueError("p and q must be in (0, 1)")
@@ -373,7 +347,8 @@ def butterfly_process() -> EpsilonMachine:
 
     Mahoney et al., arXiv:0906.5099, Fig.~1. Each causal state emits every
     symbol with probability ``1/8``; synchronizing symbols ``2``--``7`` always
-    reach the same causal state regardless of the source.
+    reach the same causal state regardless of the source.  Not cmpy's
+    :func:`~sofic.examples.processes.butterfly_two_branch` (two branches per state, ``h_mu = 1``).
     """
     states = ("A", "B", "C", "D", "E")
     prob = 1.0 / 8.0
@@ -387,8 +362,6 @@ def butterfly_process() -> EpsilonMachine:
         6: "C",
         7: "E",
     }
-    from sofic.examples.processes import _edge_machine
-
     edges = []
     for source in states:
         for symbol in range(8):
@@ -404,18 +377,9 @@ def butterfly_process() -> EpsilonMachine:
 
 def ellison_fig9_forward() -> EpsilonMachine:
     """Forward ε-machine from Ellison et al., arXiv:1107.2168, Fig.~9."""
-    from sofic.examples.processes import _edge_machine
+    from sofic.examples.processes import irreversible_two_state
 
-    return _edge_machine(
-        [
-            ("A", "A", 0, 0.5),
-            ("A", "B", 1, 0.5),
-            ("B", "B", 1, 0.5),
-            ("B", "A", 2, 0.5),
-        ],
-        initial_distribution={"A": 0.5, "B": 0.5},
-        normalize=False,
-    )
+    return _relabel(irreversible_two_state(0.5, 0.5), symbols={"0": 0, "1": 1, "2": 2})
 
 
 def tent_map_misiurewicz_a(symbolic: bool = False):
@@ -878,7 +842,6 @@ def _stationary_distribution_from_joint_graph(
     graph: TransitionGraph,
 ) -> dict[tuple[str, str], Any]:
     from sofic.generators.prob import as_prob, has_symbolic, zeros
-    from sofic.generators.stationary import stationary_distribution_from_transition
 
     states = list(graph.states())
     if not states:
@@ -893,13 +856,7 @@ def _stationary_distribution_from_joint_graph(
         transition[source, target] = as_prob(transition[source, target]) + as_prob(
             transition_edge.data.get(ATTR_PROB, 0.0)
         )
-    if symbolic:
-        pi = stationary_distribution_from_transition(transition)
-        return {states[position]: as_prob(pi[position]) for position in range(len(states))}
-    stationary = np.ones(len(states), dtype=float) / len(states)
-    for _ in range(20_000):
-        stationary = stationary @ np.asarray(transition, dtype=float)
-    return {states[position]: float(stationary[position]) for position in range(len(states))}
+    return _stationary_initial(states, transition)
 
 
 def _project_bidirectional_side(
@@ -1004,7 +961,7 @@ def tent_map_misiurewicz_bidirectional_fig8(a: Any | None = None):
     else:
         try:
             reverse = EpsilonMachine.from_hmm(reverse_raw)
-        except Exception:
+        except SoficError:
             from sofic.generators.epsilon_machine import _row_normalized_presentation
 
             reverse = _row_normalized_presentation(reverse_raw)

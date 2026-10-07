@@ -73,22 +73,43 @@ class SlidingBlockCode:
     def apply(self, shift: Any) -> SoficShift:
         """Return the image subshift ``Phi(shift)`` as a sofic presentation.
 
-        Uses the higher-block construction: vertices are allowed
-        ``(window - 1)``-blocks of ``shift`` and each allowed ``window``-block
-        contributes an edge labeled by its image symbol.
+        Vertices pair a vertex ``q`` of ``shift``'s presentation with the last
+        ``window - 1`` symbols read along a path into ``q``; each edge of
+        ``shift`` out of ``q`` reading ``a`` emits ``Phi(context + a)``. Tracking
+        the presentation vertex keeps every constraint of ``shift``, not just
+        those visible in ``window``-blocks. Raises :class:`ValueError` when a
+        ``window``-block of ``shift`` is missing from ``block_map``.
         """
+        outgoing: dict[Any, list[tuple[Any, Any]]] = {state: [] for state in shift.states()}
+        for transition in shift.transitions():
+            symbol = transition.data.get(ATTR_SYMBOL)
+            if symbol is not None:
+                outgoing[transition.source].append((symbol, transition.target))
+
+        context_length = self.window - 1
+        frontier = {(state, ()) for state in outgoing}
+        for _ in range(context_length):
+            frontier = {
+                (target, (*context, symbol)) for state, context in frontier for symbol, target in outgoing[state]
+            }
+
         image = SoficShift(symbol_alphabet=frozenset(self.output_alphabet))
-        blocks = list(shift.factor_language(self.window))
-        vertices = {block[:-1] for block in blocks} | {block[1:] for block in blocks}
-        for vertex in vertices:
-            image.graph.add_state(vertex)
+        seen = set(frontier)
+        queue = list(frontier)
         used_outputs: set[Any] = set()
-        for block in blocks:
-            output = self.block_map.get(block)
-            if output is None:
-                continue
-            image.add_transition(block[:-1], block[1:], output)
-            used_outputs.add(output)
+        while queue:
+            state, context = queue.pop()
+            image.graph.add_state((state, context))
+            for symbol, target in outgoing[state]:
+                block = (*context, symbol)
+                if block not in self.block_map:
+                    raise ValueError(f"block {block!r} of the shift is not in block_map")
+                successor = (target, block[1:])
+                image.add_transition((state, context), successor, self.block_map[block])
+                used_outputs.add(self.block_map[block])
+                if successor not in seen:
+                    seen.add(successor)
+                    queue.append(successor)
         image.symbol_alphabet = frozenset(used_outputs)
         return image.trim_transient()
 

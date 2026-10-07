@@ -43,10 +43,9 @@ excluded outright, and :func:`wheeler_cover` raises
 
 The cover is a :class:`~sofic.shifts.covers.WheelerCover`, a
 :class:`~sofic.shifts.sofic.SoficShift` subclass that sits beside the Fischer
-and Krieger covers. It does not fill the Krieger stubs in
-:mod:`sofic.shifts.cover_construction`: a Krieger cover's states are *all*
-sets of pasts closed under the follower relation, whereas a Wheeler cover
-carries only those that happen to be recency intervals.
+and Krieger covers. It is not a Krieger cover: a Krieger cover's states are
+*all* follower sets of left-infinite pasts, whereas a Wheeler cover carries
+only those that happen to be recency intervals.
 
 Once a shift has a Wheeler cover, :func:`wheeler_index_of_shift` gives
 ``O(|w| log |A|)`` factor-language membership in place of scanning

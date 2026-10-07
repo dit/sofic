@@ -41,9 +41,9 @@ class EpsilonTransducer(MealyMachine):
 
     Examples
     --------
-    >>> from sofic.examples.processes import BinaryChannel
+    >>> from sofic.examples.processes import binary_channel
     >>> from sofic import EpsilonTransducer
-    >>> channel = BinaryChannel(0.1, 0.2)
+    >>> channel = binary_channel(0.1, 0.2)
     >>> eps = EpsilonTransducer.from_channel(channel)
     >>> eps.is_unifilar()
     True
@@ -128,9 +128,9 @@ class EpsilonTransducer(MealyMachine):
         **kwargs: Any,
     ) -> EpsilonTransducer:
         """Reconstruct an ε-transducer from paired input/output sequences via transCSSR."""
-        from sofic.generators.epsilon_transducer_inference import transcssr
+        from sofic.inference.cssr.transducer import learn_epsilon_transducer_cssr
 
-        return transcssr(inputs, outputs, **kwargs)
+        return learn_epsilon_transducer_cssr(inputs, outputs, **kwargs)
 
     # -- channel measures -----------------------------------------------------
 

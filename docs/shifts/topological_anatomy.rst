@@ -67,8 +67,8 @@ entropy across both parts, while the sofic even shift is purely bound
    Out[10]: 0.5527864045001022
 
 The parts add up to :math:`h_\mathrm{top}`, which equals
-:meth:`~sofic.shifts.sofic.SoficShift.topological_entropy` divided by
-:math:`\ln 2` on a right-resolving presentation.
+:meth:`~sofic.shifts.sofic.SoficShift.topological_entropy` (in bits) on a
+right-resolving presentation.
 
 API
 ===

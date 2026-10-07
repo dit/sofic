@@ -14,8 +14,7 @@ from typing import Any
 import numpy as np
 
 from sofic.generators.base import HiddenMarkovModel
-from sofic.generators.hmm_inference import _emission_transition_tensors_from_mealy
-from sofic.generators.words import _start_vector
+from sofic.generators.matrices import start_vector, symbol_matrices
 
 _DEFAULT_RTOL = 1e-9
 _DEFAULT_ATOL = 1e-12
@@ -77,11 +76,10 @@ class _HistoryFutureWordList:
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> _HistoryFutureWordList:
         mealy = hmm.to_mealy()
-        pi, matrices = _emission_transition_tensors_from_mealy(mealy)
         return cls(
             alphabet=tuple(sorted(mealy.observation_alphabet, key=repr)),
-            matrices=matrices,
-            start=_start_vector(mealy, pi, start),
+            matrices=symbol_matrices(mealy),
+            start=np.asarray(start_vector(mealy, start), dtype=float),
         )
 
     @property

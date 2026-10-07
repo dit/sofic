@@ -221,6 +221,46 @@ class NestedWordAutomaton(StateMachine):
         )
         return self.recognizes(word)
 
+    def union(self, other: NestedWordAutomaton) -> NestedWordAutomaton:
+        """Return an NWA recognizing the union with ``other``."""
+        return _from_tagged_vpa(self.to_vpa().union(other.to_vpa()))
+
+    def intersection(self, other: NestedWordAutomaton) -> NestedWordAutomaton:
+        """Return an NWA recognizing the intersection with ``other``."""
+        return _from_tagged_vpa(self.to_vpa().intersection(other.to_vpa()))
+
+    def complement(self) -> NestedWordAutomaton:
+        """Return an NWA recognizing the complement over this NWA's role alphabets."""
+        return _from_tagged_vpa(self.to_vpa().complement())
+
+    def difference(self, other: NestedWordAutomaton) -> NestedWordAutomaton:
+        """Return an NWA recognizing this language minus ``other``."""
+        return _from_tagged_vpa(self.to_vpa().difference(other.to_vpa()))
+
+    def concat(self, other: NestedWordAutomaton) -> NestedWordAutomaton:
+        """Return an NWA recognizing concatenation with ``other``."""
+        return _from_tagged_vpa(self.to_vpa().concat(other.to_vpa()))
+
+    def kleene_star(self) -> NestedWordAutomaton:
+        """Return an NWA recognizing the Kleene star."""
+        return _from_tagged_vpa(self.to_vpa().kleene_star())
+
+    def is_empty(self) -> bool:
+        """Return whether no nested word is accepted."""
+        return self.to_vpa().is_empty()
+
+    def is_universal(self) -> bool:
+        """Return whether every nested word over the role alphabets is accepted."""
+        return self.to_vpa().is_universal()
+
+    def includes(self, other: NestedWordAutomaton) -> bool:
+        """Return whether ``other``'s language is contained in this one."""
+        return self.to_vpa().includes(other.to_vpa())
+
+    def equivalent(self, other: NestedWordAutomaton) -> bool:
+        """Return whether both NWAs recognize the same nested words."""
+        return self.to_vpa().equivalent(other.to_vpa())
+
     @classmethod
     def from_vpa(cls, vpa: VisiblyPushdownAutomaton) -> NestedWordAutomaton:
         """Copy a visibly pushdown automaton into an equivalent NWA view."""
@@ -314,6 +354,32 @@ class NestedWordAutomaton(StateMachine):
                 result.add_internal_transition(transition.source, transition.target, symbol, **attrs)
 
         return result
+
+
+def _from_tagged_vpa(vpa: VisiblyPushdownAutomaton) -> NestedWordAutomaton:
+    """Inverse of :meth:`NestedWordAutomaton.to_vpa` with role-tagged symbols."""
+    result = NestedWordAutomaton(
+        call_alphabet=frozenset(symbol for _kind, symbol in vpa.call_alphabet),
+        return_alphabet=frozenset(symbol for _kind, symbol in vpa.return_alphabet),
+        internal_alphabet=frozenset(symbol for _kind, symbol in vpa.internal_alphabet),
+        hier_alphabet=vpa.stack_alphabet,
+        bottom_hier_state=vpa.bottom_stack_symbol,
+        initial_state=vpa.initial_state,
+        accepting_states=vpa.accepting_states,
+    )
+    for state in vpa.states():
+        result.graph.add_state(state)
+    for transition in vpa.transitions():
+        data = transition.data
+        kind, (_role, symbol) = data.get(ATTR_KIND), data.get(ATTR_SYMBOL)
+        if kind == KIND_CALL:
+            result.add_call_transition(transition.source, transition.target, symbol, data.get(ATTR_STACK_SYMBOL))
+        elif kind == KIND_RETURN:
+            for hier_state in _return_hier_states(vpa.stack_alphabet, data.get(ATTR_STACK_SYMBOL)):
+                result.add_return_transition(transition.source, transition.target, symbol, hier_state)
+        else:
+            result.add_internal_transition(transition.source, transition.target, symbol)
+    return result
 
 
 def _require_disjoint_visible_alphabets(

@@ -79,19 +79,18 @@ class StochasticModel(StateMachine):
         """
         from sofic.generators.reversal import is_markov_like, time_reverse_stochastic
 
-        if not is_markov_like(self):
-            from sofic.generators.epsilon_machine import EpsilonMachine
-            from sofic.generators.mealy import MealyHMM
-            from sofic.generators.moore import MooreHMM
+        if is_markov_like(self):
+            return time_reverse_stochastic(self)
 
-            if isinstance(self, (MealyHMM, MooreHMM)):
-                from sofic.generators.epsilon_machine import EpsilonMachine
+        from sofic.generators.epsilon_machine import EpsilonMachine
+        from sofic.generators.mealy import MealyHMM
+        from sofic.generators.moore import MooreHMM
 
-                if isinstance(self, EpsilonMachine):
-                    return EpsilonMachine.from_time_reversed(self)
-                return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
-            raise NotImplementedError("time-reversed generators with edge emissions require EpsilonMachine.from_hmm")
-        return time_reverse_stochastic(self)
+        if isinstance(self, EpsilonMachine):
+            return EpsilonMachine.from_time_reversed(self)
+        if isinstance(self, (MealyHMM, MooreHMM)):
+            return EpsilonMachine.from_hmm(time_reverse_stochastic(self))
+        raise NotImplementedError("time-reversed generators with edge emissions require EpsilonMachine.from_hmm")
 
 
 class HiddenMarkovModel(StochasticModel):
@@ -104,39 +103,39 @@ class HiddenMarkovModel(StochasticModel):
         self.observation_alphabet = observation_alphabet if observation_alphabet is not None else frozenset()
 
     def sample(self, n: int, rng: np.random.Generator | None = None) -> tuple[list[Any], list[Hashable]]:
-        from sofic.generators.hmm_inference import sample
+        from sofic.generators.sampling import sample
 
         return sample(self, n, rng)
 
     def log_likelihood(self, observations: Sequence[Any]) -> float:
-        from sofic.generators.hmm_inference import log_likelihood
+        from sofic.inference.hmm import log_likelihood
 
         return log_likelihood(self, observations)
 
-    def forward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
-        from sofic.generators.hmm_inference import forward
+    def forward(self, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
+        from sofic.inference.hmm import forward
 
-        return forward(self, observations, scaled=scaled)
+        return forward(self, observations, normalize=normalize)
 
-    def backward(self, observations: Sequence[Any], *, scaled: bool = False) -> np.ndarray:
-        from sofic.generators.hmm_inference import backward
+    def backward(self, observations: Sequence[Any], *, normalize: bool = False) -> np.ndarray:
+        from sofic.inference.hmm import backward
 
-        return backward(self, observations, scaled=scaled)
+        return backward(self, observations, normalize=normalize)
 
     def viterbi(self, observations: Sequence[Any]) -> list[Hashable]:
-        from sofic.generators.hmm_inference import viterbi
+        from sofic.inference.hmm import viterbi
 
         return viterbi(self, observations)
 
     def smooth(self, observations: Sequence[Any]) -> np.ndarray:
         """Return fixed-interval smoothed marginals ``gamma[t, s]``."""
-        from sofic.generators.hmm_inference import smooth
+        from sofic.inference.hmm import smooth
 
         return smooth(self, observations)
 
     def two_slice_marginals(self, observations: Sequence[Any]) -> np.ndarray:
         """Return two-slice smoothed marginals ``xi[t, i, j]``."""
-        from sofic.generators.hmm_inference import two_slice_marginals
+        from sofic.inference.hmm import two_slice_marginals
 
         return two_slice_marginals(self, observations)
 
@@ -152,9 +151,9 @@ class HiddenMarkovModel(StochasticModel):
     ) -> tuple[MealyHMM, list[float]]:
         """Fit parameters by Baum-Welch EM, returning ``(fitted_model, loglik_trace)``.
 
-        ``n_restarts`` and ``rng`` are as in :func:`~sofic.generators.hmm_inference.baum_welch`.
+        ``n_restarts`` and ``rng`` are as in :func:`~sofic.inference.hmm.baum_welch`.
         """
-        from sofic.generators.hmm_inference import baum_welch
+        from sofic.inference.hmm import baum_welch
 
         return baum_welch(
             self,
@@ -168,19 +167,19 @@ class HiddenMarkovModel(StochasticModel):
 
     def score(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
         """Return the log-likelihood gradient (Fisher identity) over edge parameters."""
-        from sofic.generators.hmm_inference import score
+        from sofic.inference.hmm import score
 
         return score(self, observations)
 
     def observed_information(self, observations: Sequence[Any]) -> np.ndarray:
         """Return the observed information matrix (Louis' identity)."""
-        from sofic.generators.hmm_inference import observed_information
+        from sofic.inference.hmm import observed_information
 
         return observed_information(self, observations)
 
     def standard_errors(self, observations: Sequence[Any]) -> dict[tuple[Hashable, Any, Hashable], float]:
         """Return asymptotic standard errors of the free edge parameters."""
-        from sofic.generators.hmm_inference import standard_errors
+        from sofic.inference.hmm import standard_errors
 
         return standard_errors(self, observations)
 
@@ -193,16 +192,16 @@ class HiddenMarkovModel(StochasticModel):
 
         return entropy_rate_hmm(self)
 
-    def joint_block_distribution(self, history_length: int = 1) -> Any:
+    def joint_block_distribution(self, block_length: int = 2) -> Any:
         from sofic.generators.measures import joint_block_distribution
 
-        return joint_block_distribution(self, history_length=history_length)
+        return joint_block_distribution(self, block_length=block_length)
 
     def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
         """Return observed words of ``length`` and their probabilities."""
-        from sofic.generators.words import hmm_words_of_length
+        from sofic.generators.words import _hmm_words_of_length
 
-        return hmm_words_of_length(self, length)
+        return _hmm_words_of_length(self, length)
 
     def word_probability(
         self,
@@ -211,9 +210,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return the probability of an observed finite word."""
-        from sofic.generators.words import hmm_word_probability
+        from sofic.generators.words import _hmm_word_probability
 
-        return hmm_word_probability(self, word, start=start)
+        return _hmm_word_probability(self, word, start=start)
 
     def log_word_probability(
         self,
@@ -222,9 +221,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return ``log2`` of an observed finite-word probability."""
-        from sofic.generators.words import hmm_log_word_probability
+        from sofic.generators.words import _hmm_log_word_probability
 
-        return hmm_log_word_probability(self, word, start=start)
+        return _hmm_log_word_probability(self, word, start=start)
 
     def word_probabilities(
         self,
@@ -234,9 +233,9 @@ class HiddenMarkovModel(StochasticModel):
         sparse: bool = True,
     ) -> dict[tuple[Any, ...], float]:
         """Return observed-word probabilities for one or more lengths."""
-        from sofic.generators.words import hmm_word_probabilities
+        from sofic.generators.words import _hmm_word_probabilities
 
-        return hmm_word_probabilities(self, lengths, start=start, sparse=sparse)
+        return _hmm_word_probabilities(self, lengths, start=start, sparse=sparse)
 
     def conditional_word_probability(
         self,
@@ -246,9 +245,9 @@ class HiddenMarkovModel(StochasticModel):
         start: Hashable | Mapping[Hashable, float] | Sequence[float] | np.ndarray | None = None,
     ) -> float:
         """Return ``P(word | condition)``."""
-        from sofic.generators.words import hmm_conditional_word_probability
+        from sofic.generators.words import _hmm_conditional_word_probability
 
-        return hmm_conditional_word_probability(self, word, condition, start=start)
+        return _hmm_conditional_word_probability(self, word, condition, start=start)
 
     def is_equal_process(
         self,
@@ -312,16 +311,16 @@ class QuasiStochasticModel(StateMachine):
 
         return stationary_quasidistribution(self)
 
-    def transition_matrices(self) -> dict[Any, np.ndarray]:
-        from sofic.generators.quasi_inference import transition_matrices
+    def symbol_matrices(self) -> dict[Any, np.ndarray]:
+        from sofic.generators.quasi_inference import symbol_matrices
 
-        return transition_matrices(self)
+        return symbol_matrices(self)
 
     def words_of_length(self, length: int) -> dict[tuple[Any, ...], float]:
         """Return words of ``length`` and their signed quasiprobabilities."""
-        from sofic.generators.words import quasi_words_of_length
+        from sofic.generators.words import _quasi_words_of_length
 
-        return quasi_words_of_length(self, length)
+        return _quasi_words_of_length(self, length)
 
     def collision_entropy(self) -> float:
         from sofic.generators.measures import collision_entropy

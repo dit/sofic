@@ -12,7 +12,7 @@ matrix** of block probabilities, takes its singular value decomposition, and
 reads the observable operators off the truncated factorization
 :cite:`Balle2014`. It is the automata-theoretic twin of the spectral hidden
 Markov model algorithm of Hsu, Kakade & Zhang :cite:`Hsu2012`. Unlike
-Baum-Welch (:func:`sofic.generators.hmm_inference.baum_welch`), spectral
+Baum-Welch (:func:`sofic.inference.hmm.baum_welch`), spectral
 learning is a consistent, one-shot estimator with no local optima, and the model
 order is read from the singular-value spectrum instead of being fixed in
 advance.
@@ -68,16 +68,16 @@ Projection to an ε-machine
 non-negative Mealy projection when one exists in the learned basis, otherwise
 mixed-state enumeration of the observable operators
 :cite:`Ellison2009`. The same path is
-:func:`~sofic.generators.epsilon_inference.spectral` /
+:func:`~sofic.inference.spectral.learn_epsilon_machine_spectral` /
 ``EpsilonMachine.from_sequence(..., method="spectral")``.
 
 .. code-block:: python
 
-   from sofic.generators.epsilon_inference import spectral
+   from sofic.inference.spectral import learn_epsilon_machine_spectral
    from sofic.examples import golden_mean
 
    process = golden_mean(0.5)
-   eps = spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
+   eps = learn_epsilon_machine_spectral(word_probability=process.word_probability, alphabet=(0, 1), prefix_length=3, rank=2)
    len(list(eps.states()))  # 2
 
 API

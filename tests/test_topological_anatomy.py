@@ -7,7 +7,6 @@ from math import log2
 import numpy as np
 import pytest
 
-from sofic.exceptions import UnifilarityError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.shifts.sofic import SoficShift
 from sofic.shifts.tmc import TopologicalMarkovChain
@@ -88,7 +87,7 @@ def test_split_refines_h_top():
 def test_h_top_matches_topological_entropy_and_is_additive(builder):
     shift = builder()
     anatomy = shift.topological_anatomy()
-    assert anatomy["h_top"] == pytest.approx(shift.topological_entropy() / np.log(2), abs=1e-9)
+    assert anatomy["h_top"] == pytest.approx(shift.topological_entropy(), abs=1e-9)
     assert anatomy["h_top"] == pytest.approx(anatomy["b_top"] + anatomy["r_top"], abs=1e-9)
 
 
@@ -142,8 +141,10 @@ def test_determinizes_nondeterministic_full_shift():
     assert anatomy["b_top"] == pytest.approx(0.0, abs=1e-9)
 
 
-def test_non_auto_determinizable_presentation_raises():
-    """A nondeterministic presentation the bounded Fischer cover cannot resolve raises."""
+def test_nondeterministic_presentation_is_resolved_by_exact_fischer_cover():
+    """A presentation the old bounded follower-set cover could not resolve now works."""
+    from sofic.shifts.covers import RightFischerCover
+
     shift = SoficShift(symbol_alphabet=frozenset({0, 1}))
     for state in ("u", "v"):
         shift.graph.add_state(state)
@@ -152,5 +153,8 @@ def test_non_auto_determinizable_presentation_raises():
     shift.add_transition("u", "v", 1)
     shift.add_transition("v", "u", 0)
     assert not shift.is_unifilar()
-    with pytest.raises(UnifilarityError):
-        shift.topological_anatomy()
+    cover = RightFischerCover.from_presentation(shift)
+    assert cover.is_unifilar()
+    anatomy = shift.topological_anatomy()
+    assert anatomy["h_top"] == pytest.approx(cover.topological_entropy(), abs=1e-9)
+    assert anatomy["h_top"] == pytest.approx(anatomy["b_top"] + anatomy["r_top"], abs=1e-9)

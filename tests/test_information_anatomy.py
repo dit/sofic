@@ -7,7 +7,6 @@ import math
 import pytest
 
 from sofic.examples import (
-    NRPS,
     TENT_MAP_MISIUREWICZ_PARTITIONS,
     bernoulli,
     butterfly_process,
@@ -16,6 +15,7 @@ from sofic.examples import (
     golden_mean_forward,
     golden_mean_reverse,
     nemo_process,
+    noisy_random_phase_slip,
     tent_map_misiurewicz_a,
     tent_map_misiurewicz_bidirectional,
     tent_map_misiurewicz_forward,
@@ -205,7 +205,7 @@ def _five_variable_processes():
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
         "nemo": nemo_process().to_bidirectional(),
-        "nrps": NRPS().to_bidirectional(),
+        "nrps": noisy_random_phase_slip().to_bidirectional(),
         "tent": tent_map_misiurewicz_bidirectional(),
     }
 
@@ -340,7 +340,7 @@ def test_golden_mean_ephemeral_is_pure_joint():
 def test_nrps_ephemeral_is_pure_reverse_arrow_of_time():
     """NRPS: forward-only ephemeral vanishes while reverse-only does not — an arrow of time."""
     pytest.importorskip("dit")
-    bidir = NRPS().to_bidirectional()
+    bidir = noisy_random_phase_slip().to_bidirectional()
     r_mu = bidir.ephemeral_information()
     assert bidir.forward_only_structural_ephemeral() == pytest.approx(0.0, abs=1e-9)
     assert bidir.reverse_only_structural_ephemeral() == pytest.approx(r_mu, abs=1e-9)

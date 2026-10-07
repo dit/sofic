@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from sofic.automata._words import _words_up_to
 from sofic.automata.languages._quotient_utils import (
     _prefixes_if_suffix,
     _residual_from_state,
     _suffixes_if_prefix,
-    _words_up_to,
 )
 from sofic.automata.languages.automaton_ops import (
     left_quotient_automaton,
@@ -54,9 +54,8 @@ def left_quotients(language: RegularLanguage) -> frozenset[RegularLanguage]:
     if isinstance(lang, ExplicitLanguage):
         alphabet = lang.alphabet
         quotients: set[RegularLanguage] = set()
-        for length in range(4):
-            for word in _words_up_to(length, alphabet):
-                quotients.add(left_quotient(word, lang))
+        for word in _words_up_to(3, alphabet):
+            quotients.add(left_quotient(word, lang))
         return frozenset(quotients)
     raise TypeError(f"unsupported language type {type(lang)!r}")
 

@@ -17,9 +17,9 @@ shift.
 
    In [1]: from sofic import TextileSystem
 
-   In [2]: from sofic.examples.processes import SlidingNOR
+   In [2]: from sofic.examples.processes import sliding_nor
 
-   In [3]: textile = TextileSystem.from_transducer(SlidingNOR())
+   In [3]: textile = TextileSystem.from_transducer(sliding_nor())
 
    @doctest
    In [4]: textile.induced_code().memory
@@ -29,4 +29,4 @@ API
 ===
 
 .. autoclass:: TextileSystem
-   :members: from_transducer, to_transducer, to_sofic_relation, input_shift, output_shift, induced_code
+   :members: from_transducer, to_transducer, to_product_alphabet_shift, input_shift, output_shift, induced_code

@@ -1,7 +1,7 @@
 """Tests for observation tables."""
 
 from sofic.automata.languages.base import AutomatonLanguage
-from sofic.automata.observation import ObservationTable
+from sofic.automata.learning.observation import ObservationTable
 
 
 def test_defaults():

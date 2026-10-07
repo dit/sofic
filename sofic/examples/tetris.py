@@ -22,7 +22,7 @@ from itertools import combinations, product
 
 import numpy as np
 
-from sofic.examples.processes import _edge_machine
+from sofic.examples._construction import _edge_machine
 from sofic.generators.epsilon_machine import EpsilonMachine
 
 TETROMINOES: tuple[str, ...] = ("I", "J", "L", "O", "S", "T", "Z")

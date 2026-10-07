@@ -18,18 +18,17 @@ from sofic.viz._edge import (
     PART_KIND,
     PART_MATCH_TAG,
     PART_MULTIPLICITY,
-    PART_OUTPUT,
     PART_PROB,
     PART_QUASIPROB,
     PART_STACK,
     PART_SYMBOL,
     STYLE_DYCK,
     STYLE_EDGE,
-    STYLE_PROB_ONLY,
-    STYLE_SYMBOL_ONLY,
+    STYLE_FALLBACK,
     STYLE_TMC,
     STYLE_TRANSDUCER,
     STYLE_VPA,
+    EdgePart,
     edge_spec,
     part_value,
 )
@@ -41,8 +40,6 @@ from sofic.viz._tikz_format import (
     format_state_latex,
     format_state_tikz_node,
     format_symbol_latex,
-    format_symbol_only_latex,
-    format_transducer_edge_latex,
     latex_escape,
 )
 from sofic.viz._tikz_layout import (
@@ -72,77 +69,39 @@ def _format_dyck_match_tag_latex(tag: str) -> str:
     return latex_escape(tag)
 
 
+# Symbols render bare in these styles; elsewhere they are wrapped in ``\Symbol{...}``.
+_BARE_SYMBOL_STYLES = frozenset({STYLE_VPA, STYLE_TMC})
+_PART_SEPARATOR = {STYLE_TRANSDUCER: r"\mid", STYLE_TMC: r"\mid"}
+
+
+def _render_latex_part(part: EdgePart, style: str) -> str:
+    if part.kind == PART_KIND:
+        text = latex_escape(str(part.value))
+        return rf"\mathrm{{{text}}}" if style == STYLE_DYCK else text
+    if part.kind == PART_STACK:
+        return rf"\uparrow {format_symbol_latex(part.value)}"
+    if part.kind == PART_MULTIPLICITY:
+        return rf"\times {part.value}"
+    if part.kind == PART_MATCH_TAG:
+        return _format_dyck_match_tag_latex(part.value)
+    if part.kind in (PART_PROB, PART_QUASIPROB):
+        return format_prob_latex(part.value)
+    # symbol / emission / output
+    symbol = format_symbol_latex(part.value)
+    return symbol if style in _BARE_SYMBOL_STYLES else rf"\Symbol{{{symbol}}}"
+
+
 def _tikz_edge_label(model: StateMachine, transition: Transition) -> str:
     spec = edge_spec(model, transition)
-    style = spec.style
-
-    if style == STYLE_SYMBOL_ONLY:
-        symbol = part_value(spec, PART_SYMBOL)
-        return format_symbol_only_latex(symbol) if symbol is not None else ""
-
-    if style == STYLE_TRANSDUCER:
-        symbol = part_value(spec, PART_SYMBOL)
-        output = part_value(spec, PART_OUTPUT)
-        if symbol is None and output is None:
-            return ""
-        return format_transducer_edge_latex(symbol, output)
-
-    if style == STYLE_PROB_ONLY:
-        prob = part_value(spec, PART_PROB)
-        return rf"${format_prob_latex(prob)}$" if prob is not None else ""
-
-    if style == STYLE_EDGE:
-        label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
-        value = part_value(spec, PART_PROB, PART_QUASIPROB)
-        if label_symbol is not None and value is not None:
-            return format_edge_latex(label_symbol, value)
-        if label_symbol is not None:
-            return format_symbol_only_latex(label_symbol)
-        if value is not None:
-            return rf"${format_prob_latex(value)}$"
+    if spec.style in (STYLE_EDGE, STYLE_FALLBACK):
+        symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
+        prob = part_value(spec, PART_PROB, PART_QUASIPROB)
+        if symbol is not None and prob is not None:
+            return format_edge_latex(symbol, prob)
+    parts = [_render_latex_part(part, spec.style) for part in spec.parts]
+    if not parts:
         return ""
-
-    if style == STYLE_VPA:
-        parts: list[str] = []
-        for part in spec.parts:
-            if part.kind == PART_SYMBOL:
-                parts.append(format_symbol_latex(part.value))
-            elif part.kind == PART_KIND:
-                parts.append(latex_escape(str(part.value)))
-            elif part.kind == PART_STACK:
-                parts.append(rf"\uparrow{format_symbol_latex(part.value)}")
-        return "$" + r"\mid".join(parts) + "$" if parts else ""
-
-    if style == STYLE_DYCK:
-        parts = []
-        for part in spec.parts:
-            if part.kind == PART_SYMBOL:
-                parts.append(rf"\Symbol{{{format_symbol_latex(part.value)}}}")
-            elif part.kind == PART_KIND:
-                parts.append(rf"\mathrm{{{latex_escape(str(part.value))}}}")
-            elif part.kind == PART_MATCH_TAG:
-                parts.append(_format_dyck_match_tag_latex(part.value))
-        return "$" + r"\mid ".join(parts) + "$" if parts else ""
-
-    if style == STYLE_TMC:
-        parts = []
-        for part in spec.parts:
-            if part.kind == PART_SYMBOL:
-                parts.append(format_symbol_latex(part.value))
-            elif part.kind == PART_MULTIPLICITY:
-                parts.append(latex_escape(f"\\times {part.value}"))
-        return "$" + r"\mid".join(parts) + "$" if parts else ""
-
-    # STYLE_FALLBACK
-    label_symbol = part_value(spec, PART_EMISSION, PART_SYMBOL)
-    prob = part_value(spec, PART_PROB)
-    if label_symbol is not None and prob is not None:
-        return format_edge_latex(label_symbol, prob)
-    if label_symbol is not None:
-        return format_symbol_only_latex(label_symbol)
-    if prob is not None:
-        return rf"${format_prob_latex(prob)}$"
-    return ""
+    return "$" + _PART_SEPARATOR.get(spec.style, r"\mid ").join(parts) + "$"
 
 
 def _tikz_display_kwargs(model: StateMachine) -> dict[str, Any]:

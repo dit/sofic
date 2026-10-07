@@ -175,15 +175,15 @@ class MealyMachine(Transducer):
 
     def compose(self, other: MealyMachine, **kwargs: Any) -> MealyMachine:
         """Return the serial composition ``other`` after this transducer."""
-        from sofic.automata.transducer_operations import compose_tt
+        from sofic.automata.transducer_operations import compose_transducers
 
-        return compose_tt((self, other), **kwargs)
+        return compose_transducers((self, other), **kwargs)
 
     def joint_machine(self, generator: Any, **kwargs: Any) -> Any:
         """Return the joint input/output generator induced by ``generator``."""
-        from sofic.automata.transducer_operations import compose_tg
+        from sofic.automata.transducer_operations import compose_transducer_generator
 
-        return compose_tg(self, generator, joint=True, **kwargs)
+        return compose_transducer_generator(self, generator, joint=True, **kwargs)
 
     def transduce_generator(self, generator: Any, **kwargs: Any) -> Any:
         """Return the output generator induced by driving this transducer."""
@@ -191,11 +191,11 @@ class MealyMachine(Transducer):
 
         return transduce_generator(self, generator, **kwargs)
 
-    def to_sofic_relation(self) -> Any:
-        """Return the topological support as a product-alphabet sofic relation."""
-        from sofic.shifts.sofic_relation import SoficRelation
+    def to_product_alphabet_shift(self) -> Any:
+        """Return the topological support as a :class:`~sofic.shifts.ProductAlphabetShift`."""
+        from sofic.shifts.product_alphabet_shift import ProductAlphabetShift
 
-        return SoficRelation.from_transducer(self)
+        return ProductAlphabetShift.from_transducer(self)
 
     def to_textile_system(self) -> Any:
         """Return this transducer as a textile system (Nasu 1995)."""

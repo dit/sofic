@@ -16,7 +16,6 @@ from sofic.generators.directional_flow import (
     synergistic_information_flow,
     transfer_entropy,
 )
-from sofic.generators.epsilon_inference import cssr, spectral, subtree_merge, suggest_lmax
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
@@ -38,12 +37,6 @@ from sofic.generators.nmachine import NMachine
 from sofic.generators.pfa import ProbabilisticFiniteAutomaton
 from sofic.generators.quasi_realization import QuasiRealization
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
-from sofic.generators.stack_inference import (
-    fit_stack_hmm_mle,
-    learn_stack_hmm_papni,
-    stack_cssr,
-    stack_subtree_merge,
-)
 from sofic.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     epsilon_machine_to_idfa_string,
@@ -76,17 +69,9 @@ __all__ = [
     "LumpabilityError",
     "channel_statistical_complexity",
     "driven_entropy_rate",
-    "cssr",
     "is_lumpable",
     "lump",
     "normalize_partition",
-    "spectral",
-    "subtree_merge",
-    "suggest_lmax",
-    "fit_stack_hmm_mle",
-    "learn_stack_hmm_papni",
-    "stack_cssr",
-    "stack_subtree_merge",
     "directed_information",
     "independent_pair_generator",
     "intrinsic_information_flow",

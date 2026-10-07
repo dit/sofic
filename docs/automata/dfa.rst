@@ -39,4 +39,4 @@ API
 ===
 
 .. autoclass:: DFA
-   :members: add_transition, recognizes, union, intersection, intersect, complement, difference, concat, concatenate, kleene_star, star, minimize, from_nfa
+   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, minimize, from_nfa

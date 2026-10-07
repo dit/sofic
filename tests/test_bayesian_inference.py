@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.examples.processes import SNS, Even
+from sofic.examples import even_process
+from sofic.examples.processes import sns
 from sofic.inference.bayesian import (
     BayesianInferenceError,
     InferEM,
@@ -58,22 +59,22 @@ def test_model_comparison_mc_probabilities_normalize():
 
 def test_path_count_em_rejects_nonunifilar_topology():
     with pytest.raises(BayesianInferenceError):
-        PathCountEM(SNS(), list("01"))
+        PathCountEM(sns(), list("01"))
 
 
 def test_path_count_em_counts_even_process():
-    data = list("1111101100")
-    counts = PathCountEM(Even(), data)
+    data = [int(symbol) for symbol in "1111101100"]
+    counts = PathCountEM(even_process(), data)
     assert counts.get_possible_start_nodes() == ["B"]
-    assert counts.get_edge_count("B", ("A", "0")) == 3
-    assert counts.get_edge_count("B", ("A", "1")) == 3
-    assert counts.get_edge_count("B", ("B", "1")) == 4
+    assert counts.get_edge_count("B", ("A", 0)) == 3
+    assert counts.get_edge_count("B", ("A", 1)) == 3
+    assert counts.get_edge_count("B", ("B", 1)) == 4
     assert counts.get_node_count("B", "A") == 6
     assert counts.get_node_count("B", "B") == 4
 
 
 def test_infer_em_start_marginalization_and_sample():
-    posterior = InferEM(Even(), list("1111101100"))
+    posterior = InferEM(even_process(), [int(symbol) for symbol in "1111101100"])
     assert posterior.start_node_probabilities() == {"B": pytest.approx(1.0)}
     assert posterior.log_evidence() < 0
     start, machine = posterior.generate_sample(rng=np.random.default_rng(0))

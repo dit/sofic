@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from sofic.graph import ATTR_SYMBOL
+from sofic.graph import ATTR_MULTIPLICITY, ATTR_SYMBOL
 from sofic.shifts.base import SymbolicModel
 
 
@@ -54,16 +54,19 @@ def adjacency_matrix(model: SymbolicModel) -> tuple[np.ndarray, tuple[Hashable, 
     for transition in model.transitions():
         i = index[transition.source]
         j = index[transition.target]
-        matrix[i, j] += 1.0
+        matrix[i, j] += float(transition.data.get(ATTR_MULTIPLICITY, 1))
     return matrix, states
 
 
 def topological_entropy_from_matrix(matrix: np.ndarray) -> float:
+    """Return ``log2`` of the spectral radius of ``matrix`` (bits per symbol)."""
     if matrix.size == 0:
         return 0.0
     eigenvalues = np.linalg.eigvals(matrix)
     spectral_radius = float(np.max(np.abs(eigenvalues)))
-    return float(np.log(max(spectral_radius, 0.0)))
+    if spectral_radius <= 0.0:
+        return 0.0
+    return float(np.log2(spectral_radius))
 
 
 def _forward_reachable(model: SymbolicModel) -> set[Hashable]:

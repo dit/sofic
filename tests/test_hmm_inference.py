@@ -6,24 +6,24 @@ import numpy as np
 import pytest
 
 from sofic.examples import fair_coin, golden_mean
-from sofic.generators.hmm_inference import (
-    _emission_transition_tensors,
-    _forward_scaled,
+from sofic.generators.matrices import emission_tensors
+from sofic.generators.mealy import MealyHMM
+from sofic.generators.sampling import sample
+from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.inference.hmm import (
     backward,
     baum_welch,
     forward,
     free_parameter_labels,
     log_likelihood,
     observed_information,
-    sample,
     score,
     smooth,
     standard_errors,
     two_slice_marginals,
     viterbi,
 )
-from sofic.generators.mealy import MealyHMM
-from sofic.graph import ATTR_EMISSION, ATTR_PROB
+from sofic.inference.hmm.filtering import _forward_scaled
 
 
 def test_forward_coin_initial_and_likelihood():
@@ -32,7 +32,7 @@ def test_forward_coin_initial_and_likelihood():
     alpha = forward(coin, observations)
     assert alpha.shape == (4, 1)
     assert alpha[0].sum() == pytest.approx(1.0, abs=1e-9)
-    assert alpha[-1].sum() == pytest.approx(np.exp(log_likelihood(coin, observations)), abs=1e-9)
+    assert alpha[-1].sum() == pytest.approx(2.0 ** log_likelihood(coin, observations), abs=1e-9)
 
 
 def test_backward_coin():
@@ -92,12 +92,12 @@ def test_log_likelihood_long_sequence_stays_finite():
     observations = ["0", "1"] * 1500
     ll = log_likelihood(coin, observations)
     assert np.isfinite(ll)
-    assert ll == pytest.approx(-3000 * np.log(2), rel=1e-9)
+    assert ll == pytest.approx(-3000.0, rel=1e-9)
 
 
 def test_forward_scaled_rows_are_normalized():
     coin = fair_coin()
-    alpha = forward(coin, ["0", "1", "0"], scaled=True)
+    alpha = forward(coin, ["0", "1", "0"], normalize=True)
     assert alpha.shape == (4, 1)
     assert np.allclose(alpha.sum(axis=1), 1.0)
 
@@ -196,7 +196,7 @@ def test_baum_welch_accepts_single_sequence():
 def test_score_matches_finite_difference_gradient():
     gm = golden_mean(0.4)
     obs = [0, 1, 0, 0, 1, 0, 1, 0]
-    pi, joint = _emission_transition_tensors(gm)
+    pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
@@ -204,7 +204,7 @@ def test_score_matches_finite_difference_gradient():
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}
         perturbed[symbol][i, j] = value
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     analytic = score(gm, obs)
     h = 1e-6
@@ -217,7 +217,7 @@ def test_score_matches_finite_difference_gradient():
 def test_observed_information_matches_numeric_hessian_scalar():
     gm = golden_mean(0.5)
     obs = [0, 1, 0, 0, 1, 0, 1, 0]
-    pi, joint = _emission_transition_tensors(gm)
+    pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
@@ -226,7 +226,7 @@ def test_observed_information_matches_numeric_hessian_scalar():
         perturbed[0][a, a] = theta
         perturbed[1][a, b] = 1.0 - theta
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     assert free_parameter_labels(gm) == [("A", 0, "A")]
     theta0 = 0.5
@@ -246,7 +246,7 @@ def test_observed_information_multi_parameter_symmetric_and_matches_hessian():
     labels = free_parameter_labels(hmm)
     assert labels == [("A", 0, "A"), ("A", 1, "A")]
 
-    pi, joint = _emission_transition_tensors(hmm)
+    pi, joint = emission_tensors(hmm)
 
     def loglik_free(theta: np.ndarray) -> float:
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}
@@ -254,7 +254,7 @@ def test_observed_information_multi_parameter_symmetric_and_matches_hessian():
         perturbed[1][0, 0] = theta[1]
         perturbed[2][0, 0] = 1.0 - theta[0] - theta[1]
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
-        return float(log_scales.sum())
+        return float(log_scales.sum()) * np.log(2)
 
     base = np.array([0.2, 0.3])
     h = 1e-5
@@ -333,8 +333,10 @@ def test_seeded_sample_is_reproducible_across_hash_seeds():
 
     script = (
         "import numpy as np\n"
-        "from sofic.examples.processes import Nemo\n"
-        "print(''.join(Nemo().sample(200, rng=np.random.default_rng(5))[0]))\n"
+        "from sofic.examples import nemo_process\n"
+        "from sofic.examples._construction import _relabel\n"
+        "nemo = _relabel(nemo_process(), symbols={0: '0', 1: '1'})\n"
+        "print(''.join(nemo.sample(200, rng=np.random.default_rng(5))[0]))\n"
     )
     outputs = {
         subprocess.run(
@@ -380,3 +382,22 @@ def test_baum_welch_restarts_reproducible_and_validated():
     assert log_likelihood(first, data) == pytest.approx(log_likelihood(second, data))
     with pytest.raises(ValueError):
         baum_welch(_symmetric_two_state(), data, n_restarts=0)
+
+
+def test_viterbi_impossible_after_first_step_has_no_path():
+    gm = golden_mean(0.5)
+    observations = [0, 1, 1, 0]
+    assert log_likelihood(gm, observations) == float("-inf")
+    assert viterbi(gm, observations) == []
+
+
+def test_baum_welch_rejects_data_with_zero_probability():
+    gm = golden_mean(0.5)
+    with pytest.raises(ValueError, match="zero probability"):
+        baum_welch(gm, [[1, 1], [0, 1, 1]])
+
+
+def test_baum_welch_warns_when_some_sequences_are_impossible():
+    gm = golden_mean(0.5)
+    with pytest.warns(RuntimeWarning, match="zero probability"):
+        baum_welch(gm, [[0, 1, 0, 0], [1, 1]], max_iter=3)

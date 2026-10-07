@@ -100,5 +100,5 @@ def _stationary_vector(transition: np.ndarray) -> np.ndarray | None:
 
     try:
         return stationary_distribution_from_transition(transition)
-    except Exception:
+    except (ValueError, np.linalg.LinAlgError):
         return None

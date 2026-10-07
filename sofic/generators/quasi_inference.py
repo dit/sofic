@@ -9,21 +9,14 @@ import numpy as np
 
 from sofic.exceptions import QuasiStochasticValidationError
 from sofic.generators.base import QuasiStochasticModel
-from sofic.graph import ATTR_EMISSION, ATTR_QUASIPROB
+from sofic.generators.matrices import accumulate_matrices, emission_label
+from sofic.graph import ATTR_QUASIPROB
 
 
-def transition_matrices(model: QuasiStochasticModel) -> dict[Any, np.ndarray]:
-    idx = model.reindex()
-    n = len(idx)
-    matrices: dict[Any, np.ndarray] = {}
-    for transition in model.transitions():
-        emission = transition.data.get(ATTR_EMISSION)
-        if emission is None:
-            continue
-        matrix = matrices.setdefault(emission, np.zeros((n, n), dtype=float))
-        i = idx.index(transition.source)
-        j = idx.index(transition.target)
-        matrix[i, j] += float(transition.data.get(ATTR_QUASIPROB, 0.0))
+def symbol_matrices(model: QuasiStochasticModel) -> dict[Any, np.ndarray]:
+    matrices, _states = accumulate_matrices(
+        model, attr=ATTR_QUASIPROB, states=model.reindex().states, label=emission_label, symbolic=False
+    )
     return matrices
 
 
@@ -34,7 +27,7 @@ def stationary_quasidistribution(model: QuasiStochasticModel) -> np.ndarray:
         return np.array([], dtype=float)
 
     combined = np.zeros((n, n), dtype=float)
-    for matrix in transition_matrices(model).values():
+    for matrix in symbol_matrices(model).values():
         combined += matrix
 
     distribution = np.zeros(n, dtype=float)
@@ -64,7 +57,7 @@ def word_probability(model: QuasiStochasticModel, word: Sequence[Any]) -> float:
     for state, mass in model.initial_quasidistribution.items():
         pi[idx.index(state)] = float(mass)
     ones = np.ones(n, dtype=float)
-    matrices = transition_matrices(model)
+    matrices = symbol_matrices(model)
     result = pi
     for symbol in word:
         matrix = matrices.get(symbol)

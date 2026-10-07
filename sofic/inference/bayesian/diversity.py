@@ -35,7 +35,6 @@ import numpy as np
 
 from sofic.generators.base import HiddenMarkovModel
 from sofic.generators.process_equivalence import _HistoryFutureWordList
-from sofic.generators.words import hmm_words_of_length
 from sofic.inference.bayesian.counts import BayesianInferenceError
 from sofic.inference.bayesian.epsilon import EpsilonMachinePosterior
 
@@ -177,7 +176,7 @@ def posterior_mean_word_distribution(
         machine = posterior.posterior_mean_machine(start_node)
         if machine is None:
             continue
-        words = hmm_words_of_length(machine, length)
+        words = machine.words_of_length(length)
         for word, prob in words.items():
             distribution[word] = distribution.get(word, 0.0) + start_weight * float(prob)
     return distribution
@@ -240,7 +239,7 @@ def posterior_process_diversity(
         distributions = []
         for _ in range(n_samples):
             _start, machine = comparison.generate_sample(rng=generator)
-            distributions.append(hmm_words_of_length(machine, length))
+            distributions.append(machine.words_of_length(length))
         weights = [1.0 / n_samples] * n_samples
         process_div = _jsd_from_word_distributions(distributions, weights, alphabet, length)
         return PosteriorDiversityResult(

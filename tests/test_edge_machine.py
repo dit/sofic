@@ -71,14 +71,14 @@ def test_edge_machine_preserves_block_distribution(builder):
     hmm = builder()
     edge = hmm.to_edge_machine()
     symbols = sorted(hmm.observation_alphabet, key=repr)
-    dist_hmm0 = hmm.joint_block_distribution(history_length=0)
-    dist_edge0 = edge.joint_block_distribution(history_length=0)
+    dist_hmm0 = hmm.joint_block_distribution(block_length=1)
+    dist_edge0 = edge.joint_block_distribution(block_length=1)
     for symbol in symbols:
         outcome = (symbol,)
         assert dist_hmm0[outcome] == pytest.approx(dist_edge0[outcome], abs=1e-9)
 
-    dist_hmm1 = hmm.joint_block_distribution(history_length=1)
-    dist_edge1 = edge.joint_block_distribution(history_length=1)
+    dist_hmm1 = hmm.joint_block_distribution(block_length=2)
+    dist_edge1 = edge.joint_block_distribution(block_length=2)
     for past in symbols:
         for present in symbols:
             outcome = (past, present)

@@ -77,7 +77,7 @@ topological entropy (the log of the golden ratio) :cite:`LindMarcus1995`:
 
    @doctest float
    In [4]: tmc.topological_entropy()
-   Out[4]: 0.4812118250596035
+   Out[4]: 0.6942419136306174
 
 The Parry measure turns the shift into the maximum-entropy ``MealyHMM`` on it
 (``tmc.parry_measure()``), the measure that attains this topological entropy.

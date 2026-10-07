@@ -5,16 +5,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.automata.atomaton import Atomaton
+from sofic.automata.canonical.atomaton import Atomaton
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
 from sofic.automata.nwa import NestedWordAutomaton
 from sofic.automata.transducers import MealyMachine, MooreMachine
 from sofic.automata.vpa import (
-    CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
-    CompositeVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
+    ModularVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
@@ -160,7 +159,7 @@ def test_vpa_variants_round_trip():
     _round_trip(_base_vpa())
     _round_trip(_base_vpa(DeterministicVisiblyPushdownAutomaton))
 
-    cda = CallDrivenAutomaton(
+    cda = ModularVisiblyPushdownAutomaton(
         call_alphabet=frozenset({"c"}),
         return_alphabet=frozenset({"r"}),
         stack_alphabet=frozenset({"m"}),
@@ -221,11 +220,10 @@ def test_vpa_variants_round_trip():
     _round_trip(canonical)
 
 
-def test_composite_vpa_round_trip():
-    union = CompositeVisiblyPushdownAutomaton(operation="union", operands=(_base_vpa(), _base_vpa()))
+def test_constructed_vpa_round_trip():
+    union = _base_vpa().union(_base_vpa())
     restored = _round_trip(union)
-    assert restored.operation == "union"
-    assert len(restored.operands) == 2
+    assert restored.equivalent(union)
 
 
 def test_stochastic_generators_round_trip():
@@ -342,3 +340,29 @@ def test_read_write_yaml_file(tmp_path):
 
     assert type(restored) is type(eps)
     assert model_to_dict(restored) == model_to_dict(eps)
+
+
+def test_cover_and_symbolic_models_round_trip():
+    from sofic.shifts.base import SymbolicModel
+    from sofic.shifts.covers import (
+        LeftFischerCover,
+        LeftKriegerCover,
+        RightFischerCover,
+        RightKriegerCover,
+        WheelerCover,
+    )
+
+    shift = SoficShift(symbol_alphabet=frozenset({"0", "1"}))
+    for source, target, symbol in (("A", "A", "0"), ("A", "B", "1"), ("B", "A", "0")):
+        shift.graph.add_state(source)
+        shift.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol})
+    for cls in (LeftFischerCover, RightFischerCover, LeftKriegerCover, RightKriegerCover, WheelerCover):
+        cover = cls.from_presentation(shift)
+        restored = _round_trip(cover)
+        assert type(restored) is cls
+        assert sorted(map(repr, restored.states())) == sorted(map(repr, cover.states()))
+
+    bare = SymbolicModel(symbol_alphabet=frozenset({"x"}))
+    bare.graph.add_state(0)
+    bare.graph.add_transition(0, 0, **{ATTR_SYMBOL: "x"})
+    assert type(_round_trip(bare)) is SymbolicModel

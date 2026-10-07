@@ -34,7 +34,7 @@ class QuasiRealization(QuasiStochasticModel):
         if not np.isclose(self.pi.sum(), 1.0):
             raise QuasiStochasticValidationError(f"pi sums to {self.pi.sum()}, not 1")
 
-    def transition_matrices(self) -> dict[Any, np.ndarray]:
+    def symbol_matrices(self) -> dict[Any, np.ndarray]:
         return dict(self.symbol_maps)
 
     def stationary_quasidistribution(self) -> np.ndarray:

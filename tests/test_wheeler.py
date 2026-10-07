@@ -15,15 +15,15 @@ from sofic.automata.wheeler import (
     WheelerError,
     check_wheeler_axioms,
     colex_width,
+    determinize_wheeler,
     is_input_consistent,
     is_wheeler,
     labeled_graph,
-    minimum_wdfa,
+    minimize_wheeler,
     wheeler_canonical_form,
     wheeler_isomorphic,
     wheeler_order,
     wheeler_state_index,
-    wnfa_to_wdfa,
 )
 from sofic.automata.wheeler_index import WheelerIndex
 from sofic.examples.epsilon_machines import (
@@ -285,18 +285,18 @@ def test_interval_power_automaton_is_polynomially_bounded():
 # -- Minimization and determinization --------------------------------------
 
 
-def test_minimum_wdfa_collapses_a_de_bruijn_presentation():
+def test_minimize_wheeler_collapses_a_de_bruijn_presentation():
     dfa = sigma_star_dfa(2)
     assert is_wheeler(dfa)
-    minimal = minimum_wdfa(dfa)
+    minimal = minimize_wheeler(dfa)
     assert len(list(minimal.states())) == 3
     assert is_wheeler(minimal)
     assert equivalent(dfa, minimal, frozenset("ab"))
     # Already minimal, so minimizing again is a no-op.
-    assert len(list(minimum_wdfa(minimal).states())) == 3
+    assert len(list(minimize_wheeler(minimal).states())) == 3
 
 
-def test_minimum_wdfa_rejects_non_wheeler_input():
+def test_minimize_wheeler_rejects_non_wheeler_input():
     dfa = DFA(input_alphabet=BINARY, initial_states=frozenset({"A"}), accepting_states=frozenset({"A"}))
     for state in ("A", "B"):
         dfa.graph.add_state(state)
@@ -304,13 +304,13 @@ def test_minimum_wdfa_rejects_non_wheeler_input():
     dfa.add_transition("A", "B", 1)
     dfa.add_transition("B", "A", 1)
     with pytest.raises(WheelerError):
-        minimum_wdfa(dfa)
+        minimize_wheeler(dfa)
 
 
-def test_wnfa_to_wdfa_stays_within_the_interval_bound():
+def test_determinize_wheeler_stays_within_the_interval_bound():
     nfa = substring_wnfa("abra")
     assert is_wheeler(nfa)
-    dfa = wnfa_to_wdfa(nfa)
+    dfa = determinize_wheeler(nfa)
     states, arity = len(list(nfa.states())), len(nfa.input_alphabet)
     assert len(list(dfa.states())) <= 2 * states - 1 - arity
     assert is_wheeler(dfa)

@@ -165,21 +165,42 @@ Process library
 ---------------
 
 In addition to the curated ε-machines above, :mod:`sofic.examples.processes`
-ports a large library of parametrized process factories (``GoldenMean``,
-``Even``, ``Nemo``, ``IID``, ``Ising``, ``Ehrenfest``, the periodic and
-``Misiurewicz`` families, and many more). Each is a function that returns a
-generator, defaulting to an :class:`~sofic.generators.epsilon_machine.EpsilonMachine`
-but accepting a ``machine_type`` argument:
+ports a large library of parametrized process factories from cmpy
+(``golden_mean_forbid_00``, ``iid``, ``ising``, ``ehrenfest``, the periodic and
+``misiurewicz`` families, and many more). Every factory name is snake_case. Each
+is a function that returns a generator, defaulting to an
+:class:`~sofic.generators.epsilon_machine.EpsilonMachine` but accepting a
+``machine_type`` argument:
 
 .. ipython::
 
-   In [1]: from sofic.examples import GoldenMean, Even, Nemo
+   In [1]: from sofic.examples import golden_mean_forbid_00
 
-   In [2]: gm = GoldenMean(bias=0.5)
+   In [2]: gm = golden_mean_forbid_00(bias=0.5)
 
    @doctest float
    In [3]: gm.entropy_rate()
    Out[3]: 0.6666666666666665
+
+cmpy factories that merely duplicated a curated example are not ported; use the
+curated function instead: cmpy's ``BiasedCoin(b)`` is :func:`bernoulli` ``(b)``,
+``FairCoin`` is :func:`fair_coin`, ``Even(bias=b)`` is :func:`even_process`
+``(b)``, ``Nemo(p=p, q=q)`` is :func:`nemo_process` ``(p, q)``, ``NRPS`` is
+:func:`noisy_random_phase_slip`, and ``ABC(p, q)`` is
+:func:`alternating_biased_coins` ``(1 - p, 1 - q)``. The curated versions emit
+integer symbols ``0``/``1`` (except :func:`bernoulli`), whereas the ported
+factories emit strings ``"0"``/``"1"``.
+
+Several remaining factories share an implementation with a curated example and
+differ only in string symbols, state names, or parametrization:
+``golden_mean_forbid_00(b)`` is :func:`golden_mean_forward` ``(1 - b)`` (and
+:func:`golden_mean_markov` ``(b)`` with ``A``/``B`` swapped), ``restricted_gm``
+is :func:`restricted_golden_mean`, and ``irreversible_two_state()`` is
+:func:`ellison_fig9_forward`. Similar names do not always mean the same process:
+:func:`golden_mean` (forbids ``11``) is the ``0 <-> 1`` mirror of
+``golden_mean_forbid_00``, and ``butterfly_two_branch`` and
+``phase_slip_backtrack_cmpy`` differ from :func:`butterfly_process` and
+:func:`~sofic.examples.epsilon_machines.phase_slip_backtrack`.
 
 The module also exposes registries — ``processes.process_list`` and
 ``processes.transducer_list`` — that enumerate every factory, which is handy for
@@ -192,8 +213,8 @@ parametrized tests and sweeps:
    In [5]: len(processes.process_list) > 0
    Out[5]: True
 
-A parallel set of transducer factories (``BitFlip``, ``Parity``, ``Delay``,
-``BinaryChannel``, …) lives alongside the processes and produces
+A parallel set of transducer factories (``bit_flip``, ``parity``, ``delay``,
+``binary_channel``, …) lives alongside the processes and produces
 :class:`~sofic.automata.transducers.MealyMachine` instances.
 
 Symbolic-shift examples (:mod:`sofic.examples.shifts`) provide the

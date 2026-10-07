@@ -4,9 +4,9 @@ import pytest
 
 from sofic.automata.dfa import DFA
 from sofic.automata.vpa import (
-    CallDrivenAutomaton,
     CanonicalVisiblyPushdownAutomaton,
     DeterministicVisiblyPushdownAutomaton,
+    ModularVisiblyPushdownAutomaton,
     MultipleEntryVisiblyPushdownAutomaton,
     SingleEntryVisiblyPushdownAutomaton,
     VisiblyPushdownAutomaton,
@@ -132,8 +132,8 @@ def test_deterministic_validation_rejects_conflicting_calls():
         vpa.validate()
 
 
-def _cda() -> CallDrivenAutomaton:
-    vpa = CallDrivenAutomaton(
+def _cda() -> ModularVisiblyPushdownAutomaton:
+    vpa = ModularVisiblyPushdownAutomaton(
         call_alphabet=frozenset({"c", "d"}),
         return_alphabet=frozenset({"r"}),
         stack_alphabet=frozenset({"m"}),

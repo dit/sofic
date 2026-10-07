@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from sofic.exceptions import SoficError
 from sofic.generators._word_measures import (
     _block_caekl,
     _block_coinformation,
@@ -203,7 +204,7 @@ def _anatomy_curves(
 def _exact_anatomy_scalars(machine: EpsilonMachine) -> dict[str, float] | None:
     try:
         bidir = machine.to_bidirectional()
-    except Exception:
+    except (SoficError, ValueError, NotImplementedError, np.linalg.LinAlgError):
         return None
     h_mu = float(bidir.entropy_rate())
     rho_mu = float(bidir.predicted_information())

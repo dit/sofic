@@ -31,4 +31,4 @@ API
 ===
 
 .. autoclass:: NFA
-   :members: add_transition, recognizes, union, intersection, intersect, complement, difference, concat, concatenate, kleene_star, star, determinize, minimize
+   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, determinize, minimize
