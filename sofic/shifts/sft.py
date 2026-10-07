@@ -53,6 +53,26 @@ class ShiftOfFiniteType(SymbolicModel):
 
         return sofic_topological_entropy(self)
 
+    def periodic_points(self, n: int) -> int:
+        """Number of points of period ``n``.
+
+        Counted on the higher-block edge graph of the forbidden-word
+        specification, or by Manning's formula on a presentation-only SFT. See
+        :func:`~sofic.shifts.algorithms.periodic_points` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import periodic_points
+
+        return periodic_points(self, n)
+
+    def zeta_function(self, t: Any = None) -> Any:
+        """Zeta function, the reciprocal of a polynomial, as a sympy expression.
+
+        See :func:`~sofic.shifts.algorithms.zeta_function` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import zeta_function
+
+        return zeta_function(self, t)
+
     def forbidden_words(
         self,
         *,

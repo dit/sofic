@@ -35,9 +35,9 @@ from sofic.states import sequential_labels
 TransitionSignature = tuple[tuple[Any, int, Any], ...]
 
 
-def build_epsilon_machine(hmm: HiddenMarkovModel) -> EpsilonMachine:
+def build_epsilon_machine(hmm: HiddenMarkovModel, *, max_states: int = 10_000) -> EpsilonMachine:
     hmm = hmm.to_mealy()
-    presentation = _unifilar_presentation(hmm)
+    presentation = _unifilar_presentation(hmm, max_states=max_states)
     stationary = presentation.stationary_distribution()
     if is_zero(array_sum(stationary)):
         raise StochasticValidationError("generator must have a stationary distribution")
@@ -47,10 +47,10 @@ def build_epsilon_machine(hmm: HiddenMarkovModel) -> EpsilonMachine:
     return _quotient_machine(presentation, partitions, stationary, constraints=constraints)
 
 
-def _unifilar_presentation(hmm: MealyHMM) -> MealyHMM:
+def _unifilar_presentation(hmm: MealyHMM, *, max_states: int = 10_000) -> MealyHMM:
     """Return a row-unifilar presentation generating the same process."""
     if not hmm.is_unifilar():
-        hmm = hmm.mixed_state_presentation()
+        hmm = hmm.mixed_state_presentation(max_states=max_states)
     if isinstance(hmm, MixedStatePresentation) and hmm.recurrent_states:
         return hmm.to_recurrent()
     return hmm

@@ -70,7 +70,7 @@ def test_unifilarity_check():
         bad.validate()
 
 
-def test_entropy_rate_requires_unifilar_presentation():
+def test_entropy_rate_hmm_requires_unifilar_but_method_dispatches():
     hmm = MealyHMM(
         initial_distribution={"q0": 1.0},
         observation_alphabet=frozenset({"0", "1"}),
@@ -81,8 +81,11 @@ def test_entropy_rate_requires_unifilar_presentation():
     hmm.add_transition("q0", "q1", "0", 0.5)
     hmm.add_transition("q1", "q1", "1", 1.0)
 
+    from sofic.generators.measures import entropy_rate_hmm
+
     with pytest.raises(NotImplementedError, match="unifilar"):
-        hmm.entropy_rate()
+        entropy_rate_hmm(hmm)
+    assert hmm.entropy_rate() == pytest.approx(0.0)
 
 
 def test_mealy_without_alphabet_or_initial_distribution():

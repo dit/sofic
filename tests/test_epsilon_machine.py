@@ -260,3 +260,13 @@ def test_numerically_truncated_reverse_machine_warns():
     assert not forward.reverse_epsilon_machine_is_finite()
     with pytest.warns(RuntimeWarning, match="finite approximation"):
         EpsilonMachine.from_time_reversed(forward)
+
+
+def test_from_hmm_honors_max_states():
+    import pytest
+
+    from sofic.examples import sns
+    from sofic.exceptions import MixedStateExplosionError
+
+    with pytest.raises(MixedStateExplosionError):
+        EpsilonMachine.from_hmm(sns(), max_states=3)

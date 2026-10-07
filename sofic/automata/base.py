@@ -103,6 +103,45 @@ class LabeledAutomaton(StateMachine):
 
         return kleene_star_nfa(self)
 
+    def is_empty(self) -> bool:
+        """Return whether no finite word is accepted :cite:`HopcroftUllman1979`."""
+        from sofic.automata.decisions import is_empty
+
+        return is_empty(self)
+
+    def accepted_word(self) -> tuple[Any, ...] | None:
+        """Return a shortest accepted word, or ``None`` when the language is empty.
+
+        Breadth-first search layered by the number of symbols read, so ε-moves
+        cost nothing :cite:`HopcroftUllman1979`.
+        """
+        from sofic.automata.decisions import accepted_word
+
+        return accepted_word(self)
+
+    def is_universal(self, alphabet: frozenset[Any] | None = None) -> bool:
+        """Return whether every finite word over ``alphabet`` is accepted.
+
+        ``alphabet`` defaults to :attr:`input_alphabet`, the alphabet
+        :meth:`complement` uses, so ``is_universal()`` agrees with
+        ``complement().is_empty()``. Decided by the forward antichain algorithm
+        on the subset construction, without determinizing :cite:`DeWulf2006`.
+        """
+        from sofic.automata.decisions import is_universal
+
+        return is_universal(self, self.input_alphabet if alphabet is None else alphabet)
+
+    def includes(self, other: LabeledAutomaton) -> bool:
+        """Return whether ``other``'s language is contained in this one.
+
+        Decided by the forward antichain inclusion algorithm, which explores
+        pairs of an ``other`` state and a subset of this automaton's states
+        without determinizing :cite:`DeWulf2006`.
+        """
+        from sofic.automata.decisions import includes
+
+        return includes(self, other)
+
     def is_deterministic(self) -> bool:
         """Return whether this automaton is DFA-deterministic."""
         from sofic.properties import is_deterministic_automaton

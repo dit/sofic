@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from sofic.automata.dfa import DFA
     from sofic.automata.nfa import NFA
     from sofic.generators.mealy import MealyHMM
+    from sofic.generators.measures import EntropyRateMethod
     from sofic.generators.prob import SymbolConstraints
     from sofic.shifts.sofic import SoficShift
 
@@ -187,10 +188,16 @@ class HiddenMarkovModel(StochasticModel):
         """Return an equivalent Mealy-style presentation."""
         raise NotImplementedError(f"{type(self).__name__} must implement to_mealy()")
 
-    def entropy_rate(self) -> float:
-        from sofic.generators.measures import entropy_rate_hmm
+    def entropy_rate(self, method: EntropyRateMethod = "auto", **kwargs: Any) -> Any:
+        """Shannon entropy rate in bits per symbol; see :func:`sofic.generators.measures.entropy_rate`.
 
-        return entropy_rate_hmm(self)
+        The default ``method="auto"`` is exact for unifilar presentations and for
+        non-unifilar ones whose mixed states close finitely, and otherwise uses
+        converged upper/lower bounds :cite:`Cover2006`.
+        """
+        from sofic.generators.measures import entropy_rate
+
+        return entropy_rate(self, method, **kwargs)
 
     def joint_block_distribution(self, block_length: int = 2) -> Any:
         from sofic.generators.measures import joint_block_distribution
@@ -262,6 +269,15 @@ class HiddenMarkovModel(StochasticModel):
         from sofic.generators.process_equivalence import is_equal_process
 
         return is_equal_process(self, other, start1=start1, start2=start2, rtol=rtol, atol=atol)
+
+    def relative_entropy_rate(self, other: HiddenMarkovModel) -> float:
+        """Return ``D(self || other)`` in bits per symbol :cite:`Gray1990`.
+
+        See :func:`~sofic.generators.relative_entropy_rate.relative_entropy_rate`.
+        """
+        from sofic.generators.relative_entropy_rate import relative_entropy_rate
+
+        return relative_entropy_rate(self, other)
 
     def to_sofic_shift(self) -> SoficShift:
         """Strip probabilities and return a sofic shift with the same support."""

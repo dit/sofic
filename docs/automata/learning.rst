@@ -138,6 +138,29 @@ satisfiable ``k``. It requires the optional `python-sat
 
 .. autofunction:: sofic.automata.learning.dfasat.learn_dfa_sat
 
+Passive learning from positive data (k-testable)
+================================================
+
+A language is *strictly k-testable* (k-TSS) when membership depends only on a
+word's length-``k - 1`` prefix and suffix, the set of its length-``k`` factors,
+and, for words shorter than ``k - 1``, the word itself. García & Vidal's k-TSSI
+algorithm :cite:`GarciaVidal1990` collects those prefixes, suffixes, factors,
+and short words from **positive samples only** and returns a DFA for the
+smallest k-TSS language containing the sample. Its states are the sample
+prefixes shorter than ``k - 1`` and the reachable ``(k - 1)``-windows. The
+learner identifies every k-TSS language in the limit from positive data, and a
+larger ``k`` gives a (weakly) smaller language:
+
+.. code-block:: python
+
+   from sofic.automata import learn_dfa_k_testable
+
+   dfa = learn_dfa_k_testable(["", "ab", "abab"], k=2)  # (ab)*
+   assert dfa.recognizes("ababab")
+   assert not dfa.recognizes("aab")
+
+.. autofunction:: sofic.automata.learning.k_testable.learn_dfa_k_testable
+
 Probabilistic passive learning (ALERGIA)
 ========================================
 

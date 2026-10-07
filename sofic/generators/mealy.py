@@ -147,11 +147,14 @@ class MealyHMM(HiddenMarkovModel):
         self,
         *,
         initial_mixed_state: MixedState | Mapping[Hashable, float] | Sequence[float] | None = None,
+        max_states: int = 10_000,
     ) -> MixedStatePresentation:
         """Build the mixed-state presentation (observer belief dynamics)."""
         from sofic.generators.mixed_state import MixedStatePresentation
 
-        return MixedStatePresentation.from_presentation(self, initial_mixed_state=initial_mixed_state)
+        return MixedStatePresentation.from_presentation(
+            self, initial_mixed_state=initial_mixed_state, max_states=max_states
+        )
 
     def to_edge_machine(self, iterations: int = 1, style: int = 0) -> MealyHMM:
         from sofic.generators.edge_machine import hmm_to_edge_machine

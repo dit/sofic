@@ -27,8 +27,33 @@ languages :cite:`RabinScott1959,HopcroftUllman1979`.
 
    In [6]: dfa = determinize(nfa)
 
+Decision procedures
+===================
+
+``is_empty`` and ``accepted_word`` search the state graph breadth-first, so the
+witness is a shortest accepted word (ε-moves cost nothing). ``is_universal``
+and ``includes`` use the forward antichain algorithms of De Wulf et al.
+:cite:`DeWulf2006`, which explore the subset construction on the fly and keep
+only ``⊆``-minimal subsets instead of determinizing. Universality is relative
+to ``input_alphabet`` by default, matching :meth:`~NFA.complement`.
+
+.. ipython::
+
+   @doctest
+   In [7]: nfa.accepted_word()
+   Out[7]: (0,)
+
+   @doctest
+   In [8]: nfa.is_universal()
+   Out[8]: False
+
+   @doctest
+   In [9]: dfa.includes(nfa)
+   Out[9]: True
+
 API
 ===
 
 .. autoclass:: NFA
-   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, determinize, minimize
+   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, determinize, minimize,
+             is_empty, accepted_word, is_universal, includes
