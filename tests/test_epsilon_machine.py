@@ -201,3 +201,62 @@ def test_from_time_reversed_propagates_explosion_instead_of_degrading():
         pytest.raises(MixedStateExplosionError),
     ):
         EpsilonMachine.from_time_reversed(forward)
+
+
+def test_reverse_is_finite_false_does_not_mean_infinite_reverse_machine():
+    """Infinitely many transient reverse beliefs can converge to finitely many causal states.
+
+    Alternating biased coins has a likelihood ratio that diverges around a
+    pair-graph cycle, so the twins test fails, yet its reverse ε-machine has two
+    states.
+    """
+    from sofic.examples import alternating_biased_coins
+
+    forward = alternating_biased_coins()
+    assert not forward.reverse_is_finite()
+    assert forward.reverse_epsilon_machine_is_finite()
+    reverse = EpsilonMachine.from_time_reversed(forward)
+    assert len(list(reverse.states())) == 2
+
+
+def test_reverse_epsilon_machine_is_finite_on_known_cases():
+    from sofic.examples import even_process, golden_mean
+
+    assert not _explosive_forward().reverse_epsilon_machine_is_finite()
+    assert golden_mean(0.5).reverse_epsilon_machine_is_finite()
+    assert even_process(0.5).reverse_epsilon_machine_is_finite()
+    assert irreversible_two_state().reverse_epsilon_machine_is_finite()
+
+
+def test_reverse_is_finite_implies_reverse_epsilon_machine_is_finite():
+    from sofic.generators.topological_epsilon_enumeration import iter_topological_epsilon_machines
+
+    for machine in iter_topological_epsilon_machines(2, 3, alphabet=("0", "1")):
+        if machine.reverse_is_finite():
+            assert machine.reverse_epsilon_machine_is_finite()
+
+
+def test_numerically_truncated_reverse_machine_warns():
+    """Numeric beliefs merging within tolerance must not pass for a finite reverse machine.
+
+    The pair ``(0, 1)`` gains a factor of two per ``1`` before the paths merge, so
+    the frozen posterior ratios are ``2^k`` -- infinitely many recurrent states --
+    yet tolerance merging closes the belief set.
+    """
+    import pytest
+
+    spec = {
+        "A": [("1", "B", 1.0)],
+        "B": [("0", "A", 0.5), ("1", "C", 0.5)],
+        "C": [("0", "B", 0.5), ("1", "C", 0.5)],
+    }
+    forward = EpsilonMachine(initial_distribution={"A": 1.0}, observation_alphabet=frozenset({"0", "1"}))
+    for state in spec:
+        forward.graph.add_state(state)
+    for state, edges in spec.items():
+        for symbol, target, prob in edges:
+            forward.graph.add_transition(state, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+
+    assert not forward.reverse_epsilon_machine_is_finite()
+    with pytest.warns(RuntimeWarning, match="finite approximation"):
+        EpsilonMachine.from_time_reversed(forward)

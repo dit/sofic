@@ -107,7 +107,8 @@ def _right_resolving(shift: SoficShift) -> SoficShift:
 def parry_measure_sofic(shift: SoficShift) -> MealyHMM:
     """Return the measure of maximal entropy (Parry measure) as a labeled MealyHMM.
 
-    Puts ``shift`` in right-resolving form (:func:`_right_resolving`) and builds
+    Drops states off every bi-infinite path, puts ``shift`` in right-resolving
+    form (:func:`_right_resolving`), and builds
     the Parry chain ``P[i, j] = A[i, j] v_j / (lambda v_i)`` with stationary
     ``pi ~ u * v`` from the Perron data of the adjacency matrix ``A`` (Parry 1964),
     preserving each edge's emitted symbol. Its entropy rate is
@@ -116,7 +117,7 @@ def parry_measure_sofic(shift: SoficShift) -> MealyHMM:
     """
     from sofic.shifts.parry_construction import parry_measure
 
-    return parry_measure(_right_resolving(shift))
+    return parry_measure(_right_resolving(shift.trim_transient()))
 
 
 def topological_anatomy(shift: SoficShift) -> dict[str, float]:

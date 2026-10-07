@@ -23,6 +23,9 @@ _LATEX_SPECIAL = {
     "_": r"\_",
     "^": r"\mbox{\^{}}",
     "~": r"\mbox{\textasciitilde}",
+    # A blank line is ``\par``, which breaks node text and math mode alike.
+    "\n": " ",
+    "\r": " ",
 }
 
 
@@ -38,7 +41,7 @@ def _latex_arg(text: str) -> str:
     """Escape content for a LaTeX macro argument (no math mode)."""
     if text == "":
         return "{}"
-    if any(char in text for char in "{}\\#%&_^~$"):
+    if any(char in _LATEX_SPECIAL for char in text):
         return f"{{{latex_escape(text)}}}"
     return text
 

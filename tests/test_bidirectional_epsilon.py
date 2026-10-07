@@ -504,3 +504,28 @@ def test_ellison_fig15_single_weak_component():
     bidir = ellison_fig15_bidirectional()
     graph = bidir.to_networkx()
     assert len(list(nx.weakly_connected_components(graph))) == 1
+
+
+def test_joint_class_choice_is_platform_independent():
+    """Regression: two marginal-matching joint classes tied on the anatomy gap up to round-off.
+
+    Exact float comparison picked the 4-pair class on x86-64 (E = 1.0) and the
+    diagonal class on arm64 (E = 1.5). Brute-force block entropies converge to
+    E = 1.5, so the crypticity of this machine is 0.
+    """
+    import pytest
+
+    from sofic.generators.epsilon_machine import EpsilonMachine
+    from sofic.graph import ATTR_EMISSION, ATTR_PROB
+
+    machine = EpsilonMachine(
+        initial_distribution={0: 0.25, 1: 0.5, 2: 0.25}, observation_alphabet=frozenset({"0", "1"})
+    )
+    for state in (0, 1, 2):
+        machine.graph.add_state(state)
+    for source, symbol, target, prob in [(0, "1", 1, 1.0), (1, "0", 1, 0.5), (1, "1", 2, 0.5), (2, "0", 0, 1.0)]:
+        machine.graph.add_transition(source, target, **{ATTR_PROB: prob, ATTR_EMISSION: symbol})
+
+    assert machine.excess_entropy() == pytest.approx(1.5, abs=1e-9)
+    assert machine.crypticity() == pytest.approx(0.0, abs=1e-9)
+    assert len(machine.to_bidirectional().joint_distribution()) == 3
