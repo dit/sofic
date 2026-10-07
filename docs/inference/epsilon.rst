@@ -11,7 +11,9 @@ product-of-Dirichlets prior/posterior over the edge probabilities of a candidate
 :class:`~sofic.generators.mealy.MealyHMM`; an
 :class:`EpsilonMachinePosterior` (aliased ``InferEM``) marginalizes over the
 unknown start state as well, giving the model evidence and posterior-mean
-machine.
+machine. The posterior-mean machine starts where the data start: its edge
+probabilities are conditioned on the most probable start state and its initial
+distribution is the posterior over start states (or the given ``start_node``).
 
 .. code-block:: python
 

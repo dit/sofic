@@ -137,3 +137,21 @@ def test_alergia_rejects_out_of_range_alpha():
         learn_pfa_alergia([("0",)], alpha=0.0)
     with pytest.raises(ValueError):
         learn_pfa_alergia([("0",)], alpha=1.0)
+
+
+def test_alergia_censored_windows_recover_golden_mean():
+    """Regression: window ends were scored as terminations, so fixed-length windows
+    split states by depth (20 states for the golden mean, one without outgoing edges)."""
+    sequence, _ = golden_mean().sample(30_000, rng=np.random.default_rng(0))
+    sequence = list(sequence)
+    windows = [sequence[i : i + 10] for i in range(0, len(sequence), 10)]
+    pfa = learn_pfa_alergia(windows, censored=True)
+    pfa.validate()
+    states = list(pfa.states())
+    assert all(list(pfa.graph.out_transitions(state)) for state in states)
+    start = next(iter(pfa.initial_distribution))
+    recurrent = {t.target for t in pfa.transitions()}
+    assert len(recurrent) == 2
+    assert set(states) <= recurrent | {start}
+    uncensored = learn_pfa_alergia(windows)
+    assert len(list(uncensored.states())) > len(states)

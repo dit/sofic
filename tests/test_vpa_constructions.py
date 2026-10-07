@@ -4,7 +4,6 @@ from itertools import product
 
 import pytest
 from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
 
 from sofic.automata.nwa import NestedWordAutomaton
 from sofic.automata.vpa import (
@@ -16,39 +15,12 @@ from sofic.automata.vpa import (
 )
 from sofic.automata.vpa.operations import to_multiple_entry, to_single_entry
 from sofic.exceptions import NonWellMatchedLanguageError
+from sofic.testing.strategies import vpas
 
 CALLS, RETURNS, INTERNALS = frozenset({"c"}), frozenset({"r"}), frozenset({"i"})
 SYMBOLS = ("c", "r", "i")
 MAX_LENGTH = 6
 WORDS = [word for n in range(MAX_LENGTH + 1) for word in product(SYMBOLS, repeat=n)]
-
-
-@st.composite
-def vpas(draw, max_states: int = 3):
-    """Small, possibly nondeterministic VPAs over one call, return, and internal symbol."""
-    n = draw(st.integers(1, max_states))
-    states = list(range(n))
-    with_bottom = draw(st.booleans())
-    vpa = VisiblyPushdownAutomaton(
-        call_alphabet=CALLS,
-        return_alphabet=RETURNS,
-        internal_alphabet=INTERNALS,
-        stack_alphabet=frozenset({"A", "B"} | ({"Z"} if with_bottom else set())),
-        bottom_stack_symbol="Z" if with_bottom else None,
-        initial_state=0,
-        accepting_states=frozenset(draw(st.sets(st.sampled_from(states)))),
-    )
-    for state in states:
-        vpa.graph.add_state(state)
-    state = st.sampled_from(states)
-    for source, target in draw(st.lists(st.tuples(state, state), max_size=4)):
-        vpa.add_internal_transition(source, target, "i")
-    for source, target, push in draw(st.lists(st.tuples(state, state, st.sampled_from("AB")), max_size=3)):
-        vpa.add_call_transition(source, target, "c", push)
-    guards = ["A", "B", None] + (["Z"] if with_bottom else [])
-    for source, target, guard in draw(st.lists(st.tuples(state, state, st.sampled_from(guards)), max_size=3)):
-        vpa.add_return_transition(source, target, "r", guard)
-    return vpa
 
 
 def _language(recognize) -> frozenset[tuple[str, ...]]:
@@ -208,3 +180,159 @@ def test_nwa_operations_delegate_to_vpas():
     assert nwa.union(complement).is_universal()
     assert nwa.intersection(complement).is_empty()
     assert nwa.kleene_star().equivalent(nwa)
+
+
+def _well_matched_tracker() -> VisiblyPushdownAutomaton:
+    tracker = VisiblyPushdownAutomaton(
+        call_alphabet=CALLS,
+        return_alphabet=RETURNS,
+        internal_alphabet=INTERNALS,
+        stack_alphabet=frozenset({"E", "N"}),
+        initial_state="E",
+        accepting_states=frozenset({"E"}),
+    )
+    for state in ("E", "N"):
+        tracker.graph.add_state(state)
+    for state in ("E", "N"):
+        tracker.add_call_transition(state, "N", "c", state)
+        tracker.add_internal_transition(state, state, "i")
+        tracker.add_return_transition(state, "E", "r", "E")
+        tracker.add_return_transition(state, "N", "r", "N")
+    return tracker
+
+
+def _brute_force_accepts(vpa, word) -> bool:
+    """Configuration-set simulation for a VPA without a bottom stack symbol."""
+    configs = {(vpa.initial_state, ())}
+    for symbol in word:
+        following = set()
+        for state, stack in configs:
+            for transition in vpa.graph.out_transitions(state):
+                if transition.data.get("symbol") != symbol:
+                    continue
+                pushed = transition.data.get("stack_symbol")
+                if symbol == "i":
+                    following.add((transition.target, stack))
+                elif symbol == "c":
+                    following.add((transition.target, (*stack, pushed)))
+                elif stack and pushed in (None, stack[-1]):
+                    following.add((transition.target, stack[:-1]))
+        configs = following
+    return any(state in vpa.accepting_states for state, _stack in configs)
+
+
+def _random_well_matched_vpa(rng):
+    n = rng.randint(1, 2)
+    vpa = VisiblyPushdownAutomaton(
+        call_alphabet=CALLS,
+        return_alphabet=RETURNS,
+        internal_alphabet=INTERNALS,
+        stack_alphabet=frozenset({"A", "B"}),
+        initial_state=0,
+        accepting_states=frozenset(s for s in range(n) if rng.random() < 0.5),
+    )
+    for state in range(n):
+        vpa.graph.add_state(state)
+    for source, target in product(range(n), repeat=2):
+        if rng.random() < 0.35:
+            vpa.add_call_transition(source, target, "c", rng.choice("AB"))
+        if rng.random() < 0.35:
+            vpa.add_internal_transition(source, target, "i")
+        if rng.random() < 0.35:
+            vpa.add_return_transition(source, target, "r", rng.choice(["A", "B", None]))
+    return vpa.intersection(_well_matched_tracker())
+
+
+def test_modular_minimize_splits_callers_with_distinct_return_targets():
+    vpa = VisiblyPushdownAutomaton(
+        call_alphabet=CALLS,
+        return_alphabet=RETURNS,
+        internal_alphabet=INTERNALS,
+        stack_alphabet=frozenset({"A", "B"}),
+        initial_state=0,
+        accepting_states=frozenset({0, 1}),
+    )
+    vpa.graph.add_state(0)
+    vpa.graph.add_state(1)
+    vpa.add_call_transition(0, 0, "c", "B")
+    vpa.add_call_transition(0, 1, "c", "B")
+    vpa.add_return_transition(0, 1, "r", "B")
+    vpa.add_call_transition(1, 1, "c", "A")
+    matched = vpa.intersection(_well_matched_tracker())
+    reference = _language(lambda word: _brute_force_accepts(matched, word))
+    single = SingleEntryVisiblyPushdownAutomaton.minimize(to_single_entry(matched))
+    assert _language(single.recognizes) == reference
+    assert _language(SingleEntryVisiblyPushdownAutomaton.minimize(matched).recognizes) == reference
+    assert _language(MultipleEntryVisiblyPushdownAutomaton.minimize(matched).recognizes) == reference
+
+
+def test_modular_minimize_matches_brute_force_on_random_well_matched_vpas():
+    import random
+
+    rng = random.Random(7)
+    for _trial in range(60):
+        vpa = _random_well_matched_vpa(rng)
+        reference = _language(lambda word, vpa=vpa: _brute_force_accepts(vpa, word))
+        assert _language(vpa.recognizes) == reference
+        for cls in (SingleEntryVisiblyPushdownAutomaton, MultipleEntryVisiblyPushdownAutomaton):
+            minimized = cls.minimize(vpa)
+            minimized.validate()
+            assert _language(minimized.recognizes) == reference
+        assert _language(SingleEntryVisiblyPushdownAutomaton.minimize(to_single_entry(vpa)).recognizes) == reference
+
+
+def _slow_equivalence_vpa() -> VisiblyPushdownAutomaton:
+    vpa = VisiblyPushdownAutomaton(
+        call_alphabet=CALLS,
+        return_alphabet=RETURNS,
+        internal_alphabet=INTERNALS,
+        stack_alphabet=frozenset({"A", "B"}),
+        initial_state=0,
+        accepting_states=frozenset({0}),
+    )
+    for state in range(3):
+        vpa.graph.add_state(state)
+    vpa.add_internal_transition(0, 0, "i")
+    vpa.add_call_transition(0, 0, "c", "A")
+    vpa.add_return_transition(0, 0, "r")
+    vpa.add_internal_transition(0, 2, "i")
+    vpa.add_call_transition(1, 2, "c", "B")
+    vpa.add_call_transition(2, 0, "c", "A")
+    vpa.add_internal_transition(2, 1, "i")
+    vpa.add_call_transition(2, 1, "c", "B")
+    vpa.add_call_transition(2, 2, "c", "B")
+    vpa.add_return_transition(2, 2, "r", "B")
+    return vpa
+
+
+def test_equivalence_with_own_determinization_is_fast():
+    import time
+
+    vpa = _slow_equivalence_vpa()
+    started = time.perf_counter()
+    deterministic = vpa.determinize()
+    assert vpa.equivalent(deterministic)
+    assert deterministic.complement().complement().equivalent(deterministic)
+    # Took over 15 s before worklist saturation and the deterministic complement shortcut.
+    assert time.perf_counter() - started < 10.0
+    for word in (w for w in WORDS if len(w) <= 4):
+        assert deterministic.recognizes(word) == _brute_force_accepts(vpa, word)
+
+
+def test_deterministic_transition_maps_track_mutation():
+    deterministic = DeterministicVisiblyPushdownAutomaton(
+        call_alphabet=CALLS,
+        return_alphabet=RETURNS,
+        internal_alphabet=INTERNALS,
+        stack_alphabet=frozenset({"A"}),
+        initial_state=0,
+        accepting_states=frozenset({1}),
+    )
+    deterministic.graph.add_state(0)
+    deterministic.graph.add_state(1)
+    deterministic.add_call_transition(0, 1, "c", "A")
+    assert deterministic.return_successor(1, "r", "A") is None
+    deterministic.add_return_transition(1, 0, "r", "A")
+    assert deterministic.return_successor(1, "r", "A") == 0
+    deterministic.graph.add_transition(0, 0, kind="internal", symbol="i")
+    assert deterministic.internal_successor(0, "i") == 0

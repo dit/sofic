@@ -13,7 +13,12 @@ language atom and átomaton constructions :cite:`BrzozowskiTamm2011`
 An *atom* is a non-empty intersection of complemented or uncomplemented left
 quotients of the language.  Atoms partition the free monoid, every quotient is
 a union of them, and the átomaton -- the NFA whose states are the atoms -- is
-isomorphic to the reverse of the minimal DFA of the reverse language.  Atoms
+isomorphic to the reverse of the minimal DFA of the reverse language.  Because
+that DFA is trimmed, the átomaton omits the *negative* atom (every quotient
+complemented) whenever it is non-empty: its state would have an empty right
+language.  :func:`~sofic.automata.languages.atoms.atoms` does include it, so
+the atoms it returns partition :math:`\Sigma^*`
+(:cite:`BrzozowskiTamm2014`, Section 4.2).  Atoms
 therefore classify *futures* in the same way that the minimal DFA's states
 classify *pasts*.
 

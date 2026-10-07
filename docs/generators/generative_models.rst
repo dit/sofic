@@ -40,7 +40,12 @@ sit in a fixed order:
 
 Each returns a (generally non-unifilar) :class:`~sofic.generators.mealy.MealyHMM`
 subclass whose ``generative_complexity()`` is the corresponding common
-information, and which reproduces the source process.
+information. The exact, Wyner, and functional models reproduce the source
+process. The Gács–Körner model does **not**: the meet need not render
+:math:`S^+` and :math:`S^-` conditionally independent, so it is the
+common-information variable presented as an HMM rather than a generator —
+``is_equal_process(source)`` is ``False`` in general (the golden mean collapses
+to an i.i.d. coin), and its ``entropy_rate()`` is its own, not the source's.
 
 .. code-block:: python
 

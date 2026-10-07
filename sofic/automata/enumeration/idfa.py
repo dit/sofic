@@ -3,7 +3,14 @@
 Extends the complete ICDFA string representation of Almeida, Moreira, and Reis
 (2007) with ``-1`` for missing transitions, following the accessible-DFA
 generation and rank function ``B¹_{n,k}`` used by Johnson et al. (2010),
-*Enumerating Finitary Processes* (arXiv:1011.0036).
+*Enumerating Finitary Processes* (arXiv:1011.0036) :cite:`Almeida2007,Johnson2010`.
+
+A string lists ``δ(0, 0), …, δ(0, k-1), δ(1, 0), …`` with states numbered in
+order of first appearance; ``f_j`` is the position of the first ``j``. Every
+non-flag position between ``f_j`` and ``f_{j+1}`` takes a value in
+``[-1, j]`` -- including the positions before ``f_1``, which may be ``0`` or
+missing -- so the strings are in bijection with the non-isomorphic accessible
+incomplete DFAs (no final states) on ``n`` states over ``k`` symbols.
 """
 
 from __future__ import annotations
@@ -88,8 +95,6 @@ def idfa_string_from_flags(
     transitions = [filler] * (k * n)
     for state, flag in enumerate(flags, start=1):
         transitions[flag] = state
-    for index in range(flags[0]):
-        transitions[index] = 0
     return tuple(transitions)
 
 
@@ -189,10 +194,6 @@ def count_idfa_strings_for_flags(flags: Sequence[int], *, n: int, k: int) -> int
     product = 1
     for segment_index in range(n):
         segment = ext[segment_index + 1] - ext[segment_index] - 1
-        if segment == 0:
-            continue
-        if segment_index == 0:
-            continue
         product *= (segment_index + 2) ** segment
     return product
 

@@ -24,15 +24,15 @@ def _suffixes_if_prefix(word: tuple[Any, ...], prefix: Sequence[Any]) -> set[tup
 
 def _prefixes_if_suffix(word: tuple[Any, ...], suffix: Sequence[Any]) -> set[tuple[Any, ...]]:
     s = tuple(suffix)
-    if len(word) >= len(s) and word[-len(s) :] == s:
+    if len(word) >= len(s) and word[len(word) - len(s) :] == s:
         return {word[: len(word) - len(s)]}
     return set()
 
 
 def _is_union_of_others(target: ExplicitLanguage, others: list[ExplicitLanguage]) -> bool:
+    """Whether ``target``'s positive sample is the union of those strictly inside it."""
     union_pos: set[tuple] = set()
-    union_neg: set[tuple] = set()
     for lang in others:
-        union_pos |= lang._positive
-        union_neg |= lang._negative
-    return target._positive == union_pos and target._negative == union_neg
+        if lang._positive < target._positive:
+            union_pos |= lang._positive
+    return target._positive == union_pos

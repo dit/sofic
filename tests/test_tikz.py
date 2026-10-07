@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sofic.automata.dfa import DFA
-from sofic.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
+from sofic.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
 from sofic.viz.tikz import compile_tikz, draw_tikz, model_to_tikz
 
 
@@ -24,8 +24,8 @@ def _dfa() -> DFA:
     return dfa
 
 
-def test_golden_mean_forward_tikz_vaucanson_style():
-    tikz = model_to_tikz(golden_mean_forward(0.5))
+def test_golden_mean_tikz_vaucanson_style():
+    tikz = model_to_tikz(golden_mean(0.5))
     assert "style=vaucanson" in tikz
     assert r"\Edge{" in tikz
     assert r"\half" in tikz or r"\nicefrac{1}{2}" in tikz
@@ -42,11 +42,11 @@ def test_dfa_tikz_symbol_only():
 def test_tikz_colors_edges_by_emission_by_default():
     from sofic.viz._context import EMISSION_PALETTE, tikz_draw_color
 
-    tikz = model_to_tikz(golden_mean_forward(0.5))
+    tikz = model_to_tikz(golden_mean(0.5))
     assert f"draw={tikz_draw_color(EMISSION_PALETTE[0])}" in tikz
     assert f"draw={tikz_draw_color(EMISSION_PALETTE[1])}" in tikz
 
-    plain = model_to_tikz(golden_mean_forward(0.5), color_by_emission=False)
+    plain = model_to_tikz(golden_mean(0.5), color_by_emission=False)
     assert "draw=" not in plain
 
 
@@ -129,7 +129,7 @@ def test_msp_self_loop_avoids_reciprocal_edge():
 
 
 def test_edge_label_pos_is_emitted():
-    tikz = model_to_tikz(golden_mean_forward(0.5), edge_label_pos=1 / 3)
+    tikz = model_to_tikz(golden_mean(0.5), edge_label_pos=1 / 3)
     assert "pos=0.333333" in tikz
     assert "fill=white" in tikz
 
@@ -141,7 +141,7 @@ def test_reciprocal_edges_bend_same_direction():
     assert edge_style("B", "A", parallel_index=0, total_parallel=1, has_reverse=True) == "bend left"
     assert edge_style("A", "B", parallel_index=0, total_parallel=1, has_reverse=False) == ""
 
-    tikz = model_to_tikz(golden_mean_forward(0.5), style="paper")
+    tikz = model_to_tikz(golden_mean(0.5), style="paper")
     ab = [line for line in tikz.splitlines() if "(A)" in line and "(B)" in line and "edge" in line]
     assert len(ab) == 2
     assert all("bend left" in line for line in ab)
@@ -193,7 +193,7 @@ def test_bidirectional_tikz_png():
 
 
 def test_circle_layout_polar_coordinates():
-    tikz = model_to_tikz(golden_mean_forward(0.5), layout="circle", radius="2cm")
+    tikz = model_to_tikz(golden_mean(0.5), layout="circle", radius="2cm")
     assert "at (90:2cm)" in tikz or "at (90:2cm)" in tikz.replace(" ", "")
 
 
@@ -201,34 +201,34 @@ def test_circle_layout_polar_coordinates():
 def test_layout_modes(layout: str):
     graphviz = pytest.importorskip("graphviz")
     del graphviz
-    tikz = model_to_tikz(golden_mean_forward(0.5), layout=layout)
+    tikz = model_to_tikz(golden_mean(0.5), layout=layout)
     assert r"\begin{tikzpicture}" in tikz
     assert r"\path" in tikz
 
 
 def test_draw_tikz_writes_file(tmp_path):
     path = tmp_path / "machine.tikz"
-    result = draw_tikz(golden_mean_forward(0.5), filename=str(path))
+    result = draw_tikz(golden_mean(0.5), filename=str(path))
     assert result == str(path)
     content = path.read_text(encoding="utf-8")
     assert r"\Edge{" in content
 
 
 def test_to_tikz_method():
-    tikz = golden_mean_forward(0.5).to_tikz()
+    tikz = golden_mean(0.5).to_tikz()
     assert "style=vaucanson" in tikz
 
 
 def test_standalone_document_includes_preamble():
-    doc = model_to_tikz(golden_mean_forward(0.5), fragment=False)
+    doc = model_to_tikz(golden_mean(0.5), fragment=False)
     assert r"\documentclass" in doc
     assert "vaucanson.tikz" in doc
 
 
 def test_epsilon_machine_tikz_fillcolor():
-    from sofic.examples.epsilon_machines import golden_mean_forward
+    from sofic.examples.epsilon_machines import golden_mean
 
-    tikz = model_to_tikz(golden_mean_forward(0.5))
+    tikz = model_to_tikz(golden_mean(0.5))
     assert "fill=honeydew" in tikz
 
 
@@ -237,7 +237,7 @@ def test_compile_tikz_fragment_to_png():
 
     if shutil.which("pdflatex") is None:
         pytest.skip("pdflatex not available")
-    fragment = model_to_tikz(golden_mean_forward(0.5))
+    fragment = model_to_tikz(golden_mean(0.5))
     png = compile_tikz(fragment, format="png")
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
 
@@ -248,6 +248,37 @@ def test_draw_tikz_compiles_png(tmp_path):
     if shutil.which("pdflatex") is None:
         pytest.skip("pdflatex not available")
     path = tmp_path / "machine.png"
-    result = draw_tikz(golden_mean_forward(0.5), filename=str(path))
+    result = draw_tikz(golden_mean(0.5), filename=str(path))
     assert result == str(path)
     assert path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_latex_escape_is_math_mode_safe():
+    from sofic.viz._tikz_format import format_edge_latex, latex_escape
+
+    assert latex_escape("a^b~c\\") == r"a\mbox{\^{}}b\mbox{\textasciitilde}c\mbox{\textbackslash}"
+    label = format_edge_latex("x^2", 0.5)
+    assert r"\^{}" in label
+    # every text-mode-only command must be shielded by \mbox inside $...$
+    assert r"\^{}" not in label.replace(r"\mbox{\^{}}", "")
+
+
+@pytest.mark.skipif(__import__("shutil").which("pdflatex") is None, reason="pdflatex not installed")
+def test_latex_escape_compiles_in_math_mode(tmp_path):
+    import subprocess
+
+    from sofic.viz._tikz_format import latex_escape
+
+    body = latex_escape("a^b~c\\d_e")
+    (tmp_path / "t.tex").write_text(
+        "\\documentclass{article}\\begin{document}$" + body + "$ and " + body + "\\end{document}\n"
+    )
+    result = subprocess.run(
+        ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "t.tex"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout[-2000:]
+    assert "invalid in math mode" not in result.stdout

@@ -6,8 +6,15 @@ Topological Markov Chain
 ************************
 
 A :class:`TopologicalMarkovChain` is a shift of finite type presented by an
-adjacency matrix. Its Parry measure is the maximum-entropy stochastic generator
-:cite:`Parry1964,LindMarcus1995`.
+adjacency matrix. It is an *edge shift*: an entry ``k`` in the matrix is ``k``
+distinct parallel edges, so :meth:`~TopologicalMarkovChain.topological_entropy`
+is the ``log2`` spectral radius counting multiplicities (bits per symbol), even
+when parallel edges share a label. Its Parry measure is the maximum-entropy
+stochastic generator :cite:`Parry1964,LindMarcus1995`; when parallel edges share
+a symbol the Parry HMM emits ``(symbol, k)`` for the ``k``-th copy so that its
+entropy rate equals the topological entropy. Converting with
+:meth:`~TopologicalMarkovChain.to_sofic_shift` forgets edge identities and gives
+the entropy of the labeled (sofic) shift instead.
 
 .. ipython::
 

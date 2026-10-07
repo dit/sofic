@@ -8,8 +8,7 @@ from sofic.examples import (
     bernoulli,
     butterfly_process,
     even_process,
-    golden_mean_forward,
-    golden_mean_reverse,
+    golden_mean,
     nemo_process,
     noisy_random_phase_slip,
 )
@@ -28,7 +27,7 @@ def _processes() -> dict[str, BidirectionalEpsilonMachine]:
     """Bidirectional presentations spanning the ephemeral-motif zoo."""
     return {
         "bernoulli_half": bernoulli(0.5).to_bidirectional(),
-        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean_forward(0.5), golden_mean_reverse(0.5)),
+        "golden_mean": BidirectionalEpsilonMachine.from_pair(golden_mean(0.5), golden_mean(0.5)),
         "even": even_process(0.5).to_bidirectional(),
         "butterfly": butterfly_process().to_bidirectional(),
         "nemo": nemo_process().to_bidirectional(),
@@ -144,7 +143,7 @@ def test_bernoulli_ephemeral_is_pure_gauge_atom():
 def test_epsilon_machine_delegates_to_bidirectional():
     """EpsilonMachine.information_diagram matches the bidirectional computation."""
     pytest.importorskip("dit")
-    forward = golden_mean_forward(0.5)
+    forward = golden_mean(0.5)
     from_forward = forward.information_diagram()
     from_bidir = forward.to_bidirectional().information_diagram()
     assert isinstance(from_forward, InformationDiagram)

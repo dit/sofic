@@ -290,3 +290,25 @@ def test_stack_cssr_keeps_histories_when_splitting(seed):
     windows = [tuple(held_out[i : i + 6]) for i in range(0, 390, 6)]
     supported = sum(inferred.word_probability(window) > 0.0 for window in windows)
     assert supported >= 0.9 * len(windows)
+
+
+def test_stack_mle_accounts_for_illegal_returns_on_empty_stack():
+    """Regression: edge counts were divided by all departures, ignoring that returns are
+    illegal on an empty stack, so call weights came out inflated and returns deflated."""
+    from sofic.shifts.sofic_dyck import transition_ref
+
+    shift = motzkin_shift()
+    rng = np.random.default_rng(1)
+    refs = [transition_ref(transition) for transition in shift.transitions()]
+    weights = rng.dirichlet(np.ones(len(refs)))
+    oracle = HiddenMarkovStackModel.from_sofic_dyck_shift(shift, dict(zip(refs, map(float, weights), strict=True)))
+    observations, _ = oracle.sample(20000, rng=rng)
+    fitted = learn_stack_hmm_mle(shift, observations)
+    true_probs = [t.data["prob"] for t in oracle.transitions()]
+    fitted_probs = [t.data["prob"] for t in fitted.transitions()]
+    assert fitted_probs == pytest.approx(true_probs, abs=0.015)
+    held_out, _ = oracle.sample(1500, rng=np.random.default_rng(5))
+    windows = [tuple(held_out[i : i + 30]) for i in range(0, 1500, 30)]
+    oracle_bits = np.mean([_held_out_bits_per_symbol(oracle, w) for w in windows])
+    fitted_bits = np.mean([_held_out_bits_per_symbol(fitted, w) for w in windows])
+    assert fitted_bits == pytest.approx(oracle_bits, abs=0.01)

@@ -115,7 +115,7 @@ def test_fig6_hmm_from_hmm_recovers_fig7_entropy():
 def test_fig6_hmm_matches_fig7_word_probabilities():
     hmm = tent_map_misiurewicz_hmm()
     fwd = tent_map_misiurewicz_forward()
-    for word in [(0, 0), (0, 1), (1, 0), (1, 1), (0, 1, 0), (1, 1, 0)]:
+    for word in ["00", "01", "10", "11", "010", "110"]:
         assert hmm.word_probability(word) == pytest.approx(
             fwd.word_probability(word),
             abs=1e-10,

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
-from sofic.examples import fair_coin, golden_mean
+from sofic.examples import bernoulli, golden_mean
 from sofic.generators.matrices import emission_tensors
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.sampling import sample
@@ -27,7 +29,7 @@ from sofic.inference.hmm.filtering import _forward_scaled
 
 
 def test_forward_coin_initial_and_likelihood():
-    coin = fair_coin()
+    coin = bernoulli()
     observations = ["0", "1", "0"]
     alpha = forward(coin, observations)
     assert alpha.shape == (4, 1)
@@ -36,27 +38,49 @@ def test_forward_coin_initial_and_likelihood():
 
 
 def test_backward_coin():
-    coin = fair_coin()
+    coin = bernoulli()
     beta = backward(coin, ["0", "1"])
     assert beta.shape == (3, 1)
     assert beta[-1].sum() == pytest.approx(1.0, abs=1e-9)
 
 
 def test_log_likelihood_coin():
-    coin = fair_coin()
+    coin = bernoulli()
     ll = log_likelihood(coin, ["0", "1", "0", "1"])
     assert np.isfinite(ll)
     assert ll < 0.0
 
 
 def test_viterbi_coin_constant_state():
-    coin = fair_coin()
+    coin = bernoulli()
     path = viterbi(coin, ["0", "1", "0"])
-    assert path == ["A", "A", "A"]
+    assert path == ["A", "A", "A", "A"]
+
+
+def test_viterbi_returns_initial_state_and_aligns_with_smooth():
+    """Regression: nonempty input gave X_1..X_n but empty input gave [X_0]."""
+    gm = golden_mean(0.5)
+    observations = list("01001")
+    path = viterbi(gm, observations)
+    assert len(path) == len(observations) + 1 == smooth(gm, observations).shape[0]
+    assert len(viterbi(gm, [])) == 1
+    probability = 0.0
+    states = list(gm.states())
+    for candidate in itertools.product(states, repeat=len(observations) + 1):
+        weight = gm.initial_distribution.get(candidate[0], 0.0)
+        for t, symbol in enumerate(observations):
+            weight *= sum(
+                tr.data["prob"]
+                for tr in gm.graph.out_transitions(candidate[t])
+                if tr.target == candidate[t + 1] and tr.data["emission"] == symbol
+            )
+        if weight > probability:
+            probability, best = weight, list(candidate)
+    assert path == best
 
 
 def test_viterbi_impossible_observation_has_no_path():
-    coin = fair_coin()
+    coin = bernoulli()
     assert log_likelihood(coin, ["2"]) == float("-inf")
     assert viterbi(coin, ["2"]) == []
 
@@ -78,7 +102,7 @@ def test_stationary_distribution_periodic_hmm_is_invariant():
 
 
 def test_sample_coin_length():
-    coin = fair_coin()
+    coin = bernoulli()
     rng = np.random.default_rng(0)
     observations, states = sample(coin, 20, rng=rng)
     assert len(observations) == 20
@@ -88,7 +112,7 @@ def test_sample_coin_length():
 
 def test_log_likelihood_long_sequence_stays_finite():
     """The scaled forward recursion must not underflow to -inf on long sequences."""
-    coin = fair_coin()
+    coin = bernoulli()
     observations = ["0", "1"] * 1500
     ll = log_likelihood(coin, observations)
     assert np.isfinite(ll)
@@ -96,7 +120,7 @@ def test_log_likelihood_long_sequence_stays_finite():
 
 
 def test_forward_scaled_rows_are_normalized():
-    coin = fair_coin()
+    coin = bernoulli()
     alpha = forward(coin, ["0", "1", "0"], normalize=True)
     assert alpha.shape == (4, 1)
     assert np.allclose(alpha.sum(axis=1), 1.0)
@@ -120,7 +144,7 @@ def _iid_source(probs: dict) -> MealyHMM:
 
 def test_smooth_rows_sum_to_one_and_match_unscaled_forward_backward():
     gm = golden_mean(0.4)
-    obs = [0, 1, 0, 0, 1, 0]
+    obs = list("010010")
     gamma = smooth(gm, obs)
     assert gamma.shape == (len(obs) + 1, 2)
     assert np.allclose(gamma.sum(axis=1), 1.0)
@@ -134,7 +158,7 @@ def test_smooth_rows_sum_to_one_and_match_unscaled_forward_backward():
 
 def test_two_slice_marginals_sum_to_one_and_marginalize_to_gamma():
     gm = golden_mean(0.4)
-    obs = [0, 1, 0, 0, 1, 0]
+    obs = list("010010")
     xi = two_slice_marginals(gm, obs)
     gamma = smooth(gm, obs)
     assert xi.shape == (len(obs), 2, 2)
@@ -144,7 +168,7 @@ def test_two_slice_marginals_sum_to_one_and_marginalize_to_gamma():
 
 
 def test_smooth_impossible_sequence_is_zero():
-    coin = fair_coin()
+    coin = bernoulli()
     gamma = smooth(coin, ["2"])
     assert np.all(gamma == 0.0)
 
@@ -165,8 +189,8 @@ def test_baum_welch_loglik_is_monotone_and_recovers_parameters():
     fitted_p = {
         (tr.source, tr.target, tr.data[ATTR_EMISSION]): float(tr.data[ATTR_PROB]) for tr in fitted.transitions()
     }
-    assert fitted_p[("A", "A", 0)] == pytest.approx(0.3, abs=0.03)
-    assert fitted_p[("B", "A", 0)] == pytest.approx(1.0, abs=1e-9)
+    assert fitted_p[("A", "A", "0")] == pytest.approx(0.3, abs=0.03)
+    assert fitted_p[("B", "A", "0")] == pytest.approx(1.0, abs=1e-9)
 
 
 def test_baum_welch_preserves_topology_and_returns_mealy():
@@ -195,12 +219,12 @@ def test_baum_welch_accepts_single_sequence():
 
 def test_score_matches_finite_difference_gradient():
     gm = golden_mean(0.4)
-    obs = [0, 1, 0, 0, 1, 0, 1, 0]
+    obs = list("01001010")
     pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
-    def loglik_entry(symbol: int, i: int, j: int, value: float) -> float:
+    def loglik_entry(symbol: str, i: int, j: int, value: float) -> float:
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}
         perturbed[symbol][i, j] = value
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
@@ -208,7 +232,11 @@ def test_score_matches_finite_difference_gradient():
 
     analytic = score(gm, obs)
     h = 1e-6
-    for (symbol, i, j), key in (((0, a, a), ("A", 0, "A")), ((1, a, b), ("A", 1, "B")), ((0, b, a), ("B", 0, "A"))):
+    for (symbol, i, j), key in (
+        (("0", a, a), ("A", "0", "A")),
+        (("1", a, b), ("A", "1", "B")),
+        (("0", b, a), ("B", "0", "A")),
+    ):
         base = float(joint[symbol][i, j])
         numeric = (loglik_entry(symbol, i, j, base + h) - loglik_entry(symbol, i, j, base - h)) / (2 * h)
         assert analytic[key] == pytest.approx(numeric, rel=1e-4, abs=1e-4)
@@ -216,19 +244,19 @@ def test_score_matches_finite_difference_gradient():
 
 def test_observed_information_matches_numeric_hessian_scalar():
     gm = golden_mean(0.5)
-    obs = [0, 1, 0, 0, 1, 0, 1, 0]
+    obs = list("01001010")
     pi, joint = emission_tensors(gm)
     idx = gm.to_mealy().reindex()
     a, b = idx.index("A"), idx.index("B")
 
     def loglik_theta(theta: float) -> float:
         perturbed = {sym: matrix.copy() for sym, matrix in joint.items()}
-        perturbed[0][a, a] = theta
-        perturbed[1][a, b] = 1.0 - theta
+        perturbed["0"][a, a] = theta
+        perturbed["1"][a, b] = 1.0 - theta
         _alpha, log_scales = _forward_scaled(pi, perturbed, list(obs))
         return float(log_scales.sum()) * np.log(2)
 
-    assert free_parameter_labels(gm) == [("A", 0, "A")]
+    assert free_parameter_labels(gm) == [("A", "0", "A")]
     theta0 = 0.5
     h = 1e-5
     numeric = -(loglik_theta(theta0 + h) - 2 * loglik_theta(theta0) + loglik_theta(theta0 - h)) / (h * h)
@@ -315,7 +343,7 @@ def test_observed_information_empty_when_no_free_parameters():
 
 def test_hmm_methods_delegate_to_inference_functions():
     gm = golden_mean(0.4)
-    obs = [0, 1, 0, 0, 1]
+    obs = list("01001")
     assert np.allclose(gm.smooth(obs), smooth(gm, obs))
     assert np.allclose(gm.two_slice_marginals(obs), two_slice_marginals(gm, obs))
     assert gm.score(obs) == score(gm, obs)
@@ -334,8 +362,7 @@ def test_seeded_sample_is_reproducible_across_hash_seeds():
     script = (
         "import numpy as np\n"
         "from sofic.examples import nemo_process\n"
-        "from sofic.examples._construction import _relabel\n"
-        "nemo = _relabel(nemo_process(), symbols={0: '0', 1: '1'})\n"
+        "nemo = nemo_process()\n"
         "print(''.join(nemo.sample(200, rng=np.random.default_rng(5))[0]))\n"
     )
     outputs = {
@@ -353,12 +380,12 @@ def test_seeded_sample_is_reproducible_across_hash_seeds():
 
 def _symmetric_two_state() -> MealyHMM:
     """A fully connected 2-state binary HMM whose symmetric start is an EM fixed point."""
-    hmm = MealyHMM(observation_alphabet=frozenset({0, 1}), initial_distribution={"A": 0.5, "B": 0.5})
+    hmm = MealyHMM(observation_alphabet=frozenset({"0", "1"}), initial_distribution={"A": 0.5, "B": 0.5})
     for state in ("A", "B"):
         hmm.graph.add_state(state)
     for source in ("A", "B"):
         for target in ("A", "B"):
-            for symbol in (0, 1):
+            for symbol in ("0", "1"):
                 hmm.add_transition(source, target, symbol, 0.25)
     hmm.validate()
     return hmm
@@ -386,7 +413,7 @@ def test_baum_welch_restarts_reproducible_and_validated():
 
 def test_viterbi_impossible_after_first_step_has_no_path():
     gm = golden_mean(0.5)
-    observations = [0, 1, 1, 0]
+    observations = list("0110")
     assert log_likelihood(gm, observations) == float("-inf")
     assert viterbi(gm, observations) == []
 
@@ -394,10 +421,10 @@ def test_viterbi_impossible_after_first_step_has_no_path():
 def test_baum_welch_rejects_data_with_zero_probability():
     gm = golden_mean(0.5)
     with pytest.raises(ValueError, match="zero probability"):
-        baum_welch(gm, [[1, 1], [0, 1, 1]])
+        baum_welch(gm, [list("11"), list("011")])
 
 
 def test_baum_welch_warns_when_some_sequences_are_impossible():
     gm = golden_mean(0.5)
     with pytest.warns(RuntimeWarning, match="zero probability"):
-        baum_welch(gm, [[0, 1, 0, 0], [1, 1]], max_iter=3)
+        baum_welch(gm, [list("0100"), list("11")], max_iter=3)

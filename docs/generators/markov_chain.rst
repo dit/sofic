@@ -11,9 +11,9 @@ with states. Finite-state Markov-chain terminology follows standard treatments
 
 .. ipython::
 
-   In [1]: from sofic.examples import golden_mean_markov
+   In [1]: from sofic.examples import golden_mean
 
-   In [2]: chain = golden_mean_markov(0.5)
+   In [2]: chain = golden_mean(0.5)
 
    In [3]: chain.validate()
 

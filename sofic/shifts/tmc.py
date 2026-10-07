@@ -22,7 +22,7 @@ class TopologicalMarkovChain(SymbolicModel):
     ) -> TopologicalMarkovChain:
         from sofic.shifts.tmc_construction import from_adjacency
 
-        return from_adjacency(matrix, symbol_alphabet)
+        return from_adjacency(matrix, symbol_alphabet, cls=cls, **kwargs)
 
     def to_sofic_shift(self) -> SoficShift:
         from sofic.shifts.tmc_construction import to_sofic_shift
@@ -30,6 +30,13 @@ class TopologicalMarkovChain(SymbolicModel):
         return to_sofic_shift(self)
 
     def topological_entropy(self) -> float:
+        """Edge-shift entropy in bits: ``log2`` spectral radius counting edge multiplicities.
+
+        A TMC is an edge shift, so parallel edges are distinct points even when
+        they share a label; :meth:`to_sofic_shift` followed by
+        :meth:`~sofic.shifts.sofic.SoficShift.topological_entropy` gives the
+        entropy of the labeled (sofic) shift instead.
+        """
         from sofic.shifts.tmc_construction import topological_entropy
 
         return topological_entropy(self)

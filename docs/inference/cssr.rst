@@ -81,8 +81,10 @@ drawn uniformly given the observed margins whenever an expected count is below 5
 of freedom (two observed symbols), matching
 ``scipy.stats.chi2_contingency(table, lambda_="log-likelihood")``; transCSSR and
 stack CSSR share the same implementation.
-``correction="bonferroni"`` divides ``alpha`` by the number of suffixes eligible
-for testing, bounding the chance of any spurious split. Because CSSR chooses each
+``correction="bonferroni"`` (the default) divides ``alpha`` by the number of
+suffixes eligible for testing, including the length-``max_history + 1`` suffixes
+tested when resolving transitions, bounding the chance of any spurious split;
+``correction=None`` tests each suffix at level ``alpha``. Because CSSR chooses each
 test in light of earlier outcomes, false-discovery-rate step-up procedures do not
 apply directly.
 
@@ -113,8 +115,8 @@ G-test at significance 0.01 tells them apart, a tolerance that scales with the
 sample. Transitions follow the same successor rule as CSSR.
 
 ``learn_epsilon_machine_subtree`` accepts ``alpha``, ``test`` (including ``"exact"``) and
-``correction="bonferroni"``, which divides ``alpha`` over the history pairs
-compared, as well as ``max_history="auto"``.
+``correction`` (default ``"bonferroni"``, which divides ``alpha`` over the history
+pairs compared; ``None`` disables it), as well as ``max_history="auto"``.
 
 .. autofunction:: learn_epsilon_machine_subtree
 

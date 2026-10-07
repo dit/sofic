@@ -289,7 +289,7 @@ def learn_epsilon_transducer_cssr(
     alpha: float = 0.001,
     test: TableTest = "g",
     min_count: int = 5,
-    correction: Literal["bonferroni"] | None = None,
+    correction: Literal["bonferroni"] | None = "bonferroni",
 ) -> EpsilonTransducer:
     """Reconstruct an ε-transducer from paired input/output sequences (transCSSR).
 
@@ -302,8 +302,9 @@ def learn_epsilon_transducer_cssr(
     to the joint ``(input, output)`` sequence. ``test="exact"`` uses the Monte
     Carlo exact G-test when expected counts are small (see
     :func:`~sofic.inference.cssr.morphs_differ`), and
-    ``correction="bonferroni"`` divides ``alpha`` by the number of
-    (history, input symbol) tests that can split a state.
+    ``correction="bonferroni"`` (the default) divides ``alpha`` by the number of
+    (history, input symbol) tests that can split a state; ``correction=None``
+    disables it.
     """
     xs = tuple(inputs)
     ys = tuple(outputs)

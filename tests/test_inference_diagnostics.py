@@ -40,10 +40,10 @@ def test_goodness_of_fit_rejects_short_lmax(even_sample, statistic):
 
 
 def test_goodness_of_fit_forbidden_word():
-    observations = [0, 1, 1, 0, 1, 0, 0, 1] * 20
+    observations = list("01101001") * 20
     result = goodness_of_fit(golden_mean(0.5), observations, block_length=2, n_samples=9, rng=0)
     assert result.value == float("inf")
-    assert (1, 1) in result.forbidden_words
+    assert ("1", "1") in result.forbidden_words
     assert result.pvalue == pytest.approx(0.1)
     with pytest.raises(ValueError):
         goodness_of_fit(golden_mean(0.5), observations, block_length=2, statistic="nope")

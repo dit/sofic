@@ -33,15 +33,19 @@ def channel_statistical_complexity(transducer: MealyMachine, input_process: Hidd
     """Return the channel statistical complexity ``H[S]`` under ``input_process``.
 
     ``S`` is the transducer's causal-state component of the driven joint process,
-    weighted by its stationary occupation distribution.
+    weighted by the stationary law reached from the joint initial distribution.
+    The joint chain can have several closed classes -- e.g. pairs whose channel
+    state disagrees with the input history -- so an arbitrary stationary vector
+    would not be the driven process's occupation law.
     """
+    from sofic.generators.matrices import start_vector
     from sofic.generators.stochastic import shannon_entropy
 
     joint = driven_joint_generator(transducer, input_process)
     idx = joint.reindex()
     if len(idx) == 0:
         return 0.0
-    pi = np.asarray(joint.stationary_distribution(), dtype=float)
+    pi = np.asarray(start_vector(joint, policy="stationary"), dtype=float)
     mass: dict[Any, float] = defaultdict(float)
     for state, weight in zip(idx.states, pi, strict=True):
         transducer_state = state[1] if isinstance(state, tuple) and len(state) == 2 else state

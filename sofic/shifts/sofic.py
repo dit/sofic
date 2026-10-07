@@ -14,9 +14,13 @@ class SoficShift(SymbolicModel):
     """Sofic subshift given by a labeled directed graph presentation."""
 
     def topological_entropy(self) -> float:
-        from sofic.shifts.tmc_construction import topological_entropy
+        """Topological entropy in bits, computed on a right-resolving presentation.
 
-        return topological_entropy(self)
+        See :func:`~sofic.shifts.algorithms.sofic_topological_entropy`.
+        """
+        from sofic.shifts.algorithms import sofic_topological_entropy
+
+        return sofic_topological_entropy(self)
 
     def parry_measure(self) -> MealyHMM:
         """Measure of maximal entropy (Parry measure) as a labeled Mealy HMM.

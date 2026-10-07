@@ -159,6 +159,19 @@ aggressively (fewer states); larger ``alpha`` is more conservative.
    pfa = learn_pfa_alergia(samples, alpha=0.05)
    pfa.validate()
 
+Classic ALERGIA treats every string end as a termination of the process. Windows
+cut from one long realization end because observation stopped, not because the
+process did, and fixed-length windows all end at the same depth, so the
+termination test would separate states by depth. Pass ``censored=True`` for such
+data: string ends then carry no termination statistic and symbol frequencies are
+compared among departures.
+
+.. code-block:: python
+
+   sequence, _ = golden_mean().sample(30_000)
+   windows = [sequence[i : i + 10] for i in range(0, len(sequence), 10)]
+   pfa = learn_pfa_alergia(windows, censored=True)  # transient start + 2 recurrent states
+
 .. autofunction:: sofic.automata.learning.alergia.learn_pfa_alergia
 
 Passive learning (PAPNI)

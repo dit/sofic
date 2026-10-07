@@ -1,10 +1,14 @@
 r"""Atoms and prime atoms of regular languages :cite:`BrzozowskiTamm2014`.
 
 An *atom* of ``L`` is a non-empty intersection of complemented or
-uncomplemented left quotients of ``L``. The atoms correspond one-to-one with
-the states ``q`` of the minimal DFA of the reversed language :math:`L^R`: the
-atom :math:`A_q` is the reverse of the set of words leading to ``q``, and these
-are exactly the right languages of the átomaton's states. An atom is *prime*
+uncomplemented left quotients of ``L``; the atoms partition :math:`\Sigma^*`
+(:cite:`BrzozowskiTamm2014`, Section 4.2). They correspond one-to-one with the
+reachable states ``q`` of the minimal *complete* DFA of the reversed language
+:math:`L^R`: the atom :math:`A_q` is the reverse of the set of words leading to
+``q``. The *negative* atom, in which every quotient is complemented, belongs to
+the empty quotient of :math:`L^R` when that is reachable. The átomaton is built
+from the trimmed minimal DFA of :math:`L^R`, so its states are the atoms other
+than the negative atom (whose state has an empty right language). An atom is *prime*
 when its matching quotient of :math:`L^R` is a prime residual; prime atoms label
 the states of the maximized prime átomaton.
 """
@@ -30,9 +34,9 @@ def _atom(table, state) -> AutomatonLanguage:
 
 
 def atoms(language: RegularLanguage) -> frozenset[RegularLanguage]:
-    """Return the atoms of ``language``."""
+    """Return the atoms of ``language``, including the negative atom when it is non-empty."""
     table = _reversed_table(language)
-    return frozenset(_atom(table, q) for q in table.states if not table.is_empty(q))
+    return frozenset(_atom(table, q) for q in table._bfs_order())
 
 
 def prime_atoms(language: RegularLanguage) -> frozenset[RegularLanguage]:

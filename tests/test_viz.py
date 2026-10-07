@@ -213,9 +213,9 @@ def test_repr_mimebundle_without_graphviz(monkeypatch):
 
 
 def test_epsilon_machine_recurrent_states_colored():
-    from sofic.examples.epsilon_machines import golden_mean_bidirectional, golden_mean_forward
+    from sofic.examples.epsilon_machines import golden_mean, golden_mean_bidirectional
 
-    forward = model_to_graphviz(golden_mean_forward(0.5)).source
+    forward = model_to_graphviz(golden_mean(0.5)).source
     assert "honeydew" in forward
     assert "mistyrose" not in forward
 
@@ -289,8 +289,8 @@ def test_edges_colored_by_emission_by_default():
     by_symbol: dict[object, set[str | None]] = {}
     for transition in eps.transitions():
         by_symbol.setdefault(transition.data["emission"], set()).add(context.edge_color(transition))
-    assert by_symbol[0] == {EMISSION_PALETTE[0]}
-    assert by_symbol[1] == {EMISSION_PALETTE[1]}
+    assert by_symbol["0"] == {EMISSION_PALETTE[0]}
+    assert by_symbol["1"] == {EMISSION_PALETTE[1]}
 
 
 def test_color_by_emission_can_be_disabled():
@@ -305,3 +305,25 @@ def test_dfa_edges_colored_by_input_symbol():
 
     plain = model_to_graphviz(_dfa(), color_by_emission=False).source
     assert 'color="#' not in plain
+
+
+def test_node_names_are_injective():
+    from sofic.viz._names import node_names
+
+    states = ["q_1", "q-1", 1, "1", "s_1", ("q", 1)]
+    names = node_names(states)
+    assert len(set(names.values())) == len(states)
+    assert {names["q_1"], names["q-1"]} == {"q_1", "q_1_2"}
+    assert node_names(["A", "B"]) == {"A": "A", "B": "B"}
+
+
+def test_colliding_states_render_as_distinct_nodes():
+    from sofic.shifts.sofic import SoficShift
+
+    shift = SoficShift(symbol_alphabet=frozenset({"a"}))
+    shift.add_transition("q_1", "q-1", "a")
+    shift.add_transition("q-1", "q_1", "a")
+    assert model_to_graphviz(shift).source.count("label=") >= 4
+    tikz = model_to_tikz(shift)
+    assert tikz.count(r"\node [state") == 2
+    assert len({line.split("(")[1].split(")")[0] for line in tikz.splitlines() if r"\node [state" in line}) == 2

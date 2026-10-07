@@ -58,7 +58,14 @@ Cross-validation and WAIC
 Contiguous blocks of one sequence are dependent, so without a ``gap`` the
 held-out score is optimistic :cite:`Burman1994`. ``smoothing`` mixes each held-out
 prediction with the uniform distribution, so that one forbidden transition no
-longer makes a whole fold ``-inf``.
+longer makes a whole fold ``-inf``. With at least ``folds`` sequences the folds
+partition the sequences; with fewer, each sequence is cut into ``folds``
+contiguous blocks and fold ``f`` holds out block ``f`` of every sequence, so
+distinct sequences are never joined end to end.
+
+WAIC scores each sequence with its start state drawn from the sampled machine's
+stationary distribution, since the posterior's start state belongs to its own
+training sequence.
 
 Ranking candidate topologies
 ============================
@@ -75,8 +82,11 @@ and :meth:`~sofic.inference.bayesian.comparison.ModelComparisonEM.best_by_inform
 
    from sofic.inference.model_selection import rank_topological_epsilon_machines
 
-   ranked = rank_topological_epsilon_machines(data, alphabet=[0, 1], num_states=[1, 2, 3], criterion="bic")
+   ranked = rank_topological_epsilon_machines(data, alphabet=["0", "1"], num_states=[1, 2, 3], criterion="bic")
    best = ranked[0].machine
+
+With ``fit="bayesian"`` and several sequences, each sequence is traced from its
+own most probable start state and the edge counts are pooled.
 
 API
 ===

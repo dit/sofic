@@ -1,6 +1,102 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## Unreleased (0.4.0)
+
+A second correctness review: every fix below was reproduced against a
+brute-force reference or a closed-form value and has a regression test.
+
+### Breaking changes
+
+- `correction="bonferroni"` is the default for every CSSR learner (process,
+  subtree, transducer, stack), and process CSSR counts its length-`(L+1)`
+  resolution tests; pass `correction=None` for the old behavior.
+- `viterbi` returns the `n + 1` states `X_0, ..., X_n`, aligned with `smooth`.
+- `information_anatomy()["crypticity"]` is `C_mu - E` everywhere;
+  `C± - E` is `"bidirectional_crypticity"` (also in
+  `stored_information_decomposition`), and
+  `BidirectionalEpsilonMachine.crypticity()` is now `bidirectional_crypticity()`.
+- The Gács–Körner model is the common-information variable, not a generator of
+  the process; its `entropy_rate()` is the model's own rate.
+- `atoms()` includes the negative atom (atoms partition Σ*), and
+  `left_quotients` / `residuals` include the empty residual.
+- Brzozowski minimization returns a trimmed DFA, like Hopcroft and Moore.
+- `TopologicalMarkovChain.parry_measure()` emits `(symbol, k)` labels when
+  parallel edges share a symbol, so its entropy rate equals `h_top`.
+- `butterfly_process()` is the five-state process of Mahoney, Ellison &
+  Crutchfield (2009, Fig. 3); the previous construction was i.i.d.
+- **Examples emit string symbols** (`"0"`, `"1"`, ...) everywhere; integer
+  words now have probability 0 under the examples.
+- **One golden mean**, in the Lind & Marcus form (forbids `11`, Example 1.2.3).
+  The whole golden-mean family (`restricted_golden_mean`, `random_golden_mean`,
+  `stretched_gm`, `rk_gm`, `rn_gm`, `nonunifilar_golden_mean`,
+  `golden_mean_ghmm`) and `gm_to_even`'s input now use that convention;
+  `nonunifilar_golden_mean(b)` equals `golden_mean(1 - b)`.
+  `coupled_gmps` / `uncoupled_gmps` still pair the golden mean with its mirror.
+- Removed duplicate examples:
+
+  | Removed | Use |
+  |---|---|
+  | `golden_mean_forward(p)`, `golden_mean_reverse(p)`, `golden_mean_markov(p)`, `golden_mean_forbid_00(p)` | `golden_mean`, with `0` and `1` exchanged (and `1 - p` for `golden_mean_markov` / `golden_mean_forbid_00`) |
+  | `golden_mean_shift_parry()` | `golden_mean(1 / phi)` (the Parry measure) |
+  | `butterfly_two_branch()` | `butterfly_process()` |
+  | `fair_coin()` | `bernoulli()` |
+  | `ellison_fig9_forward()` | `irreversible_two_state()` |
+  | `restricted_gm(k)` | `restricted_golden_mean(k)` |
+  | `period7()` | `period8()` (they used the same word) |
+  | `tetris_tgm()` | `tetris_history()` |
+
+### Fixes
+
+- **Shifts:** `SoficShift.topological_entropy` counts words on a
+  right-resolving presentation (parallel same-label edges no longer inflate it);
+  new `ShiftOfFiniteType.topological_entropy`; `trim_transient` actually prunes
+  and `factor_language` drops words that cannot extend both ways; Dyck shift
+  `reverse()` returns the mirror-image shift; `from_adjacency` assigns symbols in
+  sorted order and honors subclasses; the synchronization methods on
+  `SoficShift` (`markov_order`, `reset_threshold`, ...) no longer raise
+  `AttributeError`.
+- **Generators:** `cryptic_order` is 0 for zero-crypticity processes (even,
+  periodic) via a new algorithm checked against brute force;
+  `log_word_probability` no longer underflows; channel statistical complexity
+  uses the driven process's occupation law (it was hash-seed dependent);
+  mixed-state enumeration of infinite belief sets fails in under a second;
+  numeric stationary distributions warn when not unique.
+- **Inference:** Bayesian posterior machines start where the data start (they
+  started in its final state, giving −∞ likelihoods and infinite BIC); WAIC
+  scores from the stationary distribution; `learn_stack_hmm_mle` and the stack
+  CSSR fitter use the exact maximum-likelihood weights over legal moves
+  (Hunter 2004); spectral learning has a sampling noise floor for rank
+  selection (`noise_scale`), noise-aware state merging (`belief_tolerance`), fast
+  failure at `max_states`, and no negligible-mass states on exact input;
+  `learn_pfa_alergia(..., censored=True)` for windowed samples;
+  cross-validation never joins separate sequences.
+- **Automata:** Büchi lasso acceptance sees accepting states visited mid-loop;
+  Wheeler tie handling, initial states in `determinize_wheeler` and
+  `wheeler_index`, word counting, empty marks, `minimize_wheeler` on dead
+  states, and `colex_width`; modular VPA `minimize` on valid well-matched VPAs;
+  intersection, difference and complement with empty-language operands;
+  `right_quotient` by the empty word; `sofic.automata.languages.residuals`
+  callable again; IDFA enumeration includes missing transitions before the first
+  flag (`count_accessible_idfa(2, 2)` is 45), which changes some canonical
+  topological ε-machine strings; transducer product and composition handle ε
+  moves without double counting; faster VPA determinization, complement,
+  emptiness and equivalence.
+- **Examples:** `golden_mean_ghmm` uses its stationary initial vector (it did
+  not reproduce the golden mean); power-automaton constructions iterate the
+  alphabet in sorted order, so `synchronizing_word()` no longer depends on
+  `PYTHONHASHSEED`.
+- **Serialization and viz:** YAML stores observation, output and stack
+  alphabets and supports sympy and `Fraction` values; `copy()` deep-copies
+  attributes; Graphviz/TikZ node names are unique; TikZ escapes `^`, `~`, `\`
+  for math mode.
+
+### New
+
+- Hypothesis strategies in `sofic.testing` for NFAs, Büchi automata and lassos,
+  Wheeler NFAs, Markov chains, Mealy HMMs, sofic shifts, SFTs, VPAs, NWAs, and
+  Mealy transducers; `ci` and `nightly` Hypothesis profiles (`HYPOTHESIS_PROFILE`).
+
+## 0.3.0
 
 A correctness review and breaking refactor. Old names are **not** kept as
 aliases; use the tables below to migrate.

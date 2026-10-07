@@ -58,9 +58,10 @@ class ResidualTable:
         source = aut if isinstance(aut, (NFA, DFA)) else NFA(**_automaton_kwargs(aut))
         dfa = complete(minimize(source, alphabet=symbols), symbols)
         if not dfa.initial_states:
-            empty = DFA(input_alphabet=frozenset(symbols), initial_states=frozenset({"empty"}))
-            empty.graph.add_state("empty")
-            dfa = complete(empty, symbols)
+            dfa = DFA(input_alphabet=frozenset(symbols), initial_states=frozenset({"empty"}))
+            dfa.graph.add_state("empty")
+            for symbol in symbols:
+                dfa.add_transition("empty", "empty", symbol)
         delta = {
             (transition.source, transition.data[ATTR_SYMBOL]): transition.target for transition in dfa.transitions()
         }

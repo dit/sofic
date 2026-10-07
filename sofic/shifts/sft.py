@@ -44,6 +44,15 @@ class ShiftOfFiniteType(SymbolicModel):
     ) -> ShiftOfFiniteType:
         return cls(graph=graph, symbol_alphabet=symbol_alphabet, **kwargs)
 
+    def topological_entropy(self) -> float:
+        """Topological entropy in bits, computed on a right-resolving presentation.
+
+        See :func:`~sofic.shifts.algorithms.sofic_topological_entropy`.
+        """
+        from sofic.shifts.algorithms import sofic_topological_entropy
+
+        return sofic_topological_entropy(self)
+
     def forbidden_words(
         self,
         *,

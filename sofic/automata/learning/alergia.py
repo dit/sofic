@@ -86,8 +86,12 @@ def _hoeffding_compatible(f1: int, n1: int, f2: int, n2: int, alpha: float) -> b
     return abs(f1 / n1 - f2 / n2) <= bound
 
 
-def _compatible(fpta: _FPTA, a: int, b: int, alpha: float, seen: set[tuple[int, int]]) -> bool:
-    """Recursive ALERGIA compatibility of blocks ``a`` and ``b``."""
+def _compatible(fpta: _FPTA, a: int, b: int, alpha: float, seen: set[tuple[int, int]], censored: bool = False) -> bool:
+    """Recursive ALERGIA compatibility of blocks ``a`` and ``b``.
+
+    With ``censored`` the string ends carry no termination statistic, and symbol
+    frequencies are compared among the departures from each block.
+    """
     a, b = fpta.find(a), fpta.find(b)
     if a == b:
         return True
@@ -96,9 +100,12 @@ def _compatible(fpta: _FPTA, a: int, b: int, alpha: float, seen: set[tuple[int, 
         return True
     seen.add(key)
 
-    na, nb = fpta.count[a], fpta.count[b]
-    if not _hoeffding_compatible(fpta.final[a], na, fpta.final[b], nb, alpha):
-        return False
+    if censored:
+        na, nb = sum(fpta.tfreq[a].values()), sum(fpta.tfreq[b].values())
+    else:
+        na, nb = fpta.count[a], fpta.count[b]
+        if not _hoeffding_compatible(fpta.final[a], na, fpta.final[b], nb, alpha):
+            return False
     symbols = set(fpta.tfreq[a]) | set(fpta.tfreq[b])
     for symbol in symbols:
         fa = fpta.tfreq[a].get(symbol, 0)
@@ -106,7 +113,7 @@ def _compatible(fpta: _FPTA, a: int, b: int, alpha: float, seen: set[tuple[int, 
         if not _hoeffding_compatible(fa, na, fb, nb, alpha):
             return False
     for symbol in set(fpta.tchild[a]) & set(fpta.tchild[b]):
-        if not _compatible(fpta, fpta.tchild[a][symbol], fpta.tchild[b][symbol], alpha, seen):
+        if not _compatible(fpta, fpta.tchild[a][symbol], fpta.tchild[b][symbol], alpha, seen, censored):
             return False
     return True
 
@@ -163,18 +170,28 @@ def learn_pfa_alergia(
     samples: Sequence[Sequence[Any]],
     *,
     alpha: float = 0.05,
+    censored: bool = False,
 ) -> ProbabilisticFiniteAutomaton:
     """Learn a probabilistic finite automaton from positive strings by ALERGIA.
 
     Parameters
     ----------
     samples
-        Observed strings drawn from the target process (e.g. realizations, or a
-        long sequence split into windows).
+        Observed strings drawn from the target process. Classic ALERGIA treats
+        each string end as a genuine termination event. For windows cut from a
+        long realization (or any string truncated by observation, not by the
+        process) pass ``censored=True``.
     alpha
         Significance level of the Hoeffding compatibility test. Smaller ``alpha``
         merges more aggressively (fewer states); larger ``alpha`` is more
         conservative.
+    censored
+        Treat string ends as censoring rather than termination: no termination
+        frequency is compared, and symbol frequencies are taken among the
+        departures from a state. Without it, fixed-length windows all end at the
+        same depth, so the termination test separates states by depth and the
+        result has spurious states, including terminal states without outgoing
+        edges.
 
     Returns
     -------
@@ -212,7 +229,7 @@ def learn_pfa_alergia(
             rep = fpta.find(r)
             if rep == blue:
                 continue
-            if _compatible(fpta, rep, blue, alpha, set()):
+            if _compatible(fpta, rep, blue, alpha, set(), censored):
                 _merge(fpta, rep, blue)
                 merged = True
                 break

@@ -147,17 +147,17 @@ states and ``P(target | source)`` on edges:
    from sofic import MealyHMM
 
    gm = MealyHMM(
-       observation_alphabet=frozenset({0, 1}),
+       observation_alphabet=frozenset({"0", "1"}),
        initial_distribution={"A": 2 / 3, "B": 1 / 3},
    )
-   gm.add_transition("A", "A", 0, 0.5)   # source, target, symbol, probability
-   gm.add_transition("A", "B", 1, 0.5)
-   gm.add_transition("B", "A", 0, 1.0)
+   gm.add_transition("A", "A", "0", 0.5)   # source, target, symbol, probability
+   gm.add_transition("A", "B", "1", 0.5)
+   gm.add_transition("B", "A", "0", 1.0)
    gm.validate()
 
    gm.entropy_rate()             # 0.6667 bits/symbol
    gm.is_unifilar()              # True
-   gm.word_probability([1, 0, 1])  # 0.1667
+   gm.word_probability("101")    # 0.1667
 
 Many canonical models ship in ``sofic.examples``, so the golden mean is
 also just ``from sofic.examples import golden_mean; gm = golden_mean(0.5)``.
@@ -358,7 +358,7 @@ transient-information anatomy of a process (James, Burke & Crutchfield, 2013):
    bidir = golden_mean_bidirectional(0.5)
    bidir.statistical_complexity()   # 1.5850 bits  (C±)
    bidir.excess_entropy()           # 0.2516 bits  (E)
-   bidir.crypticity()               # 1.3333 bits  (chi = C± - E)
+   bidir.bidirectional_crypticity() # 1.3333 bits  (chi± = C± - E)
 
    tent = tent_map_misiurewicz_bidirectional()
    tent.information_anatomy()  # {'rho_mu', 'bound_mu', 'ephemeral_mu',

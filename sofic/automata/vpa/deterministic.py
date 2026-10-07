@@ -80,6 +80,7 @@ class DeterministicVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
         for transition in self.graph.out_transitions(source):
             if transition.data.get(ATTR_KIND) == KIND_CALL and transition.data.get(ATTR_SYMBOL) == symbol:
                 raise NonDeterministicError(f"non-deterministic call transition on {(source, symbol)}")
+        self._transition_maps = None
         return super().add_call_transition(source, target, symbol, stack_symbol, **attrs)
 
     def add_return_transition(
@@ -96,25 +97,54 @@ class DeterministicVisiblyPushdownAutomaton(VisiblyPushdownAutomaton):
             existing_stack = transition.data.get(ATTR_STACK_SYMBOL)
             if existing_stack is None or stack_symbol is None or existing_stack == stack_symbol:
                 raise NonDeterministicError(f"non-deterministic return transition on {(source, symbol)}")
+        self._transition_maps = None
         return super().add_return_transition(source, target, symbol, stack_symbol, **attrs)
 
     def add_internal_transition(self, source: Hashable, target: Hashable, symbol: Any, **attrs: Any) -> int:
         for transition in self.graph.out_transitions(source):
             if transition.data.get(ATTR_KIND) == KIND_INTERNAL and transition.data.get(ATTR_SYMBOL) == symbol:
                 raise NonDeterministicError(f"non-deterministic internal transition on {(source, symbol)}")
+        self._transition_maps = None
         return super().add_internal_transition(source, target, symbol, **attrs)
+
+    def _cached_maps(self) -> tuple[dict, dict, dict]:
+        """Call, internal, and return maps, rebuilt only after the transitions change.
+
+        The ``add_*`` methods invalidate the cache; the graph's identity and edge
+        count guard against edits made directly on :attr:`graph`.
+        """
+        key = (id(self.graph), self.graph.nx.number_of_edges())
+        cached = getattr(self, "_transition_maps", None)
+        if cached is None or cached[0] != key:
+            cached = (
+                key,
+                super().call_transition_map(),
+                super().internal_transition_map(),
+                super().return_transition_map(),
+            )
+            self._transition_maps = cached
+        return cached[1], cached[2], cached[3]
+
+    def call_transition_map(self) -> dict[tuple[Hashable, Any], tuple[Hashable, Any]]:
+        return dict(self._cached_maps()[0])
+
+    def internal_transition_map(self) -> dict[tuple[Hashable, Any], Hashable]:
+        return dict(self._cached_maps()[1])
+
+    def return_transition_map(self) -> dict[tuple[Hashable, Any, Any | None], Hashable]:
+        return dict(self._cached_maps()[2])
 
     def call_successor(self, state: Hashable, symbol: Any) -> tuple[Hashable, Any] | None:
         """Return ``(target, pushed_stack_symbol)`` for a deterministic call."""
-        return self.call_transition_map().get((state, symbol))
+        return self._cached_maps()[0].get((state, symbol))
 
     def internal_successor(self, state: Hashable, symbol: Any) -> Hashable | None:
         """Return the deterministic internal successor, if present."""
-        return self.internal_transition_map().get((state, symbol))
+        return self._cached_maps()[1].get((state, symbol))
 
     def return_successor(self, state: Hashable, symbol: Any, stack_symbol: Any) -> Hashable | None:
         """Return the deterministic return successor for ``stack_symbol``, if present."""
-        transitions = self.return_transition_map()
+        transitions = self._cached_maps()[2]
         explicit = transitions.get((state, symbol, stack_symbol), _MISSING)
         if explicit is not _MISSING:
             return explicit

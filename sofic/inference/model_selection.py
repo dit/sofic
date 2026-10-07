@@ -237,8 +237,12 @@ def cross_validated_log_likelihood(
     """Return the total held-out log-likelihood (bits) under ``folds``-fold CV.
 
     ``fit(train_sequences)`` must fit and return a model from a list of training
-    sequences. When ``data`` is a collection of sequences the folds partition the
-    sequences; a single long sequence is split into ``folds`` contiguous blocks.
+    sequences. When ``data`` holds at least ``folds`` sequences the folds partition
+    the sequences. Otherwise (a single long sequence, or fewer sequences than
+    folds) every sequence is split into ``folds`` contiguous blocks and fold ``f``
+    holds out block ``f`` of each sequence; the remaining blocks are passed to
+    ``fit`` as separate training sequences, so distinct sequences are never
+    concatenated.
     Each held-out block is scored under a model trained on the remaining data and
     the contributions are summed (higher is better). A fold whose held-out data
     has zero probability contributes ``-inf`` unless ``smoothing > 0``.
@@ -246,8 +250,8 @@ def cross_validated_log_likelihood(
     Parameters
     ----------
     gap
-        For contiguous blocks of one long sequence, drop this many symbols from
-        each training block on the side adjacent to the held-out block. Neighboring
+        For contiguous blocks, drop this many symbols from the training data on
+        each side adjacent to the held-out block. Neighboring
         blocks of a dependent sequence are correlated, so without a gap the
         held-out score is optimistic (buffered or "h-block" cross-validation
         :cite:`Burman1994`). A gap of the order of the process's memory suffices.
@@ -266,34 +270,43 @@ def cross_validated_log_likelihood(
     if folds < 2:
         raise ValueError("folds must be at least 2")
 
+    alphabet_size = max(1, len({symbol for seq in sequences for symbol in seq}))
     if len(sequences) >= folds:
         partition = _fold_indices(len(sequences), folds, generator)
-        blocks = [[sequences[i] for i in idx] for idx in partition]
+        splits = [
+            (
+                [sequences[i] for i in idx],
+                [sequences[i] for j, other in enumerate(partition) if j != f for i in other],
+            )
+            for f, idx in enumerate(partition)
+        ]
     else:
-        # Single (or few) long sequence(s): split the concatenation into contiguous blocks.
-        flat = [symbol for seq in sequences for symbol in seq]
-        if len(flat) < folds:
+        if _total_length(sequences) < folds:
             raise ValueError("not enough data for the requested number of folds")
-        blocks = [list(chunk) for chunk in np.array_split(np.array(flat, dtype=object), folds)]
-        blocks = [[list(block)] for block in blocks]
+        # Few long sequences: split each one into ``folds`` contiguous blocks and hold out
+        # block ``f`` of every sequence, so no fold joins two sequences end to end.
+        bounds = [np.linspace(0, len(seq), folds + 1).astype(int) for seq in sequences]
+        splits = []
+        for f in range(folds):
+            held: list[list[Any]] = []
+            train: list[list[Any]] = []
+            for seq, edges in zip(sequences, bounds, strict=True):
+                for index in range(folds):
+                    start, stop = int(edges[index]), int(edges[index + 1])
+                    if index == f:
+                        if stop > start:
+                            held.append(seq[start:stop])
+                        continue
+                    if index == f - 1:
+                        stop = max(start, stop - gap)
+                    elif index == f + 1:
+                        start = min(stop, start + gap)
+                    if stop > start:
+                        train.append(seq[start:stop])
+            splits.append((held, train))
 
-    contiguous = len(sequences) < folds
-    alphabet_size = max(1, len({symbol for seq in sequences for symbol in seq}))
     total = 0.0
-    for held_out_index in range(len(blocks)):
-        train: list[Any] = []
-        for index, block in enumerate(blocks):
-            if index == held_out_index:
-                continue
-            if contiguous and gap:
-                (segment,) = block
-                if index == held_out_index - 1:
-                    segment = segment[: max(0, len(segment) - gap)]
-                elif index == held_out_index + 1:
-                    segment = segment[gap:]
-                block = [segment] if segment else []
-            train.extend(block)
-        held_out = _normalize_sequences(blocks[held_out_index])
+    for held_out, train in splits:
         model = fit(train)
         if smoothing > 0.0:
             total += sum(
@@ -354,12 +367,20 @@ def posterior_pointwise_log_likelihoods(
     :class:`~sofic.inference.bayesian.epsilon.EpsilonMachinePosterior`). Each data
     sequence is one WAIC "point"; returns an array of shape
     ``(n_samples, n_sequences)`` suitable for :func:`waic`.
+
+    A sampled machine starts in the sampled start state of the posterior's own
+    training sequence, which says nothing about where an arbitrary scored
+    sequence starts; each sequence is therefore scored with its start state
+    marginalized over the sampled machine's stationary distribution.
     """
     generator = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
     sequences = _normalize_sequences(data)
     matrix = np.empty((n_samples, len(sequences)), dtype=float)
     for s in range(n_samples):
         _start, model = posterior.generate_sample(rng=generator)
+        pi = model.stationary_distribution()
+        states = model.reindex().states
+        model.initial_distribution = {state: float(mass) for state, mass in zip(states, pi, strict=True) if mass > 0}
         for i, seq in enumerate(sequences):
             matrix[s, i] = log_likelihood(model, seq)
     return matrix
@@ -390,11 +411,11 @@ class TopologyScore:
 
 def _fit_topology(machine: Any, sequences: list[list[Any]], method: str) -> HiddenMarkovModel | None:
     if method == "bayesian":
-        from sofic.inference.bayesian.epsilon import EpsilonMachinePosterior
+        from sofic.inference.bayesian.epsilon import EpsilonMachinePosterior, _pooled_posterior_mean_machine
 
-        flat = [symbol for seq in sequences for symbol in seq]
-        posterior = EpsilonMachinePosterior(machine, flat)
-        return posterior.posterior_mean_machine()
+        if len(sequences) == 1:
+            return EpsilonMachinePosterior(machine, sequences[0]).posterior_mean_machine()
+        return _pooled_posterior_mean_machine(machine, sequences)
     if method == "baum_welch":
         fitted, _trace = machine.baum_welch(sequences)
         return fitted

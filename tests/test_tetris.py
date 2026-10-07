@@ -14,7 +14,6 @@ from sofic.examples import (
     tetris_history,
     tetris_iid,
     tetris_nes,
-    tetris_tgm,
     tetris_tgm2,
 )
 from sofic.examples.tetris import _reroll_emission_probs
@@ -98,7 +97,7 @@ def test_history_avoids_window_pieces():
 
 @pytest.fixture(scope="module")
 def tgm_machine():
-    return tetris_tgm()
+    return tetris_history()
 
 
 @pytest.fixture(scope="module")

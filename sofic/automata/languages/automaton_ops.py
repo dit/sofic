@@ -6,16 +6,18 @@ from collections import deque
 from collections.abc import Callable, Hashable, Sequence
 from typing import Any
 
+from sofic.automata._sentinel import Sentinel
 from sofic.automata.algorithms import _effective_alphabet, complete, determinize, minimize, trim
 from sofic.automata.base import LabeledAutomaton, run_nfa
 from sofic.automata.dfa import DFA
 from sofic.automata.nfa import NFA
 from sofic.graph import ATTR_SYMBOL, EPSILON, TransitionGraph
 
-_LEFT = object()
-_RIGHT = object()
-_START = object()
-_STAR_START = object()
+_LEFT = Sentinel("left")
+_RIGHT = Sentinel("right")
+_START = Sentinel("start")
+_STAR_START = Sentinel("star_start")
+_EMPTY_START = Sentinel("empty_start")
 
 
 def _to_nfa(aut: LabeledAutomaton) -> NFA:
@@ -31,9 +33,12 @@ def _to_nfa(aut: LabeledAutomaton) -> NFA:
 
 
 def _to_dfa(aut: LabeledAutomaton, alphabet: frozenset[Any] | None = None) -> DFA:
-    if isinstance(aut, DFA):
-        return trim(aut)
-    return trim(determinize(_to_nfa(aut), alphabet=alphabet))
+    """Trimmed DFA for ``aut``; the empty language keeps a lone rejecting start state."""
+    dfa = trim(aut) if isinstance(aut, DFA) else trim(determinize(_to_nfa(aut), alphabet=alphabet))
+    if not dfa.initial_states:
+        dfa = DFA(input_alphabet=dfa.input_alphabet, initial_states=frozenset({_EMPTY_START}))
+        dfa.graph.add_state(_EMPTY_START)
+    return dfa
 
 
 def union_nfa(left: LabeledAutomaton, right: LabeledAutomaton) -> NFA:

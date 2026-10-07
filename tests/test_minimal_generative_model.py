@@ -425,6 +425,16 @@ def test_golden_mean_gacs_korner_generative_model_collapses_to_core():
     assert ggm.gk_common_information == pytest.approx(_dit_gk_common_information(bidir), abs=1e-9)
 
 
+def test_gacs_korner_model_is_not_a_generator_of_the_source():
+    bidir = golden_mean_bidirectional(0.5)
+    ggm = bidir.gacs_korner_generative_model()
+
+    # One meet state: the model is an i.i.d. coin with the golden mean's symbol marginals.
+    assert not ggm.is_equal_process(bidir.forward_machine)
+    assert ggm.entropy_rate() == pytest.approx(0.9182958340544896, abs=1e-12)
+    assert ggm.entropy_rate() != pytest.approx(bidir.entropy_rate(), abs=1e-6)
+
+
 def test_gacs_korner_generative_model_matches_dit_for_binary_markov():
     process = _binary_markov(1.0 / 4.0, 1.0 / 2.0)
     bidir = process.to_bidirectional()

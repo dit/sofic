@@ -95,37 +95,3 @@ def _edge_machine(
     if validate:
         machine.validate()
     return machine
-
-
-def _relabel(
-    machine: MealyHMM,
-    *,
-    symbols: Mapping[Any, Any] | None = None,
-    states: Mapping[Hashable, Hashable] | None = None,
-    machine_type: type[MealyHMM] | None = None,
-    name: str | None = None,
-) -> MealyHMM:
-    """Copy ``machine`` with emissions and states renamed; probabilities are kept as-is.
-
-    A ``states`` mapping that covers every state also fixes the output state
-    order (the order of its values).
-    """
-    symbol_map = dict(symbols or {})
-    state_map = dict(states or {})
-    old_states = list(machine.graph.states())
-    if set(state_map) >= set(old_states):
-        old_states = [old for old in state_map if old in set(old_states)]
-    out = (machine_type or type(machine))(
-        initial_distribution={state_map.get(s, s): p for s, p in machine.initial_distribution.items()},
-        observation_alphabet=frozenset(symbol_map.get(x, x) for x in machine.observation_alphabet),
-    )
-    if name is not None:
-        out.name = name
-    for state in old_states:
-        out.graph.add_state(state_map.get(state, state), **dict(machine.graph.state_attrs(state)))
-    for t in machine.transitions():
-        data = dict(t.data)
-        data[ATTR_EMISSION] = symbol_map.get(data[ATTR_EMISSION], data[ATTR_EMISSION])
-        out.graph.add_transition(state_map.get(t.source, t.source), state_map.get(t.target, t.target), **data)
-    out.validate()
-    return out

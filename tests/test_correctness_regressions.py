@@ -88,7 +88,7 @@ def test_block_entropy_estimates_exact_crypticity_is_cmu_minus_excess_entropy():
 
 def test_log_likelihood_is_in_bits():
     machine = golden_mean(0.5)
-    observations = [0, 0, 0, 0]
+    observations = list("0000")
     assert 2.0 ** machine.log_likelihood(observations) == pytest.approx(machine.word_probability(observations))
 
 

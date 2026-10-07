@@ -131,11 +131,11 @@ index answers membership and enumeration queries for shifts.
 
    In [3]: index = WheelerIndex.from_model(golden_mean()); index.bits()
 
-   In [4]: index.contains((0, 1, 0)), index.contains((1, 1))
+   In [4]: index.contains(("0", "1", "0")), index.contains(("1", "1"))
 
    In [5]: list(index.words_of_length(3))
 
-   In [6]: index.unrank_word(index.rank_word((0, 1, 0)), 3)
+   In [6]: index.unrank_word(index.rank_word(("0", "1", "0")), 3)
 
 Words are listed in co-lexicographic order, so :meth:`WheelerIndex.rank_word`
 and :meth:`WheelerIndex.unrank_word` invert one another and

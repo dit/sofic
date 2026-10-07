@@ -14,7 +14,7 @@ surface at numpy.
 from __future__ import annotations
 
 import random
-from collections.abc import Callable, Hashable, Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,7 +41,8 @@ class WheelerIndex:
     symbol_start: np.ndarray
     #: Positions in :attr:`labels` carrying each symbol index.
     label_positions: tuple[np.ndarray, ...]
-    initial: Interval | None
+    #: Maximal runs of consecutive initial ranks, in Wheeler order.
+    initial: tuple[Interval, ...]
     accepting: frozenset[int]
     #: Reverse adjacency, used for co-lex word ranking.
     _backward: dict[tuple[Hashable, Any], frozenset[Hashable]]
@@ -59,21 +60,26 @@ class WheelerIndex:
     ) -> WheelerIndex:
         """Build an index for ``model``.
 
-        Initial and accepting states default to the model's own, or to every
-        state for presentations that mark neither -- the "all states initial"
-        case of :cite:`Gagie2017` Theorem 6, which is how a shift presents its
-        factor language.
+        Initial and accepting states default to the model's own. Presentations
+        that do not mark them (shifts, or other models with empty marks) treat
+        every state as both -- the "all states initial" case of
+        :cite:`Gagie2017` Theorem 6, which is how a shift presents its factor
+        language. A finite automaton's empty initial or accepting set is taken
+        literally and yields an index of the empty language.
         """
+        from sofic.automata.base import LabeledAutomaton
+
         graph = labeled_graph(model, symbol_key=symbol_key)
         order = wheeler_order_of_graph(graph)
         if order is None:
             raise WheelerError(f"{type(model).__qualname__} does not admit a Wheeler order")
 
         every = frozenset(graph.states)
+        literal = isinstance(model, LabeledAutomaton)
         if initial_states is None:
-            initial_states = getattr(model, "initial_states", None) or every
+            initial_states = model.initial_states if literal else getattr(model, "initial_states", None) or every
         if accepting_states is None:
-            accepting_states = getattr(model, "accepting_states", None) or every
+            accepting_states = model.accepting_states if literal else getattr(model, "accepting_states", None) or every
         return cls._build(graph, order, initial_states, accepting_states)
 
     @classmethod
@@ -116,7 +122,7 @@ class WheelerIndex:
             labels=labels,
             symbol_start=np.cumsum(symbol_count)[:-1],
             label_positions=tuple(np.flatnonzero(labels == symbol) for symbol in range(arity)),
-            initial=_interval_of(initial_states, rank),
+            initial=_runs_of(initial_states, rank),
             accepting=frozenset(rank[state] for state in accepting_states),
             _backward={key: frozenset(value) for key, value in backward.items()},
             _symbol_index=dict(symbol_rank),
@@ -158,17 +164,30 @@ class WheelerIndex:
         """Return the node interval reached by reading ``word``, or ``None``.
 
         Runs in ``O(|word| log |A|)`` regardless of how many states the word
-        actually reaches, because path coherence keeps that set an interval
-        :cite:`Gagie2017`.
+        actually reaches, because path coherence keeps the image of an interval
+        an interval :cite:`Gagie2017`. Starting from the initial states (the
+        default) requires them to be consecutive in the Wheeler order whenever
+        the reached set is not; use :meth:`states_reached` in that case.
         """
-        current = self.initial if interval is None else interval
-        if current is None:
+        runs = self._search_runs(word, (interval,) if interval is not None else self.initial)
+        if not runs:
             return None
+        if len(runs) > 1:
+            raise WheelerError("the reached states are not an interval of the Wheeler order; use states_reached")
+        return runs[0]
+
+    def _search_runs(self, word: Sequence[Any], start: tuple[Interval, ...] | None = None) -> tuple[Interval, ...]:
+        """Disjoint sorted node intervals reached by reading ``word`` from ``start``."""
+        current = self.initial if start is None else start
         for symbol in word:
-            current = self.step(current, symbol)
-            if current is None:
-                return None
+            if not current:
+                break
+            current = _merge_runs(image for run in current if (image := self.step(run, symbol)) is not None)
         return current
+
+    def _nodes_reached(self, word: Sequence[Any]) -> Iterator[int]:
+        for low, high in self._search_runs(word):
+            yield from range(low, high + 1)
 
     def contains(self, word: Sequence[Any]) -> bool:
         """Return whether ``word`` is accepted.
@@ -176,22 +195,15 @@ class WheelerIndex:
         The indexed replacement for scanning
         :meth:`~sofic.shifts.base.SymbolicModel.factor_language`.
         """
-        interval = self.forward_search(word)
-        if interval is None:
-            return False
-        return any(node in self.accepting for node in range(interval[0], interval[1] + 1))
+        return any(node in self.accepting for node in self._nodes_reached(word))
 
     def count_states(self, word: Sequence[Any]) -> int:
         """Number of states reachable by reading ``word``."""
-        interval = self.forward_search(word)
-        return 0 if interval is None else interval[1] - interval[0] + 1
+        return sum(high - low + 1 for low, high in self._search_runs(word))
 
     def states_reached(self, word: Sequence[Any]) -> tuple[Hashable, ...]:
         """The states reachable by reading ``word``, in Wheeler order."""
-        interval = self.forward_search(word)
-        if interval is None:
-            return ()
-        return tuple(self.order.states[node] for node in range(interval[0], interval[1] + 1))
+        return tuple(self.order.states[node] for node in self._nodes_reached(word))
 
     # -- Co-lexicographic word ranking -------------------------------------
     #
@@ -207,9 +219,9 @@ class WheelerIndex:
         return frozenset(sources)
 
     def _count_from(self, states: frozenset[Hashable], length: int) -> int:
-        """Distinct words of ``length`` symbols that end at some state in ``states``."""
+        """Distinct words of ``length`` symbols leading from an initial state into ``states``."""
         if length == 0:
-            return 1 if states else 0
+            return 1 if states & self._initial_states() else 0
         cached = self._word_counts.get((states, length))
         if cached is not None:
             return cached
@@ -220,6 +232,9 @@ class WheelerIndex:
         )
         self._word_counts[(states, length)] = total
         return total
+
+    def _initial_states(self) -> frozenset[Hashable]:
+        return frozenset(self.order.states[node] for low, high in self.initial for node in range(low, high + 1))
 
     def _accepting_states(self) -> frozenset[Hashable]:
         return frozenset(self.order.states[node] for node in sorted(self.accepting))
@@ -249,6 +264,8 @@ class WheelerIndex:
                 position += self._count_from(sources, remaining)
             else:
                 raise ValueError(f"symbol {symbol!r} is not in the alphabet")
+        if not states & self._initial_states():
+            raise ValueError(f"{tuple(word)!r} is not an accepted word")
         return position
 
     def unrank_word(self, index: int, length: int) -> tuple[Any, ...]:
@@ -279,11 +296,19 @@ class WheelerIndex:
         return self.unrank_word(chooser.randrange(total), length)
 
 
-def _interval_of(states: frozenset[Hashable], rank: dict[Hashable, int]) -> Interval | None:
-    ranks = [rank[state] for state in states if state in rank]
-    if not ranks:
-        return None
-    return (min(ranks), max(ranks))
+def _runs_of(states: frozenset[Hashable], rank: dict[Hashable, int]) -> tuple[Interval, ...]:
+    return _merge_runs((rank[state], rank[state]) for state in states if state in rank)
+
+
+def _merge_runs(intervals: Iterable[Interval]) -> tuple[Interval, ...]:
+    """Union of node intervals as sorted, disjoint, non-adjacent runs."""
+    merged: list[list[int]] = []
+    for low, high in sorted(intervals):
+        if merged and low <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], high)
+        else:
+            merged.append([low, high])
+    return tuple((low, high) for low, high in merged)
 
 
 def wheeler_index(model: Any, **kwargs: Any) -> WheelerIndex:

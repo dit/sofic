@@ -9,7 +9,7 @@ from typing import Any, Literal
 from sofic.automata.learning.papni import DyckAlphabet, is_well_matched, learn_sofic_dyck_shift_papni
 from sofic.exceptions import StochasticValidationError
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
-from sofic.graph import ATTR_SYMBOL
+from sofic.graph import ATTR_KIND, ATTR_SYMBOL, KIND_RETURN
 from sofic.inference.cssr.counts import ConfigurationHistory, StackSuffixCounts, _push
 from sofic.inference.cssr.process import _default_max_history, _recurrent_states, suggest_max_history
 from sofic.inference.cssr.significance import MorphTest, _bonferroni_alpha, morph_test_score, morphs_differ
@@ -325,6 +325,15 @@ def _counts_to_stack_hmm(
         emitted: Counter[Any] = Counter()
         for history in histories:
             emitted.update(counts.next_counts.get(history, Counter()))
+        # The stack model renormalizes over the moves legal in each configuration, so
+        # the weights are the Luce-choice MLE over the legal sets offered by each history.
+        symbols = [symbol for symbol in counts.alphabet if emitted[symbol] > 0]
+        offers: Counter[tuple[Any, ...]] = Counter()
+        for history in histories:
+            visits_here = sum(counts.next_counts.get(history, Counter()).values())
+            if visits_here:
+                offers[tuple(s for s in symbols if legal(s, history[1]))] += visits_here
+        weights = _luce_mle(symbols, emitted, offers, smoothing=0.0) if symbols else {}
         for symbol in counts.alphabet:
             if emitted[symbol] <= 0:
                 continue
@@ -342,14 +351,7 @@ def _counts_to_stack_hmm(
             if not targets:
                 continue
             target = state_labels[targets.most_common(1)[0][0]]
-            # The stack model renormalizes over the moves legal in each configuration, so
-            # a symbol's weight is its frequency among the visits where it was legal.
-            opportunities = sum(
-                sum(counts.next_counts.get(history, Counter()).values())
-                for history in histories
-                if legal(symbol, history[1])
-            )
-            prob = emitted[symbol] / opportunities
+            prob = weights[symbol]
             if symbol in alphabet.call_alphabet:
                 call_refs[symbol].append(model.add_call_transition(source, target, symbol, prob))
             elif symbol in alphabet.return_alphabet:
@@ -380,7 +382,7 @@ def learn_stack_hmm_cssr(
     alpha: float = 0.05,
     test: MorphTest = "g",
     min_count: int = 5,
-    correction: Literal["bonferroni"] | None = None,
+    correction: Literal["bonferroni"] | None = "bonferroni",
 ) -> HiddenMarkovStackModel:
     """Reconstruct a stack HMM via configuration-lifted CSSR.
 
@@ -388,8 +390,9 @@ def learn_stack_hmm_cssr(
     on the observed symbols. Stack processes generally have infinite Markov
     order, so treat it as a lower bound on the suffix length the data support.
     ``test="exact"`` and ``correction="bonferroni"`` are as in
-    :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`; the correction counts
-    eligible (suffix, stack) configurations.
+    :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`; the correction (on by
+    default; ``correction=None`` disables it) counts eligible (suffix, stack)
+    configurations.
     """
     seq = tuple(sequence)
     if len(seq) < 2:
@@ -512,46 +515,93 @@ def learn_stack_hmm_mle(
     *,
     smoothing: float = 1e-6,
 ) -> HiddenMarkovStackModel:
-    """Assign MLE edge probabilities to a fixed Dyck topology from one sample."""
+    """Assign MLE edge weights to a fixed Dyck topology from one sample.
+
+    A stack HMM renormalizes a state's edge weights over the moves legal in the
+    current configuration (e.g. no return on an empty stack), so the likelihood is
+    a Luce choice model per state. Its maximum is found with the minorize-maximize
+    iteration of :cite:`Hunter2004`, starting from each edge's frequency among the
+    visits where it was legal; ``smoothing`` is added to every edge count.
+    """
     from sofic.shifts.dyck_algorithms import _successors
 
     seq = tuple(sequence)
-    edge_counts: Counter[TransitionRef] = Counter()
     states = tuple(shift.states())
     if not states:
         raise ValueError("shift has no states")
+    allow_empty_returns = HiddenMarkovStackModel.from_sofic_dyck_shift(
+        shift, {transition_ref(t): 1.0 for t in shift.transitions()}
+    ).allow_empty_stack_returns
     state = states[0]
     stack: tuple[TransitionRef, ...] = ()
+    edge_counts: Counter[TransitionRef] = Counter()
+    # Per state: how often each set of legal moves was offered.
+    offers: dict[Hashable, Counter[tuple[TransitionRef, ...]]] = defaultdict(Counter)
 
     for symbol in seq:
-        matched = False
+        legal: list[TransitionRef] = []
+        chosen: tuple[TransitionRef, Hashable, tuple[TransitionRef, ...]] | None = None
         for transition in shift.graph.out_transitions(state):
-            if transition.data.get(ATTR_SYMBOL) != symbol:
+            if transition.data.get(ATTR_KIND) == KIND_RETURN and not stack and not allow_empty_returns:
                 continue
             for target, next_stack in _successors(shift, transition, stack):
-                edge_counts[transition_ref(transition)] += 1
-                state = target
-                stack = next_stack
-                matched = True
+                ref = transition_ref(transition)
+                legal.append(ref)
+                if chosen is None and transition.data.get(ATTR_SYMBOL) == symbol:
+                    chosen = (ref, target, next_stack)
                 break
-            if matched:
-                break
-        if not matched:
+        if chosen is None:
             break
+        offers[state][tuple(legal)] += 1
+        ref, state, stack = chosen
+        edge_counts[ref] += 1
 
-    probabilities: dict[TransitionRef, float] = {}
     outgoing: dict[Hashable, list[TransitionRef]] = defaultdict(list)
     for transition in shift.transitions():
-        ref = transition_ref(transition)
-        outgoing[transition.source].append(ref)
+        outgoing[transition.source].append(transition_ref(transition))
 
-    for refs in outgoing.values():
-        total = sum(edge_counts.get(ref, 0.0) for ref in refs) + smoothing * len(refs)
-        for ref in refs:
-            count = edge_counts.get(ref, 0.0) + smoothing
-            probabilities[ref] = count / total if total > 0 else 1.0 / len(refs)
+    probabilities: dict[TransitionRef, float] = {}
+    for source, refs in outgoing.items():
+        weights = _luce_mle(refs, edge_counts, offers.get(source, Counter()), smoothing=smoothing)
+        probabilities.update(weights)
 
     return HiddenMarkovStackModel.from_sofic_dyck_shift(shift, probabilities)
+
+
+def _luce_mle(
+    refs: Sequence[Hashable],
+    counts: Mapping[Hashable, float],
+    offers: Mapping[tuple[Hashable, ...], int],
+    *,
+    smoothing: float,
+    max_iter: int = 1000,
+    tol: float = 1e-12,
+) -> dict[Hashable, float]:
+    """Normalized weights maximizing ``prod_t w[choice_t] / sum_{legal_t} w``.
+
+    ``offers`` counts how often each tuple of legal moves was available.
+    """
+    wins = {ref: counts.get(ref, 0.0) + smoothing for ref in refs}
+    exposure = {ref: sum(n for legal, n in offers.items() if ref in legal) for ref in refs}
+    weights = {ref: (wins[ref] / exposure[ref] if exposure[ref] else wins[ref]) for ref in refs}
+    if not any(exposure.values()):
+        total = sum(weights.values())
+        return {ref: (w / total if total > 0 else 1.0 / len(refs)) for ref, w in weights.items()}
+    for _ in range(max_iter):
+        denominators = dict.fromkeys(refs, 0.0)
+        for legal, n in offers.items():
+            mass = sum(weights[ref] for ref in legal)
+            for ref in legal:
+                denominators[ref] += n / mass
+        updated = {ref: (wins[ref] / denominators[ref] if denominators[ref] else weights[ref]) for ref in refs}
+        total = sum(updated.values())
+        updated = {ref: w / total for ref, w in updated.items()}
+        delta = max(abs(updated[ref] - weights[ref]) for ref in refs)
+        weights = updated
+        if delta < tol:
+            break
+    total = sum(weights.values())
+    return {ref: w / total for ref, w in weights.items()}
 
 
 def learn_stack_hmm_papni(

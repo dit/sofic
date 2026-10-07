@@ -11,7 +11,7 @@ from typing import Any, Self
 import networkx as nx
 
 from sofic.exceptions import SoficValidationError
-from sofic.graph import Transition, TransitionGraph
+from sofic.graph import Transition, TransitionGraph, copy_memo
 from sofic.indexing import StateIndex
 
 
@@ -39,10 +39,11 @@ class StateMachine(ABC):
     def copy(self) -> Self:
         cloned = object.__new__(self.__class__)
         cloned.graph = self.graph.copy()
+        memo = copy_memo()
         for name, value in self.__dict__.items():
             if name == "graph":
                 continue
-            cloned.__dict__[name] = deepcopy(value)
+            cloned.__dict__[name] = deepcopy(value, memo)
         return cloned
 
     def to_networkx(self) -> nx.MultiDiGraph:

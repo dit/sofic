@@ -87,3 +87,28 @@ def test_method_dispatch_matches_functions():
     inp = _iid_input()
     assert eps.statistical_complexity(inp) == pytest.approx(channel_statistical_complexity(eps, inp))
     assert eps.transfer_entropy(inp) == pytest.approx(transfer_entropy(eps, inp))
+
+
+def test_channel_statistical_complexity_uses_the_driven_occupation_law():
+    """The joint chain has a second closed class (channel out of step with the input);
+    an arbitrary stationary vector could land there and report 0."""
+    import os
+    import subprocess
+    import sys
+
+    script = (
+        "import warnings; warnings.simplefilter('ignore');"
+        "from sofic.examples.processes import gm_to_even_et, golden_mean;"
+        "print(gm_to_even_et().statistical_complexity(golden_mean()))"
+    )
+    values = set()
+    for seed in range(8):
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            env={**os.environ, "PYTHONHASHSEED": str(seed)},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        values.add(round(float(out.stdout.strip()), 9))
+    assert values == {round(0.9182958340544896, 9)}

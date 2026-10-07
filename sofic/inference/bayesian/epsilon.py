@@ -139,12 +139,15 @@ class DirichletDistributionEM:
             self.alphas[valid_edge[0]] += self.alphas[valid_edge]
 
     def _machine_from_probabilities(
-        self, start_node: Hashable, probabilities: Mapping[tuple[Hashable, Any], float], name: str
+        self,
+        start_node: Hashable,
+        probabilities: Mapping[tuple[Hashable, Any], float],
+        name: str,
+        initial: Mapping[Hashable, float] | None = None,
     ) -> MealyHMM:
         machine = MealyHMM(observation_alphabet=getattr(self.machine, "observation_alphabet", frozenset()))
         machine.name = name
-        initial_state = self.get_last_node(start_node) if self.data is not None else start_node
-        machine.initial_distribution = {initial_state: 1.0} if initial_state is not None else {}
+        machine.initial_distribution = dict(initial) if initial is not None else {start_node: 1.0}
         for node in self.nodes:
             machine.graph.add_state(node)
         for edge in self.edges:
@@ -163,7 +166,14 @@ class DirichletDistributionEM:
             return eps
         return machine
 
-    def posterior_mean_machine(self, start_node: Hashable) -> MealyHMM | None:
+    def posterior_mean_machine(
+        self, start_node: Hashable, initial: Mapping[Hashable, float] | None = None
+    ) -> MealyHMM | None:
+        """Posterior-mean machine given ``start_node``.
+
+        The machine starts in ``start_node`` (the state before the first
+        observation) unless ``initial`` overrides the initial distribution.
+        """
         if start_node not in self.valid_startnodes:
             return None
         probabilities = {}
@@ -173,7 +183,7 @@ class DirichletDistributionEM:
                 raise BayesianInferenceError(f"missing probability for edge {edge!r}")
             probabilities[edge] = prob
         return self._machine_from_probabilities(
-            start_node, probabilities, f"Posterior Mean Machine, Start Node: {start_node}"
+            start_node, probabilities, f"Posterior Mean Machine, Start Node: {start_node}", initial
         )
 
     def generate_sample(self, start_node: Hashable, rng: np.random.Generator | None = None) -> MealyHMM | None:
@@ -254,17 +264,57 @@ class EpsilonMachinePosterior:
         return start, machine
 
     def posterior_mean_machine(self, start_node: Hashable | None = None) -> MealyHMM | None:
-        if start_node is None:
-            probs = self.start_node_probabilities()
-            if not probs:
-                return None
-            start_node = max(probs, key=probs.get)
-        return self.dirichlet.posterior_mean_machine(start_node)
+        """Posterior-mean machine.
+
+        With ``start_node`` given, transition probabilities are posterior means
+        conditioned on that start state and the machine starts there. Otherwise
+        the parameters are conditioned on the MAP start state and the initial
+        distribution is the posterior over start states.
+        """
+        if start_node is not None:
+            return self.dirichlet.posterior_mean_machine(start_node)
+        probs = self.start_node_probabilities()
+        if not probs:
+            return None
+        start_node = max(probs, key=probs.get)
+        initial = {node: mass for node, mass in probs.items() if mass > 0.0}
+        return self.dirichlet.posterior_mean_machine(start_node, initial=initial)
 
     def as_pymc_model(self, start_node: Hashable | None = None) -> Any:
         from sofic.inference.bayesian.pymc_backend import epsilon_machine_model
 
         return epsilon_machine_model(self, start_node=start_node)
+
+
+def _pooled_posterior_mean_machine(machine: MealyHMM, sequences: Sequence[Sequence[Any]]) -> MealyHMM | None:
+    """Posterior-mean machine from several independent sequences of one topology.
+
+    Each sequence is traced from its own MAP start state and the edge counts are
+    pooled under a single uniform Dirichlet prior. The initial distribution is the
+    average of the per-sequence start-state posteriors.
+    """
+    posteriors = [EpsilonMachinePosterior(machine, list(seq)) for seq in sequences]
+    starts = [posterior.start_node_probabilities() for posterior in posteriors]
+    if not posteriors or any(not probs for probs in starts):
+        return None
+    maps = [max(probs, key=probs.get) for probs in starts]
+    base = posteriors[0].dirichlet
+    probabilities: dict[tuple[Hashable, Any], float] = {}
+    for edge in base.edges:
+        if edge not in base.valid_edges:
+            probabilities[edge] = 1.0
+            continue
+        count = sum(p.dirichlet.get_edge_count(s, edge) or 0 for p, s in zip(posteriors, maps, strict=True))
+        row = sum(p.dirichlet.get_node_count(s, edge[0]) or 0 for p, s in zip(posteriors, maps, strict=True))
+        alpha = base.alphas[edge]
+        row_alpha = base.alphas[edge[0]]
+        probabilities[edge] = float((count + alpha) / (row + row_alpha))
+    initial: dict[Hashable, float] = {}
+    for probs in starts:
+        for node, mass in probs.items():
+            initial[node] = initial.get(node, 0.0) + mass / len(starts)
+    initial = {node: mass for node, mass in initial.items() if mass > 0.0}
+    return base._machine_from_probabilities(maps[0], probabilities, "Pooled Posterior Mean Machine", initial)
 
 
 InferEM = EpsilonMachinePosterior

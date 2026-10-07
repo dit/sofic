@@ -103,7 +103,7 @@ the excess entropy and crypticity:
    Out[4]: 0.25162916738782304
 
    @doctest float
-   In [5]: bidir.crypticity()
+   In [5]: bidir.bidirectional_crypticity()
    Out[5]: 1.333333333333333
 
 Information anatomy

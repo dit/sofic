@@ -27,11 +27,10 @@ from sofic.automata.wheeler import (
 )
 from sofic.automata.wheeler_index import WheelerIndex
 from sofic.examples.epsilon_machines import (
+    bernoulli,
     butterfly_process,
     even_process,
-    fair_coin,
     golden_mean,
-    golden_mean_markov,
     nemo_process,
     wheeler_infinite_order_process,
 )
@@ -126,7 +125,7 @@ def test_canonical_non_wheeler_machines(machine):
     assert colex_width(machine) > 1
 
 
-@pytest.mark.parametrize("machine", [golden_mean(), golden_mean_markov()])
+@pytest.mark.parametrize("machine", [golden_mean()])
 def test_canonical_wheeler_machines(machine):
     assert is_input_consistent(machine)
     assert is_wheeler(machine)
@@ -241,7 +240,7 @@ def force_subset_power_automaton(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("machine", [golden_mean(), golden_mean_markov(), wheeler_infinite_order_process()])
+@pytest.mark.parametrize("machine", [golden_mean(), wheeler_infinite_order_process()])
 def test_interval_and_subset_power_automata_agree(machine):
     graph = graph_from_epsilon_machine(machine)
     order = wheeler_order_for(graph)
@@ -252,7 +251,7 @@ def test_interval_and_subset_power_automata_agree(machine):
     assert interval.transitions == subset.transitions
 
 
-@pytest.mark.parametrize("machine", [golden_mean(), golden_mean_markov(), wheeler_infinite_order_process()])
+@pytest.mark.parametrize("machine", [golden_mean(), wheeler_infinite_order_process()])
 def test_synchronization_orders_are_unchanged_by_the_interval_fast_path(machine, monkeypatch):
     graph = graph_from_epsilon_machine(machine)
     assert wheeler_order_for(graph) is not None
@@ -441,7 +440,7 @@ def test_higher_block_presentation_is_input_consistent():
 # -- Stochastic layer ------------------------------------------------------
 
 
-@pytest.mark.parametrize("machine", [golden_mean(), golden_mean_markov(), wheeler_infinite_order_process()])
+@pytest.mark.parametrize("machine", [golden_mean(), wheeler_infinite_order_process()])
 def test_wheeler_presentation_is_the_machine_itself_when_wheeler(machine):
     assert wheeler_presentation(machine) is machine
     assert wheeler_statistical_complexity(machine) == pytest.approx(machine.statistical_complexity())
@@ -487,7 +486,7 @@ def test_wheeler_complexity_is_never_below_the_single_symbol_entropy(machine):
 
 
 def test_a_fair_coin_pays_a_whole_bit_for_sortability():
-    coin = fair_coin()
+    coin = bernoulli()
     assert coin.statistical_complexity() == pytest.approx(0.0)
     assert wheeler_statistical_complexity(coin) == pytest.approx(1.0)
 
@@ -514,10 +513,17 @@ def test_debruijn_presentation_needs_the_markov_order():
     assert is_wheeler(debruijn_presentation(machine, 3))
 
 
-@pytest.mark.parametrize("machine", [even_process(), nemo_process(), butterfly_process()])
+@pytest.mark.parametrize("machine", [even_process(), nemo_process()])
 def test_non_star_free_processes_have_no_wheeler_presentation(machine):
     with pytest.raises(WheelerError):
         wheeler_presentation(machine)
+
+
+def test_butterfly_edge_refinement_is_wheeler():
+    # Previously masked by tied pairs in the maximum co-lex relation.
+    presentation = wheeler_presentation(butterfly_process())
+    graph = labeled_graph(presentation)
+    assert _brute_force_axioms(graph, wheeler_order(presentation).states)
 
 
 def test_colex_cdf_is_the_cumulative_stationary_distribution():
@@ -532,9 +538,9 @@ def test_colex_cdf_is_the_cumulative_stationary_distribution():
 
 def test_word_cylinder_measure_weighs_the_reachable_interval():
     machine = golden_mean()
-    assert word_cylinder_measure(machine, (0,)) == pytest.approx(2 / 3)
-    assert word_cylinder_measure(machine, (1,)) == pytest.approx(1 / 3)
-    assert word_cylinder_measure(machine, (1, 1)) == 0.0
+    assert word_cylinder_measure(machine, ("0",)) == pytest.approx(2 / 3)
+    assert word_cylinder_measure(machine, ("1",)) == pytest.approx(1 / 3)
+    assert word_cylinder_measure(machine, ("1", "1")) == 0.0
 
 
 def test_colex_cdf_rejects_non_wheeler_machines():
@@ -592,3 +598,166 @@ def test_the_reversal_witness_fails_sortability_not_input_consistency():
     assert is_input_consistent(_presentation(_REVERSAL_WITNESS_FORWARD))
     assert is_input_consistent(_presentation(_REVERSAL_WITNESS_REVERSE))
     assert colex_width(_presentation(_REVERSAL_WITNESS_REVERSE)) > 1
+
+
+# -- Regressions: brute-force differential checks -------------------------
+
+
+def _brute_force_axioms(graph, order):
+    rank = {state: index for index, state in enumerate(order)}
+    symbol_rank = graph.symbol_rank()
+    targeted = {target for _source, _symbol, target in graph.edges}
+    for state in graph.states:
+        for other in targeted:
+            if state not in targeted and rank[state] > rank[other]:
+                return False
+    for u, x, u2 in graph.edges:
+        for v, y, v2 in graph.edges:
+            if symbol_rank[x] < symbol_rank[y] and not rank[u2] < rank[v2]:
+                return False
+            if x == y and rank[u] < rank[v] and not rank[u2] <= rank[v2]:
+                return False
+    return True
+
+
+def _small_automaton(edges, initial, accepting, n, cls=NFA):
+    automaton = cls(
+        input_alphabet=frozenset(symbol for _s, symbol, _t in edges) | frozenset("ab"),
+        initial_states=frozenset(initial),
+        accepting_states=frozenset(accepting),
+    )
+    for state in range(n):
+        automaton.graph.add_state(state)
+    for source, symbol, target in edges:
+        automaton.add_transition(source, target, symbol)
+    return automaton
+
+
+def _random_wheeler_candidate(rng, deterministic):
+    n = rng.randint(1, 5)
+    cls = DFA if deterministic else NFA
+    initial = {0} if deterministic or rng.random() < 0.5 else set(rng.sample(range(n), rng.randint(1, min(2, n))))
+    accepting = {state for state in range(n) if rng.random() < 0.4}
+    edges = []
+    for source in range(n):
+        for symbol in "ab":
+            if deterministic:
+                if rng.random() < 0.75:
+                    edges.append((source, symbol, rng.randrange(n)))
+            else:
+                edges.extend((source, symbol, target) for target in range(n) if rng.random() < 0.35)
+    return _small_automaton(edges, initial, accepting, n, cls)
+
+
+def _brute_language(automaton, length):
+    return {
+        word
+        for size in range(length + 1)
+        for word in itertools.product("ab", repeat=size)
+        if automaton.recognizes(word)
+    }
+
+
+def test_wheeler_family_matches_brute_force_on_random_small_automata():
+    from sofic.automata.base import run_nfa
+
+    rng = random.Random(9)
+    samples = 0
+    for trial in range(1500):
+        automaton = _random_wheeler_candidate(rng, deterministic=trial % 2 == 0)
+        graph = labeled_graph(automaton)
+        brute = any(_brute_force_axioms(graph, order) for order in itertools.permutations(graph.states))
+        assert is_wheeler(automaton) == brute
+        if not brute:
+            continue
+        samples += 1
+        assert colex_width(automaton) == 1
+        language = _brute_language(automaton, 5)
+        assert _brute_language(determinize_wheeler(automaton), 5) == language
+        if isinstance(automaton, DFA):
+            minimal = minimize_wheeler(automaton)
+            assert _brute_language(minimal, 5) == language
+            assert is_wheeler(minimal)
+        index = WheelerIndex.from_model(automaton)
+        for size in range(5):
+            words = [w for w in itertools.product("ab", repeat=size) if automaton.recognizes(w)]
+            for word in itertools.product("ab", repeat=size):
+                assert index.contains(word) == automaton.recognizes(word)
+                assert set(index.states_reached(word)) == run_nfa(automaton, word)
+            assert index.count_words(size) == len(words)
+            listed = list(index.words_of_length(size))
+            assert listed == sorted(words, key=lambda w: tuple(reversed(w)))
+            assert [index.rank_word(word) for word in listed] == list(range(len(listed)))
+    assert samples > 300
+
+
+def test_linearization_groups_mutually_related_states():
+    nfa = _small_automaton([(0, "a", 0), (0, "a", 2), (1, "a", 1)], {0}, {2}, 3)
+    graph = labeled_graph(nfa)
+    assert check_wheeler_axioms(graph, (0, 2, 1))
+    assert is_wheeler(nfa)
+
+
+def test_non_consecutive_initial_states_are_not_widened():
+    edges = [(0, "a", 1), (0, "a", 2), (0, "a", 3), (1, "c", 4), (2, "b", 5)]
+    nfa = _small_automaton(edges, {1, 3}, {4, 5}, 6)
+    nfa.input_alphabet = frozenset("abc")
+    assert not nfa.recognizes(("b",))
+    assert nfa.recognizes(("c",))
+    dfa = determinize_wheeler(nfa)
+    index = WheelerIndex.from_model(nfa)
+    assert not dfa.recognizes(("b",))
+    assert dfa.recognizes(("c",))
+    assert not index.contains(("b",))
+    assert index.contains(("c",))
+    assert index.count_words(1) == 1
+    assert list(index.words_of_length(1)) == [("c",)]
+    with pytest.raises(WheelerError):
+        index.forward_search(())
+
+
+def test_index_word_counts_respect_initial_states():
+    dfa = _small_automaton([(0, "a", 1), (1, "b", 2)], {0}, {1, 2}, 3, DFA)
+    index = WheelerIndex.from_model(dfa)
+    assert index.count_words(1) == 1
+    assert list(index.words_of_length(1)) == [("a",)]
+    assert index.count_words(2) == 1
+    with pytest.raises(ValueError):
+        index.rank_word(("b",))
+
+
+def test_index_takes_empty_marks_of_an_automaton_literally():
+    dfa = _small_automaton([(0, "a", 0), (1, "a", 0)], {0}, set(), 2, DFA)
+    index = WheelerIndex.from_model(dfa)
+    assert not index.contains(())
+    assert index.count_words(1) == 0
+    dfa.accepting_states = frozenset({0})
+    dfa.initial_states = frozenset()
+    assert not WheelerIndex.from_model(dfa).contains(("a",))
+
+
+def test_minimize_wheeler_handles_dead_states_and_the_empty_language():
+    dead = _small_automaton([(0, "a", 1), (0, "b", 2), (2, "b", 3), (3, "b", 3)], {0}, {1}, 4, DFA)
+    minimal = minimize_wheeler(dead)
+    assert _brute_language(minimal, 5) == {("a",)}
+    empty = _small_automaton([(0, "a", 0), (1, "a", 1)], {0}, {1}, 2, DFA)
+    assert not minimize_wheeler(empty).recognizes(("a",))
+
+
+def test_colex_width_ignores_freely_ordered_sources():
+    dfa = _small_automaton([(0, "b", 2), (1, "a", 0), (2, "b", 2), (3, "b", 2), (4, "a", 3)], {0}, {1}, 5, DFA)
+    assert is_wheeler(dfa)
+    assert colex_width(dfa) == 1
+
+
+def test_determinize_wheeler_output_is_wheeler_from_a_source_initial_state():
+    rng = random.Random(3)
+    checked = 0
+    for _trial in range(3000):
+        nfa = _random_wheeler_candidate(rng, deterministic=False)
+        nfa.initial_states = frozenset({0})
+        if any(transition.target == 0 for transition in nfa.transitions()) or not is_wheeler(nfa):
+            continue
+        checked += 1
+        assert is_wheeler(determinize_wheeler(nfa))
+    assert checked > 100

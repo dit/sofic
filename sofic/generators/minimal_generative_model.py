@@ -97,17 +97,28 @@ class FunctionalGenerativeModel(_CommonInformationGenerativeModel):
 
 
 class GacsKornerGenerativeModel(_CommonInformationGenerativeModel):
-    """Generator from the Gács-Körner (deterministic meet) auxiliary.
+    """Gács-Körner common-information model of the meet ``S+ ⩘ S-``.
 
-    The states are the meet ``S+ ⩘ S-`` of the forward and reverse causal
-    states: the largest random variable that is simultaneously a deterministic
-    function of both. Unlike the Exact and Wyner models this is combinatorial,
-    not variational — each joint state pair maps to exactly one generative
+    The states are the meet of the forward and reverse causal states: the
+    largest random variable that is simultaneously a deterministic function of
+    both :cite:`GacsKorner1973`. Unlike the Exact and Wyner models this is
+    combinatorial, not variational — each joint state pair maps to exactly one
     state (its connected component in the joint support graph). Its state
     entropy therefore equals the Gács-Körner common information
     ``K[S+ : S-]`` exactly, and captures only the conserved "core" (phase /
     ergodic-component structure), which is often trivial for mixing processes.
+
+    This is *not* a generative model of the source process: the meet need not
+    render ``S+`` and ``S-`` conditionally independent, so the HMM obtained by
+    coarse-graining the bidirectional machine onto it generally emits a
+    different process (``is_equal_process(source)`` is ``False`` in general,
+    e.g. the golden mean collapses to an i.i.d. coin). Accordingly
+    :meth:`entropy_rate` is this model's own rate, not the source's.
     """
+
+    def entropy_rate(self) -> float:
+        """Entropy rate of this model's own output process (not the source's)."""
+        return MealyHMM.entropy_rate(self)
 
     gk_common_information: float
 
@@ -293,15 +304,20 @@ def gacs_korner_generative_model(
     *,
     cutoff: float = 1e-10,
 ) -> GacsKornerGenerativeModel:
-    """Construct a Gács-Körner generative model from a bidirectional epsilon-machine.
+    """Construct the Gács-Körner common-information model of a bidirectional epsilon-machine.
 
-    The generative state ``G`` is the meet ``S+ ⩘ S-`` of the forward and
-    reverse causal states — the largest random variable that is simultaneously
-    a deterministic function of both, obtained combinatorially as the connected
-    components of the joint support graph. Because the meet is deterministic
-    there is nothing to optimize, so this factory takes no optimizer arguments;
-    the returned model's state entropy ``H[G]`` equals the Gács-Körner common
-    information ``K[S+ : S-]``.
+    The state ``G`` is the meet ``S+ ⩘ S-`` of the forward and reverse causal
+    states — the largest random variable that is simultaneously a deterministic
+    function of both, obtained combinatorially as the connected components of
+    the joint support graph :cite:`GacsKorner1973`. Because the meet is
+    deterministic there is nothing to optimize, so this factory takes no
+    optimizer arguments; the returned model's state entropy ``H[G]`` equals the
+    Gács-Körner common information ``K[S+ : S-]``.
+
+    Unlike the other constructors here, the result is not verified against the
+    source and does not reproduce it in general: it is the common-information
+    variable dressed as an HMM, not a generator of the process (see
+    :class:`GacsKornerGenerativeModel`).
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")

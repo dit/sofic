@@ -2,7 +2,7 @@
 
 import pytest
 
-from sofic.examples import bernoulli, fair_coin, golden_mean
+from sofic.examples import bernoulli, golden_mean
 from sofic.generators.markov import MarkovChain
 from sofic.generators.moore import MooreHMM
 from sofic.generators.nmachine import NMachine
@@ -40,6 +40,28 @@ def test_hmm_words_of_length_include_probabilities():
         ("1", "0"): pytest.approx(0.1875),
         ("1", "1"): pytest.approx(0.5625),
     }
+
+
+def test_log_word_probability_does_not_underflow_on_long_words():
+    import numpy as np
+
+    eps = golden_mean()
+    word, _ = eps.sample(5000, rng=np.random.default_rng(0))
+    assert eps.word_probability(word) == 0.0
+    assert eps.log_word_probability(word) == pytest.approx(eps.log_likelihood(word))
+    assert np.isfinite(eps.log_word_probability(word))
+
+
+def test_log_word_probability_honors_start_and_forbidden_words():
+    import numpy as np
+
+    eps = golden_mean()
+    assert eps.log_word_probability(["1", "0"], start="A") == pytest.approx(
+        np.log2(eps.word_probability(["1", "0"], start="A"))
+    )
+    assert eps.log_word_probability(["1"], start="B") == float("-inf")
+    assert eps.log_word_probability(["1", "1"]) == float("-inf")
+    assert eps.log_word_probability([]) == pytest.approx(0.0)
 
 
 def test_moore_words_of_length_include_probabilities():
@@ -110,6 +132,6 @@ def test_markov_words_of_length_are_visible_paths():
 
 
 def test_process_equivalence_detects_same_and_different_processes():
-    assert fair_coin().is_equal_process(bernoulli(0.5))
+    assert bernoulli().is_equal_process(bernoulli(0.5))
     assert _mealy_like_pfa().to_mealy().is_equal_process(_moore())
-    assert not bernoulli(0.5, symbols=(0, 1)).is_equal_process(golden_mean(0.5))
+    assert not bernoulli(0.5).is_equal_process(golden_mean(0.5))

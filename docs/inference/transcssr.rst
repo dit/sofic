@@ -18,8 +18,8 @@ same test as :func:`~sofic.inference.cssr.morphs_differ` (with
 Yates' continuity correction at one degree of freedom).
 As in :func:`~sofic.inference.cssr.learn_epsilon_machine_cssr`, ``test="exact"`` uses a
 Monte Carlo exact G-test for tables with small expected counts, and
-``correction="bonferroni"`` divides ``alpha`` by the number of
-(history, input symbol) tests. ``max_history="auto"`` sets the depth from the Markov
+``correction="bonferroni"`` (the default; ``None`` disables it) divides ``alpha``
+by the number of (history, input symbol) tests. ``max_history="auto"`` sets the depth from the Markov
 order of the joint ``(input, output)`` sequence :cite:`Pethel2014`.
 
 .. ipython::

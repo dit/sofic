@@ -10,8 +10,10 @@ from sofic.viz import _labels
 
 _HALF = Fraction(1, 2)
 
+# Labels land in both text and math mode (``$\Edge{...}{...}$``), so every
+# replacement must be valid in either; text-only commands go inside ``\mbox``.
 _LATEX_SPECIAL = {
-    "\\": r"\textbackslash{}",
+    "\\": r"\mbox{\textbackslash}",
     "{": r"\{",
     "}": r"\}",
     "#": r"\#",
@@ -19,13 +21,13 @@ _LATEX_SPECIAL = {
     "%": r"\%",
     "&": r"\&",
     "_": r"\_",
-    "^": r"\^{}",
-    "~": r"\textasciitilde{}",
+    "^": r"\mbox{\^{}}",
+    "~": r"\mbox{\textasciitilde}",
 }
 
 
 def latex_escape(text: str) -> str:
-    """Escape plain text for use outside math mode in TikZ node labels."""
+    """Escape plain text for TikZ node labels, valid in both text and math mode."""
     escaped = []
     for char in text:
         escaped.append(_LATEX_SPECIAL.get(char, char))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sofic.examples import even_process, fair_coin, golden_mean
+from sofic.examples import bernoulli, even_process, golden_mean
 from sofic.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
@@ -59,7 +59,7 @@ def test_spectral_complexity_nonnegative():
 
 def test_independent_pair_has_zero_transfer_entropy():
     pytest.importorskip("dit")
-    pair = independent_pair_generator(fair_coin(), fair_coin())
+    pair = independent_pair_generator(bernoulli(), bernoulli())
     te = transfer_entropy(pair, history=1)
     assert te == pytest.approx(0.0, abs=1e-9)
     di = directed_information(pair, length=2)
@@ -74,7 +74,7 @@ def test_information_flow_measures_on_independent_pair():
         synergistic_information_flow,
     )
 
-    pair = independent_pair_generator(fair_coin(), fair_coin())
+    pair = independent_pair_generator(bernoulli(), bernoulli())
     te = transfer_entropy(pair, history=1)
     intrinsic = intrinsic_information_flow(pair, history=1)
     shared = shared_information_flow(pair, history=1)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterator
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,11 @@ ATTR_MULTIPLICITY = "multiplicity"
 KIND_CALL = "call"
 KIND_RETURN = "return"
 KIND_INTERNAL = "internal"
+
+
+def copy_memo() -> dict[int, Any]:
+    """``deepcopy`` memo that keeps identity-compared sentinels such as :data:`EPSILON` shared."""
+    return {id(EPSILON): EPSILON}
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +88,15 @@ class TransitionGraph:
             yield Transition(source=source, target=target, key=key, data=dict(data))
 
     def copy(self) -> TransitionGraph:
-        return TransitionGraph(self._g.copy())
+        """Return an independent copy; attribute values are deep-copied, state labels are shared."""
+        memo = copy_memo()
+        graph = nx.MultiDiGraph()
+        graph.graph.update(deepcopy(self._g.graph, memo))
+        for state, attrs in self._g.nodes(data=True):
+            graph.add_node(state, **deepcopy(attrs, memo))
+        for source, target, key, data in self._g.edges(keys=True, data=True):
+            graph.add_edge(source, target, key=key, **deepcopy(data, memo))
+        return TransitionGraph(graph)
 
     def has_state(self, state: Hashable) -> bool:
         return self._g.has_node(state)

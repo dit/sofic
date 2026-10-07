@@ -44,12 +44,23 @@ def right_quotient(language: RegularLanguage, u: Sequence[Any]) -> RegularLangua
 
 
 def left_quotients(language: RegularLanguage) -> frozenset[RegularLanguage]:
+    """Distinct left quotients ``u^{-1} L``, including the empty one when some ``u`` reaches it.
+
+    Quotients range over words on the symbols the automaton declares or uses.
+    """
     lang = as_language(language)  # type: ignore[arg-type]
     if isinstance(lang, AutomatonLanguage):
+        from sofic.automata.algorithms import _transition_alphabet
+        from sofic.automata.dfa import DFA
+
+        alphabet = _transition_alphabet(lang.automaton)
         dfa = minimal_dfa_from_language(lang.automaton)
         quotients: set[RegularLanguage] = set()
         for state in dfa.states():
             quotients.add(_residual_from_state(AutomatonLanguage(dfa), state))
+        incomplete = any(not dfa.delta(state, symbol) for state in dfa.states() for symbol in alphabet)
+        if not dfa.initial_states or incomplete:
+            quotients.add(AutomatonLanguage(DFA(input_alphabet=alphabet)))
         return frozenset(quotients)
     if isinstance(lang, ExplicitLanguage):
         alphabet = lang.alphabet

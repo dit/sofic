@@ -32,7 +32,7 @@ from sofic.viz._edge import (
     edge_spec,
     part_value,
 )
-from sofic.viz._names import node_name
+from sofic.viz._names import node_names
 from sofic.viz._tikz_format import (
     format_belief_tikz_node,
     format_edge_latex,
@@ -165,8 +165,9 @@ def model_to_tikz(
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from sofic.generators.mixed_state import MixedState, pure_state_index
 
+    names = node_names(model.states())
     for state in sorted(model.states(), key=repr):
-        node = node_name(state)
+        node = names[state]
         placement = coords[state]
         node_label = _tikz_state_label(context, state)
         state_opts = ["state"]
@@ -217,8 +218,8 @@ def model_to_tikz(
                 draw = f"draw={tikz_draw_color(color)}"
                 style_opts = f"{style_opts}, {draw}" if style_opts else draw
             edge_label = _tikz_edge_label(model, transition)
-            source_name = node_name(source)
-            target_name = node_name(target)
+            source_name = names[source]
+            target_name = names[target]
             opts = f"[{style_opts}]" if style_opts else ""
             if edge_label:
                 label_opts = [

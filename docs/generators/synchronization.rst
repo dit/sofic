@@ -34,8 +34,17 @@ sequence:
 
 Exact synchronizability is strictly weaker than finite Markov order
 (:func:`is_definite_from_graph`, the Perles–Rabin–Shamir notion of a definite
-automaton): the butterfly process is exactly synchronizable with reset
-threshold ``1`` yet has infinite Markov order.
+automaton): the even process is exactly synchronizable with reset threshold
+``1`` yet has infinite Markov order.
+
+The **cryptic order** :math:`k_\chi = \min\{k : H[S_k \mid X_{0:\infty}] = 0\}`
+is the number of past symbols the observer needs once the entire future is
+also known. Two distinct causal states stay confusable given the future with
+positive probability exactly when some common word merges them, so
+:math:`k_\chi` is one more than the longest power-automaton path from the start
+through subsets that contain such a mergeable pair. It is ``0`` precisely when
+the crypticity :math:`C_\mu - \mathbf{E}` vanishes (e.g. the even and period
+processes) and never exceeds :math:`R`.
 
 .. ipython::
 
@@ -57,7 +66,7 @@ threshold ``1`` yet has infinite Markov order.
 
    @doctest
    In [6]: eps.synchronizing_word()
-   Out[6]: [0]
+   Out[6]: ['0']
 
    @doctest
    In [7]: eps.is_exactly_synchronizable(), eps.is_definite()

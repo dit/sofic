@@ -193,11 +193,6 @@ def tetris_history(window: int = 4, rolls: int = 4) -> EpsilonMachine:
     return _history_machine(window, rolls, name=f"Tetris history({window}, {rolls})")
 
 
-def tetris_tgm() -> EpsilonMachine:
-    """Tetris The Grand Master (TGM1): 4-piece history, 4 rolls."""
-    return _history_machine(4, 4, name="Tetris TGM")
-
-
 def tetris_tgm2() -> EpsilonMachine:
     """Tetris The Absolute The Grand Master 2: 4-piece history, 6 rolls."""
     return _history_machine(4, 6, name="Tetris TGM2")
@@ -234,6 +229,5 @@ __all__ = [
     "tetris_history",
     "tetris_iid",
     "tetris_nes",
-    "tetris_tgm",
     "tetris_tgm2",
 ]

@@ -552,8 +552,32 @@ class BidirectionalEpsilonMachine(MealyHMM):
             return dit.shannon.entropy(symbolic_distribution(outcomes, probs))
         return float(dit.shannon.entropy(dit.Distribution(outcomes, probs)))
 
-    def crypticity(self) -> Any:
-        """χ = C± − E for a bidirectional presentation."""
+    def _forward_statistical_complexity(self) -> Any:
+        """C_μ = H[S⁺] from the forward marginal of the bidirectional joint."""
+        dit = _require_dit()
+        joint = self.joint_distribution()
+        if not joint:
+            return 0.0
+        from sofic.generators.prob import as_prob, has_symbolic, sum_probs
+
+        pi_plus: dict[Any, Any] = {}
+        for (alpha, _gamma), mass in joint.items():
+            pi_plus[alpha] = sum_probs([pi_plus.get(alpha, 0), mass])
+        outcomes = list(pi_plus)
+        pmf = [as_prob(pi_plus[state]) for state in outcomes]
+        if has_symbolic(pmf):
+            from dit.symbolic import symbolic_distribution
+
+            return dit.shannon.entropy(symbolic_distribution(outcomes, pmf))
+        return float(dit.shannon.entropy(dit.Distribution(outcomes, pmf)))
+
+    def bidirectional_crypticity(self) -> Any:
+        """χ± = C± − E for a bidirectional presentation.
+
+        This is the *bidirectional* crypticity; ``information_anatomy()`` reports
+        it under ``"bidirectional_crypticity"`` and reserves ``"crypticity"`` for
+        the forward ``χ = C_μ − E``.
+        """
         return self.statistical_complexity() - self.excess_entropy()
 
     def minimal_generative_model(self, **kwargs: Any) -> Any:
@@ -585,7 +609,11 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return self.minimal_generative_model(**kwargs).generative_complexity()
 
     def information_anatomy(self) -> dict[str, Any]:
-        """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, and the structural/gauge refinement.
+        """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, χ±, and the structural/gauge refinement.
+
+        ``"crypticity"`` is the forward ``χ = C_μ − E`` (matching
+        :meth:`EpsilonMachine.crypticity` and the block-entropy anatomies);
+        ``"bidirectional_crypticity"`` is ``χ± = C± − E``.
 
         The ``*_structural`` / ``*_gauge`` keys split the ephemeral (r_μ) and
         bound (b_μ) rates along whether the randomness changes the next forward
@@ -597,6 +625,7 @@ class BidirectionalEpsilonMachine(MealyHMM):
         ``Pr(S⁺₀, S⁻₀, X₀, S⁺₁, S⁻₁)``.
         """
         h_mu = self.entropy_rate()
+        excess_entropy = self.excess_entropy()
         return {
             "rho_mu": self.predicted_information(),
             "bound_mu": self.bound_information(),
@@ -606,8 +635,9 @@ class BidirectionalEpsilonMachine(MealyHMM):
             "bound_structural": self.bound_structural_information(),
             "bound_gauge": self.bound_parallel_edge_information(),
             "entropy_rate": h_mu,
-            "excess_entropy": self.excess_entropy(),
-            "crypticity": self.crypticity(),
+            "excess_entropy": excess_entropy,
+            "crypticity": self._forward_statistical_complexity() - excess_entropy,
+            "bidirectional_crypticity": self.statistical_complexity() - excess_entropy,
         }
 
     def five_variable_anatomy(self) -> dict[str, Any]:

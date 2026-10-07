@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sofic.examples import even_process, fair_coin
-from sofic.examples._construction import _relabel
+from sofic.examples import bernoulli, even_process
 from sofic.examples.processes import even_redundant
 from sofic.inference.bayesian import (
     InferEM,
@@ -18,7 +17,7 @@ from sofic.inference.bayesian import (
 
 
 def _even():
-    return _relabel(even_process(), symbols={0: "0", 1: "1"})
+    return even_process()
 
 
 def test_single_topology_has_zero_diversity():
@@ -53,14 +52,14 @@ def test_same_process_different_topologies_have_low_process_diversity():
     result = posterior_process_diversity(comparison)
     assert result.machine_diversity > 0.5
     assert result.process_diversity < result.machine_diversity
-    different = posterior_process_diversity(ModelComparisonEM([_even(), fair_coin()], data))
+    different = posterior_process_diversity(ModelComparisonEM([_even(), bernoulli()], data))
     assert result.process_diversity < different.process_diversity
 
 
 def test_different_processes_have_positive_process_diversity():
     pytest.importorskip("dit")
     data = list("1111101100")
-    comparison = ModelComparisonEM([_even(), fair_coin()], data)
+    comparison = ModelComparisonEM([_even(), bernoulli()], data)
     assert len(comparison.em_dict) == 2
     result = posterior_process_diversity(comparison)
     assert result.process_diversity > 1e-6
@@ -112,7 +111,7 @@ def test_model_comparison_convenience_methods_match_module():
 def test_posterior_mean_and_monte_carlo_same_order_of_magnitude():
     pytest.importorskip("dit")
     data = list("1111101100")
-    comparison = ModelComparisonEM([_even(), fair_coin()], data)
+    comparison = ModelComparisonEM([_even(), bernoulli()], data)
     mean_result = posterior_process_diversity(comparison, method="posterior_mean")
     mc_result = posterior_process_diversity(
         comparison,

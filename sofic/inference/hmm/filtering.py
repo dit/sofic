@@ -193,45 +193,35 @@ def _log_probabilities(values: np.ndarray) -> np.ndarray:
 
 
 def viterbi(hmm: HiddenMarkovModel, observations: Sequence[Any]) -> list[Hashable]:
+    r"""Return the most probable state path ``X_0, ..., X_n`` given ``Y_{0:n}``.
+
+    The path has ``n + 1`` states, one per row of :func:`smooth`: ``X_0`` is the
+    initial state and the transition from ``X_t`` to ``X_{t+1}`` emits ``Y_t``.
+    Returns ``[]`` when the observations have zero probability.
+    """
     mealy = _as_mealy_hmm(hmm)
     idx = mealy.reindex()
     pi, joint = emission_tensors(mealy)
     n = len(idx)
     obs = list(observations)
-    if n == 0:
+    if n == 0 or not np.any(pi > 0.0):
         return []
-    if not obs:
-        if not np.any(pi > 0.0):
-            return []
-        return [idx.state(int(np.argmax(pi)))]
 
-    log_pi = _log_probabilities(pi)
-    viterbi_log = np.full((len(obs), n), -np.inf, dtype=float)
-    backpointer = np.full((len(obs), n), -1, dtype=int)
-
-    matrix0 = joint.get(obs[0])
-    if matrix0 is not None:
-        log_matrix0 = _log_probabilities(matrix0)
-        for j in range(n):
-            best = log_pi + log_matrix0[:, j]
-            viterbi_log[0, j] = np.max(best)
-            backpointer[0, j] = int(np.argmax(best))
-
-    for t in range(1, len(obs)):
-        matrix = joint.get(obs[t])
+    viterbi_log = np.full((len(obs) + 1, n), -np.inf, dtype=float)
+    backpointer = np.full((len(obs) + 1, n), -1, dtype=int)
+    viterbi_log[0] = _log_probabilities(pi)
+    for t, symbol in enumerate(obs):
+        matrix = joint.get(symbol)
         if matrix is None:
-            continue
-        log_matrix = _log_probabilities(matrix)
-        for j in range(n):
-            scores = viterbi_log[t - 1] + log_matrix[:, j]
-            viterbi_log[t, j] = np.max(scores)
-            backpointer[t, j] = int(np.argmax(scores))
+            return []
+        scores = viterbi_log[t][:, None] + _log_probabilities(matrix)
+        backpointer[t + 1] = np.argmax(scores, axis=0)
+        viterbi_log[t + 1] = np.max(scores, axis=0)
+        if not np.any(np.isfinite(viterbi_log[t + 1])):
+            return []
 
-    if not np.any(np.isfinite(viterbi_log[-1])):
-        return []
-
-    path = [0] * len(obs)
+    path = [0] * (len(obs) + 1)
     path[-1] = int(np.argmax(viterbi_log[-1]))
-    for t in range(len(obs) - 2, -1, -1):
-        path[t] = backpointer[t + 1, path[t + 1]]
+    for t in range(len(obs) - 1, -1, -1):
+        path[t] = int(backpointer[t + 1, path[t + 1]])
     return [idx.state(i) for i in path]

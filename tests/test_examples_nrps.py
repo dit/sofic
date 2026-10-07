@@ -10,10 +10,10 @@ from sofic.examples import even_process, golden_mean, noisy_random_phase_slip
 def test_nrps_topology():
     eps = noisy_random_phase_slip()
     edges = {(t.source, t.data["emission"], t.target): t.data["prob"] for t in eps.transitions()}
-    assert edges[("A", 0, "A")] == pytest.approx(0.5)
-    assert edges[("A", 1, "B")] == pytest.approx(0.5)
-    assert edges[("D", 0, "E")] == pytest.approx(0.5)
-    assert edges[("D", 1, "E")] == pytest.approx(0.5)
+    assert edges[("A", "0", "A")] == pytest.approx(0.5)
+    assert edges[("A", "1", "B")] == pytest.approx(0.5)
+    assert edges[("D", "0", "E")] == pytest.approx(0.5)
+    assert edges[("D", "1", "E")] == pytest.approx(0.5)
     assert len(list(eps.states())) == 5
 
 

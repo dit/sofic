@@ -119,7 +119,13 @@ def test_atoms_label_atomaton_states_and_prime_atoms_label_prime_atomaton(dfa):
     if not dfa.minimize().accepting_states:
         return
     language = AutomatonLanguage(dfa)
-    assert len(atoms(language)) == len(list(Atomaton.from_language(dfa).states()))
+    # The átomaton omits the negative atom: it is non-empty exactly when the
+    # trimmed minimal DFA of the reverse is incomplete.
+    reversed_min = dfa.reverse().determinize().minimize()
+    negative_nonempty = any(
+        not reversed_min.delta(state, symbol) for state in reversed_min.states() for symbol in dfa.input_alphabet
+    )
+    assert len(atoms(language)) == len(list(Atomaton.from_language(dfa).states())) + negative_nonempty
     assert len(prime_atoms(language)) == len(list(MaximizedPrimeAtomaton.from_language(dfa).states()))
     for atom in atoms(language):
         assert atom.automaton.minimize().accepting_states

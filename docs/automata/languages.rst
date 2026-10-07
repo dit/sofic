@@ -8,7 +8,10 @@ Regular Languages
 The :mod:`sofic.automata.languages` subpackage provides regular-language
 algebra via the :class:`RegularLanguage` protocol. Quotients, residuals, and
 atoms use the standard regular-language viewpoint
-:cite:`Kleene1956,Nerode1958,BrzozowskiTamm2011`.
+:cite:`Kleene1956,Nerode1958,BrzozowskiTamm2011`. The residuals of a language
+include the empty residual whenever some word leaves the language for good,
+and its atoms include the negative atom whenever it is non-empty, so the atoms
+partition :math:`\Sigma^*` :cite:`BrzozowskiTamm2014`.
 
 .. ipython::
 

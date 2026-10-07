@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Hashable, Sequence
 from typing import Any
 
+import networkx as nx
+
 from sofic.automata.buchi import BuchiAutomaton
+from sofic.graph import EPSILON
 
 
 def accepts_lasso_buchi(ba: BuchiAutomaton, prefix: Sequence[Any], loop: Sequence[Any]) -> bool:
@@ -18,13 +21,7 @@ def accepts_lasso_buchi(ba: BuchiAutomaton, prefix: Sequence[Any], loop: Sequenc
     post = ba._run_nfa(prefix)
     if not post:
         return False
-
-    reachable = _loop_closure(ba, post, loop)
-    candidates = reachable & ba.accepting_states
-    if not candidates:
-        return False
-
-    return any(_can_revisit_on_loop(ba, state, loop) for state in candidates)
+    return _accepting_cycle_reachable(ba, post, loop)
 
 
 def accepts_omega_buchi(ba: BuchiAutomaton, word: Sequence[Any]) -> bool:
@@ -41,32 +38,36 @@ def accepts_omega_buchi(ba: BuchiAutomaton, word: Sequence[Any]) -> bool:
     raise NotImplementedError("BuchiAutomaton.accepts_omega supports ultimately periodic inputs as (prefix, loop) only")
 
 
-def _loop_closure(ba: BuchiAutomaton, start: set[Hashable], loop: Sequence[Any]) -> set[Hashable]:
-    """States reachable from ``start`` by reading ``loop`` zero or more times."""
-    if not loop:
-        return set(start)
+def _accepting_cycle_reachable(ba: BuchiAutomaton, start: set[Hashable], loop: Sequence[Any]) -> bool:
+    """Search the product of ``ba`` with loop positions for a reachable accepting cycle.
 
-    reachable = set(start)
-    frontier = set(start)
-    while frontier:
-        after = ba._run_nfa(loop, start=frontier)
-        new = after - reachable
-        if not new:
-            break
-        reachable |= new
-        frontier = new
-    return reachable
-
-
-def _can_revisit_on_loop(ba: BuchiAutomaton, state: Hashable, loop: Sequence[Any]) -> bool:
-    """Return whether ``state`` can be revisited by reading ``loop`` one or more times."""
-    if not loop:
-        return False
-
-    current = {state}
-    limit = max(len(list(ba.states())), 1) + 1
-    for _ in range(limit):
-        current = ba._run_nfa(loop, start=current)
-        if state in current:
+    Product node ``(state, i)`` means ``state`` is about to read ``loop[i]``. A run on
+    ``loop^omega`` is accepting iff it reaches a strongly connected component that
+    contains an accepting state and at least one symbol-consuming edge (pure epsilon
+    cycles consume no input).
+    """
+    period = len(loop)
+    product = nx.DiGraph()
+    seeds = [(state, 0) for state in start]
+    product.add_nodes_from(seeds)
+    stack = list(seeds)
+    while stack:
+        node = stack.pop()
+        state, pos = node
+        moves = [((target, pos), False) for target in ba.delta(state, EPSILON)]
+        moves += [((target, (pos + 1) % period), True) for target in ba.delta(state, loop[pos])]
+        for succ, consumes in moves:
+            if succ not in product:
+                product.add_node(succ)
+                stack.append(succ)
+            if product.has_edge(node, succ):
+                product.edges[node, succ]["consumes"] |= consumes
+            else:
+                product.add_edge(node, succ, consumes=consumes)
+    accepting = ba.accepting_states
+    for component in nx.strongly_connected_components(product):
+        if not any(state in accepting for state, _ in component):
+            continue
+        if any(data["consumes"] for _, _, data in product.subgraph(component).edges(data=True)):
             return True
     return False
