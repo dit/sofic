@@ -106,6 +106,12 @@ brute-force reference or a closed-form value and has a regression test.
   attributes; Graphviz/TikZ node names are unique; TikZ escapes `^`, `~`, `\`
   for math mode and handles newlines in labels; YAML uses libyaml's C loader
   and dumper when available.
+- `entropy_rate_hmm` and `state_distribution` no longer crash on presentations
+  whose states are `MixedState` objects.
+- The `riechers2017spectral2` citation pointed at an unrelated Phys. Rev. E
+  paper; it is Chaos 28, 033116 (2018).
+- `automaton_to_regex` was ambiguous for multi-character symbols (`ab` vs `a`,
+  `b`); such symbols are now quoted (`'ab'`), and `ε`, `∅` and `'` are escaped.
 
 ### New
 
@@ -119,6 +125,49 @@ brute-force reference or a closed-form value and has a regression test.
 - A property and metamorphic test suite (`tests/test_properties_*.py`) checking
   shifts, generators, inference, automata, serialization, viz and examples
   against brute-force oracles and invariants.
+- `parse_regex`, `regex_to_nfa` and `NFA.from_regex` build an NFA from a regular
+  expression by Thompson's construction (Thompson 1968); malformed input raises
+  `sofic.exceptions.RegexSyntaxError`.
+- `learn_dfa_k_testable`, the García–Vidal learner for strictly k-testable
+  languages: the smallest such language containing a set of positive samples.
+- `LabeledAutomaton.is_empty`, `accepted_word` (a shortest witness),
+  `is_universal` and `includes` for NFAs and DFAs, by the antichain algorithms
+  of De Wulf et al. (2006) without full determinization. `BuchiAutomaton`
+  overrides them with ω-semantics: `is_empty` and the new `accepted_lasso`
+  decide Büchi emptiness; universality and inclusion raise
+  `NotImplementedError`.
+- `sofic.generators.relative_entropy_rate`: `relative_entropy_rate(p, q)` in
+  bits (exact for unifilar `q`, `inf` when P is not absolutely continuous with
+  respect to Q on finite words), `relative_entropy_rate_bounds(p, q, n)` for
+  general HMMs, and `HiddenMarkovModel.relative_entropy_rate`.
+- `periodic_points(n)` and `zeta_function()` for topological Markov chains,
+  shifts of finite type and sofic shifts (Manning's signed-subset formula for
+  sofic shifts; Lind & Marcus §6.4); counts are exact integers, and
+  `zeta_function` needs the `symbolic` extra.
+- In- and out-state splitting and amalgamation of topological Markov chains with
+  division and edge matrices (`A = DE`, `A' = ED`; Lind & Marcus §2.4);
+  `bowen_franks_group` (with the sign of `det(I − A)`) and
+  `jordan_form_away_from_zero` as conjugacy invariants (§7.4).
+- `sofic.generators.correlations`: closed-form `autocorrelation`,
+  `power_spectrum` (continuous part; delta peaks at unit-circle eigenvalues
+  excluded) and `mutual_information_function` for any finite HMM (Riechers &
+  Crutchfield 2018).
+- `predictive_rate_distortion` and `PredictiveRateDistortionCurve`: the causal
+  information bottleneck / predictive rate-distortion curve of a finite
+  ε-machine, by an annealed, seeded Blahut–Arimoto iteration over exact future
+  morphs (Still et al. 2010; Marzen & Crutchfield 2016; Tishby et al. 2000).
+- `HiddenMarkovModel.entropy_rate(method="auto"|"exact"|"bounds"|"blackwell")`
+  handles non-unifilar presentations: exact when the mixed states close,
+  otherwise the converged Cover & Thomas (Thm 4.5.1) bounds, with a warning if
+  they have not met `tol`; `auto` never returns a stochastic estimate. New
+  `entropy_rate_bounds`, `entropy_rate_blackwell` (batch-means standard error)
+  and `mixed_state_walk`.
+- `statistical_complexity_dimension` and `ifs_lyapunov_dimension` (Jurgens &
+  Crutchfield 2021): the Lyapunov dimension of the Blackwell measure from the
+  mixed-state random walk; reproduces the paper's Cantor (log 2 / log 3) and
+  Sierpinski (log₂ 3) examples.
+- `EpsilonMachine.from_hmm(hmm, max_states=...)` caps the mixed-state
+  enumeration (it silently ignored keyword arguments).
 
 ## 0.3.0
 
