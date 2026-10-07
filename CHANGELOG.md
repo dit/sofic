@@ -71,7 +71,10 @@ brute-force reference or a closed-form value and has a regression test.
   but not necessary condition for a finite reverse ε-machine (alternating
   biased coins has infinitely many reverse beliefs but a two-state reverse
   machine); `from_time_reversed` and `to_bidirectional` warn when numeric belief
-  merging returns a finite truncation of an infinite reverse machine.
+  merging returns a finite truncation of an infinite reverse machine; the bidirectional machine's choice
+  between joint classes that tie on the anatomy identity no longer depends on
+  floating-point round-off (it chose a wrong class on x86-64, giving E = 1.0
+  instead of 1.5 for a 3-state machine).
 - **Inference:** Bayesian posterior machines start where the data start (they
   started in its final state, giving −∞ likelihoods and infinite BIC); WAIC
   scores from the stationary distribution; `learn_stack_hmm_mle` and the stack
