@@ -40,12 +40,19 @@ def brute_force_periodic_points(shift, n):
 
     count = 0
     for word in product(sorted(shift.symbol_alphabet), repeat=n):
-        for state in states:
-            current = {state}
-            if any(state in (current := read(current, word)) for _ in range(len(states))):
-                count += 1
-                break
+        if any(_returns_within(read, state, word, len(states)) for state in states):
+            count += 1
     return count
+
+
+def _returns_within(read, state, word, max_repeats):
+    """Whether reading ``word^k`` from ``state`` can return to it for some ``1 <= k <= max_repeats``."""
+    current = {state}
+    for _ in range(max_repeats):
+        current = read(current, word)
+        if state in current:
+            return True
+    return False
 
 
 def series_from_zeta(zeta, order):
