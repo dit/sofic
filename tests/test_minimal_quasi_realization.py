@@ -1,10 +1,10 @@
 """Tests for Schützenberger/Fliess minimal quasi-realizations and the process rank."""
 
 from functools import cache
+from typing import Any
 
 import numpy as np
 import pytest
-import sympy as sp
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
@@ -144,6 +144,7 @@ def test_returns_quasi_realization_with_unit_final_vector():
 
 
 def test_exact_rational_input_stays_exact():
+    sp = pytest.importorskip("sympy")
     third = sp.Rational(1, 3)
     hmm = MealyHMM(initial_distribution={0: sp.Rational(3, 4), 1: sp.Rational(1, 4)})
     hmm.add_transition(0, 0, 0, third)
@@ -160,6 +161,7 @@ def test_exact_rational_input_stays_exact():
 
 
 def test_symbolic_parameter():
+    sp = pytest.importorskip("sympy")
     a = sp.Symbol("a", positive=True)
     hmm = MealyHMM(initial_distribution={0: sp.Integer(1)})
     hmm.add_transition(0, 0, 0, a)
@@ -174,7 +176,8 @@ def test_symbolic_parameter():
     assert sp.simplify(result @ realization.tau - a * (1 - a)) == 0
 
 
-def _exact_word_probability(hmm: MealyHMM, word: tuple[int, ...]) -> sp.Expr:
+def _exact_word_probability(hmm: MealyHMM, word: tuple[int, ...]) -> Any:
+    sp = pytest.importorskip("sympy")
     states = sorted(hmm.states())
     vector = {s: sp.sympify(hmm.initial_distribution.get(s, 0)) for s in states}
     for symbol in word:

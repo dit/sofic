@@ -11,7 +11,6 @@ from collections import defaultdict
 from typing import Any
 
 import pytest
-import sympy
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
@@ -193,6 +192,7 @@ def test_in_split_preserves_unifilarity():
 
 
 def test_out_split_is_exact_for_symbolic_probabilities():
+    sympy = pytest.importorskip("sympy")
     p = sympy.Symbol("p", positive=True)
     hmm = MealyHMM(initial_distribution={"A": 1 / (1 + p), "B": p / (1 + p)})
     hmm.graph.add_state("A")
@@ -212,7 +212,8 @@ def test_out_split_is_exact_for_symbolic_probabilities():
     assert numeric_split.is_equal_process(numeric_hmm)
 
 
-def substitute(hmm: MealyHMM, symbol: sympy.Symbol, value: Any) -> MealyHMM:
+def substitute(hmm: MealyHMM, symbol: Any, value: Any) -> MealyHMM:
+    sympy = pytest.importorskip("sympy")
     numeric = MealyHMM(
         observation_alphabet=hmm.observation_alphabet,
         initial_distribution={

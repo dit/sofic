@@ -3,7 +3,6 @@
 from fractions import Fraction
 
 import pytest
-import sympy as sp
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -167,6 +166,7 @@ def test_markov_chain_quotient_type():
 
 
 def test_symbolic_probabilities_compare_exactly():
+    sp = pytest.importorskip("sympy")
     a = sp.Symbol("a", positive=True)
     hmm = MealyHMM(initial_distribution={0: sp.Integer(1)})
     hmm.add_transition(0, 1, 0, a / 2)

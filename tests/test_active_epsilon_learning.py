@@ -6,7 +6,6 @@ from fractions import Fraction
 
 import numpy as np
 import pytest
-import sympy as sp
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -19,7 +18,10 @@ from sofic.graph import ATTR_EMISSION, ATTR_PROB
 from sofic.inference.active import ProbabilityOracle, ProcessOracle, learn_epsilon_machine_active
 from sofic.testing.strategies import epsilon_machines
 
-R = sp.Rational
+
+def R(numerator, denominator):
+    """Exact rational; skips the calling test when sympy is not installed."""
+    return pytest.importorskip("sympy").Rational(numerator, denominator)
 
 
 def _n_states(machine):
@@ -180,6 +182,7 @@ def test_recovers_random_strategy_epsilon_machines(topology, seed):
 
 
 def test_exact_sympy_oracle_gives_exact_machine():
+    sp = pytest.importorskip("sympy")
     target = _exact_even()
     learned = learn_epsilon_machine_active(ProcessOracle(target), ("0", "1"))
     probs = sorted((t.data[ATTR_EMISSION], t.data[ATTR_PROB]) for t in learned.transitions())
