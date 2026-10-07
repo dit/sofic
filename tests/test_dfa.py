@@ -120,3 +120,10 @@ def test_standard_regular_operations_methods():
     assert star.recognizes(())
     assert star.recognizes(("a",))
     assert not star.recognizes(("b",))
+
+
+def test_add_transition_creates_missing_source_state():
+    """Regression: ``DFA.add_transition`` raised ``NetworkXError`` for a new source, unlike ``NFA``."""
+    dfa = DFA(input_alphabet=frozenset("ab"), initial_states=frozenset({0}), accepting_states=frozenset({1}))
+    dfa.add_transition(0, 1, "a")
+    assert dfa.recognizes("a")

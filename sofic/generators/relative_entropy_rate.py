@@ -22,10 +22,9 @@ from typing import TYPE_CHECKING, Any
 import networkx as nx
 import numpy as np
 
-from sofic.graph import ATTR_SYMBOL
+from sofic.generators.support import support_includes, support_nfa
 
 if TYPE_CHECKING:
-    from sofic.automata.nfa import NFA
     from sofic.generators.base import HiddenMarkovModel
 
 _TOL = 1e-12
@@ -71,41 +70,8 @@ def _aligned(p: _Presentation, q: _Presentation) -> tuple[list[Any], dict[Any, n
     return symbols, {symbol: q.matrices.get(symbol, zeros) for symbol in symbols}
 
 
-def _support_nfa(model: HiddenMarkovModel) -> NFA:
-    """Return an NFA accepting exactly the words of positive stationary probability.
-
-    States are the generator states of positive stationary probability, all of
-    them initial and accepting; edges are the positive-probability transitions.
-    The stationary support is closed under such transitions, so a word is
-    accepted iff some stationary-positive state can emit it.
-    """
-    from sofic.automata.nfa import NFA
-
-    presentation = _presentation(model)
-    live = [i for i, mass in enumerate(presentation.pi) if mass > _TOL]
-    states = frozenset(presentation.states[i] for i in live)
-    nfa = NFA(
-        input_alphabet=frozenset(presentation.matrices),
-        initial_states=states,
-        accepting_states=states,
-    )
-    for state in states:
-        nfa.graph.add_state(state)
-    for symbol, matrix in presentation.matrices.items():
-        for i in live:
-            for j in np.flatnonzero(matrix[i] > _TOL):
-                nfa.graph.add_transition(presentation.states[i], presentation.states[j], **{ATTR_SYMBOL: symbol})
-    return nfa
-
-
-def _support_includes(p: HiddenMarkovModel, q: HiddenMarkovModel) -> bool:
-    """Return whether every word with positive ``P`` probability has positive ``Q`` probability.
-
-    This is absolute continuity ``P_{0:n} << Q_{0:n}`` for every ``n``, decided
-    by antichain inclusion of the stationary support automata
-    :cite:`DeWulf2006`.
-    """
-    return _support_nfa(q).includes(_support_nfa(p))
+_support_nfa = support_nfa
+_support_includes = support_includes
 
 
 def _unifilar_successors(matrices: dict[Any, np.ndarray]) -> dict[Any, dict[int, int]] | None:
@@ -126,8 +92,8 @@ def relative_entropy_rate(p: HiddenMarkovModel, q: HiddenMarkovModel) -> float:
     """Return the relative entropy rate ``D(P || Q)`` in bits per symbol, exactly.
 
     The result is :data:`math.inf` when some word of positive ``P`` probability
-    has ``Q`` probability zero, decided by inclusion of the support automata
-    (:meth:`~sofic.automata.base.LabeledAutomaton.includes`).
+    has ``Q`` probability zero, decided by
+    :func:`~sofic.generators.support.support_includes`.
 
     Otherwise ``q`` must be unifilar. Writing ``h_μ(P)`` for the entropy rate of
     ``p``,
@@ -159,7 +125,7 @@ def relative_entropy_rate(p: HiddenMarkovModel, q: HiddenMarkovModel) -> float:
         If ``q`` is not unifilar, or is not exactly synchronized by ``P``-typical
         pasts. Use :func:`relative_entropy_rate_bounds` instead.
     """
-    if not _support_includes(p, q):
+    if not support_includes(p, q):
         return math.inf
     pp, qp = _presentation(p), _presentation(q)
     symbols, q_matrices = _aligned(pp, qp)
@@ -280,7 +246,7 @@ def relative_entropy_rate_bounds(
     if block_length < 1:
         raise ValueError("block_length must be positive")
     n = block_length
-    if not _support_includes(p, q):
+    if not support_includes(p, q):
         return RelativeEntropyRateBounds(math.inf, math.inf, n, math.inf, math.inf)
     pp, qp = _presentation(p), _presentation(q)
     symbols, q_matrices = _aligned(pp, qp)

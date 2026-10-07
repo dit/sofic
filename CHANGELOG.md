@@ -112,6 +112,19 @@ brute-force reference or a closed-form value and has a regression test.
   paper; it is Chaos 28, 033116 (2018).
 - `automaton_to_regex` was ambiguous for multi-character symbols (`ab` vs `a`,
   `b`); such symbols are now quoted (`'ab'`), and `ε`, `∅` and `'` are escaped.
+- `HiddenMarkovModel.to_support_dfa` accepted only terminal recurrent subsets,
+  so it rejected words of positive probability (e.g. `1` for the even process);
+  every non-empty subset now accepts.
+- `entropy_rate` and `state_entropy` no longer raise `TypeError` when state
+  labels mix types (e.g. `0` and `(1, 0)` after a split).
+- `is_equal_process` works on sympy-valued HMMs (object-dtype matrices broke
+  `matrix_rank`).
+- `DFA.add_transition` adds a missing source state, as `NFA.add_transition`
+  does.
+- `EpsilonMachine.from_hmm` split causal states that differed only by
+  floating-point round-off from belief updates (a fair-coin HMM gave 33 states
+  and C_mu ≈ 2.46); numeric transition probabilities are now compared within the
+  mixed-state tolerance.
 
 ### New
 
@@ -168,6 +181,42 @@ brute-force reference or a closed-form value and has a regression test.
   Sierpinski (log₂ 3) examples.
 - `EpsilonMachine.from_hmm(hmm, max_states=...)` caps the mixed-state
   enumeration (it silently ignored keyword arguments).
+- `minimal_quasi_realization` and `process_rank` (plus
+  `HiddenMarkovModel.process_rank`): Schützenberger/Fliess minimization of an
+  HMM's linear representation to a minimal-dimension `QuasiRealization` whose
+  dimension is the process rank; exact for sympy input.
+- `bisimulation_partition` and `coarsest_lumping`: the coarsest strongly
+  lumpable partition (Larsen–Skou probabilistic bisimulation) by splitter-based
+  refinement; `lump(model)` and the `lump` methods accept `partition=None` to
+  mean the coarsest partition.
+- `SlidingBlockCode.apply_to_process` and `factor_codes.image_process`: the
+  image process of a sliding block code; `HiddenMarkovModel.higher_block(k)` for
+  k-block presentations. Excess entropy and statistical complexity are not
+  conjugacy invariants (`E(β_k X) = E(X) + (k − 1) h_μ`); only `h_μ` is.
+- `sofic.generators.state_splitting`: process-preserving out- and in-splitting
+  (`split_state`) and `amalgamate`.
+- `sofic.generators.support`: `support_nfa`, `support_includes`,
+  `is_absolutely_continuous`, `support_equal` (stationary support;
+  finite-cylinder absolute continuity), with matching `HiddenMarkovModel`
+  methods.
+- `condition_on_language`: conditions an HMM on a prefix-closed regular
+  constraint by the Doob h-transform; the uniform i.i.d. process conditioned on
+  an irreducible SFT is its Parry measure.
+- `omega_probability` for deterministic Büchi properties of HMM output (bottom
+  strongly connected components of the product chain; Baier & Katoen 2008) and
+  `regular_language_probability` for exact `P(X_{0:n} ∈ L)`.
+- `sofic.inference.learn_epsilon_machine_active` and `ProcessOracle`: an
+  L*-style active learner for ε-machines from probability and equivalence
+  queries; exact for finite, exactly synchronizable ε-machines, with `history`
+  seeding for infinite transients.
+- `renyi_entropy_rate`, `pressure` and `rate_function`
+  (`sofic.generators.renyi`): Rényi entropy rates for α ∈ [0, ∞] (topological,
+  Shannon and min-entropy rates as special cases) and the large-deviation rate
+  function of −(1/n) log₂ P(X_{0:n}) by Legendre transform of the pressure.
+- Experimental `canonical_residual_hmm` (`sofic.generators.canonical_residual`,
+  requires `experimental=True`): a generator whose states are the extreme future
+  morphs of a finite ε-machine, the process analogue of the canonical RFSA; it
+  can be strictly smaller than the ε-machine.
 
 ## 0.3.0
 

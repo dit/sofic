@@ -279,6 +279,15 @@ class HiddenMarkovModel(StochasticModel):
 
         return relative_entropy_rate(self, other)
 
+    def higher_block(self, k: int) -> MealyHMM:
+        """Return the ``k``-block presentation, emitting ``Y_t = X_{t:t+k}`` :cite:`LindMarcus1995`.
+
+        See :func:`~sofic.generators.factor_codes.higher_block`.
+        """
+        from sofic.generators.factor_codes import higher_block
+
+        return higher_block(self, k)
+
     def to_sofic_shift(self) -> SoficShift:
         """Strip probabilities and return a sofic shift with the same support."""
         from sofic.generators.conversions import hmm_to_sofic_shift
@@ -296,6 +305,42 @@ class HiddenMarkovModel(StochasticModel):
         from sofic.generators.conversions import hmm_to_support_dfa
 
         return hmm_to_support_dfa(self)
+
+    def process_rank(self, *, tol: float = 1e-9) -> int:
+        """Return the process rank (Hankel rank of word probabilities) :cite:`Upper1997`.
+
+        See :func:`~sofic.generators.minimal_quasi_realization.process_rank`.
+        """
+        from sofic.generators.minimal_quasi_realization import process_rank
+
+        return process_rank(self, tol=tol)
+
+    def support_includes(self, other: HiddenMarkovModel) -> bool:
+        """Return whether every positive-probability word of ``self`` has positive ``other`` probability.
+
+        See :func:`~sofic.generators.support.support_includes` :cite:`DeWulf2006`.
+        """
+        from sofic.generators.support import support_includes
+
+        return support_includes(self, other)
+
+    def is_absolutely_continuous(self, other: HiddenMarkovModel) -> bool:
+        """Return whether ``self`` is absolutely continuous w.r.t. ``other`` on every finite block.
+
+        See :func:`~sofic.generators.support.is_absolutely_continuous`.
+        """
+        from sofic.generators.support import is_absolutely_continuous
+
+        return is_absolutely_continuous(self, other)
+
+    def support_equal(self, other: HiddenMarkovModel) -> bool:
+        """Return whether ``self`` and ``other`` have the same stationary finite-word support.
+
+        See :func:`~sofic.generators.support.support_equal`.
+        """
+        from sofic.generators.support import support_equal
+
+        return support_equal(self, other)
 
 
 class QuasiStochasticModel(StateMachine):

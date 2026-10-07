@@ -47,6 +47,12 @@ class EpsilonMachine(MealyHMM):
         ``max_states`` caps the mixed-state enumeration used for non-unifilar
         input; exceeding it raises
         :class:`~sofic.exceptions.MixedStateExplosionError`.
+
+        With floating-point probabilities, beliefs within the mixed-state
+        tolerance (``rtol=1e-9``, ``atol=1e-12``) are merged. A belief set that
+        converges to a limit point -- an infinite ε-machine -- can therefore
+        close at a finite approximation instead of raising. Use exact
+        (sympy) probabilities when the answer must be exact.
         """
         from sofic.generators.epsilon_construction import build_epsilon_machine
 

@@ -44,9 +44,10 @@ class DFA(LabeledAutomaton):
         if symbol is EPSILON:
             raise NonDeterministicError("DFA does not allow epsilon transitions")
         key = (source, symbol)
-        for transition in self.graph.out_transitions(source):
-            if transition.data.get(ATTR_SYMBOL) == symbol and transition.target != target:
-                raise NonDeterministicError(f"non-deterministic transition on {key}")
+        if self.graph.has_state(source):
+            for transition in self.graph.out_transitions(source):
+                if transition.data.get(ATTR_SYMBOL) == symbol and transition.target != target:
+                    raise NonDeterministicError(f"non-deterministic transition on {key}")
         return self.graph.add_transition(source, target, **{ATTR_SYMBOL: symbol, **attrs})
 
     def recognizes(self, word: Sequence[Any]) -> bool:

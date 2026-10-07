@@ -270,3 +270,29 @@ def test_from_hmm_honors_max_states():
 
     with pytest.raises(MixedStateExplosionError):
         EpsilonMachine.from_hmm(sns(), max_states=3)
+
+
+def test_from_hmm_merges_states_split_only_by_round_off():
+    """Regression: belief-update round-off (0.49999999999999994 vs 0.5) split causal states.
+
+    Every state of this non-unifilar HMM emits a fair coin, so the process is i.i.d.
+    and its ε-machine has one state; exact float comparison gave 33.
+    """
+    import pytest
+
+    from sofic.generators.mealy import MealyHMM
+
+    hmm = MealyHMM(initial_distribution={"A": 1.0}, observation_alphabet=frozenset({0, 1}))
+    for state in ("A", "B", "C"):
+        hmm.graph.add_state(state)
+    hmm.add_transition("A", "B", 0, 0.5)
+    hmm.add_transition("A", "C", 1, 0.5)
+    hmm.add_transition("B", "A", 0, 0.5)
+    hmm.add_transition("B", "B", 1, 0.25)
+    hmm.add_transition("B", "C", 1, 0.25)
+    hmm.add_transition("C", "A", 0, 0.5)
+    hmm.add_transition("C", "B", 1, 0.5)
+
+    machine = EpsilonMachine.from_hmm(hmm)
+    assert len(list(machine.states())) == 1
+    assert machine.statistical_complexity() == pytest.approx(0.0, abs=1e-12)

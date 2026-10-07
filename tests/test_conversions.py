@@ -83,15 +83,15 @@ def test_hmm_to_support_nfa_uses_fresh_epsilon_start():
     nfa.validate()
 
 
-def test_hmm_to_support_dfa_starts_from_all_states_and_accepts_recurrent_subsets():
+def test_hmm_to_support_dfa_starts_from_all_states_and_accepts_every_nonempty_subset():
     hmm = _golden_mean_support_hmm()
     dfa = hmm.to_support_dfa()
 
     assert isinstance(dfa, DFA)
     assert dfa.initial_states == frozenset({frozenset({"A", "B"})})
     assert frozenset() not in set(dfa.states())
-    assert dfa.accepting_states == frozenset({frozenset({"A"}), frozenset({"B"})})
-    assert not dfa.recognizes(())
+    assert dfa.accepting_states == frozenset(dfa.states())
+    assert dfa.recognizes(())
     assert dfa.recognizes((0,))
     assert dfa.recognizes((1,))
     assert dfa.recognizes((1, 0, 1))
@@ -135,3 +135,17 @@ def test_hmm_support_conversions_use_to_mealy_hook():
     wrapped = WrappedHMM(_golden_mean_support_hmm())
     assert wrapped.to_support_nfa().recognizes((1, 0, 1))
     assert not wrapped.to_support_nfa().recognizes((1, 1))
+
+
+def test_hmm_to_support_dfa_accepts_every_word_of_positive_probability():
+    """Regression: only terminal recurrent subsets accepted, rejecting e.g. ``1`` for the even process."""
+    from itertools import product
+
+    from sofic.examples import even_process, nemo_process
+
+    for model in (even_process(), nemo_process()):
+        dfa = model.to_support_dfa()
+        alphabet = sorted(model.observation_alphabet)
+        for length in range(6):
+            for word in product(alphabet, repeat=length):
+                assert dfa.recognizes(word) == (model.word_probability(word) > 0)

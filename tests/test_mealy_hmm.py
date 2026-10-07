@@ -102,3 +102,16 @@ def test_mealy_without_alphabet_or_initial_distribution():
     assert len(symbols) == 50
     assert hmm.word_probability("ab") == pytest.approx(2 / 3 * 0.1)
     assert hmm.entropy_rate() == pytest.approx(0.5533064, abs=1e-6)
+
+
+def test_entropy_with_mixed_int_and_tuple_state_labels():
+    """Regression: dit could not sort labels mixing ``0`` and an encoded tuple."""
+    hmm = MealyHMM(initial_distribution={0: 1.0}, observation_alphabet=frozenset({"0", "1"}))
+    for state in (0, (1, 0)):
+        hmm.graph.add_state(state)
+    hmm.add_transition(0, (1, 0), "0", 0.5)
+    hmm.add_transition(0, 0, "1", 0.5)
+    hmm.add_transition((1, 0), 0, "1", 1.0)
+
+    assert hmm.entropy_rate() == pytest.approx(2 / 3)
+    assert hmm.state_entropy() == pytest.approx(0.9182958340544896)
