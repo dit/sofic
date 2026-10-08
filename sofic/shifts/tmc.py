@@ -41,6 +41,24 @@ class TopologicalMarkovChain(SymbolicModel):
 
         return topological_entropy(self)
 
+    def periodic_points(self, n: int) -> int:
+        """Number of points of period ``n``: ``tr A^n`` counting edge multiplicities.
+
+        See :func:`~sofic.shifts.algorithms.periodic_points` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import periodic_points
+
+        return periodic_points(self, n)
+
+    def zeta_function(self, t: Any = None) -> Any:
+        """Zeta function ``1 / det(I - tA)`` as a sympy rational function.
+
+        See :func:`~sofic.shifts.algorithms.zeta_function` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import zeta_function
+
+        return zeta_function(self, t)
+
     def validate(self) -> None:
         super().validate()
         for transition in self.transitions():

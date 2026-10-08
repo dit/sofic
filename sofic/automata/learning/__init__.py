@@ -22,6 +22,7 @@ from sofic.automata.learning.active import (
 from sofic.automata.learning.alergia import learn_pfa_alergia
 from sofic.automata.learning.dfasat import learn_dfa_sat
 from sofic.automata.learning.edsm import learn_dfa_edsm
+from sofic.automata.learning.k_testable import learn_dfa_k_testable
 from sofic.automata.learning.nlstar import learn_prime_atomaton_nlstar, learn_rfsa_from_language, learn_rfsa_nlstar
 from sofic.automata.learning.observation import ObservationTable
 from sofic.automata.learning.papni import (
@@ -52,6 +53,7 @@ __all__ = [
     "is_well_matched",
     "learn_dfa_edsm",
     "learn_dfa_from_language",
+    "learn_dfa_k_testable",
     "learn_dfa_lstar",
     "learn_dfa_rpni",
     "learn_dfa_sat",

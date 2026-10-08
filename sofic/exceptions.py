@@ -47,3 +47,12 @@ class InfiniteTransductionError(SoficError):
 
 class NonWellMatchedLanguageError(SoficValidationError):
     """Raised when a construction defined for well-matched languages meets a pending call or return."""
+
+
+class RegexSyntaxError(SoficError, ValueError):
+    """Raised when a regular expression cannot be parsed."""
+
+    def __init__(self, message: str, text: str, position: int) -> None:
+        super().__init__(f"{message} at position {position} in {text!r}")
+        self.text = text
+        self.position = position

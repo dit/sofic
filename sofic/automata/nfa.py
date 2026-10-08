@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Sequence
+from collections.abc import Hashable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from sofic.automata.base import LabeledAutomaton
@@ -37,3 +37,10 @@ class NFA(LabeledAutomaton):
         from sofic.automata.algorithms import minimize
 
         return minimize(self, algorithm=algorithm, alphabet=alphabet)
+
+    @classmethod
+    def from_regex(cls, text: str, *, alphabet: Iterable[Any] | None = None) -> NFA:
+        """Return a Thompson ε-NFA for ``text``; see :func:`~sofic.automata.regex.regex_to_nfa`."""
+        from sofic.automata.regex import regex_to_nfa
+
+        return regex_to_nfa(text, alphabet=alphabet)

@@ -32,8 +32,12 @@ Computational mechanics
    block_convergence
    bidirectional_epsilon_machine
    mixed_state_presentation
+   nonunifilar_entropy_rate
    edge_machine
    information_anatomy
+   relative_entropy_rate
+   correlations
+   predictive_rate_distortion
    symbolic_hmm
    generative_models
    directional_flow

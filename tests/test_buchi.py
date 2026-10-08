@@ -1,9 +1,11 @@
 """Tests for Büchi automata."""
 
 import pytest
+from hypothesis import given
 
 from sofic.automata.buchi import BuchiAutomaton
 from sofic.graph import ATTR_SYMBOL
+from sofic.testing.strategies import buchi_automata
 
 
 def _accepting_loop_ba() -> BuchiAutomaton:
@@ -149,3 +151,40 @@ def test_lasso_acceptance_matches_brute_force():
             for p in itertools.product("ab", repeat=pl):
                 for loop in itertools.product("ab", repeat=ll):
                     assert ba.accepts_lasso(p, loop) == _brute_lasso(ba, p, loop)
+
+
+def test_buchi_emptiness_uses_omega_semantics():
+    accepting = _accepting_loop_ba()
+    assert not accepting.is_empty()
+    prefix, loop = accepting.accepted_lasso()
+    assert accepting.accepts_lasso(prefix, loop)
+
+    rejecting = _rejecting_loop_ba()
+    assert rejecting.accepted_lasso() is None
+    assert rejecting.is_empty()
+
+
+def test_buchi_finite_word_decisions_are_refused():
+    ba = _accepting_loop_ba()
+    for call in (ba.accepted_word, ba.is_universal, lambda: ba.includes(ba)):
+        with pytest.raises(NotImplementedError):
+            call()
+
+
+def _short_lassos(alphabet, max_prefix=2, max_loop=3):
+    from itertools import product
+
+    for p in range(max_prefix + 1):
+        for prefix in product(sorted(alphabet), repeat=p):
+            for q in range(1, max_loop + 1):
+                for loop in product(sorted(alphabet), repeat=q):
+                    yield prefix, loop
+
+
+@given(buchi_automata(allow_epsilon=True))
+def test_accepted_lasso_matches_lasso_oracle(ba):
+    witness = ba.accepted_lasso()
+    if witness is not None:
+        assert ba.accepts_lasso(*witness)
+    else:
+        assert not any(ba.accepts_lasso(p, l) for p, l in _short_lassos(ba.input_alphabet))

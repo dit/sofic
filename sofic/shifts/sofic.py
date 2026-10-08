@@ -22,6 +22,24 @@ class SoficShift(SymbolicModel):
 
         return sofic_topological_entropy(self)
 
+    def periodic_points(self, n: int) -> int:
+        """Number of points of period ``n`` by Manning's signed-subset formula.
+
+        See :func:`~sofic.shifts.algorithms.periodic_points` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import periodic_points
+
+        return periodic_points(self, n)
+
+    def zeta_function(self, t: Any = None) -> Any:
+        """Zeta function ``prod_j det(I - tA_j)^((-1)^j)`` as a sympy rational function.
+
+        See :func:`~sofic.shifts.algorithms.zeta_function` :cite:`LindMarcus1995`.
+        """
+        from sofic.shifts.algorithms import zeta_function
+
+        return zeta_function(self, t)
+
     def parry_measure(self) -> MealyHMM:
         """Measure of maximal entropy (Parry measure) as a labeled Mealy HMM.
 

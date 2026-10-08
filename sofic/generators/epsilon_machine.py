@@ -41,10 +41,16 @@ class EpsilonMachine(MealyHMM):
         self._check_unifilar()
 
     @classmethod
-    def from_hmm(cls, hmm: MealyHMM | MooreHMM, **kwargs: Any) -> EpsilonMachine:
+    def from_hmm(cls, hmm: MealyHMM | MooreHMM, *, max_states: int = 10_000) -> EpsilonMachine:
+        """Build the ε-machine of ``hmm``'s process.
+
+        ``max_states`` caps the mixed-state enumeration used for non-unifilar
+        input; exceeding it raises
+        :class:`~sofic.exceptions.MixedStateExplosionError`.
+        """
         from sofic.generators.epsilon_construction import build_epsilon_machine
 
-        return build_epsilon_machine(hmm)
+        return build_epsilon_machine(hmm, max_states=max_states)
 
     @classmethod
     def from_sequence(

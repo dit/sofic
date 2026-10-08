@@ -35,8 +35,21 @@ and no ε-transitions, following the standard finite-automata model
    In [8]: dfa.recognizes(())
    Out[8]: False
 
+   @doctest
+   In [9]: dfa.accepted_word()
+   Out[9]: (0,)
+
+   @doctest
+   In [10]: dfa.is_universal()
+   Out[10]: False
+
+The emptiness, shortest-witness, universality, and inclusion checks are shared
+with :class:`~sofic.automata.nfa.NFA`; see that page for the antichain
+algorithms :cite:`DeWulf2006`.
+
 API
 ===
 
 .. autoclass:: DFA
-   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, minimize, from_nfa
+   :members: add_transition, recognizes, union, intersection, complement, difference, concat, kleene_star, minimize, from_nfa,
+             is_empty, accepted_word, is_universal, includes

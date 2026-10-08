@@ -137,10 +137,11 @@ class MixedStatePresentation(MealyHMM):
         hmm: MealyHMM,
         *,
         initial_mixed_state: MixedState | Mapping[Hashable, float] | Sequence[float] | None = None,
+        max_states: int = 10_000,
     ) -> MixedStatePresentation:
         from sofic.generators.mixed_state_construction import build_mixed_state_presentation
 
-        return build_mixed_state_presentation(hmm, initial_mixed_state=initial_mixed_state)
+        return build_mixed_state_presentation(hmm, initial_mixed_state=initial_mixed_state, max_states=max_states)
 
     def to_recurrent(self) -> MealyHMM:
         """Return the recurrent component with stationary initial weights.
