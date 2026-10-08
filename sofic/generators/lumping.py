@@ -18,16 +18,24 @@ lumped model generates the same observed process:
 The public entry points are :func:`is_lumpable` (predicate) and :func:`lump`
 (constructor). ``lump`` raises :class:`~sofic.exceptions.LumpabilityError` when
 the partition is not strongly lumpable unless ``check=False``.
+
+The coarsest strongly lumpable partition is the probabilistic bisimulation
+equivalence of Larsen & Skou (:cite:`LarsenSkou1991`); :func:`bisimulation_partition`
+computes it by partition refinement and :func:`coarsest_lumping` builds the
+corresponding quotient.
 """
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any, overload
 
 import numpy as np
 
 from sofic.exceptions import LumpabilityError
+from sofic.generators.prob import _sympy, canonical_prob_key, is_symbolic
 from sofic.graph import ATTR_EMISSION, ATTR_EMISSION_DIST, ATTR_PROB, TransitionGraph
 
 if TYPE_CHECKING:
@@ -345,7 +353,7 @@ def is_lumpable(model: StateMachine, partition: PartitionLike, *, rtol: float = 
 @overload
 def lump(
     model: MarkovChain,
-    partition: PartitionLike,
+    partition: PartitionLike | None = ...,
     *,
     check: bool = ...,
     labels: LabelsLike | None = ...,
@@ -357,7 +365,7 @@ def lump(
 @overload
 def lump(
     model: MooreHMM,
-    partition: PartitionLike,
+    partition: PartitionLike | None = ...,
     *,
     check: bool = ...,
     labels: LabelsLike | None = ...,
@@ -369,7 +377,7 @@ def lump(
 @overload
 def lump(
     model: MealyHMM,
-    partition: PartitionLike,
+    partition: PartitionLike | None = ...,
     *,
     check: bool = ...,
     labels: LabelsLike | None = ...,
@@ -381,7 +389,7 @@ def lump(
 @overload
 def lump(
     model: StateMachine,
-    partition: PartitionLike,
+    partition: PartitionLike | None = ...,
     *,
     check: bool = ...,
     labels: LabelsLike | None = ...,
@@ -392,7 +400,7 @@ def lump(
 
 def lump(
     model: StateMachine,
-    partition: PartitionLike,
+    partition: PartitionLike | None = None,
     *,
     check: bool = True,
     labels: LabelsLike | None = None,
@@ -417,7 +425,8 @@ def lump(
         The generator to lump.
     partition
         Blocks (iterable of iterables) or a state-to-block mapping; must cover
-        every state exactly.
+        every state exactly. ``None`` (default) uses the coarsest strongly
+        lumpable partition, :func:`bisimulation_partition` with ``tol=atol``.
     check
         When ``True`` (default), raise :class:`~sofic.exceptions.LumpabilityError`
         if ``partition`` is not strongly lumpable. When ``False``, build the model
@@ -441,7 +450,199 @@ def lump(
         If ``partition`` is invalid or the resolved block labels collide.
     """
     checker, builder = _dispatch(model)
+    if partition is None:
+        partition = bisimulation_partition(model, tol=atol)
     blocks = normalize_partition(model, partition)
     if check and not checker(model, blocks, rtol=rtol, atol=atol):
         raise LumpabilityError("partition is not strongly lumpable for this model")
     return builder(model, blocks, labels)
+
+
+def bisimulation_partition(
+    model: StateMachine, *, initial: PartitionLike | None = None, tol: float = 1e-10
+) -> list[frozenset[Hashable]]:
+    """Return the coarsest strongly lumpable partition of ``model``'s states.
+
+    Two states are probabilistically bisimilar (Larsen & Skou,
+    :cite:`LarsenSkou1991`) when, for every emitted symbol, they send equal
+    probability mass into every block of the bisimulation; the bisimulation
+    classes are therefore exactly the coarsest partition satisfying the strong
+    lumpability condition of :func:`is_lumpable` (:cite:`KemenySnell1976`), and
+    every lumpable partition refines it. A Moore HMM's initial partition groups
+    states with equal emission laws. A
+    :class:`~sofic.generators.markov.MarkovChain` carries no edge labels, so its
+    coarsest lumpable partition is the single block unless ``initial`` (for
+    example, the level sets of an observation function of the state) is given.
+
+    The partition is computed by splitter-driven refinement in the style of
+    Hopcroft and Paige--Tarjan: each splitter set ``C`` divides every block by
+    the per-symbol mass its states send into ``C``, and when a block that has
+    already served as a splitter breaks up, all of its pieces except the largest
+    become splitters (the largest piece's masses are then determined by
+    subtraction).
+
+    Probabilities that are all exact (sympy expressions, :class:`~fractions.Fraction`
+    or integers) are compared exactly; otherwise masses within ``tol`` of their
+    sorted neighbors are grouped together.
+
+    Parameters
+    ----------
+    model
+        A :class:`~sofic.generators.markov.MarkovChain`,
+        :class:`~sofic.generators.mealy.MealyHMM` (including
+        :class:`~sofic.generators.epsilon_machine.EpsilonMachine`), or
+        :class:`~sofic.generators.moore.MooreHMM`.
+    initial
+        Optional partition to refine; the result is the coarsest strongly
+        lumpable partition finer than it. Defaults to the single block.
+    tol
+        Absolute tolerance for numeric masses; ignored for exact input.
+
+    Returns
+    -------
+    list of frozenset
+        Blocks ordered as by :func:`normalize_partition`.
+
+    Raises
+    ------
+    TypeError
+        If ``model`` is not a supported generator type.
+    ValueError
+        If ``initial`` is not a valid partition of ``model``'s states.
+    """
+    from sofic.generators.moore import MooreHMM
+
+    _dispatch(model)
+    order = {state: index for index, state in enumerate(model.states())}
+    exact = _exact_converter(model)
+
+    def split(block: frozenset[Hashable], value: Callable[[Hashable], Any]) -> list[frozenset[Hashable]]:
+        return _split_block(block, value, order, exact=exact, tol=tol)
+
+    blocks = normalize_partition(model, [order] if initial is None else initial)
+    if isinstance(model, MooreHMM):
+        emissions = {state: _emission_dist(model, state) for state in order}
+        symbols = sorted({symbol for law in emissions.values() for symbol in law}, key=repr)
+        for symbol in symbols:
+            blocks = [piece for block in blocks for piece in split(block, lambda s, x=symbol: emissions[s].get(x, 0))]
+
+    worklist: deque[frozenset[Hashable]] = deque([frozenset(order), *blocks])
+    pending = set(worklist)
+    while worklist:
+        splitter = worklist.popleft()
+        pending.discard(splitter)
+        masses = _masses_into(model, splitter, exact=exact)
+        labels = sorted({label for row in masses.values() for label in row}, key=repr)
+        refined: list[frozenset[Hashable]] = []
+        for block in blocks:
+            pieces = [block]
+            for label in labels:
+                pieces = [
+                    piece
+                    for part in pieces
+                    for piece in split(part, lambda s, x=label, m=masses: m.get(s, {}).get(x, 0))
+                ]
+            if len(pieces) > 1:
+                if block in pending:
+                    pending.discard(block)
+                    worklist.remove(block)
+                    new_splitters = pieces
+                else:
+                    largest = max(pieces, key=len)
+                    new_splitters = [piece for piece in pieces if piece is not largest]
+                for piece in new_splitters:
+                    if piece not in pending:
+                        pending.add(piece)
+                        worklist.append(piece)
+            refined.extend(pieces)
+        blocks = refined
+    return normalize_partition(model, blocks)
+
+
+def coarsest_lumping(
+    model: StateMachine,
+    *,
+    initial: PartitionLike | None = None,
+    tol: float = 1e-10,
+    labels: LabelsLike | None = None,
+) -> StateMachine:
+    """Return the quotient of ``model`` by its :func:`bisimulation_partition`.
+
+    The result is the smallest strongly lumped model (Larsen & Skou,
+    :cite:`LarsenSkou1991`; Kemeny & Snell, :cite:`KemenySnell1976`) and, for
+    hidden Markov models, generates the same observed process as ``model`` from
+    the summed initial law. ``initial`` and ``tol`` are as in
+    :func:`bisimulation_partition`; ``labels`` is as in :func:`lump`.
+    """
+    return lump(model, bisimulation_partition(model, initial=initial, tol=tol), check=False, labels=labels)
+
+
+def _exact_converter(model: StateMachine) -> Callable[[Any], Any] | None:
+    """Return the exact scalar type for ``model``'s probabilities, or ``None`` when any is inexact."""
+    values: list[Any] = [transition.data.get(ATTR_PROB, 0) for transition in model.graph.transitions()]
+    for state in model.states():
+        values.extend(_emission_dist(model, state).values())
+    if any(
+        isinstance(value, bool) or not (isinstance(value, (int, Fraction)) or is_symbolic(value)) for value in values
+    ):
+        return None
+    if any(is_symbolic(value) for value in values):
+        return _sympy().sympify
+    if any(isinstance(value, Fraction) for value in values):
+        return Fraction
+    return None
+
+
+def _masses_into(
+    model: StateMachine, splitter: frozenset[Hashable], *, exact: Callable[[Any], Any] | None
+) -> dict[Hashable, dict[Any, Any]]:
+    """Return ``state -> {symbol: mass into splitter}`` (``symbol`` is ``None`` without edge emissions)."""
+    from sofic.generators.mealy import MealyHMM
+
+    by_symbol = isinstance(model, MealyHMM)
+    masses: dict[Hashable, dict[Any, Any]] = {}
+    for state in model.states():
+        for transition in model.graph.out_transitions(state):
+            if transition.target not in splitter:
+                continue
+            label = transition.data.get(ATTR_EMISSION) if by_symbol else None
+            prob = transition.data.get(ATTR_PROB, 0)
+            row = masses.setdefault(state, {})
+            if exact is not None:
+                row[label] = row.get(label, exact(0)) + exact(prob)
+            else:
+                row[label] = row.get(label, 0.0) + float(prob)
+    return masses
+
+
+def _split_block(
+    block: frozenset[Hashable],
+    value: Callable[[Hashable], Any],
+    order: Mapping[Hashable, int],
+    *,
+    exact: Callable[[Any], Any] | None,
+    tol: float,
+) -> list[frozenset[Hashable]]:
+    members = sorted(block, key=order.__getitem__)
+    if len(members) == 1:
+        return [block]
+    groups: list[list[Hashable]] = []
+    if exact is not None:
+        keyed: dict[Any, list[Hashable]] = {}
+        for state in members:
+            mass = exact(value(state))
+            keyed.setdefault(canonical_prob_key(mass) if is_symbolic(mass) else mass, []).append(state)
+        groups = list(keyed.values())
+    else:
+        ranked = sorted(members, key=lambda state: float(value(state)))
+        previous: float | None = None
+        for state in ranked:
+            current = float(value(state))
+            if previous is None or current - previous > tol:
+                groups.append([])
+            groups[-1].append(state)
+            previous = current
+    if len(groups) == 1:
+        return [block]
+    groups.sort(key=lambda group: min(order[state] for state in group))
+    return [frozenset(group) for group in groups]

@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased (0.4.0)
+## 0.4.0 (unreleased; tag pending)
 
-A second correctness review: every fix below was reproduced against a
-brute-force reference or a closed-form value and has a regression test.
+A second correctness review, a property and metamorphic test suite, the
+literature gaps it surfaced, and ports of automata and shift constructions to
+processes. Every fix below was reproduced against a brute-force reference or a
+closed-form value and has a regression test.
 
 ### Breaking changes
 
@@ -44,6 +46,17 @@ brute-force reference or a closed-form value and has a regression test.
   | `restricted_gm(k)` | `restricted_golden_mean(k)` |
   | `period7()` | `period8()` (they used the same word) |
   | `tetris_tgm()` | `tetris_history()` |
+
+- `HiddenMarkovModel.to_support_dfa()` accepts every word of positive
+  probability, the empty word included (it accepted only words ending in a
+  terminal recurrent subset).
+- `HiddenMarkovModel.entropy_rate()` no longer raises `NotImplementedError` for
+  non-unifilar presentations; see `method=` below.
+- `EpsilonMachine.from_hmm` takes a keyword-only `max_states` and rejects other
+  keyword arguments (they were silently ignored). Numeric non-unifilar input can
+  now yield fewer causal states, because round-off no longer splits them.
+- `automaton_to_regex` quotes multi-character symbols and escapes `ε`, `∅` and
+  `'`.
 
 ### Fixes
 
@@ -106,25 +119,42 @@ brute-force reference or a closed-form value and has a regression test.
   attributes; Graphviz/TikZ node names are unique; TikZ escapes `^`, `~`, `\`
   for math mode and handles newlines in labels; YAML uses libyaml's C loader
   and dumper when available.
-- `entropy_rate_hmm` and `state_distribution` no longer crash on presentations
-  whose states are `MixedState` objects.
-- The `riechers2017spectral2` citation pointed at an unrelated Phys. Rev. E
-  paper; it is Chaos 28, 033116 (2018).
-- `automaton_to_regex` was ambiguous for multi-character symbols (`ab` vs `a`,
-  `b`); such symbols are now quoted (`'ab'`), and `ε`, `∅` and `'` are escaped.
+- **More generators and automata:** `EpsilonMachine.from_hmm` no longer splits causal
+  states that differ only by belief-update round-off (a fair-coin HMM gave 33
+  states and C_mu ≈ 2.46); `to_support_dfa` no longer rejects words of positive
+  probability (e.g. `1` for the even process); `entropy_rate` and
+  `state_entropy` handle mixed state-label types (e.g. `0` and `(1, 0)` after a
+  split) and `MixedState` labels; `is_equal_process` works on sympy-valued
+  HMMs; `DFA.add_transition` adds a missing source state, as
+  `NFA.add_transition` does; `automaton_to_regex` was ambiguous for
+  multi-character symbols (`ab` vs `a`, `b`).
+- **Docs:** the `riechers2017spectral2` citation pointed at an unrelated
+  Phys. Rev. E paper; it is Chaos 28, 033116 (2018).
 
 ### New
+
+**Testing**
 
 - Hypothesis strategies in `sofic.testing` for NFAs, Büchi automata and lassos,
   Wheeler NFAs, Markov chains, Mealy HMMs, sofic shifts, SFTs, VPAs, NWAs, and
   Mealy transducers; `ci` and `nightly` Hypothesis profiles (`HYPOTHESIS_PROFILE`).
-- Experimental `EpsilonMachine.reverse_epsilon_machine_is_finite()` (and
-  `sofic.generators.reversal.reverse_epsilon_machine_is_finite`): decides whether
-  the reverse ε-machine has finitely many *recurrent* causal states, which
-  `reverse_is_finite` only bounds from one side.
 - A property and metamorphic test suite (`tests/test_properties_*.py`) checking
   shifts, generators, inference, automata, serialization, viz and examples
   against brute-force oracles and invariants.
+
+**Shifts**
+
+- `periodic_points(n)` and `zeta_function()` for topological Markov chains,
+  shifts of finite type and sofic shifts (Manning's signed-subset formula for
+  sofic shifts; Lind & Marcus §6.4); counts are exact integers, and
+  `zeta_function` needs the `symbolic` extra.
+- In- and out-state splitting and amalgamation of topological Markov chains with
+  division and edge matrices (`A = DE`, `A' = ED`; Lind & Marcus §2.4);
+  `bowen_franks_group` (with the sign of `det(I − A)`) and
+  `jordan_form_away_from_zero` as conjugacy invariants (§7.4).
+
+**Automata**
+
 - `parse_regex`, `regex_to_nfa` and `NFA.from_regex` build an NFA from a regular
   expression by Thompson's construction (Thompson 1968); malformed input raises
   `sofic.exceptions.RegexSyntaxError`.
@@ -136,26 +166,9 @@ brute-force reference or a closed-form value and has a regression test.
   overrides them with ω-semantics: `is_empty` and the new `accepted_lasso`
   decide Büchi emptiness; universality and inclusion raise
   `NotImplementedError`.
-- `sofic.generators.relative_entropy_rate`: `relative_entropy_rate(p, q)` in
-  bits (exact for unifilar `q`, `inf` when P is not absolutely continuous with
-  respect to Q on finite words), `relative_entropy_rate_bounds(p, q, n)` for
-  general HMMs, and `HiddenMarkovModel.relative_entropy_rate`.
-- `periodic_points(n)` and `zeta_function()` for topological Markov chains,
-  shifts of finite type and sofic shifts (Manning's signed-subset formula for
-  sofic shifts; Lind & Marcus §6.4); counts are exact integers, and
-  `zeta_function` needs the `symbolic` extra.
-- In- and out-state splitting and amalgamation of topological Markov chains with
-  division and edge matrices (`A = DE`, `A' = ED`; Lind & Marcus §2.4);
-  `bowen_franks_group` (with the sign of `det(I − A)`) and
-  `jordan_form_away_from_zero` as conjugacy invariants (§7.4).
-- `sofic.generators.correlations`: closed-form `autocorrelation`,
-  `power_spectrum` (continuous part; delta peaks at unit-circle eigenvalues
-  excluded) and `mutual_information_function` for any finite HMM (Riechers &
-  Crutchfield 2018).
-- `predictive_rate_distortion` and `PredictiveRateDistortionCurve`: the causal
-  information bottleneck / predictive rate-distortion curve of a finite
-  ε-machine, by an annealed, seeded Blahut–Arimoto iteration over exact future
-  morphs (Still et al. 2010; Marzen & Crutchfield 2016; Tishby et al. 2000).
+
+**Entropy rates and divergences**
+
 - `HiddenMarkovModel.entropy_rate(method="auto"|"exact"|"bounds"|"blackwell")`
   handles non-unifilar presentations: exact when the mixed states close,
   otherwise the converged Cover & Thomas (Thm 4.5.1) bounds, with a warning if
@@ -166,8 +179,72 @@ brute-force reference or a closed-form value and has a regression test.
   Crutchfield 2021): the Lyapunov dimension of the Blackwell measure from the
   mixed-state random walk; reproduces the paper's Cantor (log 2 / log 3) and
   Sierpinski (log₂ 3) examples.
+- `sofic.generators.relative_entropy_rate`: `relative_entropy_rate(p, q)` in
+  bits (exact for unifilar `q`, `inf` when P is not absolutely continuous with
+  respect to Q on finite words), `relative_entropy_rate_bounds(p, q, n)` for
+  general HMMs, and `HiddenMarkovModel.relative_entropy_rate`.
+- `renyi_entropy_rate`, `pressure` and `rate_function`
+  (`sofic.generators.renyi`): Rényi entropy rates for α ∈ [0, ∞] (topological,
+  Shannon and min-entropy rates as special cases) and the large-deviation rate
+  function of −(1/n) log₂ P(X_{0:n}) by Legendre transform of the pressure.
+- `sofic.generators.support`: `support_nfa`, `support_includes`,
+  `is_absolutely_continuous`, `support_equal` (stationary support;
+  finite-cylinder absolute continuity), with matching `HiddenMarkovModel`
+  methods.
+
+**Spectral and predictive structure**
+
+- `sofic.generators.correlations`: closed-form `autocorrelation`,
+  `power_spectrum` (continuous part; delta peaks at unit-circle eigenvalues
+  excluded) and `mutual_information_function` for any finite HMM (Riechers &
+  Crutchfield 2018).
+- `predictive_rate_distortion` and `PredictiveRateDistortionCurve`: the causal
+  information bottleneck / predictive rate-distortion curve of a finite
+  ε-machine, by an annealed, seeded Blahut–Arimoto iteration over exact future
+  morphs (Still et al. 2010; Marzen & Crutchfield 2016; Tishby et al. 2000).
+
+**Presentations and constructions**
+
+- `minimal_quasi_realization` and `process_rank` (plus
+  `HiddenMarkovModel.process_rank`): Schützenberger/Fliess minimization of an
+  HMM's linear representation to a minimal-dimension `QuasiRealization` whose
+  dimension is the process rank; exact for sympy input.
+- `bisimulation_partition` and `coarsest_lumping`: the coarsest strongly
+  lumpable partition (Larsen–Skou probabilistic bisimulation) by splitter-based
+  refinement; `lump(model)` and the `lump` methods accept `partition=None` to
+  mean the coarsest partition.
+- `SlidingBlockCode.apply_to_process` and `factor_codes.image_process`: the
+  image process of a sliding block code; `HiddenMarkovModel.higher_block(k)` for
+  k-block presentations. Excess entropy and statistical complexity are not
+  conjugacy invariants (`E(β_k X) = E(X) + (k − 1) h_μ`); only `h_μ` is.
+- `sofic.generators.state_splitting`: process-preserving out- and in-splitting
+  (`split_state`) and `amalgamate`.
+- `condition_on_language`: conditions an HMM on a prefix-closed regular
+  constraint by the Doob h-transform; the uniform i.i.d. process conditioned on
+  an irreducible SFT is its Parry measure.
+- `omega_probability` for deterministic Büchi properties of HMM output (bottom
+  strongly connected components of the product chain; Baier & Katoen 2008) and
+  `regular_language_probability` for exact `P(X_{0:n} ∈ L)`.
 - `EpsilonMachine.from_hmm(hmm, max_states=...)` caps the mixed-state
   enumeration (it silently ignored keyword arguments).
+- Experimental `canonical_residual_hmm` (`sofic.generators.canonical_residual`,
+  requires `experimental=True`): a generator whose states are the extreme future
+  morphs of a finite ε-machine, the process analogue of the canonical RFSA; it
+  can be strictly smaller than the ε-machine.
+
+**Time reversal**
+
+- Experimental `EpsilonMachine.reverse_epsilon_machine_is_finite()` (and
+  `sofic.generators.reversal.reverse_epsilon_machine_is_finite`): decides whether
+  the reverse ε-machine has finitely many *recurrent* causal states, which
+  `reverse_is_finite` only bounds from one side.
+
+**Inference**
+
+- `sofic.inference.learn_epsilon_machine_active` and `ProcessOracle`: an
+  L*-style active learner for ε-machines from probability and equivalence
+  queries; exact for finite, exactly synchronizable ε-machines, with `history`
+  seeding for infinite transients.
 
 ## 0.3.0
 

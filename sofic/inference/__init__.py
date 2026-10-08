@@ -1,13 +1,14 @@
 """Inference algorithms for stochastic generators.
 
 Learners are named ``learn_<target>_<method>``; the subpackages and modules
-(:mod:`~sofic.inference.bayesian`, :mod:`~sofic.inference.cssr`,
+(:mod:`~sofic.inference.active`, :mod:`~sofic.inference.bayesian`, :mod:`~sofic.inference.cssr`,
 :mod:`~sofic.inference.diagnostics`, :mod:`~sofic.inference.hmm`,
 :mod:`~sofic.inference.model_selection`, :mod:`~sofic.inference.spectral`) are
 bound under their module names.
 """
 
-from sofic.inference import bayesian, cssr, diagnostics, hmm, model_selection, spectral
+from sofic.inference import active, bayesian, cssr, diagnostics, hmm, model_selection, spectral
+from sofic.inference.active import ProcessOracle, learn_epsilon_machine_active
 from sofic.inference.cssr import (
     learn_epsilon_machine_cssr,
     learn_epsilon_machine_subtree,
@@ -63,6 +64,9 @@ from sofic.inference.spectral import (
 )
 
 __all__ = [
+    "active",
+    "ProcessOracle",
+    "learn_epsilon_machine_active",
     "bayesian",
     "cssr",
     "diagnostics",

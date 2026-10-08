@@ -9,7 +9,6 @@ Non-unifilar inputs are first converted to a unifilar mixed-state presentation
 
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import Any
 
 import numpy as np
@@ -26,6 +25,7 @@ from sofic.generators.prob import (
     has_symbolic,
     is_positive_mass,
     is_zero,
+    probs_equal,
     simplify_prob,
     sum_probs,
 )
@@ -92,11 +92,36 @@ def _split_block(
     *,
     constraints: Any = None,
 ) -> list[set[Any]]:
-    """Split a block when states disagree on labeled successor blocks."""
-    futures: dict[TransitionSignature, set[Any]] = defaultdict(set)
-    for state in block:
-        futures[_transition_signature(hmm, state, state_to_block, constraints=constraints)].add(state)
-    return list(futures.values())
+    """Split a block when states disagree on labeled successor blocks.
+
+    Numeric probabilities are compared within the tolerance the mixed-state
+    construction uses to merge beliefs; float round-off from belief updates
+    would otherwise split states with identical futures.
+    """
+    groups: list[tuple[TransitionSignature, set[Any]]] = []
+    for state in sorted(block, key=repr):
+        signature = _transition_signature(hmm, state, state_to_block, constraints=constraints)
+        for representative, members in groups:
+            if _signatures_match(representative, signature):
+                members.add(state)
+                break
+        else:
+            groups.append((signature, {state}))
+    return [members for _, members in groups]
+
+
+def _signatures_match(left: TransitionSignature, right: TransitionSignature) -> bool:
+    if len(left) != len(right):
+        return False
+    for (symbol_a, block_a, prob_a), (symbol_b, block_b, prob_b) in zip(left, right, strict=True):
+        if symbol_a != symbol_b or block_a != block_b:
+            return False
+        if isinstance(prob_a, float) and isinstance(prob_b, float):
+            if not probs_equal(prob_a, prob_b):
+                return False
+        elif prob_a != prob_b:
+            return False
+    return True
 
 
 def _transition_signature(
@@ -119,7 +144,7 @@ def _transition_signature(
                 canonical_prob_key(prob, constraints),
             )
         )
-    return tuple(sorted(triples, key=repr))
+    return tuple(sorted(triples, key=lambda triple: (repr(triple[0]), triple[1])))
 
 
 def _quotient_machine(

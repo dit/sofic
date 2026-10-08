@@ -9,6 +9,7 @@ from sofic.generators.channel_measures import (
     driven_entropy_rate,
 )
 from sofic.generators.complexity_dimension import StatisticalComplexityDimension, statistical_complexity_dimension
+from sofic.generators.conditioning import condition_on_language
 from sofic.generators.correlations import autocorrelation, mutual_information_function, power_spectrum
 from sofic.generators.directional_flow import (
     directed_information,
@@ -20,7 +21,15 @@ from sofic.generators.directional_flow import (
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
-from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
+from sofic.generators.factor_codes import higher_block, image_process
+from sofic.generators.lumping import (
+    LumpabilityError,
+    bisimulation_partition,
+    coarsest_lumping,
+    is_lumpable,
+    lump,
+    normalize_partition,
+)
 from sofic.generators.markov import MarkovChain
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.measures import EntropyRateEstimate, entropy_rate_blackwell, entropy_rate_bounds
@@ -34,9 +43,11 @@ from sofic.generators.minimal_generative_model import (
     minimal_generative_model,
     wyner_generative_model,
 )
+from sofic.generators.minimal_quasi_realization import minimal_quasi_realization, process_rank
 from sofic.generators.mixed_state import MixedState, MixedStatePresentation
 from sofic.generators.moore import MooreHMM
 from sofic.generators.nmachine import NMachine
+from sofic.generators.omega_probability import omega_probability, regular_language_probability
 from sofic.generators.pfa import ProbabilisticFiniteAutomaton
 from sofic.generators.predictive_rd import PredictiveRateDistortionCurve, predictive_rate_distortion
 from sofic.generators.quasi_realization import QuasiRealization
@@ -45,7 +56,10 @@ from sofic.generators.relative_entropy_rate import (
     relative_entropy_rate,
     relative_entropy_rate_bounds,
 )
+from sofic.generators.renyi import pressure, rate_function, renyi_entropy_rate
 from sofic.generators.stack_hmm import HiddenMarkovStackModel
+from sofic.generators.state_splitting import amalgamate, split_state
+from sofic.generators.support import is_absolutely_continuous, support_equal, support_includes, support_nfa
 from sofic.generators.topological_epsilon_enumeration import (
     count_topological_epsilon_machines,
     epsilon_machine_to_idfa_string,
@@ -136,4 +150,22 @@ __all__ = [
     "entropy_rate_blackwell",
     "entropy_rate_bounds",
     "statistical_complexity_dimension",
+    "bisimulation_partition",
+    "coarsest_lumping",
+    "minimal_quasi_realization",
+    "process_rank",
+    "amalgamate",
+    "condition_on_language",
+    "higher_block",
+    "image_process",
+    "is_absolutely_continuous",
+    "omega_probability",
+    "regular_language_probability",
+    "split_state",
+    "support_equal",
+    "support_includes",
+    "support_nfa",
+    "pressure",
+    "rate_function",
+    "renyi_entropy_rate",
 ]
