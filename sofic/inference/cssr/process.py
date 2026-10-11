@@ -14,7 +14,7 @@ import numpy as np
 from sofic.exceptions import StochasticValidationError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
-from sofic.inference.cssr.counts import History, SuffixCounts
+from sofic.inference.cssr.counts import History, SuffixCounts, is_trials, split_trials
 from sofic.inference.cssr.significance import (
     MorphTest,
     _bonferroni_alpha,
@@ -197,7 +197,7 @@ def _suffix_determinize(
 def _suffix_machine(
     states: list[set[History]],
     counts: SuffixCounts,
-    sequence: Sequence[Any],
+    trials: Sequence[tuple[Any, ...]],
     alive: set[int],
     *,
     max_history: int,
@@ -210,13 +210,13 @@ def _suffix_machine(
     history_to_state = {h: index for index in alive for h in states[index]}
 
     visits: Counter[int] = Counter()
-    seq = tuple(sequence)
-    for t in range(len(seq) + 1):
-        for length in range(min(t, max_history), -1, -1):
-            state = history_to_state.get(seq[t - length : t])
-            if state is not None:
-                visits[state] += 1
-                break
+    for seq in trials:
+        for t in range(len(seq) + 1):
+            for length in range(min(t, max_history), -1, -1):
+                state = history_to_state.get(seq[t - length : t])
+                if state is not None:
+                    visits[state] += 1
+                    break
 
     classes = _recurrent_states(edges)
     if not classes:
@@ -265,13 +265,16 @@ def _suffix_machine(
 def _suffix_reconstruct(
     states: list[set[History]],
     counts: SuffixCounts,
-    sequence: Sequence[Any],
+    trials: Sequence[tuple[Any, ...]],
     *,
     max_history: int,
     alpha: float,
     test: MorphTest,
 ) -> EpsilonMachine:
-    """Prune transient states, determinize, and build the machine from homogeneous ``states``."""
+    """Prune transient states, determinize, and build the machine from homogeneous ``states``.
+
+    ``trials`` are the observed sequences, one tuple per independent trial.
+    """
 
     def reconstruct(resolve: bool) -> EpsilonMachine:
         everything = set(range(len(states)))
@@ -283,13 +286,13 @@ def _suffix_reconstruct(
             states, counts, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve
         )
         return _suffix_machine(
-            split, counts, sequence, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve
+            split, counts, trials, alive, max_history=max_history, alpha=alpha, test=test, resolve=resolve
         )
 
     machine = reconstruct(resolve=True)
     # Resolving truncated successors needs max_history at least the synchronization length. When it
     # is shorter, resolution can close off a state that never emits some observed symbol.
-    if {t.data[ATTR_EMISSION] for t in machine.transitions()} < set(sequence):
+    if {t.data[ATTR_EMISSION] for t in machine.transitions()} < {symbol for seq in trials for symbol in seq}:
         machine = reconstruct(resolve=False)
     return machine
 
@@ -314,7 +317,7 @@ def suggest_max_history(
     Parameters
     ----------
     sequence
-        Observed symbols.
+        Observed symbols, or independent :class:`~sofic.inference.cssr.Trials` of them.
     alpha
         Significance level of each order test.
     max_order
@@ -341,11 +344,19 @@ def suggest_max_history(
     if select_markov_order is None:  # pragma: no cover - depends on the installed dit
         raise ImportError("suggest_max_history requires a dit release with dit.inference.select_markov_order")
     codes: dict[Any, str] = {}
-    seq = [codes.setdefault(symbol, str(len(codes))) for symbol in sequence]
+    trials = [[codes.setdefault(symbol, str(len(codes))) for symbol in seq] for seq in split_trials(sequence)]
+    n = sum(len(seq) for seq in trials)
     if max_order is None:
-        k = max(2, len(set(seq)))
-        max_order = max(1, min(10, int(np.log(max(len(seq), 1) / 5) / np.log(k)) - 1))
-    order = select_markov_order(seq, max_order, method=method, alpha=alpha, n_surrogates=n_surrogates, prng=seed)
+        k = max(2, len(codes))
+        max_order = max(1, min(10, int(np.log(max(n, 1) / 5) / np.log(k)) - 1))
+    if is_trials(sequence):
+        DitTrials = getattr(dit.inference, "Trials", None)
+        if DitTrials is None:  # pragma: no cover - depends on the installed dit
+            raise ImportError("suggest_max_history on Trials requires a dit release with dit.inference.Trials")
+        data: Any = DitTrials(trials)
+    else:
+        data = trials[0]
+    order = select_markov_order(data, max_order, method=method, alpha=alpha, n_surrogates=n_surrogates, prng=seed)
     return max(1, int(order))
 
 
@@ -369,11 +380,12 @@ def learn_epsilon_machine_cssr(
     Parameters
     ----------
     sequence
-        Observed symbols.
+        Observed symbols, or independent :class:`~sofic.inference.cssr.Trials` of them:
+        counts are pooled across trials, but no suffix spans two trials.
     alphabet
         Symbol alphabet; defaults to the symbols in ``sequence``.
     max_history
-        Longest suffix considered; by default a third of ``log_k len(sequence)``,
+        Longest suffix considered; by default a third of ``log_k n`` for ``n`` symbols in total,
         between 1 and 10. It should be at least the synchronization length of the
         source (for a Markov source, its order). Larger values run many more
         significance tests, and some of them split states by chance. ``"auto"``
@@ -403,21 +415,22 @@ def learn_epsilon_machine_cssr(
     reconstruction. CSSR then returns more states than the ε-machine, with an
     entropy rate that approaches the true one from above as ``max_history`` grows.
     """
-    seq = tuple(sequence)
-    if len(seq) < 2:
+    trials = split_trials(sequence)
+    n = sum(len(seq) for seq in trials)
+    if n < 2:
         raise ValueError("sequence must contain at least two symbols")
-    alphabet_size = len(set(seq)) if alphabet is None else len(tuple(alphabet))
+    alphabet_size = len({symbol for seq in trials for symbol in seq}) if alphabet is None else len(tuple(alphabet))
     if max_history == "auto":
-        max_length = suggest_max_history(seq, alpha=alpha)
+        max_length = suggest_max_history(sequence if is_trials(sequence) else trials[0], alpha=alpha)
     else:
-        max_length = max_history if max_history is not None else _default_max_history(len(seq), alphabet_size)
+        max_length = max_history if max_history is not None else _default_max_history(n, alphabet_size)
     if max_length < 0:
         raise ValueError("max_history must be non-negative")
-    counts = SuffixCounts.from_sequence(seq, alphabet=alphabet, max_length=max_length + 1)
+    counts = SuffixCounts.from_sequences(trials, alphabet=alphabet, max_length=max_length + 1)
     if correction == "bonferroni":
         alpha = _bonferroni_alpha(counts, alpha, max_length=max_length, min_count=min_count, resolution_tests=True)
     elif correction is not None:
         raise ValueError(f"unknown correction {correction!r}")
 
     homogeneous = _suffix_homogenize(counts, max_history=max_length, alpha=alpha, test=test, min_count=min_count)
-    return _suffix_reconstruct(homogeneous, counts, seq, max_history=max_length, alpha=alpha, test=test)
+    return _suffix_reconstruct(homogeneous, counts, trials, max_history=max_length, alpha=alpha, test=test)

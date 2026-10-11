@@ -115,6 +115,11 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### New
 
+- `sofic.inference.Trials`: `learn_epsilon_machine_cssr`,
+  `learn_epsilon_transducer_cssr`, and `suggest_max_history` learn from
+  independent trials, pooling counts without any history spanning two trials
+  (`SuffixCounts.from_sequences`; `JointSuffixCounts.from_sequences` accepts
+  paired `Trials`). A `dit.inference.Trials` is accepted too.
 - Hypothesis strategies in `sofic.testing` for NFAs, Büchi automata and lassos,
   Wheeler NFAs, Markov chains, Mealy HMMs, sofic shifts, SFTs, VPAs, NWAs, and
   Mealy transducers; `ci` and `nightly` Hypothesis profiles (`HYPOTHESIS_PROFILE`).

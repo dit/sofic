@@ -94,9 +94,23 @@ apply directly.
        observations, method="cssr", max_history="auto", test="exact", correction="bonferroni"
    )
 
+Independent recordings of the same process go in a :class:`Trials`. Counts are
+pooled across trials, but no suffix spans two trials, so the boundaries add no
+spurious histories. :func:`learn_epsilon_transducer_cssr` and
+:func:`suggest_max_history` accept :class:`Trials` too, as does a
+``dit.inference.Trials``.
+
+.. code-block:: python
+
+   from sofic.inference import Trials, learn_epsilon_machine_cssr
+
+   machine = learn_epsilon_machine_cssr(Trials([run_0, run_1, run_2]), max_history=3)
+
 .. autofunction:: learn_epsilon_machine_cssr
 
 .. autofunction:: suggest_max_history
+
+.. autoclass:: Trials
 
 After reconstruction, check the result with
 :func:`~sofic.inference.diagnostics.goodness_of_fit` and

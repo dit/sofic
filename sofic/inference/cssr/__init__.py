@@ -13,6 +13,7 @@ from sofic.inference.cssr.counts import (
     JointSuffixCounts,
     StackSuffixCounts,
     SuffixCounts,
+    Trials,
 )
 from sofic.inference.cssr.process import learn_epsilon_machine_cssr, suggest_max_history
 from sofic.inference.cssr.significance import (
@@ -40,6 +41,7 @@ __all__ = [
     "StackSuffixCounts",
     "SuffixCounts",
     "TableTest",
+    "Trials",
     "aggregates_differ",
     "learn_epsilon_machine_cssr",
     "learn_stack_hmm_mle",
