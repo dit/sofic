@@ -37,10 +37,12 @@ def is_trials(data: Any) -> bool:
     if isinstance(data, Trials):
         return True
     try:
-        from dit.inference import Trials as DitTrials
-    except ImportError:
+        import dit.inference
+    except ImportError:  # pragma: no cover - dit is a dependency
         return False
-    return isinstance(data, DitTrials)
+    # Older dit releases have no Trials.
+    dit_trials = getattr(dit.inference, "Trials", None)
+    return dit_trials is not None and isinstance(data, dit_trials)
 
 
 def split_trials(data: Any) -> list[tuple[Any, ...]]:
