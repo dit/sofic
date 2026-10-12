@@ -22,7 +22,35 @@ JointHistory = tuple[tuple[Any, Any], ...]
 ConfigurationHistory = tuple[tuple[Any, ...], tuple[Any, ...]]
 
 
-def infer_alphabet(tokens: Sequence[Any], alphabet: Sequence[Any] | None) -> tuple[Any, ...]:
+class Trials(list):
+    """Independent realizations (trials) of the same process.
+
+    Wrap a list of sequences in :class:`Trials` to tell the CSSR learners that they
+    are separate recordings: counts are pooled across trials, but no history ever
+    spans the boundary between two trials. Trials may have different lengths. A
+    ``dit.inference.Trials`` is accepted wherever this class is.
+    """
+
+
+def is_trials(data: Any) -> bool:
+    """Whether ``data`` is a :class:`Trials` (or a ``dit.inference.Trials``)."""
+    if isinstance(data, Trials):
+        return True
+    try:
+        import dit.inference
+    except ImportError:  # pragma: no cover - dit is a dependency
+        return False
+    # Older dit releases have no Trials.
+    dit_trials = getattr(dit.inference, "Trials", None)
+    return dit_trials is not None and isinstance(data, dit_trials)
+
+
+def split_trials(data: Any) -> list[tuple[Any, ...]]:
+    """The trials of ``data`` as tuples: each trial of a :class:`Trials`, else ``data`` as one trial."""
+    return [tuple(trial) for trial in data] if is_trials(data) else [tuple(data)]
+
+
+def infer_alphabet(tokens: Iterable[Any], alphabet: Sequence[Any] | None) -> tuple[Any, ...]:
     """``alphabet`` as a tuple, or the distinct ``tokens`` sorted by ``repr``."""
     return tuple(sorted(set(tokens), key=repr)) if alphabet is None else tuple(alphabet)
 
@@ -56,17 +84,32 @@ class SuffixCounts:
         alphabet: Sequence[Any] | None = None,
         max_length: int | None = None,
     ) -> SuffixCounts:
-        seq = tuple(sequence)
-        if not seq:
+        if not is_trials(sequence) and not tuple(sequence):
             raise ValueError("sequence must be non-empty")
-        alphabet = infer_alphabet(seq, alphabet)
-        unknown = set(seq) - set(alphabet)
+        return cls.from_sequences(split_trials(sequence), alphabet=alphabet, max_length=max_length)
+
+    @classmethod
+    def from_sequences(
+        cls,
+        sequences: Iterable[Sequence[Any]],
+        *,
+        alphabet: Sequence[Any] | None = None,
+        max_length: int | None = None,
+    ) -> SuffixCounts:
+        """Counts pooled over independent ``sequences``; no history spans two of them."""
+        trials = [tuple(seq) for seq in sequences]
+        symbols = {symbol for seq in trials for symbol in seq}
+        if not symbols:
+            raise ValueError("sequences must be non-empty")
+        alphabet = infer_alphabet(symbols, alphabet)
+        unknown = symbols - set(alphabet)
         if unknown:
             raise ValueError(f"symbols {unknown!r} not in alphabet")
         counts = cls(alphabet=alphabet)
-        for t, history in iter_suffixes(seq, max_length if max_length is not None else len(seq)):
-            counts.history_counts[history] += 1
-            counts.next_counts[history][seq[t]] += 1
+        for seq in trials:
+            for t, history in iter_suffixes(seq, max_length if max_length is not None else len(seq)):
+                counts.history_counts[history] += 1
+                counts.next_counts[history][seq[t]] += 1
         return counts
 
     def morph(self, history: History, *, smoothing: float = 0.0) -> dict[Any, float]:
@@ -138,18 +181,18 @@ class JointSuffixCounts:
         output_alphabet: Sequence[Any] | None = None,
         max_length: int,
     ) -> JointSuffixCounts:
-        xs = tuple(inputs)
-        ys = tuple(outputs)
-        if len(xs) != len(ys):
-            raise ValueError("inputs and outputs must have equal length")
-        if not xs:
+        """Counts of ``(inputs, outputs)``; both may be :class:`Trials` of matching lengths."""
+        x_trials, y_trials = split_paired_trials(inputs, outputs)
+        if not any(x_trials):
             raise ValueError("sequences must be non-empty")
         counts = cls(
-            input_alphabet=infer_alphabet(xs, input_alphabet), output_alphabet=infer_alphabet(ys, output_alphabet)
+            input_alphabet=infer_alphabet((x for xs in x_trials for x in xs), input_alphabet),
+            output_alphabet=infer_alphabet((y for ys in y_trials for y in ys), output_alphabet),
         )
-        for t, history in iter_suffixes(tuple(zip(xs, ys, strict=True)), max_length):
-            counts.history_counts[history] += 1
-            counts.next_counts.setdefault(history, {}).setdefault(xs[t], Counter())[ys[t]] += 1
+        for xs, ys in zip(x_trials, y_trials, strict=True):
+            for t, history in iter_suffixes(tuple(zip(xs, ys, strict=True)), max_length):
+                counts.history_counts[history] += 1
+                counts.next_counts.setdefault(history, {}).setdefault(xs[t], Counter())[ys[t]] += 1
         return counts
 
     def output_counts(self, histories: set[JointHistory], input_symbol: Any) -> Counter[Any]:
@@ -170,6 +213,16 @@ class JointSuffixCounts:
         if total == 0:
             return {}
         return {symbol: observed.get(symbol, 0) / total for symbol in self.output_alphabet}
+
+
+def split_paired_trials(inputs: Any, outputs: Any) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
+    """The trials of paired ``inputs`` / ``outputs``: both :class:`Trials`, or both single sequences."""
+    if is_trials(inputs) != is_trials(outputs):
+        raise ValueError("inputs and outputs must both be Trials, or both be single sequences")
+    x_trials, y_trials = split_trials(inputs), split_trials(outputs)
+    if len(x_trials) != len(y_trials) or any(len(xs) != len(ys) for xs, ys in zip(x_trials, y_trials, strict=True)):
+        raise ValueError("inputs and outputs must have equal length")
+    return x_trials, y_trials
 
 
 #: Aggregated output counts of a state: ``agg[input_symbol]`` is a Counter over outputs.

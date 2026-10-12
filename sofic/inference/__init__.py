@@ -9,6 +9,7 @@ bound under their module names.
 
 from sofic.inference import bayesian, cssr, diagnostics, hmm, model_selection, spectral
 from sofic.inference.cssr import (
+    Trials,
     learn_epsilon_machine_cssr,
     learn_epsilon_machine_subtree,
     learn_epsilon_transducer_cssr,
@@ -69,6 +70,7 @@ __all__ = [
     "hmm",
     "model_selection",
     "spectral",
+    "Trials",
     "learn_epsilon_machine_cssr",
     "GoodnessOfFit",
     "StructureStability",

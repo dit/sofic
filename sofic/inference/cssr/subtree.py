@@ -122,4 +122,4 @@ def learn_epsilon_machine_subtree(
         raise ValueError(f"unknown correction {correction!r}")
     states = list(_cluster_histories_by_morph(counts, histories, delta=delta, alpha=alpha, test=test).values())
 
-    return _suffix_reconstruct(states, counts, seq, max_history=max_history, alpha=alpha, test=test)
+    return _suffix_reconstruct(states, counts, [seq], max_history=max_history, alpha=alpha, test=test)

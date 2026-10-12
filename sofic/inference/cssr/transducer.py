@@ -23,9 +23,12 @@ from sofic.inference.cssr.counts import (
     JointHistory,
     JointSuffixCounts,
     StateAggregate,
+    Trials,
     _history_aggregate,
     _merge_aggregate,
     _state_aggregate,
+    is_trials,
+    split_paired_trials,
 )
 from sofic.inference.cssr.process import _recurrent_states, suggest_max_history
 from sofic.inference.cssr.significance import TableTest, _aggregate_score, aggregates_differ
@@ -202,8 +205,8 @@ def _build_transducer(
     states: list[set[JointHistory]],
     counts: JointSuffixCounts,
     alive: set[int],
-    inputs: Sequence[Any],
-    outputs: Sequence[Any],
+    input_trials: Sequence[tuple[Any, ...]],
+    output_trials: Sequence[tuple[Any, ...]],
     *,
     max_history: int,
     alpha: float,
@@ -213,13 +216,14 @@ def _build_transducer(
     history_to_state = {h: index for index in alive for h in states[index]}
 
     visits: Counter[int] = Counter()
-    pairs = tuple(zip(inputs, outputs, strict=True))
-    for t in range(len(pairs) + 1):
-        for hist_len in range(min(t, max_history), -1, -1):
-            state = history_to_state.get(pairs[t - hist_len : t])
-            if state is not None:
-                visits[state] += 1
-                break
+    for xs, ys in zip(input_trials, output_trials, strict=True):
+        pairs = tuple(zip(xs, ys, strict=True))
+        for t in range(len(pairs) + 1):
+            for hist_len in range(min(t, max_history), -1, -1):
+                state = history_to_state.get(pairs[t - hist_len : t])
+                if state is not None:
+                    visits[state] += 1
+                    break
 
     classes = _recurrent_states(edges)
     if not classes:
@@ -293,6 +297,14 @@ def learn_epsilon_transducer_cssr(
 ) -> EpsilonTransducer:
     """Reconstruct an ε-transducer from paired input/output sequences (transCSSR).
 
+    ``inputs`` and ``outputs`` are paired sequences, or paired
+    :class:`~sofic.inference.cssr.Trials` of equal-length sequences: counts are pooled
+    across trials, but no joint history spans two trials.
+
+    The transducer is Mealy: on reading input ``x_t`` it emits ``y_t``, so ``y_t`` may
+    depend on ``x_t`` and on the joint past. To model a channel with delay ``d``, pass
+    the input shifted so that ``inputs[t]`` is the source symbol at ``t - d``.
+
     ``alpha`` is the per-test significance level for the causal-state split
     decision; the transCSSR/CSSR default of ``0.001`` favors fewer, more robust
     states. ``max_history`` bounds the joint-history depth and ``min_count`` the minimum
@@ -306,26 +318,23 @@ def learn_epsilon_transducer_cssr(
     (history, input symbol) tests that can split a state; ``correction=None``
     disables it.
     """
-    xs = tuple(inputs)
-    ys = tuple(outputs)
-    if len(xs) != len(ys):
-        raise ValueError("inputs and outputs must have equal length")
-    if len(xs) < 2:
+    x_trials, y_trials = split_paired_trials(inputs, outputs)
+    n = sum(len(xs) for xs in x_trials)
+    if n < 2:
         raise ValueError("sequences must contain at least two symbols")
     joint_alphabet_size = (
-        len(set(xs)) * len(set(ys))
+        len({x for xs in x_trials for x in xs}) * len({y for ys in y_trials for y in ys})
         if input_alphabet is None or output_alphabet is None
         else len(tuple(input_alphabet)) * len(tuple(output_alphabet))
     )
     if max_history == "auto":
-        max_length = suggest_max_history(list(zip(xs, ys, strict=True)), alpha=alpha)
+        joint = [list(zip(xs, ys, strict=True)) for xs, ys in zip(x_trials, y_trials, strict=True)]
+        max_length = suggest_max_history(Trials(joint) if is_trials(inputs) else joint[0], alpha=alpha)
     else:
-        max_length = (
-            max_history if max_history is not None else _default_max_history(len(xs), joint_alphabet_size, min_count)
-        )
+        max_length = max_history if max_history is not None else _default_max_history(n, joint_alphabet_size, min_count)
     counts = JointSuffixCounts.from_sequences(
-        xs,
-        ys,
+        Trials(x_trials),
+        Trials(y_trials),
         input_alphabet=input_alphabet,
         output_alphabet=output_alphabet,
         max_length=max_length + 1,
@@ -345,4 +354,4 @@ def learn_epsilon_transducer_cssr(
     edges = _edges(states, counts, everything, max_history=max_length, alpha=alpha, test=test)
     alive = set().union(*_recurrent_states(edges)) or everything
     states, alive = _determinize(states, counts, alive, max_history=max_length, alpha=alpha, test=test)
-    return _build_transducer(states, counts, alive, xs, ys, max_history=max_length, alpha=alpha, test=test)
+    return _build_transducer(states, counts, alive, x_trials, y_trials, max_history=max_length, alpha=alpha, test=test)
