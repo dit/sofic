@@ -605,8 +605,20 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return gacs_korner_generative_model(self, **kwargs)
 
     def generative_complexity(self, **kwargs: Any) -> float:
-        """C_g = H[G] for the minimal generative model."""
+        """H[G] of the minimal generative model, an upper bound on C_g."""
         return self.minimal_generative_model(**kwargs).generative_complexity()
+
+    def wyner_common_information(self, **kwargs: Any) -> float:
+        """Wyner common information C[S+ : S-] = C[past : future] (no generator requirement)."""
+        from sofic.generators.minimal_generative_model import wyner_common_information
+
+        return wyner_common_information(self, **kwargs)
+
+    def exact_common_information(self, **kwargs: Any) -> float:
+        """Exact common information G[S+ : S-] = G[past : future] (no generator requirement)."""
+        from sofic.generators.minimal_generative_model import exact_common_information
+
+        return exact_common_information(self, **kwargs)
 
     def information_anatomy(self) -> dict[str, Any]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, χ±, and the structural/gauge refinement.

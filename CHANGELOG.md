@@ -7,6 +7,17 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Breaking changes
 
+- `minimal_generative_model`, `wyner_generative_model`,
+  `functional_generative_model` and `generative_complexity()` optimize only
+  over generator states: besides `I[S+ : S- | G] = 0` they impose
+  `I[G_0 X_0 : S-_1 | G_1] = 0` and `I[S+_0 : X_0 G_1 | G_0] = 0`, the
+  conditions under which the HMM built from the channel generates the process.
+  The reported value is the returned model's own (no functional fallback), the
+  exact value upper-bounds the generative complexity, and models carry
+  `markov_residual`. The functional model, previously returned even when it
+  did not reproduce the process, now always does. The unconstrained values are
+  `BidirectionalEpsilonMachine.wyner_common_information()` and
+  `exact_common_information()`.
 - `correction="bonferroni"` is the default for every CSSR learner (process,
   subtree, transducer, stack), and process CSSR counts its length-`(L+1)`
   resolution tests; pass `correction=None` for the old behavior.
@@ -46,6 +57,11 @@ brute-force reference or a closed-form value and has a regression test.
   | `tetris_tgm()` | `tetris_history()` |
 
 ### Fixes
+
+- The exact/Wyner generative-model channel was read off dit's optimum with
+  the reverse-state axis permuted whenever the joint support listed a
+  higher-indexed reverse state first (dit numbers symbols by first
+  appearance). The channel then failed to screen `S+` from `S-`.
 
 - **Shifts:** `SoficShift.topological_entropy` counts words on a
   right-resolving presentation (parallel same-label edges no longer inflate it);
