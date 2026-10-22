@@ -16,10 +16,14 @@ if TYPE_CHECKING:
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 
+_EXACT_ATOL = 1e-10
+
+
 class _CommonInformationGenerativeModel(MealyHMM):
     pair_state_channel: dict[tuple[Hashable, Hashable], dict[Hashable, float]]
     joint_pair_distribution: dict[tuple[Hashable, Hashable], float]
     source_bidirectional: BidirectionalEpsilonMachine | None
+    markov_residual: float
     _entropy_rate: float | None
 
     def __init__(
@@ -29,12 +33,14 @@ class _CommonInformationGenerativeModel(MealyHMM):
         joint_pair_distribution: dict[tuple[Hashable, Hashable], float] | None = None,
         source_bidirectional: BidirectionalEpsilonMachine | None = None,
         entropy_rate: float | None = None,
+        markov_residual: float = 0.0,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.pair_state_channel = pair_state_channel or {}
         self.joint_pair_distribution = joint_pair_distribution or {}
         self.source_bidirectional = source_bidirectional
+        self.markov_residual = float(markov_residual)
         self._entropy_rate = entropy_rate
 
     def entropy_rate(self) -> float:
@@ -51,9 +57,12 @@ class _CommonInformationGenerativeModel(MealyHMM):
 class MinimalGenerativeModel(_CommonInformationGenerativeModel):
     """Non-unifilar minimal-state-entropy generator.
 
-    The states are the optimized exact-common-information auxiliary variable
-    between the forward and reverse causal states of a bidirectional
-    epsilon-machine.
+    The states are an auxiliary variable ``G`` of the forward and reverse causal
+    states that renders them conditionally independent and lifts to a generator
+    of the process (see :func:`minimal_generative_model`).
+    ``exact_common_information`` is ``H[G]``, an upper bound on the generative
+    complexity, and ``markov_residual`` the largest constraint conditional mutual
+    information (bits) at the returned channel.
     """
 
     exact_common_information: float
@@ -66,7 +75,8 @@ class MinimalGenerativeModel(_CommonInformationGenerativeModel):
 class WynerGenerativeModel(_CommonInformationGenerativeModel):
     """Non-unifilar generator from a Wyner-common-information auxiliary.
 
-    The optimized value is ``I[(S+, S-) : G]`` and is stored as
+    The optimized value is ``I[(S+, S-) : G]`` over auxiliaries that lift to a
+    generator (see :func:`wyner_generative_model`), stored as
     ``wyner_common_information``. The model's state entropy is ``H[G]`` and can
     be strictly larger.
     """
@@ -83,10 +93,10 @@ class FunctionalGenerativeModel(_CommonInformationGenerativeModel):
 
     The auxiliary state ``G`` is a *deterministic function* of the joint causal
     state ``(S+, S-)`` -- the smallest such function rendering ``S+`` and ``S-``
-    conditionally independent. The optimized value ``H[G]`` is the functional
-    common information and is stored as ``functional_common_information``. Because
-    ``G`` is deterministic, the model's state entropy ``H[G]`` equals that value
-    exactly.
+    conditionally independent and lifting to a generator (see
+    :func:`functional_generative_model`). ``H[G]`` is stored as
+    ``functional_common_information``; because ``G`` is deterministic, the
+    model's state entropy equals that value exactly.
     """
 
     functional_common_information: float
@@ -135,60 +145,52 @@ def minimal_generative_model(
     maxiter: int = 1000,
     polish: float | bool = 1e-8,
     backend: str = "numpy",
+    starts: int = 8,
+    markov_atol: float = 1e-8,
     cutoff: float = 1e-10,
     reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
 ) -> MinimalGenerativeModel:
     """Construct a minimal generative model from a bidirectional epsilon-machine.
 
-    Parameters mirror :class:`dit.multivariate.common_informations.ExactCommonInformation`.
-    The returned model is an edge-emitting HMM over the optimized generative
-    state ``G``.
+    The returned model is an edge-emitting HMM over a generative state ``G``,
+    built by applying ``p(g | s+, s-)`` at both ends of every bidirectional edge.
+    ``H[G]`` is minimized subject to ``I[S+ : S- | G] = 0`` (the exact common
+    information :cite:`Kumar2014`) and the two conditions under which that HMM
+    generates the source, ``I[G_0 X_0 : S-_1 | G_1] = 0`` and
+    ``I[S+_0 : X_0 G_1 | G_0] = 0`` (see
+    :mod:`sofic.generators.lifted_common_information`). ``exact_common_information``
+    is the model's own state entropy, an upper bound on the generative complexity
+    :cite:`LohrAy2009`; the unconstrained value is
+    :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.exact_common_information`.
 
-    The exact-common-information optimizer is stochastic and can converge to the
-    right objective value while returning a generative channel that does not
-    reproduce the source process.  The result is therefore verified against the
-    source process (word probabilities up to ``reproduction_atol``); if it fails,
-    the deterministic functional-common-information realization -- which always
-    reproduces the process and renders ``S+`` and ``S-`` conditionally
-    independent -- is returned instead.
+    The starts are ``S+``, ``S-``, ``(S+, S-)``, the unconstrained optimum (found
+    with dit; ``niter``, ``maxiter``, ``polish`` and ``backend`` as in
+    :class:`dit.multivariate.common_informations.ExactCommonInformation`), and
+    ``starts`` random channels over ``bound`` states (default: the number of
+    joint states). Constraint informations up to ``markov_atol`` bits are
+    accepted and the best candidates refined toward exact closure; a residual
+    ``r`` allows the value and word probabilities to be off by roughly
+    ``sqrt(r)``. The model is checked against the source up to
+    ``reproduction_atol`` in word probability.
     """
-    if cutoff < 0.0:
-        raise ValueError("cutoff must be nonnegative")
+    from sofic.generators.lifted_common_information import lifted_model
 
-    joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
-    pair_channel, exact_common_information = _auxiliary_state_channel(
-        joint,
-        optimizer=_optimize_exact_common_information,
-        optimizer_name="exact common information",
-        bound=bound,
-        niter=niter,
-        maxiter=maxiter,
-        polish=polish,
-        backend=backend,
-        cutoff=cutoff,
-        rng=rng,
-    )
-    model = _model_from_channel(
-        bidir,
-        joint,
-        pair_channel,
-        model_cls=MinimalGenerativeModel,
-        model_name="minimal generative model",
-        measure_kwargs={"exact_common_information": exact_common_information},
-        cutoff=cutoff,
-    )
     return cast(
         MinimalGenerativeModel,
-        _ensure_reproducing(
+        lifted_model(
             bidir,
-            joint,
-            model,
-            model_cls=MinimalGenerativeModel,
-            model_name="minimal generative model",
-            measure_kwargs={"exact_common_information": exact_common_information},
-            cutoff=cutoff,
+            objective="exact",
+            bound=bound,
+            starts=starts,
+            niter=niter,
+            maxiter=maxiter,
+            polish=polish,
+            backend=backend,
+            markov_atol=markov_atol,
             reproduction_atol=reproduction_atol,
+            cutoff=cutoff,
+            rng=rng,
         ),
     )
 
@@ -201,30 +203,65 @@ def wyner_generative_model(
     maxiter: int = 1000,
     polish: float | bool = 1e-8,
     backend: str = "numpy",
+    starts: int = 8,
+    markov_atol: float = 1e-8,
     cutoff: float = 1e-10,
     reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
 ) -> WynerGenerativeModel:
     """Construct a Wyner generative model from a bidirectional epsilon-machine.
 
-    The auxiliary state ``G`` is optimized for Wyner common information, i.e.
-    it minimizes ``I[(S+, S-) : G]`` subject to rendering ``S+`` and ``S-``
-    conditionally independent. The returned model's state entropy ``H[G]`` is
-    not generally equal to that optimized mutual information.
-
-    Like :func:`minimal_generative_model`, the stochastic optimizer's generative
-    channel is verified against the source process (word probabilities up to
-    ``reproduction_atol``); on failure the deterministic functional realization
-    is returned instead (its ``H[G]`` may exceed the reported Wyner value).
+    The auxiliary state ``G`` minimizes ``I[(S+, S-) : G]`` :cite:`Wyner1975`
+    subject to rendering ``S+`` and ``S-`` conditionally independent and to the
+    two lifting conditions of :func:`minimal_generative_model`, whose parameters
+    it shares. The returned model's state entropy ``H[G]`` is not generally equal
+    to that optimized mutual information. The unconstrained value is
+    :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.wyner_common_information`.
     """
-    if cutoff < 0.0:
-        raise ValueError("cutoff must be nonnegative")
+    from sofic.generators.lifted_common_information import lifted_model
 
-    joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
-    pair_channel, wyner_common_information = _auxiliary_state_channel(
-        joint,
-        optimizer=_optimize_wyner_common_information,
-        optimizer_name="Wyner common information",
+    return cast(
+        WynerGenerativeModel,
+        lifted_model(
+            bidir,
+            objective="wyner",
+            bound=bound,
+            starts=starts,
+            niter=niter,
+            maxiter=maxiter,
+            polish=polish,
+            backend=backend,
+            markov_atol=markov_atol,
+            reproduction_atol=reproduction_atol,
+            cutoff=cutoff,
+            rng=rng,
+        ),
+    )
+
+
+def wyner_common_information(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    bound: int | None = None,
+    niter: int | None = 10,
+    maxiter: int = 1000,
+    polish: float | bool = 1e-8,
+    backend: str = "numpy",
+    cutoff: float = 1e-10,
+    rng: np.random.Generator | None = None,
+) -> float:
+    """Wyner common information ``C[S+ : S-]`` :cite:`Wyner1975` of the causal states.
+
+    Because the past and future are conditionally independent given either causal
+    state :cite:`Ellison2009`, this equals the Wyner common information of the
+    past and future. Its optimizing auxiliary need not be the state of a
+    generator; :func:`wyner_generative_model` adds that requirement. Parameters
+    mirror :class:`dit.multivariate.common_informations.WynerCommonInformation`.
+    """
+    return _unconstrained_common_information(
+        bidir,
+        _optimize_wyner_common_information,
+        "Wyner common information",
         bound=bound,
         niter=niter,
         maxiter=maxiter,
@@ -233,28 +270,69 @@ def wyner_generative_model(
         cutoff=cutoff,
         rng=rng,
     )
-    model = _model_from_channel(
+
+
+def exact_common_information(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    bound: int | None = None,
+    niter: int | None = 10,
+    maxiter: int = 1000,
+    polish: float | bool = 1e-8,
+    backend: str = "numpy",
+    cutoff: float = 1e-10,
+    rng: np.random.Generator | None = None,
+) -> float:
+    """Exact common information ``G[S+ : S-]`` :cite:`Kumar2014` of the causal states.
+
+    The analogue of :func:`wyner_common_information` for ``H[G]``; it equals the
+    exact common information of the past and future, and its optimizing
+    auxiliary need not be the state of a generator (compare
+    :func:`minimal_generative_model`).
+    """
+    return _unconstrained_common_information(
         bidir,
-        joint,
-        pair_channel,
-        model_cls=WynerGenerativeModel,
-        model_name="Wyner generative model",
-        measure_kwargs={"wyner_common_information": wyner_common_information},
+        _optimize_exact_common_information,
+        "exact common information",
+        bound=bound,
+        niter=niter,
+        maxiter=maxiter,
+        polish=polish,
+        backend=backend,
         cutoff=cutoff,
+        rng=rng,
     )
-    return cast(
-        WynerGenerativeModel,
-        _ensure_reproducing(
-            bidir,
-            joint,
-            model,
-            model_cls=WynerGenerativeModel,
-            model_name="Wyner generative model",
-            measure_kwargs={"wyner_common_information": wyner_common_information},
-            cutoff=cutoff,
-            reproduction_atol=reproduction_atol,
-        ),
+
+
+def _unconstrained_common_information(
+    bidir: BidirectionalEpsilonMachine,
+    optimizer: Any,
+    optimizer_name: str,
+    *,
+    bound: int | None,
+    niter: int | None,
+    maxiter: int,
+    polish: float | bool,
+    backend: str,
+    cutoff: float,
+    rng: np.random.Generator | None,
+) -> float:
+    if cutoff < 0.0:
+        raise ValueError("cutoff must be nonnegative")
+    joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
+    _channel, value = _auxiliary_state_channel(
+        joint,
+        optimizer=optimizer,
+        optimizer_name=optimizer_name,
+        bound=bound,
+        niter=niter,
+        maxiter=maxiter,
+        polish=polish,
+        backend=backend,
+        cutoff=cutoff,
+        rng=rng,
     )
+    return value
 
 
 def functional_generative_model(
@@ -265,22 +343,26 @@ def functional_generative_model(
 ) -> FunctionalGenerativeModel:
     """Construct a functional generative model from a bidirectional epsilon-machine.
 
-    The auxiliary state ``G`` is the smallest *deterministic function* of the
-    joint causal state ``(S+, S-)`` that renders ``S+`` and ``S-`` conditionally
-    independent. Its entropy ``H[G]`` is the functional common information,
-    exposed as ``functional_common_information``. Because ``G`` is deterministic,
-    the model's state entropy equals that value exactly.
+    The auxiliary state ``G`` is the smallest-entropy *deterministic function* of
+    the joint causal state ``(S+, S-)`` that renders ``S+`` and ``S-``
+    conditionally independent and satisfies the two lifting conditions of
+    :func:`minimal_generative_model`, so the model always generates the source
+    (``G = (S+, S-)``, the bidirectional machine, is always feasible). Its entropy
+    is exposed as ``functional_common_information``; because ``G`` is
+    deterministic, the model's state entropy equals that value exactly.
 
-    Unlike :func:`minimal_generative_model` and :func:`wyner_generative_model`,
-    the functional auxiliary is found by an exact partition search rather than a
-    stochastic optimizer, so the optimizer controls (``bound``, ``niter``,
-    ``maxiter``, ``polish``, ``backend``, ``rng``) do not apply.
+    dit's functional-common-information partition (``strategy`` is passed to it)
+    is used when it already satisfies the lifting conditions, in which case it is
+    optimal. Otherwise the partitions of the joint support are searched
+    exhaustively when there are at most nine joint states, and greedily (merging
+    blocks of ``(S+, S-)`` while the conditions hold) beyond that.
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")
 
     joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
     pair_channel, functional_common_information = _functional_state_channel(
+        bidir,
         joint,
         cutoff=cutoff,
         strategy=strategy,
@@ -367,18 +449,32 @@ def _gacs_korner_meet_channel(
 
 
 def _functional_state_channel(
+    bidir: BidirectionalEpsilonMachine,
     joint: dict[tuple[Hashable, Hashable], float],
     *,
     cutoff: float,
     strategy: str,
 ) -> tuple[dict[tuple[Hashable, Hashable], dict[Hashable, float]], float]:
-    """Deterministic channel from the functional-common-information partition.
+    """Deterministic channel ``W = f(S+, S-)`` of least entropy that separates the causal states and lifts.
 
-    Runs dit's exact functional-Markov search on the joint ``(S+, S-)``
-    distribution, recovers the optimal outcome partition ``W = f(S+, S-)``, and
-    maps each state pair to its (single) block label. The returned value is the
-    functional common information ``H[W]``.
+    dit's functional-common-information partition is returned when it satisfies
+    the lifting conditions (it is then optimal); otherwise the lifted partition
+    search of :mod:`sofic.generators.lifted_common_information` is used.
     """
+    from sofic.generators.lifted_common_information import lifted_partition_channel, partition_residual
+
+    channel, value = _dit_functional_channel(joint, strategy=strategy)
+    if partition_residual(bidir, joint, channel) <= _EXACT_ATOL:
+        return channel, value
+    return lifted_partition_channel(bidir, joint)
+
+
+def _dit_functional_channel(
+    joint: dict[tuple[Hashable, Hashable], float],
+    *,
+    strategy: str,
+) -> tuple[dict[tuple[Hashable, Hashable], dict[Hashable, float]], float]:
+    """Deterministic channel from dit's functional-common-information partition (separation only)."""
     plus_states = {pair[0] for pair in joint}
     minus_states = {pair[1] for pair in joint}
     if len(plus_states) <= 1 or len(minus_states) <= 1:
@@ -486,6 +582,12 @@ def _optimized_auxiliary_joint(
         raise StochasticValidationError(f"{optimizer_name} optimizer returned an invalid joint shape")
     if aux_joint.ndim > 3:
         aux_joint = aux_joint.sum(axis=tuple(range(2, aux_joint.ndim - 1)))
+    # dit numbers each variable's symbols in order of first appearance; put them back in symbol order.
+    unqs = getattr(opt, "_unqs", None)
+    if unqs is not None:
+        plus_order = [unqs[0].mapping[(i,)] for i in range(len(unqs[0].mapping))]
+        minus_order = [unqs[1].mapping[(j,)] for j in range(len(unqs[1].mapping))]
+        aux_joint = aux_joint[np.ix_(plus_order, minus_order)]
     return opt, np.maximum(aux_joint, 0.0)
 
 
@@ -701,50 +803,6 @@ def _reproduction_error(model: Any, reference: Any, *, max_length: int) -> float
     return error
 
 
-def _ensure_reproducing(
-    bidir: BidirectionalEpsilonMachine,
-    joint: dict[tuple[Hashable, Hashable], float],
-    model: _CommonInformationGenerativeModel,
-    *,
-    model_cls: type[_CommonInformationGenerativeModel],
-    model_name: str,
-    measure_kwargs: dict[str, float],
-    cutoff: float,
-    reproduction_atol: float,
-    strategy: str = "auto",
-) -> _CommonInformationGenerativeModel:
-    """Return ``model`` if it reproduces the source process, else the functional fallback.
-
-    The exact-/Wyner-common-information optimizers are stochastic and can return a
-    channel that fails to reproduce the process even when the objective value is
-    correct. The deterministic functional-common-information channel always
-    reproduces the process and renders ``S+`` and ``S-`` conditionally
-    independent, so it is used as an exact fallback (the optimizer's reported
-    measure value is preserved). Raises if even the functional realization fails.
-    """
-    reference = bidir.forward_machine
-    max_length = _reproduction_length(reference)
-    if _reproduction_error(model, reference, max_length=max_length) <= reproduction_atol:
-        return model
-
-    functional_channel, _functional_value = _functional_state_channel(joint, cutoff=cutoff, strategy=strategy)
-    fallback = _model_from_channel(
-        bidir,
-        joint,
-        functional_channel,
-        model_cls=model_cls,
-        model_name=model_name,
-        measure_kwargs=measure_kwargs,
-        cutoff=cutoff,
-    )
-    if _reproduction_error(fallback, reference, max_length=max_length) > reproduction_atol:
-        raise StochasticValidationError(
-            f"{model_name} does not reproduce the source process within {reproduction_atol:g} "
-            "and the deterministic functional fallback also failed"
-        )
-    return fallback
-
-
 def _model_from_channel(
     bidir: BidirectionalEpsilonMachine,
     joint: dict[tuple[Hashable, Hashable], float],
@@ -830,8 +888,10 @@ __all__ = [
     "GacsKornerGenerativeModel",
     "MinimalGenerativeModel",
     "WynerGenerativeModel",
+    "exact_common_information",
     "functional_generative_model",
     "gacs_korner_generative_model",
     "minimal_generative_model",
+    "wyner_common_information",
     "wyner_generative_model",
 ]

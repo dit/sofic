@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import math
 from itertools import product
 
@@ -15,9 +16,10 @@ from sofic.generators.minimal_generative_model import (
     MinimalGenerativeModel,
     _auxiliary_state_channel,
     _model_from_channel,
-    _reproduction_error,
 )
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
+
+mgm_module = importlib.import_module("sofic.generators.minimal_generative_model")
 
 pytest.importorskip("dit")
 
@@ -131,6 +133,34 @@ def test_golden_mean_minimal_generative_model_covers_expected_joint_support():
     assert set(bidir.joint_distribution()) == expected
     assert set(mgm.pair_state_channel) == expected
     assert mgm.pair_state_channel[("A", "D")]
+
+
+@pytest.mark.parametrize(
+    "optimizer", [mgm_module._optimize_wyner_common_information, mgm_module._optimize_exact_common_information]
+)
+def test_auxiliary_state_channel_aligns_dit_symbol_order(optimizer) -> None:
+    # The first outcome lists reverse state "D" (index 1), so dit numbers it 0.
+    joint = {("A", "D"): 1 / 3, ("B", "C"): 1 / 3, ("B", "D"): 1 / 3}
+    channel, _ = _auxiliary_state_channel(
+        joint,
+        optimizer=optimizer,
+        optimizer_name="test",
+        bound=None,
+        niter=3,
+        maxiter=1000,
+        polish=1e-8,
+        backend="numpy",
+        cutoff=1e-10,
+        rng=np.random.default_rng(0),
+    )
+    states = sorted({state for row in channel.values() for state in row})
+    tensor = np.zeros((2, 2, len(states)))
+    for (alpha, gamma), row in channel.items():
+        for state, prob in row.items():
+            tensor["AB".index(alpha), "CD".index(gamma), states.index(state)] += joint[(alpha, gamma)] * prob
+    for k in range(len(states)):
+        block = tensor[:, :, k]
+        assert np.outer(block.sum(1), block.sum(0)) == pytest.approx(block * block.sum(), abs=1e-4)
 
 
 def test_auxiliary_state_channel_retries_without_polishing_when_polished_row_is_missing():
@@ -253,12 +283,7 @@ def test_binary_markov_period_two_boundary_uses_matching_support():
 
 
 def test_nemo_minimal_generative_model_reproduces_process():
-    """Regression: Nemo's minimal generative model reproduces the process (three states, C_g = 1.5).
-
-    The exact-common-information optimizer alone returns a non-reproducing channel
-    here; the reproduction guard falls back to the deterministic functional
-    realization, which is isomorphic to the forward epsilon-machine.
-    """
+    """Regression: Nemo's minimal generative model reproduces the process (three states, C_g = 1.5)."""
     from sofic.examples import nemo_process
 
     process = nemo_process(0.5, 0.5)
@@ -266,49 +291,9 @@ def test_nemo_minimal_generative_model_reproduces_process():
 
     _assert_same_words(process, mgm)
     assert len([state for state, mass in mgm.initial_distribution.items() if mass > 1e-8]) == 3
-    assert mgm.generative_complexity() == pytest.approx(1.5, abs=1e-6)
+    assert mgm.generative_complexity() == pytest.approx(1.5, abs=1e-4)
     assert mgm.generative_complexity() <= process.statistical_complexity() + 1e-8
     assert process.to_bidirectional().excess_entropy() <= mgm.generative_complexity() + 1e-8
-
-
-def test_ensure_reproducing_falls_back_to_functional_channel():
-    """A deliberately non-reproducing channel is replaced by the functional fallback."""
-    from sofic.examples import nemo_process
-    from sofic.generators.minimal_generative_model import (
-        _ensure_reproducing,
-        _normalized_joint_distribution,
-    )
-
-    bidir = nemo_process(0.5, 0.5).to_bidirectional()
-    joint = _normalized_joint_distribution(bidir, cutoff=1e-10)
-
-    # Collapse every joint pair onto one generative state: an i.i.d.-like generator
-    # that cannot reproduce the (non-i.i.d.) Nemo process.
-    bad_channel = {pair: {"G0": 1.0} for pair in joint}
-    bad_model = _model_from_channel(
-        bidir,
-        joint,
-        bad_channel,
-        model_cls=MinimalGenerativeModel,
-        model_name="minimal generative model",
-        measure_kwargs={"exact_common_information": 0.0},
-        cutoff=1e-10,
-    )
-    assert _reproduction_error(bad_model, bidir.forward_machine, max_length=6) > 1e-3
-
-    fixed = _ensure_reproducing(
-        bidir,
-        joint,
-        bad_model,
-        model_cls=MinimalGenerativeModel,
-        model_name="minimal generative model",
-        measure_kwargs={"exact_common_information": 0.0},
-        cutoff=1e-10,
-        reproduction_atol=1e-3,
-    )
-
-    _assert_same_words(bidir.forward_machine, fixed)
-    assert len(list(fixed.states())) == 3
 
 
 def test_bidirectional_and_epsilon_machine_apis_agree():
