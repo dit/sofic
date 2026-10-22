@@ -297,7 +297,8 @@ def _optimize(
     pool = [(problem.markov_residual(c0), c0) for c0 in extra] + [(r, c) for _v, r, c in coarse_feasible[:_REFINE]]
     refined = []
     for residual, c in pool:
-        for target in sorted({tol, min(tol, _REFINE_TOL)}, reverse=True):
+        # Step well below the acceptance threshold so platform-level rounding cannot tip a candidate over it.
+        for target in sorted({tol, tol / 10, min(tol, _REFINE_TOL)}, reverse=True):
             if residual <= 2 * target:
                 continue
             support = c > _SUPPORT_CUTOFF

@@ -15,7 +15,9 @@ from sofic.generators.lifted_common_information import _LiftedProblem, _set_part
 from sofic.generators.minimal_generative_model import (
     MinimalGenerativeModel,
     WynerGenerativeModel,
+    _auxiliary_state_channel,
     _normalized_joint_distribution,
+    _optimize_wyner_common_information,
     _reproduction_error,
     _reproduction_length,
     functional_generative_model,
@@ -52,14 +54,34 @@ def test_binary_markov_exact_equals_generative_complexity(p: float, q: float) ->
     assert _reproduces(exact, bidir)
 
 
-def test_odd_process_wyner_is_interior_generator() -> None:
+def test_odd_process_wyner_optimum_is_an_interior_generator() -> None:
+    """The unconstrained Wyner optimum of the Odd process lies inside the rim and already lifts."""
     bidir = BidirectionalEpsilonMachine.from_forward(odd())
-    wyner = wyner_generative_model(bidir, rng=np.random.default_rng(0))
-    excess = float(bidir.excess_entropy())
+    joint = _normalized_joint_distribution(bidir, cutoff=1e-10)
+    channel, value = _auxiliary_state_channel(
+        joint,
+        optimizer=_optimize_wyner_common_information,
+        optimizer_name="Wyner common information",
+        bound=None,
+        niter=10,
+        maxiter=1000,
+        polish=1e-8,
+        backend="numpy",
+        cutoff=1e-10,
+        rng=np.random.default_rng(0),
+    )
     complexity = min(
         float(bidir.forward_machine.statistical_complexity()), float(bidir.reverse_machine.statistical_complexity())
     )
-    assert excess < wyner.wyner_common_information < complexity - 0.1
+    assert float(bidir.excess_entropy()) < value < complexity - 0.1
+    assert partition_residual(bidir, joint, channel) < 1e-4
+
+
+def test_odd_process_wyner_model_generates() -> None:
+    bidir = BidirectionalEpsilonMachine.from_forward(odd())
+    wyner = wyner_generative_model(bidir, rng=np.random.default_rng(0))
+    assert float(bidir.excess_entropy()) < wyner.wyner_common_information
+    assert wyner.wyner_common_information <= float(bidir.forward_machine.statistical_complexity()) + 1e-9
     assert _reproduces(wyner, bidir)
 
 
