@@ -109,6 +109,21 @@ common informations of the past and future — and are available as measures:
    bidir.wyner_common_information()   # C[S+ : S-] = C[past : future]
    bidir.exact_common_information()   # G[S+ : S-] = G[past : future]
 
+Because every generator state separates the causal states, they bracket the
+generative complexity: :math:`\op{G}{S^+ : S^-} \le C_g \le \H{G}` for the
+state :math:`G` of :func:`minimal_generative_model`. :func:`generative_gap`
+reports both ends and their difference, an upper bound on
+:math:`C_g - \op{G}{S^+ : S^-}`, and the analogous Wyner comparison:
+
+.. code-block:: python
+
+   gap = bidir.generative_gap()            # measure="exact"
+   gap.lower, gap.upper, gap.gap           # 1.406, 1.5, 0.094 for the process above
+   bidir.generative_gap(measure="wyner")   # 1.129, 1.311, 0.182
+
+Both ends are optimizer estimates; the gap vanishes for first-order Markov
+processes.
+
 API
 ===
 
@@ -125,6 +140,9 @@ Measures
 
 .. autofunction:: wyner_common_information
 .. autofunction:: exact_common_information
+.. autofunction:: generative_gap
+.. autoclass:: GenerativeGap
+   :members: gap
 
 Models
 ------
