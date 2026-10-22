@@ -17,7 +17,8 @@ brute-force reference or a closed-form value and has a regression test.
   `markov_residual`. The functional model, previously returned even when it
   did not reproduce the process, now always does. The unconstrained values are
   `BidirectionalEpsilonMachine.wyner_common_information()` and
-  `exact_common_information()`.
+  `exact_common_information()`, and `generative_gap()` reports how much the
+  generator requirement raises each (`G[S+ : S-] <= C_g <= H[G]`).
 - `correction="bonferroni"` is the default for every CSSR learner (process,
   subtree, transducer, stack), and process CSSR counts its length-`(L+1)`
   resolution tests; pass `correction=None` for the old behavior.
