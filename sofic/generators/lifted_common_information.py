@@ -40,9 +40,21 @@ exactly, by a search over partitions of the joint states.
 Every feasible point is a generator state, so the lifted exact value bounds
 the generative complexity :math:`C_g` of Löhr & Ay :cite:`LohrAy2009` from
 above. Both lifted values bound the corresponding unconstrained common
-informations from above; they coincide for first-order Markov processes. They
-can differ because only generators whose kernel is the lifted one are
-searched, and because the optimizer is local.
+informations from above; they coincide for first-order Markov processes.
+
+Lifted generators are a proper subclass of generators. The lift draws
+:math:`G_0` and :math:`G_1` independently given the bidirectional edge; a
+general generator may couple them. For
+:math:`Z_t = Z_{t-2} \oplus \mathrm{Bernoulli}(0.1)`, the interleaved product of
+two first-order generators has state :math:`G_t = (U_t, U_{t+1})`, sharing
+:math:`U_{t+1}` with :math:`G_{t+1}`. It is a generator state of entropy 1.982,
+essentially :math:`\op{G}{S^+ : S^-}`, yet violates both lifting conditions by
+0.019 bits, so the lifted search cannot reach it. For a deterministic channel
+the coupling is forced, so lifting is no restriction: the functional search
+optimizes over all deterministic generator states.
+
+The lifted values can also exceed the optimum over lifted generators because the
+optimizer is local.
 """
 
 from __future__ import annotations
