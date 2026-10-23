@@ -12,8 +12,9 @@ conditional-symbol transition probabilities ``T(y, s' | s, x)``.
 Structurally the ε-transducer is a unifilar, input-driven stochastic Mealy
 machine, so :class:`EpsilonTransducer` extends the probability-aware
 :class:`~sofic.automata.transducers.MealyMachine` with a causal-state initial
-distribution, causal-state minimization, transCSSR reconstruction, and channel
-information measures.
+distribution, causal-state minimization, transCSSR reconstruction, channel
+information measures, and capacity bounds with and without feedback
+(:mod:`sofic.generators.capacity`).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from sofic.exceptions import StochasticValidationError, UnifilarityError
 
 if TYPE_CHECKING:
     from sofic.generators.base import HiddenMarkovModel
+    from sofic.generators.capacity import CapacityBounds
 
 
 class EpsilonTransducer(MealyMachine):
@@ -157,6 +159,20 @@ class EpsilonTransducer(MealyMachine):
         from sofic.generators.channel_measures import transfer_entropy
 
         return transfer_entropy(self, input_process, history=history)
+
+    # -- channel capacity -----------------------------------------------------
+
+    def feedback_capacity(self, method: str = "qgraph", **kwargs: Any) -> CapacityBounds:
+        """Bracket the feedback capacity; see :func:`sofic.generators.capacity.feedback_capacity`."""
+        from sofic.generators.capacity import feedback_capacity
+
+        return feedback_capacity(self, method=method, **kwargs)
+
+    def capacity(self, method: str = "all", **kwargs: Any) -> CapacityBounds:
+        """Bracket the capacity without feedback; see :func:`sofic.generators.capacity.capacity`."""
+        from sofic.generators.capacity import capacity
+
+        return capacity(self, method=method, **kwargs)
 
     # -- conversions ----------------------------------------------------------
 

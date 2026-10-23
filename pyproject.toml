@@ -59,7 +59,7 @@ docs = [
     "sofic[symbolic]",
 ]
 dev = [
-    "sofic[test,viz]",
+    "sofic[test,viz,capacity]",
     "sofic[docs]",
     "ruff",
     "ty",
@@ -74,6 +74,9 @@ bayes = [
 ]
 sat = [
     "python-sat>=1.8",
+]
+capacity = [
+    "cvxpy>=1.4",
 ]
 symbolic = [
     "sympy>=1.12",
