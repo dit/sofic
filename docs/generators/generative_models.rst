@@ -12,7 +12,8 @@ these minimal generators from a
 :class:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine`,
 each realizing a different **common information** between the forward causal
 state :math:`S^+` and the reverse causal state :math:`S^-`, restricted to
-auxiliaries that are the states of a generator (see `Lifted generators`_).
+auxiliaries that are the states of a *lifted* generator (see
+`Lifted generators`_).
 
 The generative complexity :math:`C_g = \H{G}` of a presentation with generative
 states :math:`G` obeys :math:`C_g \le C_\mu`. The three generator
@@ -27,12 +28,12 @@ where the Wyner value is :math:`\op{I}{(S^+, S^-) : G}` and the others are
 :math:`\H{G}` (the first two up to optimizer accuracy).
 
 * :func:`minimal_generative_model` — the **exact common information**
-  :cite:`Kumar2014`: the minimum-entropy generator state :math:`G` rendering
-  :math:`S^+` and :math:`S^-` conditionally independent, found by a
+  :cite:`Kumar2014`: the minimum-entropy lifted generator state :math:`G`
+  rendering :math:`S^+` and :math:`S^-` conditionally independent, found by a
   stochastic optimizer. Its entropy bounds :math:`C_g` from above.
 * :func:`wyner_generative_model` — the **Wyner common information**
   :cite:`Wyner1975`, minimizing :math:`\op{I}{(S^+, S^-) : G}` over the same
-  generator states.
+  lifted generator states.
 * :func:`functional_generative_model` — the **functional common information**:
   the smallest *deterministic* function of :math:`(S^+, S^-)` that separates
   the two causal states and is a generator state, found by a partition search.
@@ -91,13 +92,27 @@ returns, bounds the generative complexity of Löhr & Ay :cite:`LohrAy2009` from
 above. ``markov_residual`` reports the largest constraint information (bits) at
 the returned channel.
 
+Lifted generators are a proper subclass of generators: the lift draws
+:math:`G_0` and :math:`G_1` independently given the bidirectional edge, while a
+general generator may couple them. For
+:math:`Z_t = Z_{t-2} \oplus \mathrm{Bernoulli}(0.1)` (two interleaved
+first-order chains), the product of the two chains' minimal generators has
+state :math:`G_t = (U_t, U_{t+1})`, which shares :math:`U_{t+1}` with
+:math:`G_{t+1}`. It is a generator state of entropy 1.982, essentially
+:math:`\op{G}{S^+ : S^-}`, but violates both lifting conditions (by 0.019 bits),
+so the lifted search cannot reach it and returns a larger value. The exact and
+Wyner values here are therefore upper bounds over lifted generators, not
+minima over all generators. For a deterministic channel the coupling is
+forced, so the functional search is exact over all deterministic generator
+states.
+
 For first-order Markov processes the constrained and unconstrained values
 coincide. They differ already for the second-order Markov process in which
 every 1 is followed by at least two 0s: its unconstrained exact (and functional)
 optimum, of entropy 1.406, is a deterministic variable whose value
 :math:`(C, R_{01})` ("the past ends in 10 and the future starts with 01") can
 only be preceded by a value that does not know the past ended in 10, so no HMM
-has it as its state; the constrained value is 1.5. The stochastic optimizer is
+has it as its state; the lifted search finds 1.5. The stochastic optimizer is
 local and seeded (``starts``, ``rng``); on harder processes more starts can
 find lower values.
 
@@ -108,6 +123,23 @@ common informations of the past and future — and are available as measures:
 
    bidir.wyner_common_information()   # C[S+ : S-] = C[past : future]
    bidir.exact_common_information()   # G[S+ : S-] = G[past : future]
+
+Because every generator state separates the causal states, they bracket the
+generative complexity: :math:`\op{G}{S^+ : S^-} \le C_g \le \H{G}` for the
+state :math:`G` of :func:`minimal_generative_model`. :func:`generative_gap`
+reports both ends and their difference, an upper bound on
+:math:`C_g - \op{G}{S^+ : S^-}`, and the analogous Wyner comparison:
+
+.. code-block:: python
+
+   gap = bidir.generative_gap()            # measure="exact"
+   gap.lower, gap.upper, gap.gap           # 1.406, 1.5, 0.094 for the process above
+   bidir.generative_gap(measure="wyner")   # 1.129, 1.311, 0.182
+
+Both ends are optimizer estimates, and the upper end is over lifted generators
+only, so ``gap`` can be positive even when some non-lifted generator attains
+:math:`\op{G}{S^+ : S^-}` (the interleaved process above). The gap vanishes for
+first-order Markov processes.
 
 API
 ===
@@ -125,6 +157,9 @@ Measures
 
 .. autofunction:: wyner_common_information
 .. autofunction:: exact_common_information
+.. autofunction:: generative_gap
+.. autoclass:: GenerativeGap
+   :members: gap
 
 Models
 ------

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Hashable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
@@ -163,12 +164,16 @@ def minimal_generative_model(
     is the model's own state entropy, an upper bound on the generative complexity
     :cite:`LohrAy2009`; the unconstrained value is
     :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.exact_common_information`.
+    Lifted generators draw consecutive states independently given the
+    bidirectional edge; a generator that couples them can have smaller state
+    entropy, so this is not necessarily the minimum over all generators.
 
     The starts are ``S+``, ``S-``, ``(S+, S-)``, the unconstrained optimum (found
     with dit; ``niter``, ``maxiter``, ``polish`` and ``backend`` as in
-    :class:`dit.multivariate.common_informations.ExactCommonInformation`), and
-    ``starts`` random channels over ``bound`` states (default: the number of
-    joint states). Constraint informations up to ``markov_atol`` bits are
+    :class:`dit.multivariate.common_informations.ExactCommonInformation`),
+    perturbations of it (blended with random channels), time-sharing mixtures of
+    it with each of the three ε-machine channels, and ``starts`` random channels
+    over ``bound`` states (default: the number of joint states). Constraint informations up to ``markov_atol`` bits are
     accepted and the best candidates refined toward exact closure; a residual
     ``r`` allows the value and word probabilities to be off by roughly
     ``sqrt(r)``. The model is checked against the source up to
@@ -214,8 +219,9 @@ def wyner_generative_model(
     The auxiliary state ``G`` minimizes ``I[(S+, S-) : G]`` :cite:`Wyner1975`
     subject to rendering ``S+`` and ``S-`` conditionally independent and to the
     two lifting conditions of :func:`minimal_generative_model`, whose parameters
-    it shares. The returned model's state entropy ``H[G]`` is not generally equal
-    to that optimized mutual information. The unconstrained value is
+    it shares, and like it searches lifted generators only. The returned model's
+    state entropy ``H[G]`` is not generally equal to that optimized mutual
+    information. The unconstrained value is
     :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.wyner_common_information`.
     """
     from sofic.generators.lifted_common_information import lifted_model
@@ -333,6 +339,95 @@ def _unconstrained_common_information(
         rng=rng,
     )
     return value
+
+
+@dataclass(frozen=True)
+class GenerativeGap:
+    """Gap between a common information of ``(S+, S-)`` and its value over lifted generator states.
+
+    Attributes
+    ----------
+    measure
+        ``"exact"`` or ``"wyner"``.
+    lower
+        The unconstrained common information: ``G[S+ : S-]`` or ``C[S+ : S-]``.
+    upper
+        The same quantity over lifted generator states: ``H[G]`` of
+        :func:`minimal_generative_model`, or ``I[(S+, S-) : G]`` of
+        :func:`wyner_generative_model`.
+    model
+        The generator achieving ``upper``.
+    """
+
+    measure: str
+    lower: float
+    upper: float
+    model: MinimalGenerativeModel | WynerGenerativeModel
+
+    @property
+    def gap(self) -> float:
+        """``upper - lower``, in bits."""
+        return self.upper - self.lower
+
+
+def generative_gap(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    measure: str = "exact",
+    bound: int | None = None,
+    niter: int | None = 10,
+    maxiter: int = 1000,
+    polish: float | bool = 1e-8,
+    backend: str = "numpy",
+    starts: int = 8,
+    markov_atol: float = 1e-8,
+    cutoff: float = 1e-10,
+    reproduction_atol: float = 1e-3,
+    rng: np.random.Generator | None = None,
+) -> GenerativeGap:
+    """How much requiring a lifted generator raises the exact (or Wyner) common information.
+
+    Every generator state renders ``S+`` and ``S-`` conditionally independent, so
+    for ``measure="exact"``
+
+    .. math:: \\op{G}{S^+ : S^-} \\le C_g \\le \\H{G},
+
+    with ``G`` the state of :func:`minimal_generative_model` and ``C_g`` the
+    generative complexity :cite:`LohrAy2009`: ``gap`` bounds ``C_g - G[S+ : S-]``
+    from above. Because only lifted generators are searched, ``gap`` can be
+    positive even when a non-lifted generator attains the unconstrained value (see
+    :mod:`sofic.generators.lifted_common_information`). ``measure="wyner"``
+    compares ``C[S+ : S-]`` with :func:`wyner_generative_model`. Both sides come
+    from local optimizers, so the gap is an estimate; it vanishes for first-order
+    Markov processes. Since both sides upper-bound the true unconstrained value,
+    ``lower`` is the smaller of the two. Parameters are those of
+    :func:`minimal_generative_model`.
+    """
+    if measure not in ("exact", "wyner"):
+        raise ValueError(f"measure must be 'exact' or 'wyner', not {measure!r}")
+    rng = rng or np.random.default_rng()
+    optimizer_kwargs = {
+        "bound": bound,
+        "niter": niter,
+        "maxiter": maxiter,
+        "polish": polish,
+        "backend": backend,
+        "cutoff": cutoff,
+        "rng": rng,
+    }
+    if measure == "exact":
+        lower = exact_common_information(bidir, **optimizer_kwargs)
+        model = minimal_generative_model(
+            bidir, starts=starts, markov_atol=markov_atol, reproduction_atol=reproduction_atol, **optimizer_kwargs
+        )
+        upper = model.exact_common_information
+    else:
+        lower = wyner_common_information(bidir, **optimizer_kwargs)
+        model = wyner_generative_model(
+            bidir, starts=starts, markov_atol=markov_atol, reproduction_atol=reproduction_atol, **optimizer_kwargs
+        )
+        upper = model.wyner_common_information
+    return GenerativeGap(measure=measure, lower=min(lower, upper), upper=upper, model=model)
 
 
 def functional_generative_model(
@@ -886,11 +981,13 @@ def _model_from_channel(
 __all__ = [
     "FunctionalGenerativeModel",
     "GacsKornerGenerativeModel",
+    "GenerativeGap",
     "MinimalGenerativeModel",
     "WynerGenerativeModel",
     "exact_common_information",
     "functional_generative_model",
     "gacs_korner_generative_model",
+    "generative_gap",
     "minimal_generative_model",
     "wyner_common_information",
     "wyner_generative_model",

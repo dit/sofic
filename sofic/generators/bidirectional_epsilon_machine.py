@@ -620,6 +620,12 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return exact_common_information(self, **kwargs)
 
+    def generative_gap(self, measure: str = "exact", **kwargs: Any) -> Any:
+        """Exact (or Wyner) common information vs. its value over generator states; see ``generative_gap``."""
+        from sofic.generators.minimal_generative_model import generative_gap
+
+        return generative_gap(self, measure=measure, **kwargs)
+
     def information_anatomy(self) -> dict[str, Any]:
         """Return ρ_μ, b_μ, r_μ, h_μ, E, χ, χ±, and the structural/gauge refinement.
 

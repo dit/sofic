@@ -9,15 +9,19 @@ brute-force reference or a closed-form value and has a regression test.
 
 - `minimal_generative_model`, `wyner_generative_model`,
   `functional_generative_model` and `generative_complexity()` optimize only
-  over generator states: besides `I[S+ : S- | G] = 0` they impose
+  over lifted generator states: besides `I[S+ : S- | G] = 0` they impose
   `I[G_0 X_0 : S-_1 | G_1] = 0` and `I[S+_0 : X_0 G_1 | G_0] = 0`, the
-  conditions under which the HMM built from the channel generates the process.
+  conditions under which the HMM built from the channel (applied at both ends
+  of every bidirectional edge) generates the process. Lifted generators are a
+  proper subclass, so the exact and Wyner values are upper bounds over all
+  generators; the functional search is exact over deterministic ones.
   The reported value is the returned model's own (no functional fallback), the
   exact value upper-bounds the generative complexity, and models carry
   `markov_residual`. The functional model, previously returned even when it
   did not reproduce the process, now always does. The unconstrained values are
   `BidirectionalEpsilonMachine.wyner_common_information()` and
-  `exact_common_information()`.
+  `exact_common_information()`, and `generative_gap()` reports how much the
+  lifted-generator requirement raises each (`G[S+ : S-] <= C_g <= H[G]`).
 - `correction="bonferroni"` is the default for every CSSR learner (process,
   subtree, transducer, stack), and process CSSR counts its length-`(L+1)`
   resolution tests; pass `correction=None` for the old behavior.

@@ -107,6 +107,32 @@ def test_rll_two_infinity_constraints_bind() -> None:
     assert _reproduces(model, bidir)
 
 
+def test_generative_gap_rll_two_infinity() -> None:
+    bidir = _rll_two_infinity()
+    exact = bidir.generative_gap(rng=np.random.default_rng(0))
+    assert exact.measure == "exact"
+    assert exact.lower == pytest.approx(1.4056, abs=2e-3)
+    assert exact.upper == pytest.approx(1.5, abs=1e-4)
+    assert exact.gap == pytest.approx(exact.upper - exact.lower)
+    assert exact.gap > 0.09
+    assert exact.upper == pytest.approx(exact.model.generative_complexity(), abs=1e-6)
+    wyner = bidir.generative_gap(measure="wyner", rng=np.random.default_rng(0))
+    assert wyner.lower == pytest.approx(1.129, abs=5e-3)
+    assert wyner.gap > 0.1
+
+
+def test_generative_gap_vanishes_for_markov_chains() -> None:
+    bidir = golden_mean_bidirectional(0.5)
+    for measure in ("exact", "wyner"):
+        result = bidir.generative_gap(measure=measure, rng=np.random.default_rng(0))
+        assert 0.0 <= result.gap < 1e-3
+
+
+def test_generative_gap_rejects_unknown_measure() -> None:
+    with pytest.raises(ValueError, match="measure"):
+        golden_mean_bidirectional(0.5).generative_gap(measure="functional")
+
+
 def test_functional_model_always_generates() -> None:
     """dit's functional partition fails the lifting conditions here; the lifted partition search does not."""
     bidir = _rll_two_infinity()
