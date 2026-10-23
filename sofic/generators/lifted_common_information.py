@@ -59,7 +59,7 @@ optimizer is local.
 
 from __future__ import annotations
 
-from collections.abc import Hashable
+from collections.abc import Hashable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -89,6 +89,9 @@ _REFINE = 5
 _SUPPORT_CUTOFF = 1e-8
 _REFINE_TOL = 1e-12
 _EXACT_ATOL = 1e-10
+_PERTURB_SCALES = (0.05, 0.2)
+_PERTURB_COPIES = 2
+_MIX_WEIGHTS = (0.5, 0.8)
 _EXHAUSTIVE_PAIRS = 9
 
 
@@ -257,7 +260,11 @@ def _optimize(
     tol: float,
     rng: np.random.Generator,
     extra: list[np.ndarray],
+    more_starts: Sequence[np.ndarray] = (),
+    generator_seeds: bool = True,
 ):
+    """Continuation from the generator seeds (if ``generator_seeds``), the ``extra`` channels, ``more_starts``
+    and ``starts`` random channels; the ``extra`` channels are also kept and refined as they are."""
     n = len(problem.pairs)
     shape = (n, k)
     row_sums = {
@@ -295,9 +302,9 @@ def _optimize(
     # Continuation to a coarse tolerance: the plain common-information problem first, then ever tighter closure.
     coarse = max(tol, _COARSE_TOL)
     schedule = [1e3, *np.geomspace(1e-1, coarse, max(2, int(np.ceil(np.log10(1e-1 / coarse) / 2)) + 1))]
-    fixed = problem.seeds(k) + extra
+    fixed = (problem.seeds(k) if generator_seeds else []) + extra
     candidates = [(problem.objective(c0, kind)[0], problem.markov_residual(c0), c0) for c0 in fixed]
-    for c0 in fixed + [rng.dirichlet(np.ones(k), size=n) for _ in range(starts)]:
+    for c0 in fixed + list(more_starts) + [rng.dirichlet(np.ones(k), size=n) for _ in range(starts)]:
         c = c0
         for closure_tol in schedule:
             c = solve(c, closure_tol, coarse)
@@ -378,11 +385,28 @@ def lifted_model(
                 seed /= seed.sum(axis=1, keepdims=True)
             k_seed = max(seed.shape[1], k if bound is not None else 0)
             seed = np.pad(seed, ((0, 0), (0, k_seed - seed.shape[1])))
+            perturbed = [
+                (1 - eps) * seed + eps * rng.dirichlet(np.ones(k_seed), size=len(problem.pairs))
+                for eps in _PERTURB_SCALES
+                for _ in range(_PERTURB_COPIES)
+            ]
             seed_refined, seed_candidates = _optimize(
-                problem, objective, k_seed, 0, maxiter, markov_atol / 2, rng, [seed]
+                problem, objective, k_seed, 0, maxiter, markov_atol / 2, rng, [seed], perturbed, generator_seeds=False
             )
             refined += seed_refined
             candidates += seed_candidates
+            # Time-sharing mixtures: an independent coin picks the unconstrained channel or an eps-machine
+            # channel; disjoint state labels keep the mixture separating.
+            for machine in (problem.plus, problem.minus, np.eye(len(problem.pairs))):
+                width = k_seed + machine.shape[1]
+                if bound is not None and width > k:
+                    continue
+                mixtures = [np.hstack([lam * seed, (1 - lam) * machine]) for lam in _MIX_WEIGHTS]
+                mix_refined, mix_candidates = _optimize(
+                    problem, objective, width, 0, maxiter, markov_atol / 2, rng, [], mixtures, generator_seeds=False
+                )
+                refined += mix_refined
+                candidates += mix_candidates
         # Prefer refined channels: looser candidates can undercut the true optimum by about sqrt(residual).
         feasible = [cand for cand in refined if cand[1] <= markov_atol] or [
             cand for cand in candidates if cand[1] <= markov_atol

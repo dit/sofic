@@ -170,9 +170,10 @@ def minimal_generative_model(
 
     The starts are ``S+``, ``S-``, ``(S+, S-)``, the unconstrained optimum (found
     with dit; ``niter``, ``maxiter``, ``polish`` and ``backend`` as in
-    :class:`dit.multivariate.common_informations.ExactCommonInformation`), and
-    ``starts`` random channels over ``bound`` states (default: the number of
-    joint states). Constraint informations up to ``markov_atol`` bits are
+    :class:`dit.multivariate.common_informations.ExactCommonInformation`),
+    perturbations of it (blended with random channels), time-sharing mixtures of
+    it with each of the three ε-machine channels, and ``starts`` random channels
+    over ``bound`` states (default: the number of joint states). Constraint informations up to ``markov_atol`` bits are
     accepted and the best candidates refined toward exact closure; a residual
     ``r`` allows the value and word probabilities to be off by roughly
     ``sqrt(r)``. The model is checked against the source up to
