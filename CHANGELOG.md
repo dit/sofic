@@ -135,6 +135,16 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### New
 
+- `sofic.generators.capacity`: capacity bounds for finite ε-transducers
+  (unifilar finite-state channels). `EpsilonTransducer.feedback_capacity()`
+  brackets the feedback capacity with Q-graph bounds (convex upper bound,
+  certified graph-based-encoder lower bound), the Q-graph duality bound, or
+  belief-state value iteration; `EpsilonTransducer.capacity()` brackets the
+  capacity without feedback with an optimized Markov input and the Q-graph
+  duality dynamic program. Results are `CapacityBounds(lower, upper, ...)`.
+  The optional `capacity` extra installs cvxpy for the convex step.
+- `trapdoor()` / `trapdoor_et()` and `ising_channel()` / `ising_channel_et()`
+  example channels, each with a uniform initial state.
 - `sofic.inference.Trials`: `learn_epsilon_machine_cssr`,
   `learn_epsilon_transducer_cssr`, and `suggest_max_history` learn from
   independent trials, pooling counts without any history spanning two trials
