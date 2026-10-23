@@ -230,7 +230,14 @@ parametrized tests and sweeps:
 
 A parallel set of transducer factories (``bit_flip``, ``parity``, ``delay``,
 ``binary_channel``, …) lives alongside the processes and produces
-:class:`~sofic.automata.transducers.MealyMachine` instances.
+:class:`~sofic.automata.transducers.MealyMachine` instances. Two of them are
+classic channels with memory whose feedback capacities are known:
+``trapdoor`` (Blackwell's trapdoor channel, :math:`C_{\mathrm{fb}} = \log_2\varphi`
+:cite:`Permuter2008`) and ``ising_channel`` (:math:`C_{\mathrm{fb}} \approx 0.575522`
+:cite:`Elishco2014`), both with a uniform initial state. ``trapdoor_et`` and
+``ising_channel_et`` return their two-state
+:class:`~sofic.generators.epsilon_transducer.EpsilonTransducer` presentations, which
+feed the :doc:`channel-capacity bounds <generators/channel_capacity>`.
 
 Symbolic-shift examples (:mod:`sofic.examples.shifts`) provide the
 sofic-Dyck factories listed above; access them via

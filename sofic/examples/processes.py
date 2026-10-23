@@ -1153,17 +1153,22 @@ def _transducer(
     edges: Iterable[tuple[Hashable, Hashable, Any, Any, float]],
     *,
     initial: Hashable | None = None,
+    initials: Iterable[Hashable] | None = None,
     name: str | None = None,
 ) -> MealyMachine:
     edge_list = list(edges)
     states = list(dict.fromkeys([source for source, *_ in edge_list] + [target for _source, target, *_ in edge_list]))
     inputs = frozenset(input_symbol for _source, _target, input_symbol, _output_symbol, _prob in edge_list)
     outputs = frozenset(output_symbol for _source, _target, _input_symbol, output_symbol, _prob in edge_list)
-    start = initial if initial is not None else (states[0] if states else None)
+    if initials is not None:
+        starts = frozenset(initials)
+    else:
+        start = initial if initial is not None else (states[0] if states else None)
+        starts = frozenset({start} if start is not None else set())
     machine = MealyMachine(
         input_alphabet=inputs,
         output_alphabet=outputs,
-        initial_states=frozenset({start} if start is not None else set()),
+        initial_states=starts,
     )
     if name is not None:
         machine.name = name
@@ -1264,6 +1269,53 @@ def gme(create_using: Any = None) -> MealyMachine:
     )
 
 
+def trapdoor(create_using: Any = None) -> MealyMachine:
+    """Blackwell's trapdoor channel as a unifilar finite-state channel.
+
+    The state is the ball left in the channel. A new ball ``x`` is inserted and
+    one of the two balls, chosen uniformly, is emitted as ``y``; the other stays
+    behind, so the state update is ``s' = s XOR x XOR y``. The initial ball is
+    ``0`` or ``1`` with probability 1/2 each. Its feedback capacity is
+    ``log2(golden ratio)`` :cite:`Permuter2008`.
+    """
+    del create_using
+    return _transducer(
+        [
+            ("0", "0", "0", "0", 1),
+            ("0", "1", "1", "0", 0.5),
+            ("0", "0", "1", "1", 0.5),
+            ("1", "1", "1", "1", 1),
+            ("1", "1", "0", "0", 0.5),
+            ("1", "0", "0", "1", 0.5),
+        ],
+        initials=("0", "1"),
+        name="Trapdoor",
+    )
+
+
+def ising_channel(create_using: Any = None) -> MealyMachine:
+    """The Ising channel of Berger & Bonomi as a unifilar finite-state channel.
+
+    The state is the previous input. If the new input ``x`` equals it the output
+    is ``x``; otherwise the output is uniform on ``{0, 1}``. The next state is
+    ``x``, and the initial state is uniform. Its feedback capacity is about
+    ``0.575522`` bits :cite:`Elishco2014`.
+    """
+    del create_using
+    return _transducer(
+        [
+            ("0", "0", "0", "0", 1),
+            ("0", "1", "1", "0", 0.5),
+            ("0", "1", "1", "1", 0.5),
+            ("1", "1", "1", "1", 1),
+            ("1", "0", "0", "0", 0.5),
+            ("1", "0", "0", "1", 0.5),
+        ],
+        initials=("0", "1"),
+        name="Ising Channel",
+    )
+
+
 def binary_channel_et(p: float = 0.1, q: float = 0.2) -> Any:
     """Memoryless binary channel as its minimal (single-state) ε-transducer."""
     from sofic.generators.epsilon_transducer import EpsilonTransducer
@@ -1276,6 +1328,20 @@ def gm_to_even_et() -> Any:
     from sofic.generators.epsilon_transducer import EpsilonTransducer
 
     return EpsilonTransducer.from_channel(gm_to_even())
+
+
+def trapdoor_et() -> Any:
+    """Trapdoor channel as its two-state ε-transducer (uniform initial ball)."""
+    from sofic.generators.epsilon_transducer import EpsilonTransducer
+
+    return EpsilonTransducer.from_channel(trapdoor())
+
+
+def ising_channel_et() -> Any:
+    """Ising channel as its two-state ε-transducer (uniform initial state)."""
+    from sofic.generators.epsilon_transducer import EpsilonTransducer
+
+    return EpsilonTransducer.from_channel(ising_channel())
 
 
 processes = [
@@ -1338,10 +1404,14 @@ transducers = [
     "sliding_nor",
     "parity",
     "gme",
+    "trapdoor",
+    "ising_channel",
 ]
 epsilon_transducers = [
     "binary_channel_et",
     "gm_to_even_et",
+    "trapdoor_et",
+    "ising_channel_et",
 ]
 
 process_list = [globals()[name] for name in processes]

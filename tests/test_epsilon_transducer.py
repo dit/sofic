@@ -4,7 +4,16 @@ import pytest
 
 from sofic import EpsilonTransducer, MealyHMM
 from sofic.automata.transducer_operations import compose_transducer_generator
-from sofic.examples.processes import binary_channel, gm_to_even, gme, rct
+from sofic.examples.processes import (
+    binary_channel,
+    gm_to_even,
+    gme,
+    ising_channel,
+    ising_channel_et,
+    rct,
+    trapdoor,
+    trapdoor_et,
+)
 from sofic.exceptions import StochasticValidationError, UnifilarityError
 from sofic.graph import ATTR_OUTPUT, ATTR_PROB, ATTR_SYMBOL
 
@@ -25,6 +34,8 @@ def _iid_input() -> MealyHMM:
         (gm_to_even(), 2),
         (rct(0.5), 3),
         (gme(), 2),
+        (trapdoor(), 2),
+        (ising_channel(), 2),
     ],
 )
 def test_from_channel_minimizes(channel, expected_states):
@@ -51,6 +62,50 @@ def test_initial_distribution_normalized():
     eps = EpsilonTransducer.from_channel(gm_to_even())
     assert sum(eps.initial_distribution.values()) == pytest.approx(1.0)
     assert set(eps.initial_distribution) <= set(eps.states())
+
+
+def _ball_of(eps):
+    """Map each causal state to the channel symbol it holds (input 0 -> output 0 surely)."""
+    ball = {}
+    for transition in eps.transitions():
+        data = transition.data
+        if data[ATTR_SYMBOL] == "0" and data[ATTR_OUTPUT] == "0" and float(data[ATTR_PROB]) == pytest.approx(1.0):
+            ball[transition.source] = 0
+    for state in eps.states():
+        ball.setdefault(state, 1)
+    return ball
+
+
+@pytest.mark.parametrize("factory", [trapdoor_et, ising_channel_et])
+def test_two_state_channels_uniform_initial(factory):
+    eps = factory()
+    assert len(eps.initial_distribution) == 2
+    assert all(mass == pytest.approx(0.5) for mass in eps.initial_distribution.values())
+
+
+@pytest.mark.parametrize(
+    ("factory", "update"),
+    [(trapdoor_et, lambda s, x, y: s ^ x ^ y), (ising_channel_et, lambda s, x, y: x)],
+)
+def test_two_state_channel_law(factory, update):
+    eps = factory()
+    ball = _ball_of(eps)
+    assert sorted(ball.values()) == [0, 1]
+    law = {}
+    for transition in eps.transitions():
+        s = ball[transition.source]
+        x = int(transition.data[ATTR_SYMBOL])
+        y = int(transition.data[ATTR_OUTPUT])
+        assert ball[transition.target] == update(s, x, y)
+        law[(s, x, y)] = float(transition.data[ATTR_PROB])
+    for s in (0, 1):
+        for x in (0, 1):
+            if x == s:
+                assert law[(s, x, x)] == pytest.approx(1.0)
+                assert (s, x, 1 - x) not in law
+            else:
+                assert law[(s, x, 0)] == pytest.approx(0.5)
+                assert law[(s, x, 1)] == pytest.approx(0.5)
 
 
 def test_non_unifilar_channel_rejected():
