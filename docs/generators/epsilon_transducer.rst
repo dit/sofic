@@ -57,11 +57,16 @@ quantity, reusing the directional-flow estimators of :doc:`directional_flow`.
 * :func:`directed_information` / :func:`transfer_entropy` — input-to-output
   information flow of the driven joint process.
 
+These measures fix the input process. Optimizing over inputs gives the channel
+capacity; :meth:`~EpsilonTransducer.feedback_capacity` and
+:meth:`~EpsilonTransducer.capacity` bracket it with and without feedback
+(:doc:`channel_capacity`).
+
 API
 ===
 
 .. autoclass:: EpsilonTransducer
-   :members: from_channel, from_iohmm, from_joint_generator, from_paired_sequences, is_unifilar, causal_states, statistical_complexity, driven_entropy_rate, directed_information, transfer_entropy, from_wfst
+   :members: from_channel, from_iohmm, from_joint_generator, from_paired_sequences, is_unifilar, causal_states, statistical_complexity, driven_entropy_rate, directed_information, transfer_entropy, feedback_capacity, capacity, from_wfst
 
 .. currentmodule:: sofic.generators.channel_measures
 
