@@ -10,6 +10,8 @@ from sofic.base import StateMachine
 from sofic.graph import ATTR_SYMBOL, EPSILON
 
 if TYPE_CHECKING:
+    from sofic.algebra.complexity import ComplexityBounds
+    from sofic.algebra.transformation import TransformationSemigroup
     from sofic.automata.dfa import DFA
     from sofic.automata.nfa import NFA
 
@@ -147,6 +149,26 @@ class LabeledAutomaton(StateMachine):
         from sofic.properties import is_deterministic_automaton
 
         return is_deterministic_automaton(self)
+
+    def transition_semigroup(self, **kwargs: Any) -> TransformationSemigroup:
+        """Return the transition monoid of this deterministic automaton.
+
+        See :func:`~sofic.algebra.adapters.transformation_semigroup`.
+        """
+        from sofic.algebra.adapters import transformation_semigroup
+
+        return transformation_semigroup(self, **kwargs)
+
+    def krohn_rhodes_complexity(self) -> ComplexityBounds:
+        """Krohn-Rhodes complexity bounds of the *language*, via its syntactic monoid.
+
+        Zero exactly when the language is star-free :cite:`Schutzenberger1965`.
+        See :func:`~sofic.algebra.complexity.krohn_rhodes_complexity`.
+        """
+        from sofic.algebra.complexity import krohn_rhodes_complexity
+        from sofic.algebra.syntactic import syntactic_monoid
+
+        return krohn_rhodes_complexity(syntactic_monoid(self))
 
     def delta(self, state: Hashable, symbol: Any) -> set[Hashable]:
         targets: set[Hashable] = set()

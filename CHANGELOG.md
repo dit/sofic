@@ -135,6 +135,32 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### New
 
+- `sofic.algebra`: algebraic automata theory for deterministic presentations.
+  `TransformationSemigroup` (lazy closure, shortest words, sink completion of
+  partial maps), Green's relations and maximal subgroups, `syntactic_monoid`
+  and `is_star_free`, and the Krohn-Rhodes holonomy decomposition
+  (`holonomy_decomposition`) with an explicit `CascadeProduct` whose
+  `emulates()` checks the covering. `krohn_rhodes_complexity` returns
+  `ComplexityBounds(lower, upper, exact)`, and `prime_decomposition` lists the
+  simple-group factors. `holonomy_information` splits `C_mu` across the
+  holonomy levels. DFAs, unifilar HMMs / ε-machines and sofic shifts gain
+  `transition_semigroup()` and `krohn_rhodes_complexity()`, and the shift
+  invariants gain `factor_syntactic_monoid` and
+  `factor_krohn_rhodes_complexity`. Wheeler-presentation failures now report
+  whether the language is star-free.
+- `sofic.algebra`, following DeDeo's "Effective Theories for Circuits and
+  Automata" (2011): `HolonomyDecomposition.effective_theory(k)` and
+  `CascadeProduct.truncate(k)` give coarse-grained machines on overlapping
+  superstates; `independent_random_maps` / `coupled_random_maps` /
+  `random_maps` rewrite probabilistic automata as random choices of
+  deterministic maps; `element_walk` and `classify_elements` follow the walk
+  over semigroup elements; and `walk_information` splits lost information into
+  irreversibility and dissipation. Also new: language varieties
+  (`is_piecewise_testable`, `is_locally_testable`, `is_definite`, ...),
+  `minimal_ideal` / `minimal_rank` / `is_synchronizing` /
+  `schutzenberger_group`, belief-map semigroups (`projective_semigroup`,
+  `mixed_state_semigroup`), and `is_full_transformation_monoid`, which makes
+  the complexity of `T_n` exact without enumerating it.
 - `sofic.generators.capacity`: capacity bounds for finite ε-transducers
   (unifilar finite-state channels). `EpsilonTransducer.feedback_capacity()`
   brackets the feedback capacity with Q-graph bounds (convex upper bound,

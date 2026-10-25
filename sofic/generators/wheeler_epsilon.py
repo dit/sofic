@@ -26,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from sofic.automata.wheeler import WheelerError, WheelerOrder, wheeler_order
+from sofic.automata.wheeler import WheelerError, WheelerOrder, star_free_obstruction, wheeler_order
 from sofic.generators.mealy import MealyHMM
 
 #: How many edge-machine refinements :func:`wheeler_presentation` will try.
@@ -82,8 +82,7 @@ def wheeler_presentation(
         if wheeler_order(refined) is not None:
             return refined
     raise WheelerError(
-        f"no Wheeler presentation within {budget} edge-machine refinements; Wheeler languages "
-        "are star-free, so a process with a nontrivial syntactic group has none at any order"
+        f"no Wheeler presentation within {budget} edge-machine refinements; {star_free_obstruction(machine)}"
     )
 
 

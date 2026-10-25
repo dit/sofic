@@ -20,8 +20,8 @@ a consistent, composable Python API built on NumPy, SciPy, and NetworkX.
 Every model is a graph-backed state machine, so the same objects support
 construction, validation, simulation, visualization, (de)serialization, and a
 large library of structural and information-theoretic measures. The model
-families group into three presentations of a process and a set of tools for
-inferring them from data:
+families group into three presentations of a process, plus tools for their
+algebraic structure and for inferring them from data:
 
 * **Stochastic generators** (:mod:`sofic.generators`) — Markov chains, hidden
   Markov models (Mealy and Moore presentations), ε-machines and their
@@ -35,6 +35,9 @@ inferring them from data:
 * **Symbolic shifts** (:mod:`sofic.shifts`) — shifts of finite type, sofic
   shifts, topological Markov chains, Dyck and sofic-Dyck shifts, and their
   covers. These describe the *support* (set of allowed sequences) of a process.
+* **Algebra** (:mod:`sofic.algebra`) — transformation semigroups, syntactic
+  monoids, Green's relations, and the Krohn-Rhodes holonomy decomposition of
+  any deterministic presentation, with complexity bounds and prime factors.
 * **Inference** (:mod:`sofic.inference`) — Bayesian structural inference for
   Markov chains, ε-machines, and stack HMMs via exact conjugate Dirichlet
   evidences, with optional PyMC backends.
@@ -56,6 +59,7 @@ Contents:
    generators/generators
    automata/automata
    shifts/shifts
+   algebra/algebra
    inference/inference
    viz
    examples

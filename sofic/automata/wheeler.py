@@ -37,6 +37,33 @@ class WheelerError(SoficValidationError):
     """Raised when a Wheeler invariant is violated or cannot be established."""
 
 
+def star_free_obstruction(machine: Any, *, max_size: int = 10_000) -> str:
+    """Explain whether star-freeness rules out every Wheeler presentation of ``machine``.
+
+    Wheeler languages are star-free :cite:`Alanko2021`, and a language is
+    star-free iff its syntactic monoid is aperiodic :cite:`Schutzenberger1965`.
+    The path language of ``machine`` is tested with
+    :func:`~sofic.algebra.syntactic.factor_monoid`; the test is skipped when
+    the monoid exceeds ``max_size`` elements.
+    """
+    from sofic.algebra.syntactic import factor_monoid
+    from sofic.exceptions import SemigroupTooLargeError
+
+    try:
+        aperiodic = factor_monoid(machine, max_size=max_size).is_aperiodic()
+    except SemigroupTooLargeError:
+        return (
+            "Wheeler languages are star-free, so a language with a nontrivial syntactic group "
+            "has no Wheeler presentation at any order"
+        )
+    if aperiodic:
+        return "the language is star-free, so a deeper refinement may still be Wheeler"
+    return (
+        "the language is not star-free (its syntactic monoid contains a nontrivial group) and "
+        "Wheeler languages are star-free, so there is no Wheeler presentation at any order"
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class LabeledGraph:
     """Symbol-labeled view of a model, shared by every Wheeler routine.

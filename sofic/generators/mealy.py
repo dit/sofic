@@ -11,6 +11,8 @@ from sofic.generators.edge_emissions import validate_stochastic_edge_emissions
 from sofic.graph import ATTR_EMISSION, ATTR_PROB
 
 if TYPE_CHECKING:
+    from sofic.algebra.complexity import ComplexityBounds
+    from sofic.algebra.transformation import TransformationSemigroup
     from sofic.generators.lumping import LabelsLike, PartitionLike
     from sofic.generators.mixed_state import MixedState, MixedStatePresentation
 
@@ -47,6 +49,26 @@ class MealyHMM(HiddenMarkovModel):
             target,
             **{ATTR_EMISSION: symbol, ATTR_PROB: as_prob(prob), **attrs},
         )
+
+    def transition_semigroup(self, **kwargs: Any) -> TransformationSemigroup:
+        """Transition semigroup of the support of this unifilar presentation.
+
+        Probabilities are dropped. For an ε-machine the presentation is the
+        canonical causal-state one, so the semigroup is a property of the
+        process. See :func:`~sofic.algebra.adapters.transformation_semigroup`.
+        """
+        from sofic.algebra.adapters import transformation_semigroup
+
+        return transformation_semigroup(self, **kwargs)
+
+    def krohn_rhodes_complexity(self) -> ComplexityBounds:
+        """Krohn-Rhodes complexity bounds of :meth:`transition_semigroup`.
+
+        See :func:`~sofic.algebra.complexity.krohn_rhodes_complexity`.
+        """
+        from sofic.algebra.complexity import krohn_rhodes_complexity
+
+        return krohn_rhodes_complexity(self.transition_semigroup())
 
     def validate_stochastic(self) -> None:
         super().validate_stochastic()

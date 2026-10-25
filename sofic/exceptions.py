@@ -41,6 +41,15 @@ class LumpabilityError(SoficValidationError):
     """Raised when a partition is not strongly lumpable for a model."""
 
 
+class SemigroupTooLargeError(SoficError):
+    """Raised when a transformation semigroup or cascade exceeds its size cap.
+
+    A semigroup on ``n`` states can have up to ``n**n`` elements, so the caps
+    are a guard against accidental exponential blow-up, not a sign that the
+    input is malformed.
+    """
+
+
 class InfiniteTransductionError(SoficError):
     """Raised when a finite input has infinitely many transducer outputs."""
 
