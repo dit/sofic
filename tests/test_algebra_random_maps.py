@@ -151,6 +151,7 @@ def test_synchronizing_iff_minimal_rank_one(sg):
 
 @given(semigroups())
 def test_schutzenberger_group_order_is_h_class_size(sg):
+    pytest.importorskip("sympy")
     green = sg.green()
     for members in green.h_classes:
         assert int(green.schutzenberger_group(members[0]).order()) == len(members)

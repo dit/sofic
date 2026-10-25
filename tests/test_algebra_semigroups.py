@@ -142,6 +142,7 @@ def test_cayley_graph_edges_are_labeled():
 
 
 def test_green_structure_of_t3():
+    pytest.importorskip("sympy")
     green = full_transformation_monoid(3).green()
     assert sorted(d.size for d in green.d_classes) == [3, 6, 18]
     assert sorted(int(g.order()) for _, g in green.maximal_subgroups()) == [1, 2, 6]
@@ -168,6 +169,7 @@ def test_aperiodicity_agrees_with_trivial_h_classes(sg):
 
 @given(semigroups())
 def test_maximal_subgroup_orders_match_their_h_classes(sg):
+    pytest.importorskip("sympy")
     green = sg.green()
     for e, group in green.maximal_subgroups():
         assert int(group.order()) == len(green.h_classes[green.h_of[e]])

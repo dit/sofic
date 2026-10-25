@@ -89,6 +89,7 @@ def test_three_bit_left_shift_powerset_complexity_without_enumeration():
 
 
 def test_table_one_three_bit_rows():
+    pytest.importorskip("sympy")
     one_letter = TransformationSemigroup({"a": register(3, lambda s: s[0] ^ s[1])})
     assert prime_decomposition(one_letter).simple_group_orders() == (7,)
     two_letters = TransformationSemigroup(

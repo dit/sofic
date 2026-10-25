@@ -102,11 +102,18 @@ class HolonomyLevel:
         )
 
     @property
+    def orders(self) -> tuple[int, ...]:
+        """Order of each representative's holonomy group (no sympy needed for small groups)."""
+        from sofic.algebra._groups import group_order
+
+        return tuple(
+            group_order(gens, len(tiles)) for gens, tiles in zip(self.group_generators, self.tiles, strict=True)
+        )
+
+    @property
     def order(self) -> int:
         """Order of the level group, the direct product of its holonomy groups."""
-        if self.is_trivial:
-            return 1
-        return prod(int(g.order()) for g in self.groups)
+        return prod(self.orders)
 
     @property
     def is_trivial(self) -> bool:
@@ -488,8 +495,8 @@ class HolonomyDecomposition:
         lines = [f"holonomy decomposition: {len(self.image_set)} image sets, {self.n_levels} levels"]
         for level in self.levels:
             parts = []
-            for rep, tiles, group in zip(level.representatives, level.tiles, level.groups, strict=True):
-                parts.append(f"{show(rep)} [{len(tiles)} tiles, |H|={group.order()}]")
+            for rep, tiles, order in zip(level.representatives, level.tiles, level.orders, strict=True):
+                parts.append(f"{show(rep)} [{len(tiles)} tiles, |H|={order}]")
             lines.append(f"  depth {level.depth}: " + "; ".join(parts))
         return "\n".join(lines)
 

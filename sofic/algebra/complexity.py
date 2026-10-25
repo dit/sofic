@@ -90,7 +90,7 @@ def is_full_transformation_monoid(semigroup: Any) -> bool:
     """
     from math import factorial
 
-    from sofic.algebra._groups import permutation_group
+    from sofic.algebra._groups import group_order
 
     n = semigroup.degree
     gens = list(semigroup.generators.values())
@@ -99,7 +99,7 @@ def is_full_transformation_monoid(semigroup: Any) -> bool:
     if not any(g.rank() == n - 1 for g in gens):
         return False
     perms = [g.images for g in gens if g.is_permutation()]
-    return bool(perms) and int(permutation_group(perms, n).order()) == factorial(n)
+    return bool(perms) and group_order(perms, n) == factorial(n)
 
 
 def _full_transformation_bound(hd: HolonomyDecomposition) -> int:

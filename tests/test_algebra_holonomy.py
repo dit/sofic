@@ -5,7 +5,6 @@ import math
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from sympy.combinatorics.named_groups import AlternatingGroup, DirectProduct, SymmetricGroup
 
 from sofic.algebra import (
     TransformationSemigroup,
@@ -76,7 +75,7 @@ def test_egri_nagy_nehaniv_example_7_2():
     hd = holonomy_decomposition(TransformationSemigroup(EXAMPLE_7_2))
     assert len(hd.image_set) == 19
     assert hd.n_levels == 5
-    groups = [sorted(int(g.order()) for g in level.groups) for level in hd.levels]
+    groups = [sorted(level.orders) for level in hd.levels]
     assert groups == [[1], [3], [2, 6], [2, 3], [1]]
 
 
@@ -195,6 +194,7 @@ def test_full_transformation_monoid_complexity(n):
 def test_cyclic_groups_have_complexity_one(n):
     sg = TransformationSemigroup({"a": (*range(1, n), 0)})
     assert krohn_rhodes_complexity(sg).exact == 1
+    pytest.importorskip("sympy")
     expected = [p for p in range(2, n + 1) if n % p == 0 and all(p % q for q in range(2, p))]
     assert set(prime_decomposition(sg).simple_group_orders()) == set(expected)
 
@@ -224,6 +224,7 @@ def test_complexity_bounds_are_consistent(sg):
 
 
 def test_a5_is_a_nonabelian_simple_prime():
+    pytest.importorskip("sympy")
     sg = TransformationSemigroup({"a": (1, 2, 3, 4, 0), "b": (1, 2, 0, 3, 4)})
     (factor,) = prime_decomposition(sg).groups
     assert (factor.kind, factor.order) == ("nonabelian simple", 60)
@@ -231,17 +232,21 @@ def test_a5_is_a_nonabelian_simple_prime():
 
 
 @pytest.mark.parametrize(
-    ("group", "orders"),
+    ("factors", "orders"),
     [
-        (AlternatingGroup(5), [60]),
-        (SymmetricGroup(5), [2, 60]),
-        (SymmetricGroup(6), [2, 360]),
-        (SymmetricGroup(4), [2, 2, 2, 3]),
-        (DirectProduct(AlternatingGroup(5), AlternatingGroup(5)), [60, 60]),
-        (DirectProduct(AlternatingGroup(5), SymmetricGroup(3)), [2, 3, 60]),
+        ((("A", 5),), [60]),
+        ((("S", 5),), [2, 60]),
+        ((("S", 6),), [2, 360]),
+        ((("S", 4),), [2, 2, 2, 3]),
+        ((("A", 5), ("A", 5)), [60, 60]),
+        ((("A", 5), ("S", 3)), [2, 3, 60]),
     ],
 )
-def test_composition_factor_orders(group, orders):
+def test_composition_factor_orders(factors, orders):
+    named = pytest.importorskip("sympy.combinatorics.named_groups")
+    build = {"A": named.AlternatingGroup, "S": named.SymmetricGroup}
+    groups = [build[kind](n) for kind, n in factors]
+    group = groups[0] if len(groups) == 1 else named.DirectProduct(*groups)
     assert composition_factor_orders(group) == orders
 
 
