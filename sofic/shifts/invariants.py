@@ -99,6 +99,35 @@ def jordan_form_away_from_zero(matrix: np.ndarray | SymbolicModel) -> tuple[tupl
     return tuple(sorted(blocks, key=lambda block: (sp.default_sort_key(block[0]), block[1])))
 
 
+def factor_syntactic_monoid(shift: SymbolicModel, *, max_size: int | None = None) -> Any:
+    """Return the syntactic monoid of the shift's factor language ``B(X)``.
+
+    ``B(X)`` is the set of words labeling finite paths in any presentation,
+    so this monoid depends only on the shift, not on the presentation
+    :cite:`LindMarcus1995`. It is a language invariant, not a conjugacy
+    invariant: recoding the alphabet by a sliding block code changes the
+    language. See :func:`~sofic.algebra.syntactic.syntactic_monoid`.
+    """
+    from sofic.algebra.syntactic import factor_monoid
+    from sofic.algebra.transformation import DEFAULT_MAX_SIZE
+
+    cap = DEFAULT_MAX_SIZE if max_size is None else max_size
+    return factor_monoid(shift, alphabet=shift.symbol_alphabet or None, max_size=cap)
+
+
+def factor_krohn_rhodes_complexity(shift: SymbolicModel) -> Any:
+    """Krohn-Rhodes complexity bounds of :func:`factor_syntactic_monoid`.
+
+    Zero exactly when ``B(X)`` is star-free :cite:`Schutzenberger1965`; every
+    shift of finite type has complexity zero, while the even shift, whose
+    language counts the symbol ``1`` modulo two, has complexity one. See
+    :func:`~sofic.algebra.complexity.krohn_rhodes_complexity`.
+    """
+    from sofic.algebra.complexity import krohn_rhodes_complexity
+
+    return krohn_rhodes_complexity(factor_syntactic_monoid(shift))
+
+
 def _integer_matrix(matrix: np.ndarray | SymbolicModel) -> np.ndarray:
     if isinstance(matrix, SymbolicModel):
         return integer_adjacency_matrix(matrix)[0]

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sofic.shifts.base import SymbolicModel
 
 if TYPE_CHECKING:
+    from sofic.algebra.complexity import ComplexityBounds
+    from sofic.algebra.transformation import TransformationSemigroup
     from sofic.generators.mealy import MealyHMM
 
 
@@ -64,6 +66,25 @@ class SoficShift(SymbolicModel):
         from sofic.shifts.topological_anatomy import topological_anatomy
 
         return topological_anatomy(self)
+
+    def transition_semigroup(self, **kwargs: Any) -> TransformationSemigroup:
+        """Transition semigroup of this presentation, or of its right Fischer cover if not right-resolving.
+
+        See :func:`~sofic.algebra.adapters.transformation_semigroup`.
+        """
+        from sofic.algebra.adapters import transformation_semigroup
+
+        return transformation_semigroup(self, **kwargs)
+
+    def krohn_rhodes_complexity(self) -> ComplexityBounds:
+        """Krohn-Rhodes complexity bounds of the factor language's syntactic monoid.
+
+        Presentation-independent; see
+        :func:`~sofic.shifts.invariants.factor_krohn_rhodes_complexity`.
+        """
+        from sofic.shifts.invariants import factor_krohn_rhodes_complexity
+
+        return factor_krohn_rhodes_complexity(self)
 
     def markov_order(self) -> int | float:
         """Markov order ``R`` when the presentation is right-resolving (unifilar)."""

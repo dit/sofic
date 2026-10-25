@@ -19,7 +19,13 @@ from collections import defaultdict, deque
 from collections.abc import Hashable
 from typing import Any
 
-from sofic.automata.wheeler import WheelerError, WheelerOrder, labeled_graph, wheeler_order
+from sofic.automata.wheeler import (
+    WheelerError,
+    WheelerOrder,
+    labeled_graph,
+    star_free_obstruction,
+    wheeler_order,
+)
 from sofic.graph import ATTR_SYMBOL, TransitionGraph
 from sofic.shifts.covers import WheelerCover
 from sofic.shifts.sofic import SoficShift
@@ -140,10 +146,7 @@ def wheeler_cover(
         found = wheeler_order(candidate)
         if found is not None:
             return _merge_wheeler_runs(candidate, found, follower_depth=follower_depth)
-    raise WheelerError(
-        f"no Wheeler presentation of order <= {max_order}; Wheeler languages are star-free, "
-        "so a shift that counts modulo anything (the even shift, for one) has none at any order"
-    )
+    raise WheelerError(f"no Wheeler presentation of order <= {max_order}; {star_free_obstruction(trimmed)}")
 
 
 def is_wheeler_shift(shift: SoficShift, *, max_order: int = DEFAULT_MAX_ORDER) -> bool:

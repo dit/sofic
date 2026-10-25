@@ -258,6 +258,35 @@ Example
    In [3]: golden_mean(0.5).entropy_rate()
    Out[3]: 0.6666666666666665
 
+Algebraic structure
+~~~~~~~~~~~~~~~~~~~
+
+The transition semigroup of an ε-machine depends only on its support. The
+golden mean process is a shift of finite type, so its semigroup is aperiodic
+and its Krohn-Rhodes complexity is zero. The even process has to count ``1``\ s
+modulo two, so it needs one group level (see :doc:`algebra/algebra`):
+
+.. ipython::
+
+   In [1]: from sofic.algebra import TransformationSemigroup, krohn_rhodes_complexity
+
+   @doctest
+   In [2]: golden_mean().krohn_rhodes_complexity()
+   Out[2]: ComplexityBounds(lower=0, upper=0, exact=0)
+
+   @doctest
+   In [3]: even_process().krohn_rhodes_complexity()
+   Out[3]: ComplexityBounds(lower=1, upper=1, exact=1)
+
+   In [4]: mod3 = TransformationSemigroup({"0": (0, 1, 2), "1": (1, 2, 0)})
+
+   @doctest
+   In [5]: [level.order for level in mod3.holonomy().levels]
+   Out[5]: [3]
+
+A counter modulo three is a single cyclic group of order three: one level,
+complexity one.
+
 API
 ---
 

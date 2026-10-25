@@ -17,7 +17,13 @@ from sofic.shifts.dyck_enumeration import (
     iter_sofic_dyck_topologies,
     shift_to_dyck_graph_string,
 )
-from sofic.shifts.invariants import BowenFranksGroup, bowen_franks_group, jordan_form_away_from_zero
+from sofic.shifts.invariants import (
+    BowenFranksGroup,
+    bowen_franks_group,
+    factor_krohn_rhodes_complexity,
+    factor_syntactic_monoid,
+    jordan_form_away_from_zero,
+)
 from sofic.shifts.markov_dyck import MarkovDyckShift
 from sofic.shifts.product_alphabet_shift import ProductAlphabetShift
 from sofic.shifts.sft import ShiftOfFiniteType
