@@ -30,6 +30,7 @@ Computational mechanics
    epsilon_machine
    epsilon_transducer
    channel_capacity
+   channel_coding
    block_convergence
    bidirectional_epsilon_machine
    mixed_state_presentation

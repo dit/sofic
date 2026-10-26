@@ -4,6 +4,7 @@ from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel, Stoch
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.block_convergence import BlockConvergenceDiagram, BlockConvergenceEstimates
 from sofic.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
+from sofic.generators.channel_coding import FiniteStateChannel
 from sofic.generators.channel_measures import (
     channel_statistical_complexity,
     driven_entropy_rate,
@@ -75,6 +76,7 @@ __all__ = [
     "BlockConvergenceEstimates",
     "EpsilonMachine",
     "EpsilonTransducer",
+    "FiniteStateChannel",
     "LumpabilityError",
     "channel_statistical_complexity",
     "driven_entropy_rate",

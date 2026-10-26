@@ -98,6 +98,15 @@ def channel_tensors(channel: MealyMachine) -> ChannelTensors:
     if not allowed.any(axis=1).all():
         raise StochasticValidationError("every state needs at least one admissible input")
 
+    return ChannelTensors(states, inputs, outputs, P, F, allowed, initial_law(channel, states))
+
+
+def initial_law(channel: MealyMachine, states: tuple[Hashable, ...] | list[Hashable]) -> np.ndarray:
+    """Return the initial state law of ``channel`` over ``states``.
+
+    An explicit ``initial_distribution`` wins; otherwise the law is uniform on
+    ``initial_states``, or on every state when there are none.
+    """
     distribution = getattr(channel, "initial_distribution", None) or {}
     if distribution:
         initial = np.array([float(distribution.get(state, 0.0)) for state in states])
@@ -105,8 +114,7 @@ def channel_tensors(channel: MealyMachine) -> ChannelTensors:
         initial = np.array([1.0 if state in channel.initial_states else 0.0 for state in states])
         if initial.sum() == 0.0:
             initial = np.ones(len(states))
-    initial = initial / initial.sum()
-    return ChannelTensors(states, inputs, outputs, P, F, allowed, initial)
+    return initial / initial.sum()
 
 
 def require_strongly_connected(tensors: ChannelTensors) -> None:

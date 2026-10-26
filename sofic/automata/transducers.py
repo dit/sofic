@@ -219,6 +219,12 @@ class MealyMachine(Transducer):
 
         return TextileSystem.from_transducer(self).induced_code(max_window=max_window)
 
+    def __dit_channel__(self) -> Any:
+        """Return this stochastic transducer as a channel for :mod:`dit.coding` codes."""
+        from sofic.generators.channel_coding import FiniteStateChannel
+
+        return FiniteStateChannel(self)
+
     def labeled_transition_matrices(
         self,
         node_ordering: Sequence[Hashable] | None = None,
