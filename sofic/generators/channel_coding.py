@@ -151,3 +151,35 @@ class FiniteStateChannel:
 
         bounds = capacity(self.machine, **kwargs)
         return (bounds.lower, bounds.upper)
+
+    def feedback_initial(self) -> np.ndarray:
+        """Return the transmitter's initial belief about the state: the initial law."""
+        return self.initial
+
+    def feedback_step(self, belief: np.ndarray, x: Any) -> list[tuple[Any, float, np.ndarray]]:
+        """Return every ``(y, p(y | x, belief), next_belief)`` of one channel use.
+
+        ``belief`` is the law of the current state given the inputs sent and
+        the outputs fed back so far; the next belief is the normalized forward
+        vector :math:`\\alpha T^{(x, y)} / \\alpha T^{(x, y)} \\mathbf{1}`.
+        """
+        T = self.T[self._in_index[x]]
+        outcomes = []
+        for j, y in enumerate(self.outputs):
+            alpha = belief @ T[j]
+            p = float(alpha.sum())
+            if p > 0.0:
+                outcomes.append((y, p, alpha / p))
+        return outcomes
+
+    def feedback_capacity(self, **kwargs: Any) -> tuple[float, float]:
+        """Bracket the capacity with feedback, as ``(lower, upper)`` bits per use.
+
+        Delegates to :func:`sofic.generators.capacity.feedback_capacity`, which
+        needs a strongly connected unifilar channel; keyword arguments are
+        passed on.
+        """
+        from sofic.generators.capacity import feedback_capacity
+
+        bounds = feedback_capacity(self.machine, **kwargs)
+        return (bounds.lower, bounds.upper)
