@@ -44,9 +44,43 @@ What the wrapper provides
   capacity *without* feedback (the codes do not use feedback). It requires a
   strongly connected unifilar channel; see :doc:`channel_capacity`.
 
+- **Feedback.** :meth:`FiniteStateChannel.feedback_step` steps the channel one
+  use at a time for dit's feedback codes, with the normalized forward vector
+  (the law of the state given the inputs sent and the outputs fed back) as the
+  transmitter's belief, and :meth:`FiniteStateChannel.feedback_capacity`
+  returns the bracket of :func:`sofic.generators.capacity.feedback_capacity`.
+
 Polar codes are designed from a channel's Bhattacharyya parameter, which a
 channel with memory does not have. Design the polar code on a memoryless
 channel and pass the finite-state channel to ``decode``.
+
+Codes with feedback
+===================
+
+Feedback cannot raise the capacity of a memoryless channel, but it can raise
+the capacity of a channel with memory. The trapdoor channel's capacity without
+feedback lies in about :math:`[0.572, 0.584]` :cite:`Huleihel2021`, while with
+feedback it is :math:`\log_2 \varphi \approx 0.694` :cite:`Permuter2008`.
+Horstein's bisection scheme :cite:`Horstein1963` (``dit.coding.horstein``)
+tracks the joint posterior over the message and the channel state, so it runs
+over the trapdoor channel unchanged. Stopping once the posterior reaches
+:math:`1 - \delta`, it already beats every code without feedback:
+
+.. code-block:: python
+
+   import numpy as np
+   from dit.coding import horstein
+   from sofic.examples.processes import trapdoor
+
+   code = horstein(10, delta=1e-3)
+   pe, uses = code.performance(trapdoor(), method="montecarlo", samples=300,
+                               prng=np.random.default_rng(1))
+   10 / uses                      # about 0.62 bits per use, with no errors seen
+   code.capacity_gap(trapdoor())  # gap to the feedback capacity, as a bracket
+
+With ``k = 8, 10, 12`` message bits the rate is about ``0.60``, ``0.62`` and
+``0.63``, climbing toward :math:`\log_2 \varphi`. The scheme is not tuned to
+the trapdoor channel: it sends the median split regardless of the state.
 
 Symbols
 =======
