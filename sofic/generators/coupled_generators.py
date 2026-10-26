@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from scipy.optimize import minimize
@@ -307,10 +307,10 @@ def generator_kernel(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: 
             )
     m = len(rows)
     dense = np.array(rows)
-    rhs = np.array(rhs)
+    target = np.array(rhs)
     # |dense K - rhs| <= t ; rows of K sum to one; K >= 0
     A_ub = np.block([[dense, -np.ones((m, 1))], [-dense, -np.ones((m, 1))]])
-    b_ub = np.concatenate([rhs, -rhs])
+    b_ub = np.concatenate([target, -target])
     A_eq = np.zeros((k, nK + 1))
     for w in range(k):
         A_eq[w, w * X * k : (w + 1) * X * k] = 1.0
@@ -428,13 +428,16 @@ def bilevel_search(
     return sorted(out, key=lambda t: (t[1] > 1e-7, t[0]))
 
 
-def _pad(seed: tuple[np.ndarray, ...], k: int, rng: np.random.Generator, noise: float) -> tuple[np.ndarray, ...]:
+Seed = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+
+
+def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
     """Fit a seed with fewer or more states into ``k`` states, adding small mass to empty states."""
     pi, Q, R, K = seed
     m = len(pi)
     if m > k:
         keep = np.argsort(-pi)[:k]
-        pi, Q, R, K = pi[keep], Q[keep], R[keep], K[np.ix_(keep, range(K.shape[1]), keep)]
+        pi, Q, R, K = pi[keep], Q[keep], R[keep], K[np.ix_(keep, np.arange(K.shape[1]), keep)]
         m = k
     pi2 = np.full(k, noise)
     pi2[:m] = pi
@@ -509,7 +512,7 @@ def coupled_search(
     problem = _GeneratorProblem(bidir)
     named = [("eps", problem.epsilon_seed()), ("reverse", problem.reverse_seed()), ("bidir", problem.pair_seed())]
     named += list(extra)
-    thetas = [(name, problem.logits(*_pad(seed, k, rng, 1e-3))) for name, seed in named]
+    thetas = [(name, problem.logits(*_pad(cast(Seed, seed), k, rng, 1e-3))) for name, seed in named]
     thetas += [
         (f"random{i}", rng.normal(scale=1.5, size=sum(int(np.prod(s)) for s in problem.sizes(k))))
         for i in range(starts)

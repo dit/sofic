@@ -94,6 +94,8 @@ def support_type_bound(
         h = -sum(float(m) * np.log2(float(m)) for m in x if m > 0)
         if h < best[0]:
             best = (h, tuple(x))
+    if best[1] is None:
+        raise ValueError("support_type_bound: the type polytope has no vertex")
     return float(best[0]), types, best[1]
 
 

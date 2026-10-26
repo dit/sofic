@@ -228,7 +228,8 @@ def generative_model(
 
     # ---- verify and choose -------------------------------------------------------------------------------
     for value, name, seed in sorted(candidates, key=lambda t: t[0]):
-        result = CoupledSearchResult(*seed, value, problem.residual(*seed), name)
+        pi, Q, R, K = seed
+        result = CoupledSearchResult(pi, Q, R, K, value, problem.residual(pi, Q, R, K), name)
         model = _model_from_kernel(problem, result, 1e-9)
         if _reproduction_error(model, reference, max_length=length) <= reproduction_atol:
             upper = model.state_entropy()
