@@ -141,6 +141,57 @@ only, so ``gap`` can be positive even when some non-lifted generator attains
 :math:`\op{G}{S^+ : S^-}` (the interleaved process above). The gap vanishes for
 first-order Markov processes.
 
+Coupled generators
+==================
+
+:mod:`sofic.generators.coupled_generators` drops the lifting restriction. A
+generator with :math:`k` states is described, jointly with the causal states,
+by a state law :math:`\pi`, beliefs :math:`Q_w(s^+)` and :math:`R_w(s^-)`, and a
+free kernel :math:`K(x, w' \mid w)`; the product
+:math:`\pi_w Q_w(s^+_0) K(x_0, w_1 \mid w_0) R_{w_1}(s^-_1)` must reproduce the
+bidirectional edge law :cite:`Ellison2009`, be stationary on the past side and
+consistent on the future side. :func:`~sofic.generators.coupled_generators.coupled_search`
+minimizes :math:`\H{\pi}` subject to these equations (an augmented Lagrangian
+with analytic gradients) from the ε-machines, the bidirectional machine, extra
+seeds and random starts; :func:`~sofic.generators.coupled_generators.coupled_generative_model`
+returns the best candidate that reproduces the source process. For the
+interleaved process above it reaches :math:`2 h(\tfrac49) = 1.98215`, below the
+best lifted generator (1.99108); for the :math:`(2, \infty)` process it finds
+the ε-machine (1.5).
+
+Two narrower tools share the same equations:
+
+* :func:`~sofic.generators.coupled_generators.memory_lift` builds the
+  *memory-1 lift* of a channel :math:`\nu(v \mid s^+, s^-)`: draw
+  :math:`V_t \sim \nu(\cdot \mid B_t)` independently at each time and take
+  :math:`W_t = (V_t, V_{t+1})`, so consecutive states share randomness. The
+  interleaved process's minimal generator is the memory-1 lift of a single
+  flag, and :func:`~sofic.generators.coupled_generators.memory_lift_search`
+  finds it.
+* :func:`~sofic.generators.coupled_generators.generator_kernel` decides whether
+  a given channel's variable is the state of *any* generator: for a fixed channel
+  the equations are linear in :math:`K`, and a linear program returns the
+  smallest violation and the kernel. The exact-common-information optimum of the
+  :math:`(2, \infty)` process has violation 0.0625, so no generator has it as
+  its state. :func:`~sofic.generators.coupled_generators.bilevel_search`
+  (experimental) searches channels against this violation.
+
+All three searches are local and return upper bounds on :math:`C_g` for the
+given number of states.
+
+Lower bounds
+============
+
+:mod:`sofic.generators.generator_bounds` bounds :math:`\op{G}{S^+ : S^-}`, and
+hence :math:`C_g` (Löhr & Ay :cite:`LohrAy2009`), from below using only the
+support of the causal-state joint distribution. Each value of a separating
+variable has a rectangular support; typing values by maximal rectangles gives a
+polytope of type masses on which entropy is minimized at a vertex
+(:func:`~sofic.generators.generator_bounds.support_type_bound`). The bound is
+exact for the :math:`(2, \infty)` process (:math:`2 - \tfrac38 \log_2 3`) and
+for the golden mean process (:math:`C_\mu`, proving :math:`C_g = C_\mu` there);
+it is uninformative when the support is the full product.
+
 API
 ===
 
@@ -151,6 +202,18 @@ Constructors
 .. autofunction:: wyner_generative_model
 .. autofunction:: functional_generative_model
 .. autofunction:: gacs_korner_generative_model
+
+Coupled generators and bounds
+-----------------------------
+
+.. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
+.. autofunction:: sofic.generators.coupled_generators.coupled_search
+.. autofunction:: sofic.generators.coupled_generators.memory_lift
+.. autofunction:: sofic.generators.coupled_generators.memory_lift_search
+.. autofunction:: sofic.generators.coupled_generators.generator_kernel
+.. autofunction:: sofic.generators.coupled_generators.bilevel_search
+.. autofunction:: sofic.generators.generator_bounds.support_type_bound
+.. autofunction:: sofic.generators.generator_bounds.generator_support_bound
 
 Measures
 --------
