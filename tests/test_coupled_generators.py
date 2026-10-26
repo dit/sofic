@@ -146,3 +146,40 @@ def test_coupled_generative_model_reproduces_the_process() -> None:
     reference = bidir.forward_machine
     assert _reproduction_error(model, reference, max_length=_reproduction_length(reference)) < 1e-5
     assert model.generative_complexity() == pytest.approx(_h(1 / 3), abs=1e-5)
+
+
+def test_polishing_makes_the_flag_channel_exact() -> None:
+    """A slightly perturbed product-flag channel is polished back to an exact generator state."""
+    z = cg._GeneratorProblem(_interleaved(0.1))
+    nu = _flag_channel(z, 0.1)
+    joint = np.einsum("pxq,pv,qu->vup", z.lifted.edges, nu, nu).reshape(4, -1)
+    c = (joint / z.lifted.p[None, :]).T
+    rng = np.random.default_rng(0)
+    noisy = np.clip(c + 1e-4 * rng.random(c.shape), 0, None)
+    noisy /= noisy.sum(axis=1, keepdims=True)
+    assert cg.generator_kernel(z, noisy)[0] > 1e-6
+    polished = cg.polish_separating_channel(z, noisy)
+    assert cg.generator_kernel(z, polished)[0] == pytest.approx(0.0, abs=1e-9)
+    pi = z.lifted.p @ polished
+    assert float(-(pi[pi > 0] * np.log2(pi[pi > 0])).sum()) == pytest.approx(2 * _h(4 / 9), abs=1e-7)
+
+
+def test_generative_model_certifies_the_golden_mean() -> None:
+    from sofic.generators.generative_search import generative_model
+
+    result = generative_model(golden_mean_bidirectional(0.5), starts=3, max_states=3, rng=np.random.default_rng(0))
+    assert result.certified
+    assert result.upper == pytest.approx(_h(1 / 3), abs=1e-6)
+    assert result.separating_variables_generate
+
+
+def test_generative_model_brackets_the_rll_process() -> None:
+    from sofic.generators.generative_search import generative_model
+
+    result = generative_model(
+        _rll(), stages=("machines", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
+    )
+    assert result.lower == pytest.approx(2 - 3 / 8 * np.log2(3), abs=1e-9)
+    assert result.lower_source == "support-type bound"
+    assert result.upper == pytest.approx(1.5, abs=1e-5)
+    assert not result.certified and not result.separating_variables_generate

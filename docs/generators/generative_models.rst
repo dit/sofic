@@ -179,6 +179,34 @@ Two narrower tools share the same equations:
 All three searches are local and return upper bounds on :math:`C_g` for the
 given number of states.
 
+Searching for a generator
+=========================
+
+:func:`~sofic.generators.generative_search.generative_model` combines these
+tools into one pipeline and returns the best generator it can verify together
+with a rigorous bracket on :math:`C_g`:
+
+* lower bounds: the excess entropy and the support-type bound below;
+* the persistent-crypticity criteria; when both vanish every separating variable
+  is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
+* the exact-common-information optima (dit, several starts, since the optimum
+  need not be unique and only some optima generate), each polished to exact
+  separation with :func:`~sofic.generators.coupled_generators.polish_separating_channel`
+  and tested with :func:`~sofic.generators.coupled_generators.generator_kernel`;
+* upper bounds over nested classes, cheapest first: the ε-machines and
+  bidirectional machine, memory-1 lifts, deterministic and lifted channels (for
+  small machines), and the coupled search seeded with everything found so far.
+
+.. code-block:: python
+
+   result = generative_model(bidir)
+   result.lower, result.upper, result.certified   # bracket on C_g
+   result.upper_source, result.lower_source       # which stage produced each bound
+   result.model                                   # the generator, verified against the source
+
+The searches are local; ``certified`` reports when the bracket closes (for
+example the golden mean, where the support bound meets :math:`C_\mu`).
+
 Lower bounds
 ============
 
@@ -206,7 +234,11 @@ Constructors
 Coupled generators and bounds
 -----------------------------
 
+.. autofunction:: sofic.generators.generative_search.generative_model
+.. autoclass:: sofic.generators.generative_search.GenerativeModelResult
+   :members: certified, gap
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
+.. autofunction:: sofic.generators.coupled_generators.polish_separating_channel
 .. autofunction:: sofic.generators.coupled_generators.coupled_search
 .. autofunction:: sofic.generators.coupled_generators.memory_lift
 .. autofunction:: sofic.generators.coupled_generators.memory_lift_search

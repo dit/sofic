@@ -322,6 +322,75 @@ def generator_kernel(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: 
     return float(res.x[-1]), res.x[:-1].reshape(k, X, k)
 
 
+def polish_separating_channel(
+    bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: np.ndarray, *, maxiter: int = 500
+) -> np.ndarray:
+    """Re-solve a separating channel's decomposition ``p(s+, s-) = sum_w lam_w Q_w(s+) R_w(s-)`` exactly.
+
+    Starts from the channel's own ``(lam, Q, R)`` and minimizes ``H[lam]`` with SLSQP under the exact
+    decomposition constraints (unconstrained optimizers such as dit's satisfy them only to a tolerance, which
+    is enough to make an otherwise valid generator state fail :func:`generator_kernel`). Returns the polished
+    channel ``c'[pair, w] = lam_w Q_w(s+) R_w(s-) / p(s+, s-)``.
+    """
+    problem = _as_problem(bidir)
+    lifted = problem.lifted
+    P = lifted.plus.T @ (lifted.p[:, None] * lifted.minus)  # p(s+, s-)
+    pi, Q, R, _ = problem.channel_seed(c)
+    keep = pi > 1e-12
+    lam0, Q0, R0 = pi[keep], Q[keep], R[keep]
+    k, na, nb = len(lam0), P.shape[0], P.shape[1]
+    n = k + k * na + k * nb
+
+    def split(x):
+        return x[:k], x[k : k + k * na].reshape(k, na), x[k + k * na :].reshape(k, nb)
+
+    def H(x):
+        lam = np.maximum(x[:k], 1e-300)
+        return float(-(lam * np.log2(lam)).sum())
+
+    def dH(x):
+        g = np.zeros(n)
+        g[:k] = -(np.log2(np.maximum(x[:k], 1e-15)) + 1 / _LN2)
+        return g
+
+    def dec(x):
+        lam, A, B = split(x)
+        return (np.einsum("w,wa,wb->ab", lam, A, B) - P).ravel()[:-1]
+
+    def ddec(x):
+        lam, A, B = split(x)
+        J = np.zeros((na, nb, n))
+        J[:, :, :k] = np.einsum("wa,wb->abw", A, B)
+        for w in range(k):
+            for a in range(na):
+                J[a, :, k + w * na + a] = lam[w] * B[w]
+            for b in range(nb):
+                J[:, b, k + k * na + w * nb + b] = lam[w] * A[w]
+        return J.reshape(na * nb, n)[:-1]
+
+    S = np.zeros((1 + 2 * k, n))
+    S[0, :k] = 1
+    for w in range(k):
+        S[1 + w, k + w * na : k + (w + 1) * na] = 1
+        S[1 + k + w, k + k * na + w * nb : k + k * na + (w + 1) * nb] = 1
+    x0 = np.concatenate([lam0, Q0.ravel(), R0.ravel()])
+    res = minimize(
+        H,
+        x0,
+        jac=dH,
+        method="SLSQP",
+        bounds=[(0, 1)] * n,
+        constraints=[
+            {"type": "eq", "fun": dec, "jac": ddec},
+            {"type": "eq", "fun": lambda x: S @ x - np.concatenate([[1.0], np.ones(2 * k)]), "jac": lambda x: S},
+        ],
+        options={"maxiter": maxiter, "ftol": 1e-14},
+    )
+    lam, A, B = split(np.clip(res.x, 0, None))
+    joint = np.einsum("w,pa,pb,wa,wb->pw", lam, lifted.plus, lifted.minus, A, B)
+    return joint / np.maximum(joint.sum(axis=1, keepdims=True), 1e-300)
+
+
 def bilevel_search(
     bidir: BidirectionalEpsilonMachine,
     starts: Sequence[np.ndarray],
@@ -543,4 +612,5 @@ __all__ = [
     "generator_kernel",
     "memory_lift",
     "memory_lift_search",
+    "polish_separating_channel",
 ]
