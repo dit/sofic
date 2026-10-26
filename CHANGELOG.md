@@ -135,6 +135,12 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### New
 
+- `FiniteStateChannel`: a stochastic `MealyMachine` (or ε-transducer) as a
+  channel for `dit.coding` channel codes. `MealyMachine.__dit_channel__` returns
+  it, so `hamming(3).probability_of_error(trapdoor())` works directly. The
+  likelihood comes from the forward algorithm, the soft decoders get BCJR symbol
+  likelihoods, and `capacity_gap` returns a `(lower, upper)` bracket from the
+  no-feedback capacity bounds. Needs a dit with `dit.coding.as_channel`.
 - `sofic.algebra`: algebraic automata theory for deterministic presentations.
   `TransformationSemigroup` (lazy closure, shortest words, sink completion of
   partial maps), Green's relations and maximal subgroups, `syntactic_monoid`
