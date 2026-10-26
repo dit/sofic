@@ -183,3 +183,20 @@ def test_generative_model_brackets_the_rll_process() -> None:
     assert result.lower_source == "support-type bound"
     assert result.upper == pytest.approx(1.5, abs=1e-5)
     assert not result.certified and not result.separating_variables_generate
+
+
+def test_separating_optima_finds_the_generating_flags() -> None:
+    """The interleaved process has several optima of G[S+ : S-]; exactly two of them are generator states."""
+    problem = cg._GeneratorProblem(_interleaved(0.1))
+    best, optima = cg.separating_optima(problem, starts=30, sizes=(4,), rng=np.random.default_rng(0))
+    assert best == pytest.approx(2 * _h(4 / 9), abs=1e-7)
+    generating = [c for c in optima if cg.generator_kernel(problem, c)[0] <= 1e-9]
+    assert len(optima) > len(generating) == 2
+
+
+def test_separating_optima_of_rll_are_not_generator_states() -> None:
+    problem = cg._GeneratorProblem(_rll())
+    best, optima = cg.separating_optima(problem, starts=20, sizes=(3, 4), rng=np.random.default_rng(0))
+    assert best == pytest.approx(2 - 3 / 8 * np.log2(3), abs=1e-7)
+    assert len(optima) == 2
+    assert all(cg.generator_kernel(problem, c)[0] > 1e-3 for c in optima)

@@ -322,22 +322,13 @@ def generator_kernel(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: 
     return float(res.x[-1]), res.x[:-1].reshape(k, X, k)
 
 
-def polish_separating_channel(
-    bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: np.ndarray, *, maxiter: int = 500
-) -> np.ndarray:
-    """Re-solve a separating channel's decomposition ``p(s+, s-) = sum_w lam_w Q_w(s+) R_w(s-)`` exactly.
+def _decompose(
+    P: np.ndarray, lam0: np.ndarray, Q0: np.ndarray, R0: np.ndarray, maxiter: int = 500
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """Minimize ``H[lam]`` over exact decompositions ``P = sum_w lam_w Q_w R_w^T`` with SLSQP from ``(lam0, Q0, R0)``.
 
-    Starts from the channel's own ``(lam, Q, R)`` and minimizes ``H[lam]`` with SLSQP under the exact
-    decomposition constraints (unconstrained optimizers such as dit's satisfy them only to a tolerance, which
-    is enough to make an otherwise valid generator state fail :func:`generator_kernel`). Returns the polished
-    channel ``c'[pair, w] = lam_w Q_w(s+) R_w(s-) / p(s+, s-)``.
+    Returns ``(lam, Q, R, residual)``, the residual being the largest entry of ``|sum_w lam_w Q_w R_w^T - P|``.
     """
-    problem = _as_problem(bidir)
-    lifted = problem.lifted
-    P = lifted.plus.T @ (lifted.p[:, None] * lifted.minus)  # p(s+, s-)
-    pi, Q, R, _ = problem.channel_seed(c)
-    keep = pi > 1e-12
-    lam0, Q0, R0 = pi[keep], Q[keep], R[keep]
     k, na, nb = len(lam0), P.shape[0], P.shape[1]
     n = k + k * na + k * nb
 
@@ -373,22 +364,95 @@ def polish_separating_channel(
     for w in range(k):
         S[1 + w, k + w * na : k + (w + 1) * na] = 1
         S[1 + k + w, k + k * na + w * nb : k + k * na + (w + 1) * nb] = 1
-    x0 = np.concatenate([lam0, Q0.ravel(), R0.ravel()])
+    ones = np.ones(1 + 2 * k)
     res = minimize(
         H,
-        x0,
+        np.concatenate([lam0, Q0.ravel(), R0.ravel()]),
         jac=dH,
         method="SLSQP",
         bounds=[(0, 1)] * n,
         constraints=[
             {"type": "eq", "fun": dec, "jac": ddec},
-            {"type": "eq", "fun": lambda x: S @ x - np.concatenate([[1.0], np.ones(2 * k)]), "jac": lambda x: S},
+            {"type": "eq", "fun": lambda x: S @ x - ones, "jac": lambda x: S},
         ],
         options={"maxiter": maxiter, "ftol": 1e-14},
     )
     lam, A, B = split(np.clip(res.x, 0, None))
+    residual = float(np.abs(np.einsum("w,wa,wb->ab", lam, A, B) - P).max())
+    return lam, A, B, residual
+
+
+def _pair_joint(problem: _GeneratorProblem) -> np.ndarray:
+    lifted = problem.lifted
+    return lifted.plus.T @ (lifted.p[:, None] * lifted.minus)
+
+
+def _channel_from_decomposition(problem: _GeneratorProblem, lam, A, B) -> np.ndarray:
+    lifted = problem.lifted
     joint = np.einsum("w,pa,pb,wa,wb->pw", lam, lifted.plus, lifted.minus, A, B)
     return joint / np.maximum(joint.sum(axis=1, keepdims=True), 1e-300)
+
+
+def polish_separating_channel(
+    bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: np.ndarray, *, maxiter: int = 500
+) -> np.ndarray:
+    """Re-solve a separating channel's decomposition ``p(s+, s-) = sum_w lam_w Q_w(s+) R_w(s-)`` exactly.
+
+    Starts from the channel's own ``(lam, Q, R)`` and minimizes ``H[lam]`` with SLSQP under the exact
+    decomposition constraints (unconstrained optimizers such as dit's satisfy them only to a tolerance, which
+    is enough to make an otherwise valid generator state fail :func:`generator_kernel`). Returns the polished
+    channel ``c'[pair, w] = lam_w Q_w(s+) R_w(s-) / p(s+, s-)``.
+    """
+    problem = _as_problem(bidir)
+    pi, Q, R, _ = problem.channel_seed(c)
+    keep = pi > 1e-12
+    lam, A, B, _ = _decompose(_pair_joint(problem), pi[keep], Q[keep], R[keep], maxiter)
+    return _channel_from_decomposition(problem, lam, A, B)
+
+
+def separating_optima(
+    bidir: BidirectionalEpsilonMachine | _GeneratorProblem,
+    *,
+    starts: int = 60,
+    sizes: Sequence[int] | None = None,
+    atol: float = 1e-7,
+    rng: np.random.Generator | None = None,
+) -> tuple[float, list[np.ndarray]]:
+    """Distinct optima of the exact common information ``G[S+ : S-]`` found by multistart exact decomposition.
+
+    Runs :func:`_decompose` (SLSQP with exact constraints) from ``starts`` random points for each number of terms in
+    ``sizes`` (default ``2 .. min(|S+| |S-|, 8)``, within the Kumar-Li-El Gamal bound :cite:`Kumar2014`), keeps the
+    solutions within ``atol`` of the best value, removes duplicates (equal sets of terms up to relabeling) and
+    returns ``(best value, channels)``. The optimum need not be unique, and only some optima may be generator
+    states; :func:`generator_kernel` decides which.
+    """
+    problem = _as_problem(bidir)
+    rng = rng or np.random.default_rng()
+    P = _pair_joint(problem)
+    na, nb = P.shape
+    sizes = sizes or range(2, min(na * nb, 8) + 1)
+    found = []
+    for k in sizes:
+        for _ in range(starts):
+            lam, A, B, residual = _decompose(
+                P, rng.dirichlet(np.ones(k)), rng.dirichlet(np.ones(na), size=k), rng.dirichlet(np.ones(nb), size=k)
+            )
+            if residual <= 1e-10:
+                live = lam > 1e-10
+                p = lam[live]
+                found.append((float(-(p * np.log2(p)).sum()), lam[live], A[live], B[live]))
+    if not found:
+        return np.inf, []
+    best = min(f[0] for f in found)
+    optima, keys = [], []
+    for value, lam, A, B in sorted(found, key=lambda f: f[0]):
+        if value > best + atol:
+            break
+        key = sorted(tuple(np.round(np.concatenate([[l], a, b]), 6)) for l, a, b in zip(lam, A, B, strict=True))
+        if key not in keys:
+            keys.append(key)
+            optima.append(_channel_from_decomposition(problem, lam, A, B))
+    return best, optima
 
 
 def bilevel_search(
@@ -616,4 +680,5 @@ __all__ = [
     "memory_lift",
     "memory_lift_search",
     "polish_separating_channel",
+    "separating_optima",
 ]

@@ -11,9 +11,10 @@ verify together with a rigorous bracket :math:`[\text{lower}, \text{upper}]` on 
    (both persistent crypticities vanish), every variable separating :math:`S^+` from :math:`S^-` is a generator
    state, so :math:`C_g = \op{G}{S^+ : S^-}`; this is reported but needs no special handling, since the
    unconstrained optimum then passes the next test.
-3. *Exact test of the unconstrained optima.* Exact-common-information channels (Kumar, Li & El Gamal
-   :cite:`Kumar2014`, found with dit from several starts, since there can be several optima of which only some
-   generate) are polished to exact separation and checked with the linear program of
+3. *Exact test of the unconstrained optima.* The optima of the exact common information (Kumar, Li & El Gamal
+   :cite:`Kumar2014`) are enumerated by multistart exact decomposition
+   (:func:`~sofic.generators.coupled_generators.separating_optima`; there can be several, of which only some
+   generate), dit's polished optimum is added, and each is checked with the linear program of
    :func:`~sofic.generators.coupled_generators.generator_kernel`; if a kernel exists, :math:`C_g` equals the
    exact-common-information value found.
 4. *Upper bounds over nested classes:* the ε-machines and bidirectional machine; deterministic channels
@@ -46,6 +47,7 @@ from sofic.generators.coupled_generators import (
     memory_lift,
     memory_lift_search,
     polish_separating_channel,
+    separating_optima,
 )
 from sofic.generators.generator_bounds import maximal_rectangles, support_type_bound
 
@@ -108,7 +110,8 @@ def generative_model(
     reproduction_atol: float = 1e-5,
     stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled"),
     large: int = 9,
-    exact_runs: int = 8,
+    exact_starts: int = 30,
+    dit_fallback: bool = True,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Run the generator-search pipeline of the module docstring.
@@ -170,12 +173,15 @@ def generative_model(
 
     g_estimate = None
     if "exact" in stages:
-        # The unconstrained problem can have several optima, only some of them generator states; dit lands on
-        # different ones from different starts, and satisfies the constraints only to a tolerance, so each run is
-        # polished exactly before the kernel program decides.
-        joint_n = _normalized_joint_distribution(bidir, cutoff=1e-10)
-        for run in range(exact_runs):
+        # The unconstrained problem can have several optima, only some of them generator states (12 and 2 for the
+        # interleaved chains), so enumerate them by multistart exact decomposition and test each with the kernel
+        # program; dit's optimum, polished, is added as one more candidate.
+        best, optima = separating_optima(problem, starts=exact_starts, rng=rng)
+        if np.isfinite(best):
+            g_estimate = best
+        if dit_fallback:
             try:
+                joint_n = _normalized_joint_distribution(bidir, cutoff=1e-10)
                 c = _unconstrained_channel(
                     lifted,
                     joint_n,
@@ -187,20 +193,39 @@ def generative_model(
                     cutoff=1e-10,
                     rng=rng,
                 )
+                if c is not None:
+                    c = polish_separating_channel(problem, c)
+                    value = _entropy(lifted.p @ c)
+                    if g_estimate is None or value < g_estimate - 1e-9:
+                        g_estimate, optima = value, [c]
+                    elif value <= g_estimate + 1e-7:
+                        optima.append(c)
             except (StochasticValidationError, ImportError):
-                c = None
-            if c is None:
-                continue
-            c = polish_separating_channel(problem, c)
-            value = _entropy(lifted.p @ c)
-            g_estimate = value if g_estimate is None else min(g_estimate, value)
+                pass
+        accepted = 0
+        for i, c in enumerate(optima):
             violation, K = generator_kernel(problem, c)
             pi, Q, R, _ = problem.channel_seed(c)
-            log.append({"stage": f"exact common information, run {run}", "value": value, "kernel violation": violation})
+            log.append(
+                {
+                    "stage": f"exact common information, optimum {i}",
+                    "value": _entropy(pi),
+                    "kernel violation": violation,
+                }
+            )
             if violation <= 1e-9:
                 offer("exact-common-information optimum", (pi, Q, R, K))
-                break
-            repair.append((f"exact-common-information optimum {run} (repair)", (pi, Q, R, K)))
+                accepted += 1
+            else:
+                repair.append((f"exact-common-information optimum {i} (repair)", (pi, Q, R, K)))
+        log.append(
+            {
+                "stage": "exact common information",
+                "value": g_estimate,
+                "optima": len(optima),
+                "generating optima": accepted,
+            }
+        )
 
     if "memory" in stages:
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:
