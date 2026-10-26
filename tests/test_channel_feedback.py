@@ -14,7 +14,7 @@ dit_coding = pytest.importorskip("dit.coding")
 if not hasattr(dit_coding, "horstein"):
     pytest.skip("dit.coding has no feedback codes", allow_module_level=True)
 
-from dit.coding import binary_symmetric_channel, horstein  # noqa: E402
+from dit.coding import binary_symmetric_channel, horstein  # noqa: E402  # ty: ignore[unresolved-import]
 
 from sofic.generators.trapdoor_code import rll_decode, rll_encode, trapdoor_code  # noqa: E402
 

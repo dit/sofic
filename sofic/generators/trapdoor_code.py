@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from dit.coding.feedback import FeedbackCode
+from dit.coding.feedback import FeedbackCode  # ty: ignore[unresolved-import]
 from dit.exceptions import ditException
 
 __all__ = ["TrapdoorCode", "trapdoor_code"]
