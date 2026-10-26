@@ -15,8 +15,13 @@ dit_coding = pytest.importorskip("dit.coding")
 if not hasattr(dit_coding, "as_channel"):
     pytest.skip("dit.coding has no channel protocol", allow_module_level=True)
 
-from dit.coding import as_channel, binary_symmetric_channel, hamming, repetition  # noqa: E402
-from dit.coding._channel import symbol_llrs  # noqa: E402
+from dit.coding import (  # noqa: E402
+    as_channel,  # ty: ignore[unresolved-import]
+    binary_symmetric_channel,
+    hamming,
+    repetition,
+)
+from dit.coding._channel import symbol_llrs  # noqa: E402  # ty: ignore[unresolved-import]
 
 CHANNELS = [trapdoor, ising_channel]
 
