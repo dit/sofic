@@ -82,6 +82,27 @@ With ``k = 8, 10, 12`` message bits the rate is about ``0.60``, ``0.62`` and
 ``0.63``, climbing toward :math:`\log_2 \varphi`. The scheme is not tuned to
 the trapdoor channel: it sends the median split regardless of the state.
 
+:func:`~sofic.generators.trapdoor_code.trapdoor_code` is the scheme of
+:cite:`Permuter2008`, built for the trapdoor channel. The transmitter knows
+the channel's ball from the feedback and chooses whether to send a matching or
+an opposite ball; messages become words of such choices with no two
+"opposite" choices in a row, of which there are about :math:`\varphi^N`. The
+receiver reads the choices backward from whether consecutive outputs differ,
+so the code never errs. Each transmission first flushes the unknown initial
+state, 3.5 uses on average:
+
+.. code-block:: python
+
+   from sofic.generators.trapdoor_code import trapdoor_code
+
+   code = trapdoor_code(4)
+   code.performance(trapdoor(), method="exact", max_uses=70)  # about (0.0, 10.5): N = 7, plus flushing
+   code = trapdoor_code(64)
+   64 / code.expected_uses(trapdoor(), method="montecarlo", max_uses=400)  # about 0.663
+
+The module subclasses ``dit.coding.FeedbackCode``, so it needs a dit with
+feedback codes and is not imported by :mod:`sofic.generators`.
+
 Symbols
 =======
 
@@ -99,3 +120,6 @@ API
 
 .. autoclass:: FiniteStateChannel
    :members:
+
+.. automodule:: sofic.generators.trapdoor_code
+   :members: TrapdoorCode, trapdoor_code, rll_encode, rll_decode
