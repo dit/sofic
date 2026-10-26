@@ -5,7 +5,7 @@ verify together with a rigorous bracket :math:`[\text{lower}, \text{upper}]` on 
 :math:`C_g` of Löhr & Ay :cite:`LohrAy2009`:
 
 1. *Lower bounds.* The excess entropy :math:`\mathbf{E} = \op{I}{S^+ : S^-} \le \op{G}{S^+ : S^-} \le C_g`
-   and, when the causal-state joint has few maximal rectangles, the support-type bound of
+   and, when the causal-state joint has few maximal rectangles, the support-type and flow bounds of
    :mod:`~sofic.generators.generator_bounds`.
 2. *Theorem check.* If :math:`\H{S^+_{t+1} \mid S^-_t, X_t} = 0` and :math:`\H{S^-_t \mid S^+_{t+1}, X_t} = 0`
    (both persistent crypticities vanish), every variable separating :math:`S^+` from :math:`S^-` is a generator
@@ -49,12 +49,13 @@ from sofic.generators.coupled_generators import (
     polish_separating_channel,
     separating_optima,
 )
-from sofic.generators.generator_bounds import maximal_rectangles, support_type_bound
+from sofic.generators.generator_bounds import flow_bound, maximal_rectangles, support_type_bound
 
 if TYPE_CHECKING:
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 _MAX_RECTANGLES = 7
+_FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -148,6 +149,11 @@ def generative_model(
         log.append({"stage": "support bound", "value": support})
         if support > lower:
             lower, lower_source = support, "support-type bound"
+        for thresholds in _FLOW_THRESHOLDS:
+            flow = flow_bound(bidir, thresholds=thresholds)
+            log.append({"stage": f"flow bound {thresholds}", "value": flow})
+            if flow > lower + 1e-9:
+                lower, lower_source = flow, f"flow bound {thresholds}"
     log.append({"stage": "excess entropy", "value": excess})
 
     f_crit, r_crit = _persistent_criteria(problem)

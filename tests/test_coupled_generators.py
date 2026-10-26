@@ -179,8 +179,9 @@ def test_generative_model_brackets_the_rll_process() -> None:
     result = generative_model(
         _rll(), stages=("machines", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
     )
-    assert result.lower == pytest.approx(2 - 3 / 8 * np.log2(3), abs=1e-9)
-    assert result.lower_source == "support-type bound"
+    h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
+    assert result.lower == pytest.approx(h11, abs=1e-6)
+    assert result.lower_source.startswith("flow bound")
     assert result.upper == pytest.approx(1.5, abs=1e-5)
     assert not result.certified and not result.separating_variables_generate
 
@@ -200,3 +201,14 @@ def test_separating_optima_of_rll_are_not_generator_states() -> None:
     assert best == pytest.approx(2 - 3 / 8 * np.log2(3), abs=1e-7)
     assert len(optima) == 2
     assert all(cg.generator_kernel(problem, c)[0] > 1e-3 for c in optima)
+
+
+def test_flow_bound_reproduces_the_rll_certificates() -> None:
+    from sofic.generators.generator_bounds import flow_bound
+
+    rll = _rll()
+    h5 = -(2 * (5 / 12) * np.log2(5 / 12) + (1 / 6) * np.log2(1 / 6))
+    h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
+    assert flow_bound(rll, thresholds=(0.6,)) == pytest.approx(h5, abs=1e-6)
+    assert flow_bound(rll, thresholds=(0.55, 0.65)) == pytest.approx(h11, abs=1e-6)
+    assert flow_bound(golden_mean_bidirectional(0.5)) == pytest.approx(_h(1 / 3), abs=1e-6)
