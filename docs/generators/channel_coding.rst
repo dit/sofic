@@ -82,7 +82,7 @@ With ``k = 8, 10, 12`` message bits the rate is about ``0.60``, ``0.62`` and
 ``0.63``, climbing toward :math:`\log_2 \varphi`. The scheme is not tuned to
 the trapdoor channel: it sends the median split regardless of the state.
 
-:func:`~sofic.generators.trapdoor_code.trapdoor_code` is the scheme of
+``sofic.generators.trapdoor_code.trapdoor_code`` is the scheme of
 :cite:`Permuter2008`, built for the trapdoor channel. The transmitter knows
 the channel's ball from the feedback and chooses whether to send a matching or
 an opposite ball; messages become words of such choices with no two
@@ -120,6 +120,3 @@ API
 
 .. autoclass:: FiniteStateChannel
    :members:
-
-.. automodule:: sofic.generators.trapdoor_code
-   :members: TrapdoorCode, trapdoor_code, rll_encode, rll_decode
