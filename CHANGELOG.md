@@ -141,6 +141,12 @@ brute-force reference or a closed-form value and has a regression test.
   likelihood comes from the forward algorithm, the soft decoders get BCJR symbol
   likelihoods, and `capacity_gap` returns a `(lower, upper)` bracket from the
   no-feedback capacity bounds. Needs a dit with `dit.coding.as_channel`.
+- `FiniteStateChannel.feedback_step` / `feedback_initial` step the channel one
+  use at a time (the belief is the normalized forward vector) and
+  `feedback_capacity` brackets the capacity with feedback, so dit's feedback
+  codes (`erasure_arq`, `stop_and_wait_arq`, `horstein`) run over a channel
+  with memory. Horstein's scheme on `trapdoor()` reaches rates above the
+  no-feedback upper bound (`0.584`). Needs a dit with `dit.coding.horstein`.
 - `sofic.algebra`: algebraic automata theory for deterministic presentations.
   `TransformationSemigroup` (lazy closure, shortest words, sink completion of
   partial maps), Green's relations and maximal subgroups, `syntactic_monoid`
