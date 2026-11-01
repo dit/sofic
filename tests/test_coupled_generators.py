@@ -194,9 +194,7 @@ def test_separating_optima_finds_the_generating_flags() -> None:
     best, optima = cg.separating_optima(problem, starts=60, rng=np.random.default_rng(0))
     assert best == pytest.approx(2 * _h(4 / 9), abs=1e-7)
     generating = [
-        c
-        for c in optima
-        if cg.generator_kernel(problem, cg.polish_separating_channel(problem, c))[0] <= 1e-9
+        c for c in optima if cg.generator_kernel(problem, cg.polish_separating_channel(problem, c))[0] <= 1e-9
     ]
     assert len(optima) > len(generating)
     assert len(generating) == 2
