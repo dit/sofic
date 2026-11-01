@@ -39,6 +39,7 @@ def model_to_graphviz(
     rankdir: str | None = None,
     style: str = "auto",
     color_by_emission: bool = True,
+    layout_engine: str | None = None,
     graph_attr: dict[str, str] | None = None,
     node_attr: dict[str, str] | None = None,
     edge_attr: dict[str, str] | None = None,
@@ -54,6 +55,7 @@ def model_to_graphviz(
     model = _model_for_viz(model)
     context = viz_context(model, style=style, color_by_emission=color_by_emission)
 
+    engine = context.graph_engine if layout_engine is None else layout_engine
     resolved_rankdir = rankdir if rankdir is not None else (context.rankdir or "LR")
     attrs = {
         "rankdir": resolved_rankdir,
@@ -62,7 +64,7 @@ def model_to_graphviz(
         "splines": "true",
         "overlap": "false",
     }
-    if context.graph_engine == "circo":
+    if engine == "circo":
         attrs["margin"] = "0.08"
     if graph_attr:
         attrs.update(graph_attr)
@@ -84,7 +86,7 @@ def model_to_graphviz(
             "arrowsize": "0.8",
             **(edge_attr or {}),
         },
-        engine=context.graph_engine,
+        engine=engine,
     )
 
     names = node_names(model.states())

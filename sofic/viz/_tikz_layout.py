@@ -66,10 +66,24 @@ def layout_graphviz(
     rankdir: str | None = None,
 ) -> dict[Hashable, str]:
     """Return TikZ ``at (...)`` clauses using Graphviz node positions."""
+    from graphviz.backend.execute import CalledProcessError
+
     from sofic.viz.graphviz import model_to_graphviz
 
     dot = model_to_graphviz(model, style=style, rankdir=rankdir)
-    plain = dot.pipe(format="plain").decode("utf-8")
+    try:
+        plain = dot.pipe(format="plain").decode("utf-8")
+    except CalledProcessError as exc:
+        err = (exc.stderr or b"").decode("utf-8", errors="replace")
+        if "circo" not in err.lower():
+            raise
+        dot = model_to_graphviz(
+            model,
+            style=style,
+            rankdir=rankdir or "TB",
+            layout_engine="dot",
+        )
+        plain = dot.pipe(format="plain").decode("utf-8")
     positions = _parse_plain_positions(plain)
     coords: dict[Hashable, str] = {}
     names = node_names(model.states())
