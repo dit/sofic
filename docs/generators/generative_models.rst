@@ -186,22 +186,26 @@ Searching for a generator
 tools into one pipeline and returns the best generator it can verify together
 with a rigorous bracket on :math:`C_g`:
 
-* lower bounds: the excess entropy and the support-type bound below;
+* lower bounds: the excess entropy, support-type and flow bounds, and (on large
+  supports) an optional heuristic coverage bound;
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
   need not be unique and only some optima generate), each polished to exact
   separation with :func:`~sofic.generators.coupled_generators.polish_separating_channel`
   and tested with :func:`~sofic.generators.coupled_generators.generator_kernel`;
+  when none generate, :func:`~sofic.generators.coupled_generators.bilevel_search`
+  may propose feasible channels;
 * upper bounds over nested classes, cheapest first: the ε-machines and
   bidirectional machine, memory-1 lifts, deterministic and lifted channels (for
   small machines), and the coupled search seeded with everything found so far.
 
 .. code-block:: python
 
-   result = generative_model(bidir)
+   result = bidir.generative_model()
    result.lower, result.upper, result.certified   # bracket on C_g
-   result.upper_source, result.lower_source       # which stage produced each bound
+   result.cg_exceeds_g                            # True when no G optimum generates
+   result.separating_variables_generate           # some G optimum passed kernel LP
    result.model                                   # the generator, verified against the source
 
 The searches are local; ``certified`` reports when the bracket closes (for
@@ -236,7 +240,9 @@ Coupled generators and bounds
 
 .. autofunction:: sofic.generators.generative_search.generative_model
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
-   :members: certified, gap
+   :members: certified, gap, g_optima_generate
+.. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower
+.. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
 .. autofunction:: sofic.generators.coupled_generators.polish_separating_channel
 .. autofunction:: sofic.generators.coupled_generators.coupled_search

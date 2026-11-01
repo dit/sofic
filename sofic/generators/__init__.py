@@ -25,6 +25,8 @@ from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normal
 from sofic.generators.markov import MarkovChain
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.measures import EntropyRateEstimate, entropy_rate_blackwell, entropy_rate_bounds
+from sofic.generators.coverage_bound import coverage_entropy_lower, mu1_brute_2x2, mu1_search
+from sofic.generators.generative_search import GenerativeModelResult, generative_model
 from sofic.generators.minimal_generative_model import (
     FunctionalGenerativeModel,
     GacsKornerGenerativeModel,
@@ -74,6 +76,11 @@ __all__ = [
     "BlockEntropyEstimates",
     "BlockConvergenceDiagram",
     "BlockConvergenceEstimates",
+    "GenerativeModelResult",
+    "coverage_entropy_lower",
+    "generative_model",
+    "mu1_brute_2x2",
+    "mu1_search",
     "EpsilonMachine",
     "EpsilonTransducer",
     "FiniteStateChannel",

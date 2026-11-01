@@ -608,6 +608,15 @@ class BidirectionalEpsilonMachine(MealyHMM):
         """H[G] of the minimal generative model, an upper bound on C_g."""
         return self.minimal_generative_model(**kwargs).generative_complexity()
 
+    def generative_model(self, **kwargs: Any) -> Any:
+        """Search for a verified minimal generator and a bracket on :math:`C_g`.
+
+        See :func:`~sofic.generators.generative_search.generative_model`.
+        """
+        from sofic.generators.generative_search import generative_model
+
+        return generative_model(self, **kwargs)
+
     def wyner_common_information(self, **kwargs: Any) -> float:
         """Wyner common information C[S+ : S-] = C[past : future] (no generator requirement)."""
         from sofic.generators.minimal_generative_model import wyner_common_information

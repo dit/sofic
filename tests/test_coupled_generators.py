@@ -177,13 +177,15 @@ def test_generative_model_brackets_the_rll_process() -> None:
     from sofic.generators.generative_search import generative_model
 
     result = generative_model(
-        _rll(), stages=("machines", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
+        _rll(), stages=("machines", "exact", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
     )
     h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
     assert result.lower == pytest.approx(h11, abs=1e-6)
     assert result.lower_source.startswith("flow bound")
     assert result.upper == pytest.approx(1.5, abs=1e-5)
     assert not result.certified and not result.separating_variables_generate
+    assert result.cg_exceeds_g is True
+    assert result.n_g_optima_generating == 0
 
 
 def test_separating_optima_finds_the_generating_flags() -> None:
@@ -212,3 +214,28 @@ def test_flow_bound_reproduces_the_rll_certificates() -> None:
     assert flow_bound(rll, thresholds=(0.6,)) == pytest.approx(h5, abs=1e-6)
     assert flow_bound(rll, thresholds=(0.55, 0.65)) == pytest.approx(h11, abs=1e-6)
     assert flow_bound(golden_mean_bidirectional(0.5)) == pytest.approx(_h(1 / 3), abs=1e-6)
+
+
+def test_mu1_brute_on_dsbs_matches_ten_elevenths() -> None:
+    from sofic.generators.coverage_bound import mu1_brute_2x2, mu1_product_lower
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    w = mu1_brute_2x2(d, grid=8000)
+    assert w.value == pytest.approx(10 / 11, abs=2e-3)
+    assert w.u0 == pytest.approx(w.v0, abs=0.05)
+    prod = mu1_product_lower(d, w)
+    assert prod == pytest.approx((10 / 11) ** 2, abs=1e-4)
+
+
+def test_coverage_entropy_lower_is_sensible_on_interleaved() -> None:
+    from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_k_bilinear
+
+    machine = _interleaved(9 / 20)
+    joint = {k: float(v) for k, v in machine.joint_distribution().items() if float(v) > 0}
+    m, _, _ = joint_matrix(joint)
+    mu1 = mu1_search(m, maxiter=200)
+    mu2 = mu_k_bilinear(m, 2, starts=30)
+    assert mu1 >= mu2 or mu2 >= mu1 * 0.9
+    g_lo = coverage_entropy_lower((mu1, mu2))
+    assert 0.5 < g_lo < 1.5
