@@ -134,10 +134,7 @@ def _try_best_candidate(
     from sofic.generators.minimal_generative_model import _reproduction_error
 
     g_generates = n_generating > 0
-    if n_g_optima > 0:
-        sep_gen = g_generates
-    else:
-        sep_gen = theorem
+    sep_gen = g_generates if n_g_optima > 0 else theorem
 
     for _value, name, seed in sorted(candidates, key=lambda t: t[0]):
         pi, Q, R, K = seed

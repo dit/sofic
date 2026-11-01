@@ -9,8 +9,8 @@ certified **upper** bounds on the :math:`\mu_k`.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 import numpy as np
 from scipy.optimize import differential_evolution, minimize

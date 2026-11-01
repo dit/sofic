@@ -11,6 +11,7 @@ from sofic.generators.channel_measures import (
 )
 from sofic.generators.complexity_dimension import StatisticalComplexityDimension, statistical_complexity_dimension
 from sofic.generators.correlations import autocorrelation, mutual_information_function, power_spectrum
+from sofic.generators.coverage_bound import coverage_entropy_lower, mu1_brute_2x2, mu1_search
 from sofic.generators.directional_flow import (
     directed_information,
     independent_pair_generator,
@@ -21,12 +22,11 @@ from sofic.generators.directional_flow import (
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
+from sofic.generators.generative_search import GenerativeModelResult, generative_model
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
 from sofic.generators.markov import MarkovChain
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.measures import EntropyRateEstimate, entropy_rate_blackwell, entropy_rate_bounds
-from sofic.generators.coverage_bound import coverage_entropy_lower, mu1_brute_2x2, mu1_search
-from sofic.generators.generative_search import GenerativeModelResult, generative_model
 from sofic.generators.minimal_generative_model import (
     FunctionalGenerativeModel,
     GacsKornerGenerativeModel,
