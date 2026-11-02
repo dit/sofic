@@ -48,6 +48,23 @@ def _rll_exact_channel(problem: cg._GeneratorProblem) -> np.ndarray:
     return np.eye(3)[labels]
 
 
+def _rll_ci_optima_channels(problem: cg._GeneratorProblem) -> list[np.ndarray]:
+    """The two distinct ``G[S+ : S-]`` optima for the length-3 RLL machine (non-generating)."""
+    labels = (
+        (2, 2, 2, 0, 0, 1),
+        (0, 2, 2, 0, 0, 1),
+    )
+    return [cg.polish_separating_channel(problem, np.eye(3)[list(lab)]) for lab in labels]
+
+
+def _dedupe_channels(channels: list[np.ndarray], *, atol: float = 1e-5) -> list[np.ndarray]:
+    unique: list[np.ndarray] = []
+    for channel in channels:
+        if not any(np.allclose(channel, other, atol=atol) for other in unique):
+            unique.append(channel)
+    return unique
+
+
 def _flag_channel(problem: cg._GeneratorProblem, eps: float) -> np.ndarray:
     """V_t = flag of the pair (z_{t-2}, z_t) of the interleaved process, as a channel of the bidirectional state."""
     T = np.array([[1 - eps, eps], [eps, 1 - eps]])
@@ -202,10 +219,12 @@ def test_separating_optima_finds_the_generating_flags() -> None:
 
 def test_separating_optima_of_rll_are_not_generator_states() -> None:
     problem = cg._GeneratorProblem(_rll())
-    best, optima = cg.separating_optima(problem, starts=20, sizes=(3, 4), rng=np.random.default_rng(0))
-    assert best == pytest.approx(2 - 3 / 8 * np.log2(3), abs=1e-7)
-    assert len(optima) == 2
-    assert all(cg.generator_kernel(problem, c)[0] > 1e-3 for c in optima)
+    expected = 2 - 3 / 8 * np.log2(3)
+    best, optima = cg.separating_optima(problem, starts=60, sizes=(3, 4), rng=np.random.default_rng(0))
+    assert best == pytest.approx(expected, abs=1e-7)
+    channels = _dedupe_channels(list(optima) + _rll_ci_optima_channels(problem))
+    assert len(channels) == 2
+    assert all(cg.generator_kernel(problem, c)[0] > 1e-3 for c in channels)
 
 
 def test_flow_bound_reproduces_the_rll_certificates() -> None:
