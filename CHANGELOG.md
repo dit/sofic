@@ -5,6 +5,15 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Added
+
+- `generative_model` / `GenerativeModelResult`: bracket search for generative
+  complexity with support, flow, and heuristic coverage lower bounds;
+  enumeration of exact-common-information optima with `generator_kernel`;
+  optional `bilevel_search`; coupled and memory-lift uppers; gap flags
+  (`cg_exceeds_g`, `n_g_optima_generating`). `BidirectionalEpsilonMachine.generative_model()`.
+- `coverage_bound` helpers for partial-sum (coverage) lower bounds on full supports.
+
 ### Breaking changes
 
 - `minimal_generative_model`, `wyner_generative_model`,
