@@ -257,6 +257,9 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coupled_generators.generator_kernel
 .. autofunction:: sofic.generators.coupled_generators.bilevel_search
 .. autofunction:: sofic.generators.generator_bounds.support_type_bound
+.. autofunction:: sofic.generators.generator_bounds.flow_bound
+.. autofunction:: sofic.generators.generator_bounds.flow_bound_result
+.. autofunction:: sofic.generators.generator_bounds.rll_flow_bound_certified
 .. autofunction:: sofic.generators.generator_bounds.generator_support_bound
 
 Measures
