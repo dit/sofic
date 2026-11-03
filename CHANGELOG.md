@@ -18,6 +18,8 @@ brute-force reference or a closed-form value and has a regression test.
 - Certified `mu_1` on entrywise-positive joints (`mu1_convex_full_support`,
   `mu1_optimize`, `mu_caps`); certified `mu_k` caps via `mu_k <= k mu_1` (`mu_k_optimize`);
   `generative_model(..., coverage="certified")`.
+- RLL flow-bound certification (`flow_bound_result`, `rll_flow_bound_certified`); RLL
+  `generative_model` sets `lower_certified` when the flow stage wins.
 
 ### Breaking changes
 

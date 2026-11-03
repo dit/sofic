@@ -41,7 +41,7 @@ from sofic.generators.coupled_generators import (
     separating_decomposition_channels,
     separating_optima,
 )
-from sofic.generators.generator_bounds import flow_bound, maximal_rectangles, support_type_bound
+from sofic.generators.generator_bounds import flow_bound_result, maximal_rectangles, support_type_bound
 
 if TYPE_CHECKING:
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
@@ -230,12 +230,13 @@ def generative_model(
         log.append({"stage": "support bound", "value": support})
         if support > lower:
             lower, lower_source = support, "support-type bound"
+            lower_certified = True
         for thresholds in _FLOW_THRESHOLDS:
-            flow = flow_bound(bidir, thresholds=thresholds)
-            log.append({"stage": f"flow bound {thresholds}", "value": flow})
-            if flow > lower + 1e-9:
-                lower, lower_source = flow, f"flow bound {thresholds}"
-                lower_certified = False
+            fb = flow_bound_result(bidir, thresholds=thresholds)
+            log.append({"stage": f"flow bound {thresholds}", "value": fb.value, "certified": fb.certified})
+            if fb.value > lower + 1e-9:
+                lower, lower_source = fb.value, f"flow bound {thresholds}"
+                lower_certified = fb.certified
 
     if coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
         try:

@@ -22,6 +22,7 @@ from __future__ import annotations
 import itertools
 from collections.abc import Hashable
 from collections.abc import Set as AbstractSet
+from dataclasses import dataclass
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
@@ -63,6 +64,123 @@ def _solve(M: list[list[Fraction]], r: list[Fraction]) -> list[Fraction] | None:
     return [A[i][n] for i in range(n)]
 
 
+def _polytope_vertices(ineq: list[tuple[list[Fraction], Fraction]], n: int) -> set[tuple[Fraction, ...]]:
+    """Vertices of ``{x >= 0 : A x <= b}`` intersected with ``sum x = 1`` (first row normalization)."""
+    out: set[tuple[Fraction, ...]] = set()
+    for subset in itertools.combinations(range(len(ineq)), n - 1):
+        M = [[Fraction(1)] * n] + [ineq[i][0] for i in subset]
+        r = [Fraction(1)] + [ineq[i][1] for i in subset]
+        x = _solve(M, r)
+        if x is None:
+            continue
+        if all(sum(a * xi for a, xi in zip(row, x, strict=False)) <= v for row, v in ineq):
+            out.add(tuple(x))
+    return out
+
+
+def _entropy_type_masses(masses: tuple[Fraction, ...]) -> float:
+    return float(-sum(float(m) * np.log2(float(m)) for m in masses if m > 0))
+
+
+def _min_entropy_over_inequalities(ineq: list[tuple[list[Fraction], Fraction]], n: int) -> tuple[float, tuple[Fraction, ...] | None]:
+    best = (np.inf, None)
+    for vertex in _polytope_vertices(ineq, n):
+        h = _entropy_type_masses(vertex)
+        if h < best[0]:
+            best = (h, vertex)
+    if best[1] is None:
+        raise ValueError("polytope has no vertex")
+    return float(best[0]), best[1]
+
+
+@dataclass(frozen=True)
+class FlowBoundResult:
+    """Flow lower bound on :math:`C_g` with optional polytope vertex certification."""
+
+    value: float
+    certified: bool
+    method: str
+
+
+def _le(ineq: list[tuple[list[Fraction], Fraction]], row: list[Fraction], v: Fraction) -> None:
+    ineq.append((row, v))
+
+
+def _rll_generator_polytope(
+    thresholds: tuple[float, ...],
+) -> tuple[list[tuple[list[Fraction], Fraction]], int]:
+    """Inequalities for the (2, inf) generator-class polytope (cpfci ``rll_certificate``)."""
+    ta = tuple(Fraction(t).limit_denominator(10**6) for t in thresholds)
+    tb = ta
+    lba, uba = [Fraction(0), *ta], [*ta, Fraction(1)]
+    lbb, ubb = [Fraction(0), *tb], [*tb, Fraction(1)]
+    na, nb = len(uba), len(ubb)
+    n = na + nb + 1
+    ineq: list[tuple[list[Fraction], Fraction]] = []
+    for i in range(n):
+        _le(ineq, [-Fraction(int(j == i)) for j in range(n)], Fraction(0))
+    ra = [Fraction(1)] * na + [Fraction(0)] * nb + [Fraction(0)]
+    rb = [Fraction(0)] * na + [Fraction(1)] * nb + [Fraction(0)]
+    _le(ineq, [-x for x in ra], Fraction(-1, 4))
+    _le(ineq, ra, Fraction(1, 2))
+    _le(ineq, [-x for x in rb], Fraction(-1, 4))
+    _le(ineq, rb, Fraction(1, 2))
+    _le(ineq, [Fraction(0)] * (n - 1) + [Fraction(-1)], Fraction(-1, 8))
+    for lam in list(ta) + [Fraction(1)]:
+        _le(
+            ineq,
+            [-max(u - lam, Fraction(0)) for u in uba] + [Fraction(0)] * nb + [Fraction(-lam)],
+            Fraction(-1, 8),
+        )
+    for lam in list(tb) + [Fraction(1)]:
+        _le(
+            ineq,
+            [Fraction(0)] * na + [-max(u - lam, Fraction(0)) for u in ubb] + [Fraction(-lam)],
+            Fraction(-1, 8),
+        )
+    _le(ineq, [-u for u in uba] + [Fraction(0)] * nb + [Fraction(0)], Fraction(-1, 4))
+    _le(ineq, lba + [Fraction(0)] * nb + [Fraction(0)], Fraction(1, 4))
+    _le(ineq, [Fraction(0)] * na + [-u for u in ubb] + [Fraction(0)], Fraction(-1, 4))
+    _le(ineq, [Fraction(0)] * na + lbb + [Fraction(0)], Fraction(1, 4))
+    return ineq, n
+
+
+def rll_flow_bound_certified(*, thresholds: tuple[float, ...] = (0.55, 0.65)) -> float:
+    """Exact-minimum entropy over the (2, inf) generator-class polytope (rational vertex enumeration)."""
+    ineq, n = _rll_generator_polytope(thresholds)
+    value, _ = _min_entropy_over_inequalities(ineq, n)
+    return value
+
+
+def is_rll_three_state_machine(bidir: BidirectionalEpsilonMachine, *, atol: float = 1e-9) -> bool:
+    """Whether ``bidir`` is the length-3 bidirectional machine for the (2, inf) process."""
+    joint = {pair: float(p) for pair, p in bidir.joint_distribution().items() if float(p) > atol}
+    expected = {
+        ("A", "D"): 1 / 8,
+        ("A", "E"): 1 / 4,
+        ("A", "F"): 1 / 8,
+        ("B", "D"): 1 / 4,
+        ("C", "D"): 1 / 8,
+        ("C", "F"): 1 / 8,
+    }
+    if set(joint) != set(expected):
+        return False
+    return all(abs(joint[k] - v) <= atol for k, v in expected.items())
+
+
+def flow_bound_result(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    thresholds: tuple[float, ...] = (0.55, 0.65),
+) -> FlowBoundResult:
+    """Flow lower bound; certified on the canonical (2, inf) machine via vertex enumeration."""
+    if is_rll_three_state_machine(bidir):
+        value = rll_flow_bound_certified(thresholds=thresholds)
+        return FlowBoundResult(value, True, "rll generator-class polytope (exact vertices)")
+    value = flow_bound(bidir, thresholds=thresholds)
+    return FlowBoundResult(value, False, "branch-and-bound on bin masses")
+
+
 def support_type_bound(
     joint: dict[tuple[Hashable, Hashable], float], *, max_denominator: int = 10**6
 ) -> tuple[float, list[tuple[frozenset, frozenset]], tuple[Fraction, ...]]:
@@ -85,19 +203,8 @@ def support_type_bound(
             row = [Fraction(int(j in fam)) for j in range(n)]
             ineq.append((row, sum((p[c] for c in union), Fraction(0))))
             ineq.append(([-x for x in row], -sum((p[c] for c in only), Fraction(0))))
-    best = (np.inf, None)
-    for S in itertools.combinations(range(len(ineq)), n - 1):
-        M = [[Fraction(1)] * n] + [ineq[i][0] for i in S]
-        r = [Fraction(1)] + [ineq[i][1] for i in S]
-        x = _solve(M, r)
-        if x is None or not all(sum(a * xi for a, xi in zip(row, x, strict=False)) <= v for row, v in ineq):
-            continue
-        h = -sum(float(m) * np.log2(float(m)) for m in x if m > 0)
-        if h < best[0]:
-            best = (h, tuple(x))
-    if best[1] is None:
-        raise ValueError("support_type_bound: the type polytope has no vertex")
-    return float(best[0]), types, best[1]
+    value, vertex = _min_entropy_over_inequalities(ineq, n)
+    return value, types, vertex
 
 
 def _concave_entropy_min(
@@ -267,4 +374,13 @@ def generator_support_bound(bidir: BidirectionalEpsilonMachine) -> float:
     return support_type_bound({k: float(v) for k, v in bidir.joint_distribution().items()})[0]
 
 
-__all__ = ["flow_bound", "generator_support_bound", "maximal_rectangles", "support_type_bound"]
+__all__ = [
+    "FlowBoundResult",
+    "flow_bound",
+    "flow_bound_result",
+    "generator_support_bound",
+    "is_rll_three_state_machine",
+    "maximal_rectangles",
+    "rll_flow_bound_certified",
+    "support_type_bound",
+]

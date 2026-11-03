@@ -203,7 +203,19 @@ def test_generative_model_brackets_the_rll_process() -> None:
     assert not result.certified and not result.separating_variables_generate
     assert result.cg_exceeds_g is True
     assert result.n_g_optima_generating == 0
-    assert result.lower_certified is False
+    assert result.lower_certified is True
+
+
+def test_flow_bound_result_certified_on_rll() -> None:
+    from sofic.generators.generator_bounds import flow_bound, flow_bound_result, rll_flow_bound_certified
+
+    rll = _rll()
+    h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
+    cert = rll_flow_bound_certified(thresholds=(0.55, 0.65))
+    assert cert == pytest.approx(h11, abs=1e-9)
+    fb = flow_bound_result(rll, thresholds=(0.55, 0.65))
+    assert fb.certified and fb.value == pytest.approx(h11, abs=1e-9)
+    assert flow_bound(rll, thresholds=(0.55, 0.65)) == pytest.approx(h11, abs=1e-6)
 
 
 def test_coverage_certified_uses_mu1_only_on_full_support() -> None:
