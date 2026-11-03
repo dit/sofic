@@ -250,6 +250,32 @@ def test_mu1_brute_on_dsbs_matches_ten_elevenths() -> None:
     assert prod == pytest.approx((10 / 11) ** 2, abs=1e-4)
 
 
+def test_mu1_convex_matches_brute_on_dsbs() -> None:
+    from sofic.generators.coverage_bound import mu1_brute_2x2, mu1_convex_full_support, mu1_optimize
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    brute = mu1_brute_2x2(d, grid=6000)
+    convex = mu1_convex_full_support(d)
+    opt = mu1_optimize(d)
+    assert convex.certified and opt.certified
+    assert convex.value == pytest.approx(10 / 11, abs=2e-4)
+    assert opt.value == pytest.approx(brute.value, abs=2e-3)
+
+
+def test_mu_caps_certified_on_full_support_joint() -> None:
+    from sofic.generators.coverage_bound import joint_matrix, mu_caps
+
+    machine = _interleaved(9 / 20)
+    joint = {k: float(v) for k, v in machine.joint_distribution().items() if float(v) > 0}
+    m, _, _ = joint_matrix(joint)
+    assert np.all(m > 0)
+    caps, certified = mu_caps(m, k=1, seed=0)
+    assert len(caps) == 1
+    assert certified
+    assert 0.5 < caps[0] < 1.0
+
+
 def test_coverage_entropy_lower_is_sensible_on_interleaved() -> None:
     from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_k_bilinear
 

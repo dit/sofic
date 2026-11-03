@@ -107,15 +107,20 @@ def _coverage_lower_bound(
     rng: np.random.Generator,
     *,
     mu_starts: int,
-) -> tuple[float, dict[str, float]]:
-    from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_k_bilinear
+    certified: bool,
+) -> tuple[float, dict[str, float], bool]:
+    from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_caps, mu_k_bilinear
 
     m, _, _ = joint_matrix(joint)
+    if certified and np.all(m > 0):
+        caps, caps_certified = mu_caps(m, k=2, seed=int(rng.integers(0, 2**31)), mu_starts=mu_starts)
+        meta = {"mu_1": caps[0], "mu_2": caps[1] if len(caps) > 1 else caps[0], "certified": caps_certified}
+        return coverage_entropy_lower(caps), meta, caps_certified
     seed = int(rng.integers(0, 2**31))
     mu1 = mu1_search(m, seed=seed, maxiter=min(250, mu_starts * 8))
     mu2 = mu_k_bilinear(m, 2, starts=min(40, mu_starts))
     caps = (mu1, mu2)
-    return coverage_entropy_lower(caps), {"mu_1": mu1, "mu_2": mu2}
+    return coverage_entropy_lower(caps), {"mu_1": mu1, "mu_2": mu2, "certified": False}, False
 
 
 def _try_best_candidate(
@@ -177,7 +182,7 @@ def generative_model(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
     coverage_mu_starts: int = 25,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
@@ -221,13 +226,17 @@ def generative_model(
             if flow > lower + 1e-9:
                 lower, lower_source = flow, f"flow bound {thresholds}"
 
-    if coverage == "heuristic" and n_rect > _MAX_RECTANGLES:
+    if coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
         try:
-            cov, meta = _coverage_lower_bound(joint, rng, mu_starts=coverage_mu_starts)
-            log.append({"stage": "coverage bound (heuristic)", "value": cov, **meta, "certified": False})
+            use_certified = coverage == "certified"
+            cov, meta, caps_ok = _coverage_lower_bound(
+                joint, rng, mu_starts=coverage_mu_starts, certified=use_certified
+            )
+            stage = "coverage bound (certified)" if use_certified else "coverage bound (heuristic)"
+            log.append({"stage": stage, "value": cov, **meta})
             if cov > lower + 1e-9:
-                lower, lower_source = cov, "coverage bound (heuristic mu)"
-                lower_certified = False
+                lower, lower_source = cov, stage
+                lower_certified = caps_ok if use_certified else False
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
 
@@ -350,10 +359,13 @@ def generative_model(
         best_upper = min((c[0] for c in candidates), default=np.inf)
         hit = None
         if n_generating == 0 and sweep_channels:
+            max_h = best_upper if np.isfinite(best_upper) else None
+            if lower_certified:
+                max_h = min(max_h, lower) if max_h is not None else lower
             hit = first_generating_separator(
                 problem,
                 sweep_channels,
-                max_entropy=best_upper if np.isfinite(best_upper) else None,
+                max_entropy=max_h,
             )
         log.append(
             {

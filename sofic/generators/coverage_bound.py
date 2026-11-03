@@ -16,6 +16,25 @@ import numpy as np
 from scipy.optimize import differential_evolution, minimize
 
 
+@dataclass(frozen=True)
+class Mu1Result:
+    """Estimate of ``mu_1(M)`` with optional witness on the probability simplices."""
+
+    value: float
+    certified: bool
+    u: np.ndarray | None = None
+    v: np.ndarray | None = None
+
+
+def mu1_rank1_mass(M: np.ndarray, u: np.ndarray, v: np.ndarray) -> float:
+    """Rank-1 mass ``lambda`` with ``lambda u v^T <= M`` entrywise (equals ``min_{a,b} M/(u_a v_b)``)."""
+    M = np.asarray(M, dtype=float)
+    u = np.asarray(u, dtype=float)
+    v = np.asarray(v, dtype=float)
+    ratios = M / np.maximum(np.outer(u, v), 1e-300)
+    return float(np.min(ratios))
+
+
 def joint_matrix(joint: dict[tuple, float]) -> tuple[np.ndarray, list, list]:
     """Dense matrix and axis labels for a small joint dict."""
     splus = sorted({a for a, _ in joint}, key=repr)
@@ -53,13 +72,18 @@ def _softmax(z: np.ndarray) -> np.ndarray:
 
 def mu1_search(M: np.ndarray, *, seed: int = 0, maxiter: int = 300) -> float:
     """Heuristic upper estimate of ``mu_1`` via differential evolution on simplex parameters."""
+    return mu1_softmax(M, seed=seed, maxiter=maxiter).value
+
+
+def mu1_softmax(M: np.ndarray, *, seed: int = 0, maxiter: int = 300) -> Mu1Result:
+    """Heuristic ``mu_1`` via differential evolution on softmax simplex parameters."""
     M = np.asarray(M, dtype=float)
     na, nb = M.shape
 
     def neg(z: np.ndarray) -> float:
         u = _softmax(z[:na])
         v = _softmax(z[na:])
-        return -float(np.min(M / np.outer(u, v)))
+        return -mu1_rank1_mass(M, u, v)
 
     bounds = [(-8.0, 8.0)] * (na + nb)
     r = differential_evolution(
@@ -71,7 +95,78 @@ def mu1_search(M: np.ndarray, *, seed: int = 0, maxiter: int = 300) -> float:
         tol=1e-11,
         workers=1,
     )
-    return -float(r.fun)
+    z = r.x
+    u = _softmax(z[:na])
+    v = _softmax(z[na:])
+    return Mu1Result(-float(r.fun), False, u, v)
+
+
+def _logsumexp(x: np.ndarray) -> float:
+    x = np.asarray(x, dtype=float)
+    m = float(x.max())
+    return m + float(np.log(np.exp(x - m).sum()))
+
+
+def mu1_convex_full_support(M: np.ndarray, *, starts: int = 24, rng: np.random.Generator | None = None) -> Mu1Result:
+    r"""Certified ``mu_1`` when ``M`` is entrywise positive (full support).
+
+    Solves ``min_{alpha,beta} max_{a,b} (alpha_a + beta_b - log M_{ab})`` with
+    ``logsumexp(alpha) = logsumexp(beta) = 0`` (simplex equality in log coordinates).
+    Then ``mu_1 = exp(-optimum)``. Convex in ``(alpha, beta)`` for fixed support.
+    """
+    M = np.asarray(M, dtype=float)
+    if np.any(M <= 0):
+        raise ValueError("mu1_convex_full_support requires entrywise positive M")
+    na, nb = M.shape
+    L = np.log(M)
+    rng = rng or np.random.default_rng(0)
+
+    def objective(z: np.ndarray) -> float:
+        alpha, beta = z[:na], z[na:]
+        margin = float(np.max(alpha[:, None] + beta[None, :] - L))
+        penalty = (_logsumexp(alpha) ** 2 + _logsumexp(beta) ** 2) * 1e6
+        return margin + penalty
+
+    best = np.inf
+    best_z = None
+    for _ in range(starts):
+        z0 = np.concatenate([np.log(rng.dirichlet(np.ones(na))), np.log(rng.dirichlet(np.ones(nb)))])
+        r = minimize(objective, z0, method="L-BFGS-B", options={"maxiter": 2000, "ftol": 1e-14})
+        if r.success and r.fun < best:
+            best, best_z = r.fun, r.x
+    if best_z is None or not np.isfinite(best):
+        return mu1_softmax(M, seed=int(rng.integers(0, 2**31)))
+    alpha, beta = best_z[:na], best_z[na:]
+    u = np.exp(alpha - _logsumexp(alpha))
+    v = np.exp(beta - _logsumexp(beta))
+    value = float(np.exp(-best))
+    return Mu1Result(value, True, u, v)
+
+
+def mu1_optimize(M: np.ndarray, *, seed: int = 0, grid: int = 6000) -> Mu1Result:
+    """Best available ``mu_1`` upper bound: exact convex step on full support, else 2×2 brute or softmax."""
+    M = np.asarray(M, dtype=float)
+    na, nb = M.shape
+    if na == 2 and nb == 2 and np.all(M > 0):
+        w = mu1_brute_2x2(M, grid=grid)
+        u = np.array([w.u0, 1.0 - w.u0])
+        v = np.array([w.v0, 1.0 - w.v0])
+        return Mu1Result(w.value, True, u, v)
+    if np.all(M > 0):
+        return mu1_convex_full_support(M, rng=np.random.default_rng(seed))
+    return mu1_softmax(M, seed=seed)
+
+
+def mu_caps(M: np.ndarray, *, k: int = 2, seed: int = 0, mu_starts: int = 80) -> tuple[tuple[float, ...], bool]:
+    """Nondecreasing ``mu_k`` caps for :func:`coverage_entropy_lower`; ``certified`` if every term is certified."""
+    mu1 = mu1_optimize(M, seed=seed)
+    caps: list[float] = [mu1.value]
+    certified = mu1.certified
+    if k >= 2:
+        mu2 = mu_k_bilinear(M, 2, starts=mu_starts)
+        caps.append(min(1.0, max(mu1.value, mu2)))
+        certified = False
+    return tuple(caps), certified
 
 
 @dataclass(frozen=True)
@@ -178,11 +273,17 @@ def mu_k_bilinear(M: np.ndarray, k: int, *, starts: int = 80, seeds: tuple[np.nd
 
 
 __all__ = [
+    "Mu1Result",
     "Mu1Witness2",
     "coverage_entropy_lower",
     "joint_matrix",
     "mu1_brute_2x2",
+    "mu1_convex_full_support",
+    "mu1_optimize",
     "mu1_product_lower",
+    "mu1_rank1_mass",
     "mu1_search",
+    "mu1_softmax",
+    "mu_caps",
     "mu_k_bilinear",
 ]

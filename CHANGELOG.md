@@ -13,6 +13,10 @@ brute-force reference or a closed-form value and has a regression test.
   optional `bilevel_search`; coupled and memory-lift uppers; gap flags
   (`cg_exceeds_g`, `n_g_optima_generating`). `BidirectionalEpsilonMachine.generative_model()`.
 - `coverage_bound` helpers for partial-sum (coverage) lower bounds on full supports.
+- Entropy-ordered separator sweep (`separating_decomposition_channels`,
+  `first_generating_separator`) in `generative_model` when no `G` optimum generates.
+- Certified `mu_1` on entrywise-positive joints (`mu1_convex_full_support`,
+  `mu1_optimize`, `mu_caps`); `generative_model(..., coverage="certified")`.
 
 ### Breaking changes
 

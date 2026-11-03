@@ -187,7 +187,8 @@ tools into one pipeline and returns the best generator it can verify together
 with a rigorous bracket on :math:`C_g`:
 
 * lower bounds: the excess entropy, support-type and flow bounds, and (on large
-  supports) an optional heuristic coverage bound;
+  supports) a coverage bound (``coverage="heuristic"`` or ``coverage="certified"``
+  for entrywise-positive joints via :func:`~sofic.generators.coverage_bound.mu1_optimize`);
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
@@ -195,7 +196,8 @@ with a rigorous bracket on :math:`C_g`:
   separation with :func:`~sofic.generators.coupled_generators.polish_separating_channel`
   and tested with :func:`~sofic.generators.coupled_generators.generator_kernel`;
   when none generate, :func:`~sofic.generators.coupled_generators.bilevel_search`
-  may propose feasible channels;
+  may propose feasible channels, then an entropy-ordered sweep over multistart
+  separating decompositions (:func:`~sofic.generators.coupled_generators.separating_decomposition_channels`);
 * upper bounds over nested classes, cheapest first: the ε-machines and
   bidirectional machine, memory-1 lifts, deterministic and lifted channels (for
   small machines), and the coupled search seeded with everything found so far.
@@ -242,6 +244,8 @@ Coupled generators and bounds
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower
+.. autofunction:: sofic.generators.coverage_bound.mu1_optimize
+.. autofunction:: sofic.generators.coverage_bound.mu1_convex_full_support
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
 .. autofunction:: sofic.generators.coupled_generators.polish_separating_channel
