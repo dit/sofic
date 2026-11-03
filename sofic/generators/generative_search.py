@@ -115,17 +115,14 @@ def _coverage_lower_bound(
         mu1_search,
         mu_caps,
         mu_k_bilinear,
-        mu_k_lp_simplex,
     )
 
     m, _, _ = joint_matrix(joint)
     if certified and np.all(m > 0):
         caps, caps_certified = mu_caps(m, k=2, seed=int(rng.integers(0, 2**31)), mu_starts=mu_starts)
-        lp2 = mu_k_lp_simplex(m, 2, starts=min(40, mu_starts), seed=int(rng.integers(0, 2**31)))
         meta = {
             "mu_1": caps[0],
             "mu_2": caps[1] if len(caps) > 1 else caps[0],
-            "mu_2_lp_feasible": lp2.feasible,
             "certified": caps_certified,
         }
         return coverage_entropy_lower(caps), meta, caps_certified
