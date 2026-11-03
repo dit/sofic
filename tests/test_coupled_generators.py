@@ -203,6 +203,25 @@ def test_generative_model_brackets_the_rll_process() -> None:
     assert not result.certified and not result.separating_variables_generate
     assert result.cg_exceeds_g is True
     assert result.n_g_optima_generating == 0
+    assert result.lower_certified is False
+
+
+def test_coverage_certified_uses_mu1_only_on_full_support() -> None:
+    from sofic.generators.generative_search import _coverage_lower_bound
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    joint = {
+        ("0", "0"): float(d[0, 0]),
+        ("0", "1"): float(d[0, 1]),
+        ("1", "0"): float(d[1, 0]),
+        ("1", "1"): float(d[1, 1]),
+    }
+    cov, meta, ok = _coverage_lower_bound(joint, np.random.default_rng(0), mu_starts=8, certified=True)
+    assert ok
+    assert meta["certified"] is True
+    assert cov == pytest.approx(_h(10 / 11), abs=1e-3)
+    assert "mu_2_heuristic" in meta
 
 
 def test_separating_optima_finds_the_generating_flags() -> None:

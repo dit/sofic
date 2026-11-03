@@ -189,6 +189,7 @@ with a rigorous bracket on :math:`C_g`:
 * lower bounds: the excess entropy, support-type and flow bounds, and (on large
   supports) a coverage bound (``coverage="heuristic"`` or ``coverage="certified"``
   for entrywise-positive joints via :func:`~sofic.generators.coverage_bound.mu1_optimize`);
+  certified mode uses the convex ``mu_1`` cap only (``mu_2`` remains heuristic until Phase A2);
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
