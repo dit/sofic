@@ -9,7 +9,9 @@ verify together with a rigorous bracket :math:`[\text{lower}, \text{upper}]` on 
 2. *Persistent crypticity.* When both :math:`p.\chi^\pm` vanish on the bidirectional edge,
    :math:`C_g = \op{G}{S^+ : S^-}`.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
-   :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate.
+   :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate; then an
+   **entropy-ordered sweep** over all multistart separating decompositions (not only
+   :math:`\op{G}` optima) up to the current best upper bound.
 4. *Upper bounds:* ε-machines, memory lifts, functional/lifted channels (small joints), coupled search.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
@@ -31,10 +33,12 @@ from sofic.generators.coupled_generators import (
     _model_from_kernel,
     bilevel_search,
     coupled_search,
+    first_generating_separator,
     generator_kernel,
     memory_lift,
     memory_lift_search,
     polish_separating_channel,
+    separating_decomposition_channels,
     separating_optima,
 )
 from sofic.generators.generator_bounds import flow_bound, maximal_rectangles, support_type_bound
@@ -175,6 +179,7 @@ def generative_model(
     dit_fallback: bool = True,
     coverage: Literal["off", "heuristic"] = "heuristic",
     coverage_mu_starts: int = 25,
+    entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
     rng: np.random.Generator | None = None,
@@ -340,6 +345,30 @@ def generative_model(
                 elif viol < 0.05:
                     pi, Q, R, K = problem.channel_seed(c)
                     repair.append(("bilevel near-feasible", (pi, Q, R, K)))
+
+        sweep_channels = separating_decomposition_channels(problem, starts=entropy_sweep_starts, rng=rng)
+        best_upper = min((c[0] for c in candidates), default=np.inf)
+        hit = None
+        if n_generating == 0 and sweep_channels:
+            hit = first_generating_separator(
+                problem,
+                sweep_channels,
+                max_entropy=best_upper if np.isfinite(best_upper) else None,
+            )
+        log.append(
+            {
+                "stage": "entropy sweep (separating decompositions)",
+                "channels tried": len(sweep_channels),
+                "max entropy": best_upper if np.isfinite(best_upper) else None,
+                "found generating separator": hit is not None,
+            }
+        )
+        if hit is not None:
+            entropy, c, K = hit
+            pi, Q, R, _ = problem.channel_seed(c)
+            offer("entropy-sweep separating generator", (pi, Q, R, K))
+            n_generating += 1
+            cg_exceeds_g = False
 
     if "memory" in stages:
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:

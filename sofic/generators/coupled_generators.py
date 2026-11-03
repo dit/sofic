@@ -455,6 +455,72 @@ def separating_optima(
     return best, optima
 
 
+def separating_decomposition_channels(
+    bidir: BidirectionalEpsilonMachine | _GeneratorProblem,
+    *,
+    starts: int = 40,
+    sizes: Sequence[int] | None = None,
+    residual_atol: float = 1e-10,
+    rng: np.random.Generator | None = None,
+) -> list[tuple[float, np.ndarray]]:
+    """Separating channels from multistart exact decompositions, sorted by ``H[W]`` (not only ``G`` optima).
+
+    Each entry is ``(entropy, channel)`` for one distinct decomposition of ``p(s^+, s^-)`` found by
+    :func:`_decompose`. Used to search for a **generating** separator with entropy below the current upper
+    bound when every minimum-entropy optimum fails :func:`generator_kernel`.
+    """
+    problem = _as_problem(bidir)
+    rng = rng or np.random.default_rng()
+    P = _pair_joint(problem)
+    na, nb = P.shape
+    sizes = sizes or range(2, min(na * nb, 8) + 1)
+    found: list[tuple[float, np.ndarray, tuple]] = []
+    for k in sizes:
+        for _ in range(starts):
+            lam, A, B, residual = _decompose(
+                P, rng.dirichlet(np.ones(k)), rng.dirichlet(np.ones(na), size=k), rng.dirichlet(np.ones(nb), size=k)
+            )
+            if residual > residual_atol:
+                continue
+            live = lam > 1e-10
+            p = lam[live]
+            lam, A, B = lam[live], A[live], B[live]
+            key = tuple(sorted(tuple(np.round(np.concatenate([[l], a, b]), 6)) for l, a, b in zip(lam, A, B, strict=True)))
+            channel = _channel_from_decomposition(problem, lam, A, B)
+            found.append((float(-(p * np.log2(p)).sum()), channel, key))
+    if not found:
+        return []
+    found.sort(key=lambda t: t[0])
+    out: list[tuple[float, np.ndarray]] = []
+    seen: list[tuple] = []
+    for entropy, channel, key in found:
+        if key in seen:
+            continue
+        seen.append(key)
+        out.append((entropy, channel))
+    return out
+
+
+def first_generating_separator(
+    bidir: BidirectionalEpsilonMachine | _GeneratorProblem,
+    channels: Sequence[tuple[float, np.ndarray]],
+    *,
+    max_entropy: float | None = None,
+    kernel_atol: float = 1e-9,
+    polish: bool = True,
+) -> tuple[float, np.ndarray, np.ndarray] | None:
+    """First channel in ``channels`` (lowest entropy first) that passes the generator kernel LP."""
+    problem = _as_problem(bidir)
+    for entropy, channel in channels:
+        if max_entropy is not None and entropy > max_entropy + 1e-9:
+            break
+        c = polish_separating_channel(problem, channel) if polish else channel
+        violation, K = generator_kernel(problem, c)
+        if violation <= kernel_atol:
+            return entropy, c, K
+    return None
+
+
 def bilevel_search(
     bidir: BidirectionalEpsilonMachine,
     starts: Sequence[np.ndarray],
@@ -676,9 +742,11 @@ __all__ = [
     "bilevel_search",
     "coupled_generative_model",
     "coupled_search",
+    "first_generating_separator",
     "generator_kernel",
     "memory_lift",
     "memory_lift_search",
     "polish_separating_channel",
+    "separating_decomposition_channels",
     "separating_optima",
 ]

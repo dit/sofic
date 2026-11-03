@@ -261,3 +261,22 @@ def test_coverage_entropy_lower_is_sensible_on_interleaved() -> None:
     assert mu1 >= mu2 or mu2 >= mu1 * 0.9
     g_lo = coverage_entropy_lower((mu1, mu2))
     assert 0.5 < g_lo < 1.5
+
+
+def test_separating_decomposition_channels_are_sorted_by_entropy() -> None:
+    problem = cg._GeneratorProblem(golden_mean_bidirectional(0.4))
+    rows = cg.separating_decomposition_channels(problem, starts=15, sizes=(2, 3), rng=np.random.default_rng(1))
+    entropies = [h for h, _ in rows]
+    assert entropies == sorted(entropies)
+    assert entropies[0] <= cg.separating_optima(problem, starts=15, rng=np.random.default_rng(1))[0] + 1e-6
+
+
+def test_first_generating_separator_on_golden_mean() -> None:
+    problem = cg._GeneratorProblem(golden_mean_bidirectional(0.4))
+    channels = cg.separating_decomposition_channels(problem, starts=30, rng=np.random.default_rng(0))
+    hit = cg.first_generating_separator(problem, channels, max_entropy=1.0)
+    assert hit is not None
+    entropy, _c, _K = hit
+    g, _ = cg.separating_optima(problem, starts=30, rng=np.random.default_rng(0))
+    assert entropy >= g - 1e-5
+    assert cg.generator_kernel(problem, hit[1])[0] <= 1e-9
