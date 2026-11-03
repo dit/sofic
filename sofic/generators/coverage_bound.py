@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import differential_evolution, minimize
+from scipy.optimize import differential_evolution, linprog, minimize
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,99 @@ def coverage_entropy_lower(mu_caps: Iterable[float]) -> float:
 def _softmax(z: np.ndarray) -> np.ndarray:
     z = np.exp(z - z.max())
     return z / z.sum()
+
+
+@dataclass(frozen=True)
+class MuKResult:
+    """Upper cap on ``mu_k(M)``; ``certified`` means ``value`` is a valid global upper bound."""
+
+    value: float
+    certified: bool
+    k: int
+    feasible: float | None = None
+
+
+def lp_rank_k_weights(M: np.ndarray, U: np.ndarray, V: np.ndarray) -> float:
+    r"""Maximum total weight of :math:`k` rank-1 terms with shapes ``U[i]``, ``V[i]`` on the simplices.
+
+    Exact linear program for fixed factor directions (cpfci ``coverage_bound.lp_weights``).
+    """
+    M = np.asarray(M, dtype=float)
+    U = np.asarray(U, dtype=float)
+    V = np.asarray(V, dtype=float)
+    k = len(U)
+    if k == 0:
+        return 0.0
+    A = np.column_stack([np.outer(U[i], V[i]).ravel() for i in range(k)])
+    res = linprog(-np.ones(k), A_ub=A, b_ub=M.ravel(), bounds=[(0.0, None)] * k, method="highs")
+    if not res.success:
+        return 0.0
+    return float(-res.fun)
+
+
+def _softmax_rows(z: np.ndarray, k: int, na: int, nb: int) -> tuple[np.ndarray, np.ndarray]:
+    z = np.asarray(z, float)
+    U = np.vstack([_softmax(z[i * na : (i + 1) * na]) for i in range(k)])
+    V = np.vstack([_softmax(z[k * na + i * nb : k * na + (i + 1) * nb]) for i in range(k)])
+    return U, V
+
+
+def mu_k_lp_simplex(
+    M: np.ndarray,
+    k: int,
+    *,
+    starts: int = 80,
+    seed: int = 0,
+    seeds: tuple[np.ndarray, ...] = (),
+) -> MuKResult:
+    """Heuristic ``mu_k`` via multistart simplex factors and inner :func:`lp_rank_k_weights`."""
+    M = np.asarray(M, dtype=float)
+    na, nb = M.shape
+    n = k * (na + nb)
+    rng = np.random.default_rng(seed)
+    best = 0.0
+
+    def neg(z: np.ndarray) -> float:
+        U, V = _softmax_rows(z, k, na, nb)
+        return -lp_rank_k_weights(M, U, V)
+
+    inits = list(seeds) + [rng.normal(scale=2.0, size=n) for _ in range(starts)]
+    for z0 in inits:
+        r = minimize(neg, z0, method="Nelder-Mead", options={"maxiter": 2500, "xatol": 1e-9, "fatol": 1e-12})
+        best = max(best, -neg(r.x))
+    return MuKResult(min(1.0, best), False, k, feasible=best)
+
+
+def mu_k_certified_trivial_cap(k: int, mu1: float) -> float:
+    r"""Valid upper bound ``mu_k <= min(1, k * mu_1)`` (each term weight at most ``mu_1``)."""
+    if k <= 0:
+        return 0.0
+    return min(1.0, k * float(mu1))
+
+
+def mu_k_optimize(
+    M: np.ndarray,
+    k: int,
+    *,
+    seed: int = 0,
+    starts: int = 80,
+    mu1: Mu1Result | None = None,
+) -> MuKResult:
+    """Best-effort ``mu_k`` cap: certified ``k * mu_1`` when ``mu_1`` is certified, else LP / bilinear search."""
+    if k <= 0:
+        return MuKResult(0.0, True, k)
+    if k == 1:
+        r = mu1 if mu1 is not None else mu1_optimize(M, seed=seed)
+        return MuKResult(r.value, r.certified, 1, feasible=r.value)
+    mu1_res = mu1 if mu1 is not None else mu1_optimize(M, seed=seed)
+    trivial = mu_k_certified_trivial_cap(k, mu1_res.value)
+    if mu1_res.certified:
+        return MuKResult(trivial, True, k)
+    lp = mu_k_lp_simplex(M, k, starts=starts, seed=seed)
+    bil = mu_k_bilinear(M, k, starts=min(starts, 120))
+    feasible = max(lp.feasible or 0.0, bil)
+    est = max(feasible, lp.value)
+    return MuKResult(min(1.0, est), False, k, feasible=feasible)
 
 
 def mu1_search(M: np.ndarray, *, seed: int = 0, maxiter: int = 300) -> float:
@@ -162,10 +255,10 @@ def mu_caps(M: np.ndarray, *, k: int = 2, seed: int = 0, mu_starts: int = 80) ->
     mu1 = mu1_optimize(M, seed=seed)
     caps: list[float] = [mu1.value]
     certified = mu1.certified
-    if k >= 2:
-        mu2 = mu_k_bilinear(M, 2, starts=mu_starts)
-        caps.append(min(1.0, max(mu1.value, mu2)))
-        certified = False
+    for j in range(2, k + 1):
+        mk = mu_k_optimize(M, j, seed=seed, starts=mu_starts, mu1=mu1)
+        caps.append(min(1.0, max(caps[-1], mk.value)))
+        certified = certified and mk.certified
     return tuple(caps), certified
 
 
@@ -275,8 +368,10 @@ def mu_k_bilinear(M: np.ndarray, k: int, *, starts: int = 80, seeds: tuple[np.nd
 __all__ = [
     "Mu1Result",
     "Mu1Witness2",
+    "MuKResult",
     "coverage_entropy_lower",
     "joint_matrix",
+    "lp_rank_k_weights",
     "mu1_brute_2x2",
     "mu1_convex_full_support",
     "mu1_optimize",
@@ -286,4 +381,7 @@ __all__ = [
     "mu1_softmax",
     "mu_caps",
     "mu_k_bilinear",
+    "mu_k_certified_trivial_cap",
+    "mu_k_lp_simplex",
+    "mu_k_optimize",
 ]

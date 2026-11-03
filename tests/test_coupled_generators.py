@@ -221,7 +221,37 @@ def test_coverage_certified_uses_mu1_only_on_full_support() -> None:
     assert ok
     assert meta["certified"] is True
     assert cov == pytest.approx(_h(10 / 11), abs=1e-3)
-    assert "mu_2_heuristic" in meta
+    assert meta["mu_2"] == pytest.approx(min(1.0, 2 * meta["mu_1"]), rel=1e-9)
+
+
+def test_mu_k_certified_trivial_cap_and_lp_on_dsbs_product() -> None:
+    from sofic.generators.coverage_bound import (
+        lp_rank_k_weights,
+        mu1_optimize,
+        mu_k_certified_trivial_cap,
+        mu_k_lp_simplex,
+        mu_k_optimize,
+    )
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    m = np.kron(d, d)
+    mu1_big = mu1_optimize(m)
+    assert mu1_big.certified
+    cap2 = mu_k_certified_trivial_cap(2, mu1_big.value)
+    assert cap2 == pytest.approx(min(1.0, 2 * mu1_big.value), rel=1e-12)
+    opt2 = mu_k_optimize(m, 2, seed=0, starts=8)
+    assert opt2.certified and opt2.value == cap2
+    p00 = (1 - eps) / 2
+    a = p00 - (eps / 2) ** 2 / p00
+    q = np.array([eps, 1 - eps])
+    u = np.vstack([np.kron(q, q), np.kron(np.array([1.0, 0.0]), q)])
+    v = np.vstack([np.kron(q, q), np.kron(np.array([1.0, 0.0]), q)])
+    w1, w2 = (1 - a) ** 2, a * (1 - a)
+    lp = lp_rank_k_weights(m, u, v)
+    assert lp == pytest.approx(w1 + w2, rel=0.02)
+    lp_search = mu_k_lp_simplex(m, 2, starts=8, seed=1)
+    assert (lp_search.feasible or 0.0) <= cap2 + 1e-9
 
 
 def test_separating_optima_finds_the_generating_flags() -> None:
@@ -289,9 +319,10 @@ def test_mu_caps_certified_on_full_support_joint() -> None:
     joint = {k: float(v) for k, v in machine.joint_distribution().items() if float(v) > 0}
     m, _, _ = joint_matrix(joint)
     assert np.all(m > 0)
-    caps, certified = mu_caps(m, k=1, seed=0)
-    assert len(caps) == 1
+    caps, certified = mu_caps(m, k=2, seed=0, mu_starts=8)
+    assert len(caps) == 2
     assert certified
+    assert caps[1] == pytest.approx(min(1.0, 2 * caps[0]), rel=1e-9)
     assert 0.5 < caps[0] < 1.0
 
 

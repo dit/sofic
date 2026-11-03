@@ -16,7 +16,8 @@ brute-force reference or a closed-form value and has a regression test.
 - Entropy-ordered separator sweep (`separating_decomposition_channels`,
   `first_generating_separator`) in `generative_model` when no `G` optimum generates.
 - Certified `mu_1` on entrywise-positive joints (`mu1_convex_full_support`,
-  `mu1_optimize`, `mu_caps`); `generative_model(..., coverage="certified")`.
+  `mu1_optimize`, `mu_caps`); certified `mu_k` caps via `mu_k <= k mu_1` (`mu_k_optimize`);
+  `generative_model(..., coverage="certified")`.
 
 ### Breaking changes
 

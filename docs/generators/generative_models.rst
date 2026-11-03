@@ -188,8 +188,8 @@ with a rigorous bracket on :math:`C_g`:
 
 * lower bounds: the excess entropy, support-type and flow bounds, and (on large
   supports) a coverage bound (``coverage="heuristic"`` or ``coverage="certified"``
-  for entrywise-positive joints via :func:`~sofic.generators.coverage_bound.mu1_optimize`);
-  certified mode uses the convex ``mu_1`` cap only (``mu_2`` remains heuristic until Phase A2);
+  for entrywise-positive joints via :func:`~sofic.generators.coverage_bound.mu1_optimize` and
+  :func:`~sofic.generators.coverage_bound.mu_k_optimize` (certified ``mu_k <= k mu_1``);
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
@@ -246,7 +246,8 @@ Coupled generators and bounds
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower
 .. autofunction:: sofic.generators.coverage_bound.mu1_optimize
-.. autofunction:: sofic.generators.coverage_bound.mu1_convex_full_support
+.. autofunction:: sofic.generators.coverage_bound.mu_k_optimize
+.. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
 .. autofunction:: sofic.generators.coupled_generators.polish_separating_channel

@@ -109,19 +109,23 @@ def _coverage_lower_bound(
     mu_starts: int,
     certified: bool,
 ) -> tuple[float, dict[str, float], bool]:
-    from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_k_bilinear
+    from sofic.generators.coverage_bound import (
+        coverage_entropy_lower,
+        joint_matrix,
+        mu1_search,
+        mu_caps,
+        mu_k_bilinear,
+        mu_k_lp_simplex,
+    )
 
     m, _, _ = joint_matrix(joint)
     if certified and np.all(m > 0):
-        from sofic.generators.coverage_bound import mu1_optimize
-
-        mu1 = mu1_optimize(m, seed=int(rng.integers(0, 2**31)))
-        caps = (mu1.value,)
-        caps_certified = mu1.certified
-        mu2 = mu_k_bilinear(m, 2, starts=min(40, mu_starts))
+        caps, caps_certified = mu_caps(m, k=2, seed=int(rng.integers(0, 2**31)), mu_starts=mu_starts)
+        lp2 = mu_k_lp_simplex(m, 2, starts=min(40, mu_starts), seed=int(rng.integers(0, 2**31)))
         meta = {
-            "mu_1": mu1.value,
-            "mu_2_heuristic": mu2,
+            "mu_1": caps[0],
+            "mu_2": caps[1] if len(caps) > 1 else caps[0],
+            "mu_2_lp_feasible": lp2.feasible,
             "certified": caps_certified,
         }
         return coverage_entropy_lower(caps), meta, caps_certified
