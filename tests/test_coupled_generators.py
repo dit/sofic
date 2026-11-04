@@ -203,6 +203,67 @@ def test_generative_model_brackets_the_rll_process() -> None:
     assert not result.certified and not result.separating_variables_generate
     assert result.cg_exceeds_g is True
     assert result.n_g_optima_generating == 0
+    assert result.lower_certified is True
+
+
+def test_flow_bound_result_certified_on_rll() -> None:
+    from sofic.generators.generator_bounds import flow_bound, flow_bound_result, rll_flow_bound_certified
+
+    rll = _rll()
+    h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
+    cert = rll_flow_bound_certified(thresholds=(0.55, 0.65))
+    assert cert == pytest.approx(h11, abs=1e-9)
+    fb = flow_bound_result(rll, thresholds=(0.55, 0.65))
+    assert fb.certified and fb.value == pytest.approx(h11, abs=1e-9)
+    assert flow_bound(rll, thresholds=(0.55, 0.65)) == pytest.approx(h11, abs=1e-6)
+
+
+def test_coverage_certified_uses_mu1_only_on_full_support() -> None:
+    from sofic.generators.generative_search import _coverage_lower_bound
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    joint = {
+        ("0", "0"): float(d[0, 0]),
+        ("0", "1"): float(d[0, 1]),
+        ("1", "0"): float(d[1, 0]),
+        ("1", "1"): float(d[1, 1]),
+    }
+    cov, meta, ok = _coverage_lower_bound(joint, np.random.default_rng(0), mu_starts=8, certified=True)
+    assert ok
+    assert meta["certified"] is True
+    assert cov == pytest.approx(_h(10 / 11), abs=1e-3)
+    assert meta["mu_2"] == pytest.approx(min(1.0, 2 * meta["mu_1"]), rel=1e-9)
+
+
+def test_mu_k_certified_trivial_cap_and_lp_on_dsbs_product() -> None:
+    from sofic.generators.coverage_bound import (
+        lp_rank_k_weights,
+        mu1_optimize,
+        mu_k_certified_trivial_cap,
+        mu_k_lp_simplex,
+        mu_k_optimize,
+    )
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    m = np.kron(d, d)
+    mu1_big = mu1_optimize(m)
+    assert mu1_big.certified
+    cap2 = mu_k_certified_trivial_cap(2, mu1_big.value)
+    assert cap2 == pytest.approx(min(1.0, 2 * mu1_big.value), rel=1e-12)
+    opt2 = mu_k_optimize(m, 2, seed=0, starts=8)
+    assert opt2.certified and opt2.value == cap2
+    p00 = (1 - eps) / 2
+    a = p00 - (eps / 2) ** 2 / p00
+    q = np.array([eps, 1 - eps])
+    u = np.vstack([np.kron(q, q), np.kron(np.array([1.0, 0.0]), q)])
+    v = np.vstack([np.kron(q, q), np.kron(np.array([1.0, 0.0]), q)])
+    w1, w2 = (1 - a) ** 2, a * (1 - a)
+    lp = lp_rank_k_weights(m, u, v)
+    assert lp == pytest.approx(w1 + w2, rel=0.02)
+    lp_search = mu_k_lp_simplex(m, 2, starts=8, seed=1)
+    assert (lp_search.feasible or 0.0) <= cap2 + 1e-9
 
 
 def test_separating_optima_finds_the_generating_flags() -> None:
@@ -250,6 +311,33 @@ def test_mu1_brute_on_dsbs_matches_ten_elevenths() -> None:
     assert prod == pytest.approx((10 / 11) ** 2, abs=1e-4)
 
 
+def test_mu1_convex_matches_brute_on_dsbs() -> None:
+    from sofic.generators.coverage_bound import mu1_brute_2x2, mu1_convex_full_support, mu1_optimize
+
+    eps = 9 / 20
+    d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
+    brute = mu1_brute_2x2(d, grid=6000)
+    convex = mu1_convex_full_support(d)
+    opt = mu1_optimize(d)
+    assert convex.certified and opt.certified
+    assert convex.value == pytest.approx(10 / 11, abs=2e-4)
+    assert opt.value == pytest.approx(brute.value, abs=2e-3)
+
+
+def test_mu_caps_certified_on_full_support_joint() -> None:
+    from sofic.generators.coverage_bound import joint_matrix, mu_caps
+
+    machine = _interleaved(9 / 20)
+    joint = {k: float(v) for k, v in machine.joint_distribution().items() if float(v) > 0}
+    m, _, _ = joint_matrix(joint)
+    assert np.all(m > 0)
+    caps, certified = mu_caps(m, k=2, seed=0, mu_starts=8)
+    assert len(caps) == 2
+    assert certified
+    assert caps[1] == pytest.approx(min(1.0, 2 * caps[0]), rel=1e-9)
+    assert 0.5 < caps[0] < 1.0
+
+
 def test_coverage_entropy_lower_is_sensible_on_interleaved() -> None:
     from sofic.generators.coverage_bound import coverage_entropy_lower, joint_matrix, mu1_search, mu_k_bilinear
 
@@ -261,3 +349,22 @@ def test_coverage_entropy_lower_is_sensible_on_interleaved() -> None:
     assert mu1 >= mu2 or mu2 >= mu1 * 0.9
     g_lo = coverage_entropy_lower((mu1, mu2))
     assert 0.5 < g_lo < 1.5
+
+
+def test_separating_decomposition_channels_are_sorted_by_entropy() -> None:
+    problem = cg._GeneratorProblem(golden_mean_bidirectional(0.4))
+    rows = cg.separating_decomposition_channels(problem, starts=15, sizes=(2, 3), rng=np.random.default_rng(1))
+    entropies = [h for h, _ in rows]
+    assert entropies == sorted(entropies)
+    assert entropies[0] <= cg.separating_optima(problem, starts=15, rng=np.random.default_rng(1))[0] + 1e-6
+
+
+def test_first_generating_separator_on_golden_mean() -> None:
+    problem = cg._GeneratorProblem(golden_mean_bidirectional(0.4))
+    channels = cg.separating_decomposition_channels(problem, starts=30, rng=np.random.default_rng(0))
+    hit = cg.first_generating_separator(problem, channels, max_entropy=1.0)
+    assert hit is not None
+    entropy, _c, _K = hit
+    g, _ = cg.separating_optima(problem, starts=30, rng=np.random.default_rng(0))
+    assert entropy >= g - 1e-5
+    assert cg.generator_kernel(problem, hit[1])[0] <= 1e-9

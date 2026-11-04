@@ -13,6 +13,21 @@ brute-force reference or a closed-form value and has a regression test.
   optional `bilevel_search`; coupled and memory-lift uppers; gap flags
   (`cg_exceeds_g`, `n_g_optima_generating`). `BidirectionalEpsilonMachine.generative_model()`.
 - `coverage_bound` helpers for partial-sum (coverage) lower bounds on full supports.
+- Entropy-ordered separator sweep (`separating_decomposition_channels`,
+  `first_generating_separator`) in `generative_model` when no `G` optimum generates.
+- Certified `mu_1` on entrywise-positive joints (`mu1_convex_full_support`,
+  `mu1_optimize`, `mu_caps`); certified `mu_k` caps via `mu_k <= k mu_1` (`mu_k_optimize`);
+  `generative_model(..., coverage="certified")`.
+- RLL flow-bound certification (`flow_bound_result`, `rll_flow_bound_certified`); RLL
+  `generative_model` sets `lower_certified` when the flow stage wins.
+- Bidirectional build preflight and retry ladder (`preflight_bidir`,
+  `try_build_bidirectional`, `build_bidirectional_with_ladder`) for survey
+  topologies with truncated or exploding reverse MSP; optional
+  `reverse_max_states` on `BidirectionalEpsilonMachine.from_forward` /
+  `infer_reverse_epsilon_machine`.
+- `GeneratorProblemSpec` / `spec_from_generator_problem` and a stub
+  `_GeneratorProblem.from_edge_tensors` for future edge-law-only search with
+  explicit truncation metadata.
 
 ### Breaking changes
 
