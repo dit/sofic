@@ -534,14 +534,14 @@ def _validate_bidirectional_anatomy(bidir: BidirectionalEpsilonMachine, *, tol: 
                 )
 
 
-def infer_reverse_epsilon_machine(forward: EpsilonMachine) -> EpsilonMachine:
+def infer_reverse_epsilon_machine(forward: EpsilonMachine, *, max_states: int = 10_000) -> EpsilonMachine:
     """Infer a reverse ε-machine presentation for bidirectional construction.
 
     Time-reverses ``forward``, then builds the generator ε-machine via MSP and
     probabilistic state merging (:meth:`EpsilonMachine.from_hmm`).
     """
     rev_hmm = time_reverse_stochastic(forward)
-    reverse = EpsilonMachine.from_hmm(rev_hmm)
+    reverse = EpsilonMachine.from_hmm(rev_hmm, max_states=max_states)
     warn_if_reverse_truncated(forward)
     return _relabel_collision_free(reverse, forward)
 

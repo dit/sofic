@@ -261,6 +261,11 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.generator_bounds.flow_bound_result
 .. autofunction:: sofic.generators.generator_bounds.rll_flow_bound_certified
 .. autofunction:: sofic.generators.generator_bounds.generator_support_bound
+.. autofunction:: sofic.generators.bidirectional_build.preflight_bidir
+.. autofunction:: sofic.generators.bidirectional_build.try_build_bidirectional
+.. autofunction:: sofic.generators.bidirectional_build.build_bidirectional_with_ladder
+.. autoclass:: sofic.generators.generator_problem_spec.GeneratorProblemSpec
+   :members:
 
 Measures
 --------

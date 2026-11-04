@@ -92,10 +92,10 @@ class BidirectionalEpsilonMachine(MealyHMM):
         return build_bidirectional_epsilon_machine(forward, reverse)
 
     @classmethod
-    def from_forward(cls, forward: EpsilonMachine) -> BidirectionalEpsilonMachine:
+    def from_forward(cls, forward: EpsilonMachine, *, reverse_max_states: int = 10_000) -> BidirectionalEpsilonMachine:
         from sofic.generators.bidirectional_construction import infer_reverse_epsilon_machine
 
-        reverse = infer_reverse_epsilon_machine(forward)
+        reverse = infer_reverse_epsilon_machine(forward, max_states=reverse_max_states)
         return cls.from_pair(forward, reverse)
 
     def joint_distribution(self) -> dict[tuple[Hashable, Hashable], Any]:

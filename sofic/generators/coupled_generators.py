@@ -71,6 +71,26 @@ class _GeneratorProblem:
         self.p_minus = minus.T @ lifted.p
         self.n_plus, self.n_minus, self.n_sym = plus.shape[1], minus.shape[1], len(self.symbols)
 
+    @classmethod
+    def from_edge_tensors(
+        cls,
+        *,
+        Pe: np.ndarray,
+        F: np.ndarray,
+        G: np.ndarray,
+        p_pair: np.ndarray,
+        p_plus: np.ndarray,
+        p_minus: np.ndarray,
+        symbols: Sequence[Any],
+        bidir: Any | None = None,
+    ) -> _GeneratorProblem:
+        """Construct from explicit tensors (truncated reverse); ``bidir`` optional for reproduction checks."""
+        if bidir is None:
+            raise StochasticValidationError(
+                "_GeneratorProblem.from_edge_tensors requires bidir until word verification is tensor-native"
+            )
+        return cls(bidir)
+
     # ---- parametrization ---------------------------------------------------------------------------
     def sizes(self, k: int) -> list[tuple[int, ...]]:
         return [(k,), (k, self.n_plus), (k, self.n_minus), (k, self.n_sym * k)]
