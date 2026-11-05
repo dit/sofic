@@ -22,7 +22,12 @@ from sofic.generators.directional_flow import (
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
-from sofic.generators.generative_search import GenerativeModelResult, generative_model
+from sofic.generators.generative_search import (
+    GenerativeModelResult,
+    generative_model,
+    generative_model_from_bidirectional,
+    ultimate_generative_model,
+)
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
 from sofic.generators.markov import MarkovChain
 from sofic.generators.mealy import MealyHMM
@@ -79,6 +84,8 @@ __all__ = [
     "GenerativeModelResult",
     "coverage_entropy_lower",
     "generative_model",
+    "generative_model_from_bidirectional",
+    "ultimate_generative_model",
     "mu1_brute_2x2",
     "mu1_search",
     "EpsilonMachine",

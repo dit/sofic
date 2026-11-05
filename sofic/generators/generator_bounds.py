@@ -82,7 +82,9 @@ def _entropy_type_masses(masses: tuple[Fraction, ...]) -> float:
     return float(-sum(float(m) * np.log2(float(m)) for m in masses if m > 0))
 
 
-def _min_entropy_over_inequalities(ineq: list[tuple[list[Fraction], Fraction]], n: int) -> tuple[float, tuple[Fraction, ...] | None]:
+def _min_entropy_over_inequalities(
+    ineq: list[tuple[list[Fraction], Fraction]], n: int
+) -> tuple[float, tuple[Fraction, ...] | None]:
     best = (np.inf, None)
     for vertex in _polytope_vertices(ineq, n):
         h = _entropy_type_masses(vertex)
@@ -181,14 +183,50 @@ def flow_bound_result(
     return FlowBoundResult(value, False, "branch-and-bound on bin masses")
 
 
-def support_type_bound(
-    joint: dict[tuple[Hashable, Hashable], float], *, max_denominator: int = 10**6
-) -> tuple[float, list[tuple[frozenset, frozenset]], tuple[Fraction, ...]]:
-    """Lower bound on ``G[S+ : S-]`` (hence on ``C_g``) from the rectangle types of the support.
+@dataclass(frozen=True)
+class SupportTypeBoundResult:
+    """Support-type lower bound on :math:`\\op{G}{S^+ : S^-}` with certification metadata."""
 
-    ``joint`` maps causal-state pairs to probabilities (rationalized with ``max_denominator``). Returns the bound
-    (bits), the maximal rectangles, and a minimizing vertex of type masses.
+    value: float
+    certified: bool
+    types: list[tuple[frozenset, frozenset]]
+    masses: tuple[Fraction, ...] | None
+    method: str
+
+
+def support_exact_cover_bound(
+    joint: dict[tuple[Hashable, Hashable], float], *, max_denominator: int = 10**6
+) -> SupportTypeBoundResult | None:
+    r"""When each support cell lies in exactly one maximal rectangle, :math:`\\H{W}` equals :math:`\\H{m}` for fixed type masses.
+
+    This is an **exact** (certified) lower bound, often tighter than :func:`support_type_bound` when rectangles overlap in the
+    relaxation but admit a disjoint assignment.
     """
+    p = {cell: Fraction(v).limit_denominator(max_denominator) for cell, v in joint.items() if v > 0}
+    if not p:
+        return None
+    total = sum(p.values())
+    p = {cell: v / total for cell, v in p.items()}
+    types = maximal_rectangles(set(p))
+    contains = [{cell for cell in p if cell[0] in U and cell[1] in V} for U, V in types]
+    owner: dict[tuple, int] = {}
+    for cell in p:
+        holders = [i for i, cells in enumerate(contains) if cell in cells]
+        if len(holders) != 1:
+            return None
+        owner[cell] = holders[0]
+    masses = [Fraction(0) for _ in types]
+    for cell, mass in p.items():
+        masses[owner[cell]] += mass
+    masses_t = tuple(masses)
+    value = _entropy_type_masses(masses_t)
+    return SupportTypeBoundResult(value, True, types, masses_t, "exact rectangle partition")
+
+
+def support_type_bound_result(
+    joint: dict[tuple[Hashable, Hashable], float], *, max_denominator: int = 10**6
+) -> SupportTypeBoundResult:
+    """Support-type bound with ``certified=True`` (exact rational vertex enumeration on the relaxation polytope)."""
     p = {cell: Fraction(v).limit_denominator(max_denominator) for cell, v in joint.items() if v > 0}
     total = sum(p.values())
     p = {cell: v / total for cell, v in p.items()}
@@ -204,7 +242,15 @@ def support_type_bound(
             ineq.append((row, sum((p[c] for c in union), Fraction(0))))
             ineq.append(([-x for x in row], -sum((p[c] for c in only), Fraction(0))))
     value, vertex = _min_entropy_over_inequalities(ineq, n)
-    return value, types, vertex
+    return SupportTypeBoundResult(value, True, types, vertex, "type-mass polytope vertices")
+
+
+def support_type_bound(
+    joint: dict[tuple[Hashable, Hashable], float], *, max_denominator: int = 10**6
+) -> tuple[float, list[tuple[frozenset, frozenset]], tuple[Fraction, ...]]:
+    """Lower bound on ``G[S+ : S-]`` (hence on ``C_g``) from the rectangle types of the support."""
+    res = support_type_bound_result(joint, max_denominator=max_denominator)
+    return res.value, res.types, res.masses or ()
 
 
 def _concave_entropy_min(
@@ -376,11 +422,14 @@ def generator_support_bound(bidir: BidirectionalEpsilonMachine) -> float:
 
 __all__ = [
     "FlowBoundResult",
+    "SupportTypeBoundResult",
     "flow_bound",
     "flow_bound_result",
     "generator_support_bound",
     "is_rll_three_state_machine",
     "maximal_rectangles",
     "rll_flow_bound_certified",
+    "support_exact_cover_bound",
     "support_type_bound",
+    "support_type_bound_result",
 ]

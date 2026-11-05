@@ -5,7 +5,13 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
-### Added
+### Added (Phases A & B)
+
+- ``coverage_bound`` with ``k_used = min(k_max, na, nb)`` caps; ``coverage_k_max`` and
+  ``coverage_certified_only`` on ``generative_model`` / ``generative_model_from_bidirectional``.
+- ``support_exact_cover_bound`` (A3) when each joint cell lies in a unique maximal rectangle.
+- ``generator_state_cap`` (B4) and ``systematic_coupled_seeds`` (B2) wired into the pipeline.
+- Survey driver uses ``generative_model_from_bidirectional`` after bidirectional build.
 
 - `generative_model` / `GenerativeModelResult`: bracket search for generative
   complexity with support, flow, and heuristic coverage lower bounds;
@@ -15,9 +21,12 @@ brute-force reference or a closed-form value and has a regression test.
 - `coverage_bound` helpers for partial-sum (coverage) lower bounds on full supports.
 - Entropy-ordered separator sweep (`separating_decomposition_channels`,
   `first_generating_separator`) in `generative_model` when no `G` optimum generates.
-- Certified `mu_1` on entrywise-positive joints (`mu1_convex_full_support`,
-  `mu1_optimize`, `mu_caps`); certified `mu_k` caps via `mu_k <= k mu_1` (`mu_k_optimize`);
-  `generative_model(..., coverage="certified")`.
+- Certified coverage caps on any support: exact `mu_1` by vertex enumeration of
+  ``{p_a + q_b <= log M_ab}`` (`mu1_vertex`, used by `mu1_optimize`); singular-value
+  tail caps ``mu_k <= 1 - sum_{i>k} sigma_i`` (`mu_k_spectral_cap`); `mu_caps` takes the
+  minimum of these, ``k mu_1``, and ``mu_i + mu_{k-i}``. `generative_model(..., coverage="certified")`.
+  On the interleaved product ``D (x) D`` at ``eps = 9/20`` the certified coverage bound is
+  0.787 bits (caps ``mu_2 <= 0.9725``, ``mu_3 <= 0.9975``).
 - RLL flow-bound certification (`flow_bound_result`, `rll_flow_bound_certified`); RLL
   `generative_model` sets `lower_certified` when the flow stage wins.
 - Bidirectional build preflight and retry ladder (`preflight_bidir`,
@@ -28,9 +37,28 @@ brute-force reference or a closed-form value and has a regression test.
 - `GeneratorProblemSpec` / `spec_from_generator_problem` and a stub
   `_GeneratorProblem.from_edge_tensors` for future edge-law-only search with
   explicit truncation metadata.
+- `universal_generative_optimizer`: direct ``min H[pi]`` over coupled generator
+  equations (edge + forward + reverse) with memory-lift and ``G`` seeds;
+  `compare_universal_to_pipeline` for benchmarking against the full pipeline.
+- **`generative_model`**: primary entry — forward ε-machine or bidirectional in,
+  bidir build (preflight / ladder), full bracket search, universal coupled stage,
+  and a final **reliability summary** in ``stages``.
+- `generative_model_from_bidirectional`: same pipeline when the bidirectional
+  machine is already built.
+- `ultimate_generative_model`: deprecated alias for ``generative_model``.
+- Coupled search: joint block ALM by default; optional **dual strategy** (retry
+  with alternating ``K`` LP if joint ALM stays infeasible); ``alternating`` and
+  ``dual_strategy`` parameters on ``coupled_search``.
+- `scripts/benchmark_generative_robustness.py`: timing and bracket metrics on
+  golden mean, RLL, and interleaved benchmarks.
+- Coupled search: **masked / block-weighted** generator residuals and **block ALM**
+  (plus alternating ``K`` LP when requested).
 
 ### Breaking changes
 
+- ``generative_model(forward_or_bidir, ...)`` is now the full pipeline (formerly
+  ``ultimate_generative_model``). The bidirectional-only pipeline is
+  ``generative_model_from_bidirectional(bidir, ...)`` (formerly ``generative_model(bidir, ...)``).
 - `minimal_generative_model`, `wyner_generative_model`,
   `functional_generative_model` and `generative_complexity()` optimize only
   over lifted generator states: besides `I[S+ : S- | G] = 0` they impose

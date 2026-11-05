@@ -49,6 +49,77 @@ _ALM_MU = 1e3
 _ALM_MU_MAX = 1e7
 _ALM_ROUNDS = 60
 _ALM_TOL = 1e-9
+_PE_TOL = 1e-15
+
+
+@dataclass(frozen=True)
+class _ConstraintWeights:
+    """Per-entry masks and scales for edge / forward / reverse residuals."""
+
+    weight_edge: np.ndarray
+    weight_forward: np.ndarray
+    weight_reverse: np.ndarray
+
+
+def _kernel_lp_beliefs(
+    problem: _GeneratorProblem, pi: np.ndarray, Q: np.ndarray, R: np.ndarray
+) -> tuple[float, np.ndarray]:
+    """Minimize max equation violation over stochastic ``K`` with fixed ``(pi, Q, R)``."""
+    from scipy.optimize import linprog
+
+    k, X = len(pi), problem.n_sym
+    A = pi[:, None] * Q
+    nK = k * X * k
+    idx = lambda w, x, v: (w * X + x) * k + v  # noqa: E731
+    rows, rhs = [], []
+
+    def add(terms, target: float) -> None:
+        row = np.zeros(nK)
+        for j, val in terms:
+            row[j] += val
+        rows.append(row)
+        rhs.append(target)
+
+    for a in range(problem.n_plus):
+        for x in range(X):
+            for b in range(problem.n_minus):
+                add(((idx(w, x, v), A[w, a] * R[v, b]) for w in range(k) for v in range(k)), problem.Pe[a, x, b])
+    for v in range(k):
+        for c_ in range(problem.n_plus):
+            add(
+                (
+                    (idx(w, x, v), A[w, a] * problem.F[a, x, c_])
+                    for w in range(k)
+                    for x in range(X)
+                    for a in range(problem.n_plus)
+                ),
+                A[v, c_],
+            )
+    for w in range(k):
+        for b in range(problem.n_minus):
+            add(
+                (
+                    (idx(w, x, v), pi[w] * R[v, c_] * problem.G[x, c_, b])
+                    for x in range(X)
+                    for v in range(k)
+                    for c_ in range(problem.n_minus)
+                ),
+                pi[w] * R[w, b],
+            )
+    dense = np.array(rows)
+    target = np.array(rhs)
+    m = len(rows)
+    A_ub = np.block([[dense, -np.ones((m, 1))], [-dense, -np.ones((m, 1))]])
+    b_ub = np.concatenate([target, -target])
+    A_eq = np.zeros((k, nK + 1))
+    for w in range(k):
+        A_eq[w, w * X * k : (w + 1) * X * k] = 1.0
+    cost = np.zeros(nK + 1)
+    cost[-1] = 1.0
+    res = linprog(cost, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=np.ones(k), bounds=[(0, None)] * (nK + 1), method="highs")
+    if not res.success:
+        return np.inf, np.zeros((k, X, k))
+    return float(res.x[-1]), res.x[:-1].reshape(k, X, k)
 
 
 class _GeneratorProblem:
@@ -70,6 +141,22 @@ class _GeneratorProblem:
         self.p_plus = plus.T @ lifted.p
         self.p_minus = minus.T @ lifted.p
         self.n_plus, self.n_minus, self.n_sym = plus.shape[1], minus.shape[1], len(self.symbols)
+        self._weights: _ConstraintWeights | None = None
+
+    def constraint_weights(self) -> _ConstraintWeights:
+        if self._weights is None:
+            scale_e = max(float(np.max(np.abs(self.Pe))), 1e-8)
+            wE = np.where(
+                np.abs(self.Pe) > _PE_TOL,
+                1.0 / np.maximum(np.abs(self.Pe), 1e-8),
+                1.0 / scale_e,
+            )
+            self._weights = _ConstraintWeights(
+                weight_edge=wE,
+                weight_forward=1.0 / np.maximum(self.p_plus, 1e-8),
+                weight_reverse=1.0 / np.maximum(self.p_minus, 1e-8),
+            )
+        return self._weights
 
     @classmethod
     def from_edge_tensors(
@@ -106,9 +193,52 @@ class _GeneratorProblem:
         pi, Q, R, K = parts
         return pi, Q, R, K.reshape(k, self.n_sym, k)
 
+    def belief_sizes(self, k: int) -> list[tuple[int, ...]]:
+        return [(k,), (k, self.n_plus), (k, self.n_minus)]
+
+    def unpack_beliefs(self, theta: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        parts, i = [], 0
+        for shape in self.belief_sizes(k):
+            n = int(np.prod(shape))
+            z = theta[i : i + n].reshape(shape)
+            z = np.exp(z - z.max(axis=-1, keepdims=True))
+            parts.append(z / z.sum(axis=-1, keepdims=True))
+            i += n
+        return parts[0], parts[1], parts[2]
+
+    @staticmethod
+    def logits_beliefs(pi: np.ndarray, Q: np.ndarray, R: np.ndarray, floor: float = 1e-9) -> np.ndarray:
+        return np.concatenate([np.log(np.maximum(a, floor)).ravel() for a in (pi, Q, R)])
+
     @staticmethod
     def logits(pi: np.ndarray, Q: np.ndarray, R: np.ndarray, K: np.ndarray, floor: float = 1e-9) -> np.ndarray:
-        return np.concatenate([np.log(np.maximum(a, floor)).ravel() for a in (pi, Q, R, K.reshape(len(pi), -1))])
+        return np.concatenate(
+            [
+                _GeneratorProblem.logits_beliefs(pi, Q, R, floor=floor),
+                np.log(np.maximum(K.reshape(len(pi), -1), floor)).ravel(),
+            ]
+        )
+
+    def _weighted_block_loss(
+        self,
+        rE: np.ndarray,
+        rF: np.ndarray,
+        rB: np.ndarray,
+        A: np.ndarray,
+        *,
+        shifts: tuple[np.ndarray, np.ndarray, np.ndarray] | None,
+        block_mus: tuple[float, float, float],
+    ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray]:
+        cw = self.constraint_weights()
+        wE = cw.weight_edge
+        wF = np.broadcast_to(cw.weight_forward, rF.shape)
+        wB = np.broadcast_to(cw.weight_reverse, rB.shape)
+        if shifts is not None:
+            rE, rF, rB = rE + shifts[0], rF + shifts[1], rB + shifts[2]
+        rEw, rFw, rBw = wE * rE, wF * rF, wB * rB
+        muE, muF, muB = block_mus
+        loss = 0.5 * float(muE * (rEw**2).sum() + muF * (rFw**2).sum() + muB * (rBw**2).sum())
+        return loss, rE, rF, rB
 
     # ---- residuals ------------------------------------------------------------------------------------
     def residuals(self, pi, Q, R, K) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -124,10 +254,49 @@ class _GeneratorProblem:
         return float(max(np.abs(r).max() for r in self.residuals(pi, Q, R, K)))
 
     def loss_and_grad(
-        self, theta: np.ndarray, k: int, mu: float, shifts: tuple[np.ndarray, ...] | None = None, weight: float = 1.0
+        self,
+        theta: np.ndarray,
+        k: int,
+        mu: float,
+        shifts: tuple[np.ndarray, ...] | None = None,
+        weight: float = 1.0,
+        block_mus: tuple[float, float, float] | None = None,
     ) -> tuple[float, np.ndarray]:
-        """``weight * H[pi] + mu/2 * |r + shift|^2`` and its gradient (augmented Lagrangian when shifts = lambda/mu)."""
+        """Augmented Lagrangian with optional block penalties and entrywise residual scaling."""
         pi, Q, R, K = self.unpack(theta, k)
+        loss, grad = self._loss_and_grad_core(pi, Q, R, K, k, mu, shifts, weight, block_mus, grad_K=True)
+        return loss, grad
+
+    def loss_and_grad_beliefs(
+        self,
+        theta: np.ndarray,
+        k: int,
+        K: np.ndarray,
+        mu: float,
+        shifts: tuple[np.ndarray, ...] | None = None,
+        weight: float = 1.0,
+        block_mus: tuple[float, float, float] | None = None,
+    ) -> tuple[float, np.ndarray]:
+        """Same objective with ``K`` fixed (alternating kernel LP step)."""
+        pi, Q, R = self.unpack_beliefs(theta, k)
+        loss, grad_beliefs = self._loss_and_grad_core(pi, Q, R, K, k, mu, shifts, weight, block_mus, grad_K=False)
+        return loss, grad_beliefs
+
+    def _loss_and_grad_core(
+        self,
+        pi: np.ndarray,
+        Q: np.ndarray,
+        R: np.ndarray,
+        K: np.ndarray,
+        k: int,
+        mu: float,
+        shifts: tuple[np.ndarray, ...] | None,
+        weight: float,
+        block_mus: tuple[float, float, float] | None,
+        *,
+        grad_K: bool,
+    ) -> tuple[float, np.ndarray]:
+        block = block_mus if block_mus is not None else (mu, mu, mu)
         A = pi[:, None] * Q
         M = np.einsum("wa,wxv->axv", A, K)
         rE = np.einsum("axv,vb->axb", M, R) - self.Pe
@@ -135,36 +304,46 @@ class _GeneratorProblem:
         N = np.einsum("wxv,vc,xcb->wb", K, R, self.G)
         D = N - R
         rB = pi[:, None] * D
+        shift_tuple = None
         if shifts is not None:
-            rE, rF, rB = rE + shifts[0], rF + shifts[1], rB + shifts[2]
-        loss = 0.5 * float((rE**2).sum() + (rF**2).sum() + (rB**2).sum())
+            shift_tuple = (shifts[0], shifts[1], shifts[2])
+        penalty, rE, rF, rB = self._weighted_block_loss(rE, rF, rB, A, shifts=shift_tuple, block_mus=block)
+        cw = self.constraint_weights()
+        wE, wF_row, wB_row = cw.weight_edge, cw.weight_forward, cw.weight_reverse
+        wF = np.broadcast_to(wF_row, A.shape)
+        wB = np.broadcast_to(wB_row, R.shape)
+        muE, muF, muB = block
+        rEeff = wE * wE * muE * rE
+        rFeff = wF * wF * muF * rF
+        rBeff = wB * wB * muB * rB
 
-        # Gradients of the penalty in (pi, Q, R, K).
-        gM = np.einsum("axb,vb->axv", rE, R) + np.einsum("vc,axc->axv", rF, self.F)
-        gR = np.einsum("axb,axv->vb", rE, M)
-        gA = np.einsum("wxv,axv->wa", K, gM) - rF
-        gK = np.einsum("wa,axv->wxv", A, gM)
-        gpi = (gA * Q).sum(axis=1) + (rB * D).sum(axis=1)
+        gM = np.einsum("axb,vb->axv", rEeff, R) + np.einsum("vc,axc->axv", rFeff, self.F)
+        gR = np.einsum("axb,axv->vb", rEeff, M)
+        gA = np.einsum("wxv,axv->wa", K, gM) - rFeff
+        gK = np.einsum("wa,axv->wxv", A, gM) if grad_K else None
+        gpi = (gA * Q).sum(axis=1) + (rBeff * D).sum(axis=1)
         gQ = gA * pi[:, None]
-        wB = pi[:, None] * rB
-        gK += np.einsum("wb,vc,xcb->wxv", wB, R, self.G)
-        gR += np.einsum("wb,wxv,xcb->vc", wB, K, self.G) - wB
+        wBpen = pi[:, None] * rBeff
+        if grad_K:
+            gK = gK + np.einsum("wb,vc,xcb->wxv", wBpen, R, self.G)
+        gR = gR + np.einsum("wb,wxv,xcb->vc", wBpen, K, self.G) - wBpen
 
-        # State entropy.
         logp = np.log2(np.maximum(pi, 1e-300))
         h = float(-(pi * logp).sum())
-        gpi_total = -weight * (logp + 1.0 / _LN2) + mu * gpi
+        gpi_total = -weight * (logp + 1.0 / _LN2) + gpi
 
         def through_softmax(p: np.ndarray, g: np.ndarray) -> np.ndarray:
             return p * (g - (g * p).sum(axis=-1, keepdims=True))
 
         grads = [
             through_softmax(pi, gpi_total),
-            through_softmax(Q, mu * gQ),
-            through_softmax(R, mu * gR),
-            through_softmax(K.reshape(k, -1), mu * gK.reshape(k, -1)),
+            through_softmax(Q, gQ),
+            through_softmax(R, gR),
         ]
-        return weight * h + mu * loss, np.concatenate([g.ravel() for g in grads])
+        if grad_K:
+            grads.append(through_softmax(K.reshape(k, -1), gK.reshape(k, -1)))
+            return weight * h + penalty, np.concatenate([g.ravel() for g in grads])
+        return weight * h + penalty, np.concatenate([g.ravel() for g in grads])
 
     # ---- seeds ----------------------------------------------------------------------------------------
     def epsilon_seed(self) -> tuple[np.ndarray, ...]:
@@ -281,65 +460,9 @@ def generator_kernel(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: 
     the channel's variable is the state of a generator, whatever the coupling. ``c`` is indexed by the
     causal-state pairs in sorted order. Returns ``(t, K)``.
     """
-    from scipy.optimize import linprog
-
     problem = _as_problem(bidir)
-
     pi, Q, R, _ = problem.channel_seed(c)
-    k, X = len(pi), problem.n_sym
-    A = pi[:, None] * Q
-    nK = k * X * k
-    idx = lambda w, x, v: (w * X + x) * k + v  # noqa: E731
-    rows, rhs = [], []
-
-    def add(terms, target: float) -> None:
-        row = np.zeros(nK)
-        for j, val in terms:
-            row[j] += val
-        rows.append(row)
-        rhs.append(target)
-
-    for a in range(problem.n_plus):  # edge law
-        for x in range(X):
-            for b in range(problem.n_minus):
-                add(((idx(w, x, v), A[w, a] * R[v, b]) for w in range(k) for v in range(k)), problem.Pe[a, x, b])
-    for v in range(k):  # past-side stationarity
-        for c_ in range(problem.n_plus):
-            add(
-                (
-                    (idx(w, x, v), A[w, a] * problem.F[a, x, c_])
-                    for w in range(k)
-                    for x in range(X)
-                    for a in range(problem.n_plus)
-                ),
-                A[v, c_],
-            )
-    for w in range(k):  # future-side consistency
-        for b in range(problem.n_minus):
-            add(
-                (
-                    (idx(w, x, v), pi[w] * R[v, c_] * problem.G[x, c_, b])
-                    for x in range(X)
-                    for v in range(k)
-                    for c_ in range(problem.n_minus)
-                ),
-                pi[w] * R[w, b],
-            )
-    m = len(rows)
-    dense = np.array(rows)
-    target = np.array(rhs)
-    # |dense K - rhs| <= t ; rows of K sum to one; K >= 0
-    A_ub = np.block([[dense, -np.ones((m, 1))], [-dense, -np.ones((m, 1))]])
-    b_ub = np.concatenate([target, -target])
-    A_eq = np.zeros((k, nK + 1))
-    for w in range(k):
-        A_eq[w, w * X * k : (w + 1) * X * k] = 1.0
-    cost = np.zeros(nK + 1)
-    cost[-1] = 1.0
-    res = linprog(cost, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=np.ones(k), bounds=[(0, None)] * (nK + 1), method="highs")
-    if not res.success:
-        return np.inf, np.zeros((k, X, k))
-    return float(res.x[-1]), res.x[:-1].reshape(k, X, k)
+    return _kernel_lp_beliefs(problem, pi, Q, R)
 
 
 def _decompose(
@@ -505,7 +628,9 @@ def separating_decomposition_channels(
             live = lam > 1e-10
             p = lam[live]
             lam, A, B = lam[live], A[live], B[live]
-            key = tuple(sorted(tuple(np.round(np.concatenate([[l], a, b]), 6)) for l, a, b in zip(lam, A, B, strict=True)))
+            key = tuple(
+                sorted(tuple(np.round(np.concatenate([[l], a, b]), 6)) for l, a, b in zip(lam, A, B, strict=True))
+            )
             channel = _channel_from_decomposition(problem, lam, A, B)
             found.append((float(-(p * np.log2(p)).sum()), channel, key))
     if not found:
@@ -581,10 +706,56 @@ def bilevel_search(
 Seed = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
+def generator_state_cap(problem: _GeneratorProblem, *, hard_cap: int = 8) -> int:
+    """Upper limit on hidden state count for coupled search (Carathéodory + support size)."""
+    na, nb = len(problem.p_plus), len(problem.p_minus)
+    n_cells = int(np.sum(problem.p_pair > 1e-14))
+    carath = max(2, na + nb - 1)
+    return min(hard_cap, len(problem.p_pair), n_cells, carath)
+
+
+def systematic_coupled_seeds(
+    problem: _GeneratorProblem,
+    channels: Sequence[np.ndarray],
+    *,
+    max_permutations: int = 24,
+) -> list[tuple[str, Seed]]:
+    """Named coupled seeds from polished channels and label permutations (Phase B systematic restarts)."""
+    import itertools
+
+    out: list[tuple[str, Seed]] = []
+    seen: set[tuple[float, ...]] = set()
+
+    def register(name: str, seed: Seed) -> None:
+        key = tuple(np.round(np.concatenate([seed[0], seed[1].ravel(), seed[2].ravel(), seed[3].ravel()]), 8))
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((name, seed))
+
+    for i, raw in enumerate(channels):
+        c = polish_separating_channel(problem, raw)
+        register(f"systematic_channel_{i}", problem.channel_seed(c))
+        k = c.shape[1]
+        if k > 6:
+            continue
+        n_perm = 0
+        for perm in itertools.permutations(range(k)):
+            if perm == tuple(range(k)):
+                continue
+            register(f"systematic_perm_{i}_{n_perm}", problem.channel_seed(c[:, perm]))
+            n_perm += 1
+            if n_perm >= max_permutations:
+                break
+    return out
+
+
 def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
     """Fit a seed with fewer or more states into ``k`` states, adding small mass to empty states."""
     pi, Q, R, K = seed
     m = len(pi)
+    if m == k:
+        return pi / pi.sum(), Q, R, K
     if m > k:
         keep = np.argsort(-pi)[:k]
         pi, Q, R, K = pi[keep], Q[keep], R[keep], K[np.ix_(keep, np.arange(K.shape[1]), keep)]
@@ -614,34 +785,122 @@ class CoupledSearchResult:
     start: str
 
 
-def _optimize(problem: _GeneratorProblem, theta: np.ndarray, k: int, maxiter: int) -> np.ndarray:
-    """Feasibility first, then an augmented Lagrangian for min H[pi] subject to the generator equations."""
+def _optimize(
+    problem: _GeneratorProblem,
+    theta: np.ndarray,
+    k: int,
+    maxiter: int,
+    *,
+    alternating: bool = False,
+) -> np.ndarray:
+    """Feasibility pass, then block ALM; joint beliefs+kernel by default."""
+    block_mus = (_ALM_MU, _ALM_MU, _ALM_MU)
+    pi, Q, R, K = problem.unpack(theta, k)
+    if problem.residual(pi, Q, R, K) <= _ALM_TOL:
+        return theta
+
+    def _block_max(res: tuple[np.ndarray, ...]) -> tuple[float, float, float]:
+        return float(np.abs(res[0]).max()), float(np.abs(res[1]).max()), float(np.abs(res[2]).max())
+
+    if alternating:
+        theta_b = problem.logits_beliefs(pi, Q, R)
+        lam = [np.zeros_like(r) for r in problem.residuals(pi, Q, R, K)]
+        theta_b = minimize(
+            problem.loss_and_grad_beliefs,
+            theta_b,
+            args=(k, K, 1.0, None, 0.0, block_mus),
+            jac=True,
+            method="L-BFGS-B",
+            options={"maxiter": maxiter},
+        ).x
+        pi, Q, R = problem.unpack_beliefs(theta_b, k)
+        for _ in range(_ALM_ROUNDS):
+            _viol, K = _kernel_lp_beliefs(problem, pi, Q, R)
+            shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
+            theta_b = minimize(
+                problem.loss_and_grad_beliefs,
+                theta_b,
+                args=(k, K, 1.0, shifts, 0.0, block_mus),
+                jac=True,
+                method="L-BFGS-B",
+                options={"maxiter": maxiter},
+            ).x
+            pi, Q, R = problem.unpack_beliefs(theta_b, k)
+            res = problem.residuals(pi, Q, R, K)
+            lam = [l + m * r for l, r, m in zip(lam, res, block_mus, strict=False)]
+            mE, mF, mB = _block_max(res)
+            if max(mE, mF, mB) < _ALM_TOL:
+                break
+            block_mus = tuple(
+                min(m * (2.0 if v > _ALM_TOL else 1.0), _ALM_MU_MAX)
+                for m, v in zip(block_mus, (mE, mF, mB), strict=False)
+            )
+        return problem.logits(pi, Q, R, K)
+
     theta = minimize(
         problem.loss_and_grad,
         theta,
-        args=(k, 1.0, None, 0.0),
+        args=(k, 1.0, None, 0.0, block_mus),
         jac=True,
         method="L-BFGS-B",
         options={"maxiter": maxiter},
     ).x
-    mu = _ALM_MU
     lam = [np.zeros_like(r) for r in problem.residuals(*problem.unpack(theta, k))]
     for _ in range(_ALM_ROUNDS):
-        shifts = tuple(l / mu for l in lam)
+        shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
         theta = minimize(
             problem.loss_and_grad,
             theta,
-            args=(k, mu, shifts),
+            args=(k, 1.0, shifts, 0.0, block_mus),
             jac=True,
             method="L-BFGS-B",
             options={"maxiter": maxiter},
         ).x
         res = problem.residuals(*problem.unpack(theta, k))
-        lam = [l + mu * r for l, r in zip(lam, res, strict=False)]
-        if max(np.abs(r).max() for r in res) < _ALM_TOL:
+        lam = [l + m * r for l, r, m in zip(lam, res, block_mus, strict=False)]
+        mE, mF, mB = _block_max(res)
+        if max(mE, mF, mB) < _ALM_TOL:
             break
-        mu = min(mu * 2.0, _ALM_MU_MAX)
+        block_mus = tuple(
+            min(m * (2.0 if v > _ALM_TOL else 1.0), _ALM_MU_MAX) for m, v in zip(block_mus, (mE, mF, mB), strict=False)
+        )
     return theta
+
+
+def _optimize_coupled(
+    problem: _GeneratorProblem,
+    theta: np.ndarray,
+    k: int,
+    maxiter: int,
+    *,
+    alternating: bool = False,
+    dual_strategy: bool = True,
+    residual_atol: float = 1e-6,
+) -> np.ndarray:
+    """Run block ALM; optionally retry with alternating ``K`` LP if joint ALM stays infeasible."""
+    pi, Q, R, K = problem.unpack(theta, k)
+    if problem.residual(pi, Q, R, K) <= residual_atol:
+        return theta
+    if alternating:
+        return _optimize(problem, theta, k, maxiter, alternating=True)
+    theta_joint = _optimize(problem, theta, k, maxiter, alternating=False)
+    r_joint = problem.residual(*problem.unpack(theta_joint, k))
+    if r_joint <= residual_atol or not dual_strategy:
+        return theta_joint
+    theta_alt = _optimize(problem, theta, k, maxiter, alternating=True)
+    r_alt = problem.residual(*problem.unpack(theta_alt, k))
+    if r_alt + 1e-15 < r_joint:
+        return theta_alt
+    if r_joint + 1e-15 < r_alt:
+        return theta_joint
+    h_joint = _entropy(problem.unpack(theta_joint, k)[0])
+    h_alt = _entropy(problem.unpack(theta_alt, k)[0])
+    return theta_alt if h_alt < h_joint else theta_joint
+
+
+def _entropy(pi: np.ndarray) -> float:
+    p = pi[pi > 1e-15]
+    return float(-(p * np.log2(p)).sum())
 
 
 def coupled_search(
@@ -652,6 +911,8 @@ def coupled_search(
     extra: Sequence[tuple[str, tuple[np.ndarray, ...]]] = (),
     maxiter: int = 3000,
     residual_atol: float = 1e-6,
+    alternating: bool = False,
+    dual_strategy: bool = True,
     rng: np.random.Generator | None = None,
 ) -> list[CoupledSearchResult]:
     """Optimize k-state generators from the standard seeds, ``extra`` named seeds and random starts.
@@ -669,8 +930,19 @@ def coupled_search(
     ]
     out = []
     for name, theta in thetas:
-        theta = _optimize(problem, theta, k, maxiter)
         pi, Q, R, K = problem.unpack(theta, k)
+        init_res = problem.residual(pi, Q, R, K)
+        if init_res > residual_atol:
+            theta = _optimize_coupled(
+                problem,
+                theta,
+                k,
+                maxiter,
+                alternating=alternating,
+                dual_strategy=dual_strategy,
+                residual_atol=residual_atol,
+            )
+            pi, Q, R, K = problem.unpack(theta, k)
         residual = problem.residual(pi, Q, R, K)
         if residual <= residual_atol:
             p = pi[pi > 1e-12]
@@ -726,6 +998,8 @@ def coupled_generative_model(
     extra: Sequence[tuple[str, tuple[np.ndarray, ...]]] = (),
     maxiter: int = 3000,
     residual_atol: float = 1e-6,
+    alternating: bool = False,
+    dual_strategy: bool = True,
     reproduction_atol: float = 1e-5,
     cutoff: float = 1e-9,
     rng: np.random.Generator | None = None,
@@ -745,7 +1019,15 @@ def coupled_generative_model(
     candidates = []
     for k in states:
         candidates += coupled_search(
-            bidir, k, starts=starts, extra=extra, maxiter=maxiter, residual_atol=residual_atol, rng=rng
+            bidir,
+            k,
+            starts=starts,
+            extra=extra,
+            maxiter=maxiter,
+            residual_atol=residual_atol,
+            alternating=alternating,
+            dual_strategy=dual_strategy,
+            rng=rng,
         )
     reference = bidir.forward_machine
     length = _reproduction_length(reference)
@@ -764,9 +1046,11 @@ __all__ = [
     "coupled_search",
     "first_generating_separator",
     "generator_kernel",
+    "generator_state_cap",
     "memory_lift",
     "memory_lift_search",
     "polish_separating_channel",
     "separating_decomposition_channels",
     "separating_optima",
+    "systematic_coupled_seeds",
 ]

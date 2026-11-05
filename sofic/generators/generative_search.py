@@ -1,7 +1,9 @@
 r"""Search for minimal-state-entropy generators, bracketing the generative complexity.
 
-:func:`generative_model` runs a pipeline over nested model classes and returns the best generator it can
-verify together with a rigorous bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
+:func:`generative_model` builds (when needed) a bidirectional presentation and runs the full
+pipeline. :func:`generative_model_from_bidirectional` runs the same search when the bidirectional
+machine is already known. Both return the best generator they can verify together with a rigorous
+bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 :math:`C_g` of Löhr & Ay :cite:`LohrAy2009`:
 
 1. *Lower bounds.* Excess entropy; support-type and flow bounds when the joint has few maximal rectangles;
@@ -19,13 +21,15 @@ Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``u
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
 
 from sofic.exceptions import StochasticValidationError
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.coupled_generators import (
     CoupledGenerativeModel,
     CoupledSearchResult,
@@ -35,16 +39,21 @@ from sofic.generators.coupled_generators import (
     coupled_search,
     first_generating_separator,
     generator_kernel,
+    generator_state_cap,
     memory_lift,
     memory_lift_search,
     polish_separating_channel,
     separating_decomposition_channels,
     separating_optima,
+    systematic_coupled_seeds,
 )
-from sofic.generators.generator_bounds import flow_bound_result, maximal_rectangles, support_type_bound
-
-if TYPE_CHECKING:
-    from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.generator_bounds import (
+    flow_bound_result,
+    maximal_rectangles,
+    support_exact_cover_bound,
+    support_type_bound,
+)
 
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
@@ -90,11 +99,67 @@ class GenerativeModelResult:
         return self.n_g_optima_generating > 0
 
 
+def _reliability_summary(result: GenerativeModelResult) -> dict[str, Any]:
+    return {
+        "stage": "reliability summary",
+        "certified": result.certified,
+        "gap": result.gap,
+        "upper": result.upper,
+        "lower": result.lower,
+        "upper_source": result.upper_source,
+        "lower_source": result.lower_source,
+        "lower_certified": result.lower_certified,
+        "n_g_optima": result.n_g_optima,
+        "n_g_optima_generating": result.n_g_optima_generating,
+        "cg_exceeds_g": result.cg_exceeds_g,
+        "separating_variables_generate": result.separating_variables_generate,
+        "persistent_crypticity_theorem_applies": result.persistent_crypticity_theorem_applies,
+    }
+
+
+def _finalize_result(result: GenerativeModelResult) -> GenerativeModelResult:
+    if not result.stages or result.stages[-1].get("stage") != "reliability summary":
+        result.stages.append(_reliability_summary(result))
+    return result
+
+
 def _persistent_criteria(problem: _GeneratorProblem) -> tuple[float, float]:
     lifted = problem.lifted
     J = np.einsum("pb,pxq,qa->bxa", lifted.minus, lifted.edges, lifted.plus)
     h_joint = _entropy(J.ravel())
     return h_joint - _entropy(J.sum(axis=2).ravel()), h_joint - _entropy(J.sum(axis=0).ravel())
+
+
+def _theorem_applies(problem: _GeneratorProblem, *, atol: float = 1e-10) -> bool:
+    f_crit, r_crit = _persistent_criteria(problem)
+    return f_crit < atol and r_crit < atol
+
+
+def resolve_bidirectional(
+    machine: BidirectionalEpsilonMachine | EpsilonMachine,
+    *,
+    reverse_max_states: int = 10_000,
+    use_ladder: bool = True,
+) -> tuple[BidirectionalEpsilonMachine, dict[str, Any]]:
+    """Build or accept a bidirectional ε-machine for generator search."""
+    from sofic.generators.bidirectional_build import try_build_bidirectional
+
+    if isinstance(machine, BidirectionalEpsilonMachine):
+        return machine, {"bidir_class": "finite", "source": "bidirectional input"}
+    forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
+    built = try_build_bidirectional(forward, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    meta: dict[str, Any] = {
+        "bidir_class": built.preflight.bidir_class,
+        "reverse_max_states": built.preflight.reverse_max_states,
+        "reverse_recurrence_finite": built.preflight.reverse_recurrence_finite,
+        "pe_drift": built.pe_drift,
+        "edge_stabilized": built.edge_stabilized,
+    }
+    if built.preflight.error:
+        meta["build_error"] = built.preflight.error
+    if built.bidir is None:
+        raise StochasticValidationError(f"generative_model: bidirectional build failed ({built.preflight.bidir_class})")
+    return built.bidir, meta
 
 
 def _channel_matrix(problem: _GeneratorProblem, channel: dict) -> np.ndarray:
@@ -108,25 +173,32 @@ def _coverage_lower_bound(
     *,
     mu_starts: int,
     certified: bool,
+    k_max: int = 8,
+    certified_only: bool = False,
 ) -> tuple[float, dict[str, float], bool]:
     from sofic.generators.coverage_bound import (
+        coverage_bound,
         coverage_entropy_lower,
         joint_matrix,
         mu1_search,
-        mu_caps,
         mu_k_bilinear,
     )
 
     m, _, _ = joint_matrix(joint)
-    if certified and np.all(m > 0):
-        caps, caps_certified = mu_caps(m, k=2, seed=int(rng.integers(0, 2**31)), mu_starts=mu_starts)
-        meta = {
-            "mu_1": caps[0],
-            "mu_2": caps[1] if len(caps) > 1 else caps[0],
-            "certified": caps_certified,
-        }
-        return coverage_entropy_lower(caps), meta, caps_certified
     seed = int(rng.integers(0, 2**31))
+    if certified:
+        cov = coverage_bound(m, k_max=k_max, seed=seed)
+        meta: dict[str, float | int | bool | tuple[float, ...]] = {
+            "mu_1": cov.mu1,
+            "k_used": cov.k_used,
+            "caps": cov.caps,
+            "certified": cov.certified,
+        }
+        if certified_only and not cov.certified:
+            return float("-inf"), {**meta, "skipped": True}, False
+        return cov.value, meta, cov.certified
+    if certified_only:
+        return float("-inf"), {"certified": False, "skipped": True}, False
     mu1 = mu1_search(m, seed=seed, maxiter=min(250, mu_starts * 8))
     mu2 = mu_k_bilinear(m, 2, starts=min(40, mu_starts))
     caps = (mu1, mu2)
@@ -180,7 +252,7 @@ def _try_best_candidate(
     return None
 
 
-def generative_model(
+def generative_model_from_bidirectional(
     bidir: BidirectionalEpsilonMachine,
     *,
     max_states: int | None = None,
@@ -194,12 +266,18 @@ def generative_model(
     dit_fallback: bool = True,
     coverage: Literal["off", "heuristic", "certified"] = "heuristic",
     coverage_mu_starts: int = 25,
+    coverage_k_max: int = 8,
+    coverage_certified_only: bool = False,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
+    early_theorem_g_exit: bool = False,
+    universal_coupled: bool = False,
+    coupled_alternating: bool = False,
+    coupled_dual_strategy: bool = True,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
-    """Run the generator-search pipeline; see the module docstring."""
+    """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring."""
     from sofic.generators.lifted_common_information import _unconstrained_channel
     from sofic.generators.minimal_generative_model import (
         _normalized_joint_distribution,
@@ -226,6 +304,18 @@ def generative_model(
     log.append({"stage": "excess entropy", "value": excess})
 
     if n_rect <= _MAX_RECTANGLES:
+        exact_cover = support_exact_cover_bound(joint)
+        if exact_cover is not None:
+            log.append(
+                {
+                    "stage": "exact rectangle partition",
+                    "value": exact_cover.value,
+                    "certified": exact_cover.certified,
+                }
+            )
+            if exact_cover.value > lower + 1e-9:
+                lower, lower_source = exact_cover.value, "exact rectangle partition"
+                lower_certified = True
         support, _, _ = support_type_bound(joint)
         log.append({"stage": "support bound", "value": support})
         if support > lower:
@@ -242,13 +332,23 @@ def generative_model(
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
-                joint, rng, mu_starts=coverage_mu_starts, certified=use_certified
+                joint,
+                rng,
+                mu_starts=coverage_mu_starts,
+                certified=use_certified,
+                k_max=coverage_k_max,
+                certified_only=coverage_certified_only,
             )
-            stage = "coverage bound (certified)" if use_certified else "coverage bound (heuristic)"
-            log.append({"stage": stage, "value": cov, **meta})
-            if cov > lower + 1e-9:
-                lower, lower_source = cov, stage
-                lower_certified = caps_ok if use_certified else False
+            if cov > float("-inf"):
+                stage = "coverage bound (certified)" if caps_ok else "coverage bound (heuristic)"
+                if use_certified and not caps_ok and coverage_certified_only:
+                    stage = "coverage bound (skipped: not certified)"
+                log.append({"stage": stage, "value": cov, **meta})
+                if cov > lower + 1e-9:
+                    lower, lower_source = cov, stage
+                    lower_certified = caps_ok if use_certified else False
+            elif coverage_certified_only:
+                log.append({"stage": "coverage bound", "skipped": True, "certified": False})
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
 
@@ -265,6 +365,7 @@ def generative_model(
     n_generating = 0
     cg_exceeds_g: bool | None = None
     optima: list[np.ndarray] = []
+    systematic_channels: list[np.ndarray] = []
 
     def offer(name: str, seed: tuple[np.ndarray, ...]) -> None:
         residual = problem.residual(*seed)
@@ -301,7 +402,7 @@ def generative_model(
         offer("bidirectional machine", problem.pair_seed())
         early = maybe_return_early()
         if early is not None and early.certified:
-            return early
+            return _finalize_result(early)
 
     if "exact" in stages:
         best, optima = separating_optima(problem, starts=exact_starts, rng=rng)
@@ -331,6 +432,7 @@ def generative_model(
             except (StochasticValidationError, ImportError):
                 pass
         n_g_optima = len(optima)
+        systematic_channels = list(optima)
         for i, c in enumerate(optima):
             violation, K = generator_kernel(problem, c)
             pi, Q, R, _ = problem.channel_seed(c)
@@ -360,6 +462,7 @@ def generative_model(
         if bilevel and n_generating == 0 and optima:
             for ent, viol, c in bilevel_search(bidir, optima[:8])[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})
+                systematic_channels.append(c)
                 if viol <= 1e-9:
                     pi, Q, R, K = problem.channel_seed(c)
                     offer("bilevel feasible channel", (pi, Q, R, K))
@@ -389,10 +492,40 @@ def generative_model(
         )
         if hit is not None:
             entropy, c, K = hit
+            systematic_channels.append(c)
             pi, Q, R, _ = problem.channel_seed(c)
             offer("entropy-sweep separating generator", (pi, Q, R, K))
             n_generating += 1
             cg_exceeds_g = False
+
+        if early_theorem_g_exit and theorem and n_generating > 0:
+            early_g = _try_best_candidate(
+                problem,
+                reference,
+                length,
+                candidates,
+                lower=lower,
+                lower_source=lower_source,
+                lower_certified=lower_certified,
+                g_estimate=g_estimate,
+                theorem=theorem,
+                n_g_optima=n_g_optima,
+                n_generating=n_generating,
+                cg_exceeds_g=cg_exceeds_g,
+                log=log,
+                reproduction_atol=reproduction_atol,
+            )
+            if early_g is not None:
+                return _finalize_result(early_g)
+
+        repair.extend(systematic_coupled_seeds(problem, systematic_channels))
+        log.append(
+            {
+                "stage": "systematic coupled seeds",
+                "channels": len(systematic_channels),
+                "seeds": len(repair),
+            }
+        )
 
     if "memory" in stages:
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:
@@ -412,11 +545,54 @@ def generative_model(
             log.append({"stage": f"{name} channel", "error": str(exc)})
 
     if "coupled" in stages:
-        k_max = max_states or min(len(lifted.pairs), 8)
-        extra = [(name, seed) for _v, name, seed in sorted(candidates, key=lambda t: t[0])[:6]] + repair
-        for k in range(2, k_max + 1):
-            for res in coupled_search(bidir, k, starts=starts, extra=extra, residual_atol=residual_atol, rng=rng)[:2]:
-                offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
+        hard_cap = max_states if max_states is not None else 8
+        k_cap = generator_state_cap(problem, hard_cap=hard_cap)
+        log.append({"stage": "coupled state cap", "k_max": k_cap})
+        if universal_coupled:
+            from sofic.generators.universal_optimizer import universal_generative_optimizer
+
+            try:
+                uni = universal_generative_optimizer(
+                    bidir,
+                    max_states=k_cap,
+                    starts=starts,
+                    maxiter=3000,
+                    residual_atol=residual_atol,
+                    reproduction_atol=reproduction_atol,
+                    alternating=coupled_alternating,
+                    dual_strategy=coupled_dual_strategy,
+                    rng=rng,
+                )
+            except StochasticValidationError as exc:
+                log.append({"stage": "universal coupled search", "error": str(exc)})
+            else:
+                log.append(
+                    {
+                        "stage": "universal coupled search",
+                        "value": uni.value,
+                        "k": uni.k,
+                        "start": uni.start,
+                        "n_verified": uni.n_verified,
+                        "by_k": uni.by_k,
+                    }
+                )
+                if uni.search is not None:
+                    s = uni.search
+                    offer(f"universal coupled k={uni.k} ({s.start})", (s.pi, s.Q, s.R, s.K))
+        else:
+            extra = [(name, seed) for _v, name, seed in sorted(candidates, key=lambda t: t[0])[:6]] + repair
+            for k in range(2, k_cap + 1):
+                for res in coupled_search(
+                    bidir,
+                    k,
+                    starts=starts,
+                    extra=extra,
+                    residual_atol=residual_atol,
+                    alternating=coupled_alternating,
+                    dual_strategy=coupled_dual_strategy,
+                    rng=rng,
+                )[:2]:
+                    offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
     result = _try_best_candidate(
         problem,
@@ -435,8 +611,94 @@ def generative_model(
         reproduction_atol=reproduction_atol,
     )
     if result is None:
-        raise StochasticValidationError("generative_model: no candidate reproduced the source process")
+        raise StochasticValidationError(
+            "generative_model_from_bidirectional: no candidate reproduced the source process"
+        )
+    return _finalize_result(result)
+
+
+def generative_model(
+    machine: BidirectionalEpsilonMachine | EpsilonMachine,
+    *,
+    reverse_max_states: int = 10_000,
+    use_ladder: bool = True,
+    max_states: int | None = None,
+    starts: int = 20,
+    memory_starts: int = 10,
+    residual_atol: float = 1e-7,
+    reproduction_atol: float = 1e-5,
+    large: int = 9,
+    exact_starts: int = 30,
+    dit_fallback: bool = True,
+    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage_mu_starts: int = 25,
+    coverage_k_max: int = 8,
+    coverage_certified_only: bool = False,
+    entropy_sweep_starts: int = 80,
+    bilevel: bool = True,
+    early_certified: bool = True,
+    coupled_alternating: bool = False,
+    coupled_dual_strategy: bool = True,
+    rng: np.random.Generator | None = None,
+) -> GenerativeModelResult:
+    """Full generative-complexity search from a forward ε-machine or bidirectional presentation.
+
+    1. Build a bidirectional ε-machine (preflight / optional retry ladder).
+    2. Certified lower bounds and persistent-crypticity test on the edge.
+    3. When :math:`p.\\chi^+ \\approx p.\\chi^- \\approx 0` and some :math:`\\op{G}{S^+ : S^-}` optimum
+       passes the generator kernel, return that lifted / exact-CI generator (theorem path).
+    4. Otherwise memory lifts, lifted channels on small joints, then
+       :func:`~sofic.generators.universal_optimizer.universal_generative_optimizer`
+       (full coupled equations).
+
+    The final ``stages`` entry is a **reliability summary** (``certified``, ``gap``, sources, …).
+    """
+    bidir, build_meta = resolve_bidirectional(machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    result = generative_model_from_bidirectional(
+        bidir,
+        max_states=max_states,
+        starts=starts,
+        memory_starts=memory_starts,
+        residual_atol=residual_atol,
+        reproduction_atol=reproduction_atol,
+        stages=("machines", "exact", "memory", "functional", "lifted", "coupled"),
+        large=large,
+        exact_starts=exact_starts,
+        dit_fallback=dit_fallback,
+        coverage=coverage,
+        coverage_mu_starts=coverage_mu_starts,
+        coverage_k_max=coverage_k_max,
+        coverage_certified_only=coverage_certified_only,
+        entropy_sweep_starts=entropy_sweep_starts,
+        bilevel=bilevel,
+        early_certified=early_certified,
+        early_theorem_g_exit=True,
+        universal_coupled=True,
+        coupled_alternating=coupled_alternating,
+        coupled_dual_strategy=coupled_dual_strategy,
+        rng=rng,
+    )
+    result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
     return result
 
 
-__all__ = ["GenerativeModelResult", "generative_model"]
+def ultimate_generative_model(
+    machine: BidirectionalEpsilonMachine | EpsilonMachine,
+    **kwargs: Any,
+) -> GenerativeModelResult:
+    """Deprecated alias for :func:`generative_model`."""
+    warnings.warn(
+        "ultimate_generative_model is renamed to generative_model; update call sites",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return generative_model(machine, **kwargs)
+
+
+__all__ = [
+    "GenerativeModelResult",
+    "generative_model",
+    "generative_model_from_bidirectional",
+    "resolve_bidirectional",
+    "ultimate_generative_model",
+]
