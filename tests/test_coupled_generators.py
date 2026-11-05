@@ -182,18 +182,20 @@ def test_polishing_makes_the_flag_channel_exact() -> None:
 
 
 def test_generative_model_certifies_the_golden_mean() -> None:
-    from sofic.generators.generative_search import generative_model
+    from sofic.generators.generative_search import generative_model_from_bidirectional
 
-    result = generative_model(golden_mean_bidirectional(0.5), starts=3, max_states=3, rng=np.random.default_rng(0))
+    result = generative_model_from_bidirectional(
+        golden_mean_bidirectional(0.5), starts=3, max_states=3, rng=np.random.default_rng(0)
+    )
     assert result.certified
     assert result.upper == pytest.approx(_h(1 / 3), abs=1e-6)
     assert result.separating_variables_generate
 
 
 def test_generative_model_brackets_the_rll_process() -> None:
-    from sofic.generators.generative_search import generative_model
+    from sofic.generators.generative_search import generative_model_from_bidirectional
 
-    result = generative_model(
+    result = generative_model_from_bidirectional(
         _rll(), stages=("machines", "exact", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
     )
     h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
@@ -229,11 +231,12 @@ def test_coverage_certified_uses_mu1_only_on_full_support() -> None:
         ("1", "0"): float(d[1, 0]),
         ("1", "1"): float(d[1, 1]),
     }
-    cov, meta, ok = _coverage_lower_bound(joint, np.random.default_rng(0), mu_starts=8, certified=True)
+    cov, meta, ok = _coverage_lower_bound(joint, np.random.default_rng(0), mu_starts=8, certified=True, k_max=4)
     assert ok
     assert meta["certified"] is True
     assert cov == pytest.approx(_h(10 / 11), abs=1e-3)
-    assert meta["mu_2"] == pytest.approx(min(1.0, 2 * meta["mu_1"]), rel=1e-9)
+    caps = meta["caps"]
+    assert caps[1] == pytest.approx(min(1.0, 2 * meta["mu_1"]), rel=1e-9)
 
 
 def test_mu_k_certified_trivial_cap_and_lp_on_dsbs_product() -> None:
@@ -252,8 +255,9 @@ def test_mu_k_certified_trivial_cap_and_lp_on_dsbs_product() -> None:
     assert mu1_big.certified
     cap2 = mu_k_certified_trivial_cap(2, mu1_big.value)
     assert cap2 == pytest.approx(min(1.0, 2 * mu1_big.value), rel=1e-12)
-    opt2 = mu_k_optimize(m, 2, seed=0, starts=8)
-    assert opt2.certified and opt2.value == cap2
+    opt2 = mu_k_optimize(m, 2, seed=0)
+    assert opt2.certified and opt2.value < cap2
+    assert opt2.value == pytest.approx(1 - 11 / 400, rel=1e-6)
     p00 = (1 - eps) / 2
     a = p00 - (eps / 2) ** 2 / p00
     q = np.array([eps, 1 - eps])
@@ -262,8 +266,9 @@ def test_mu_k_certified_trivial_cap_and_lp_on_dsbs_product() -> None:
     w1, w2 = (1 - a) ** 2, a * (1 - a)
     lp = lp_rank_k_weights(m, u, v)
     assert lp == pytest.approx(w1 + w2, rel=0.02)
+    assert lp <= opt2.value + 1e-9
     lp_search = mu_k_lp_simplex(m, 2, starts=8, seed=1)
-    assert (lp_search.feasible or 0.0) <= cap2 + 1e-9
+    assert (lp_search.feasible or 0.0) <= opt2.value + 1e-9
 
 
 def test_separating_optima_finds_the_generating_flags() -> None:
@@ -311,17 +316,16 @@ def test_mu1_brute_on_dsbs_matches_ten_elevenths() -> None:
     assert prod == pytest.approx((10 / 11) ** 2, abs=1e-4)
 
 
-def test_mu1_convex_matches_brute_on_dsbs() -> None:
-    from sofic.generators.coverage_bound import mu1_brute_2x2, mu1_convex_full_support, mu1_optimize
+def test_mu1_vertex_matches_brute_on_dsbs() -> None:
+    from sofic.generators.coverage_bound import mu1_brute_2x2, mu1_optimize
 
     eps = 9 / 20
     d = np.array([[1 - eps, eps], [eps, 1 - eps]]) / 2
     brute = mu1_brute_2x2(d, grid=6000)
-    convex = mu1_convex_full_support(d)
     opt = mu1_optimize(d)
-    assert convex.certified and opt.certified
-    assert convex.value == pytest.approx(10 / 11, abs=2e-4)
-    assert opt.value == pytest.approx(brute.value, abs=2e-3)
+    assert opt.certified
+    assert opt.value == pytest.approx(10 / 11, rel=1e-6)
+    assert opt.value >= brute.value
 
 
 def test_mu_caps_certified_on_full_support_joint() -> None:
@@ -331,10 +335,10 @@ def test_mu_caps_certified_on_full_support_joint() -> None:
     joint = {k: float(v) for k, v in machine.joint_distribution().items() if float(v) > 0}
     m, _, _ = joint_matrix(joint)
     assert np.all(m > 0)
-    caps, certified = mu_caps(m, k=2, seed=0, mu_starts=8)
+    caps, certified = mu_caps(m, k=2, seed=0)
     assert len(caps) == 2
     assert certified
-    assert caps[1] == pytest.approx(min(1.0, 2 * caps[0]), rel=1e-9)
+    assert caps[1] <= min(1.0, 2 * caps[0]) + 1e-12
     assert 0.5 < caps[0] < 1.0
 
 

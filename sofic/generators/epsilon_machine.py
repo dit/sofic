@@ -366,6 +366,12 @@ class EpsilonMachine(MealyHMM):
         """C_g = H[G] for the minimal generative model."""
         return self.to_bidirectional().generative_complexity(**kwargs)
 
+    def generative_model(self, **kwargs: Any) -> Any:
+        """Search for a verified minimal generator and bracket on generative complexity."""
+        from sofic.generators.generative_search import generative_model
+
+        return generative_model(self, **kwargs)
+
     def crypticity(self) -> float:
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""
         return self.statistical_complexity() - self.excess_entropy()

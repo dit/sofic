@@ -182,14 +182,19 @@ given number of states.
 Searching for a generator
 =========================
 
-:func:`~sofic.generators.generative_search.generative_model` combines these
-tools into one pipeline and returns the best generator it can verify together
-with a rigorous bracket on :math:`C_g`:
+:func:`~sofic.generators.generative_search.generative_model` is the primary entry
+point: it builds a bidirectional presentation when needed, runs the full pipeline,
+and returns the best verified generator with a bracket on :math:`C_g`.
+:func:`~sofic.generators.generative_search.generative_model_from_bidirectional`
+runs the same search when the bidirectional machine is already known.
 
-* lower bounds: the excess entropy, support-type and flow bounds, and (on large
-  supports) a coverage bound (``coverage="heuristic"`` or ``coverage="certified"``
-  for entrywise-positive joints via :func:`~sofic.generators.coverage_bound.mu1_optimize` and
-  :func:`~sofic.generators.coverage_bound.mu_k_optimize` (certified ``mu_k <= k mu_1``);
+* lower bounds: the excess entropy, support-type and flow bounds, and a coverage
+  bound (``coverage="heuristic"`` or ``coverage="certified"``). The certified caps
+  come from :func:`~sofic.generators.coverage_bound.mu_caps`: an exact ``mu_1`` by
+  vertex enumeration (:func:`~sofic.generators.coverage_bound.mu1_vertex`), the
+  singular-value tail cap ``mu_k <= 1 - sum_{i>k} sigma_i``
+  (:func:`~sofic.generators.coverage_bound.mu_k_spectral_cap`, via
+  Eckart–Young–Mirsky :cite:`mirsky1960symmetric`), ``k mu_1``, and subadditivity;
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
@@ -242,11 +247,16 @@ Coupled generators and bounds
 -----------------------------
 
 .. autofunction:: sofic.generators.generative_search.generative_model
+.. autofunction:: sofic.generators.generative_search.generative_model_from_bidirectional
+.. autofunction:: sofic.generators.generative_search.resolve_bidirectional
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower
 .. autofunction:: sofic.generators.coverage_bound.mu1_optimize
+.. autofunction:: sofic.generators.coverage_bound.mu1_vertex
+.. autofunction:: sofic.generators.coverage_bound.mu_caps
 .. autofunction:: sofic.generators.coverage_bound.mu_k_optimize
+.. autofunction:: sofic.generators.coverage_bound.mu_k_spectral_cap
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
@@ -264,6 +274,10 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.bidirectional_build.preflight_bidir
 .. autofunction:: sofic.generators.bidirectional_build.try_build_bidirectional
 .. autofunction:: sofic.generators.bidirectional_build.build_bidirectional_with_ladder
+.. autofunction:: sofic.generators.universal_optimizer.universal_generative_optimizer
+.. autoclass:: sofic.generators.universal_optimizer.UniversalGenerativeResult
+   :members:
+.. autofunction:: sofic.generators.universal_optimizer.compare_universal_to_pipeline
 .. autoclass:: sofic.generators.generator_problem_spec.GeneratorProblemSpec
    :members:
 
