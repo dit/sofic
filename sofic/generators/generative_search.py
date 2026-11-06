@@ -7,14 +7,17 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 :math:`C_g` of Löhr & Ay :cite:`LohrAy2009`:
 
 1. *Lower bounds.* Excess entropy; support-type and flow bounds when the joint has few maximal rectangles;
-   optional heuristic coverage bound on full supports (:mod:`~sofic.generators.coverage_bound`).
+   the certified coverage bound (:mod:`~sofic.generators.coverage_bound`), the informative one on
+   full supports, where the support-type bound vanishes.
 2. *Persistent crypticity.* When both :math:`p.\chi^\pm` vanish on the bidirectional edge,
    :math:`C_g = \op{G}{S^+ : S^-}`.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
    :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate; then an
    **entropy-ordered sweep** over all multistart separating decompositions (not only
    :math:`\op{G}` optima) up to the current best upper bound.
-4. *Upper bounds:* ε-machines, memory lifts, functional/lifted channels (small joints), coupled search.
+4. *Upper bounds:* ε-machines, memory lifts, the exact minimal functional generator
+   (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
+   (small joints), coupled search.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
@@ -286,7 +289,7 @@ def _bracket_search(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
@@ -300,10 +303,10 @@ def _bracket_search(
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring."""
+    from sofic.generators.functional_generators import functional_cover_search
     from sofic.generators.lifted_common_information import _unconstrained_channel
     from sofic.generators.minimal_generative_model import (
         _normalized_joint_distribution,
-        functional_generative_model,
         minimal_generative_model,
         wyner_generative_model,
     )
@@ -354,7 +357,7 @@ def _bracket_search(
                 lower, lower_source = fb.value, f"flow bound {thresholds}"
                 lower_certified = fb.certified
 
-    if not wyner and coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
+    if not wyner and coverage in ("heuristic", "certified"):
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -588,18 +591,32 @@ def _bracket_search(
             if residual <= residual_atol:
                 offer("memory-1 lift", memory_lift(problem, nu))
 
-    lifted_builder = wyner_generative_model if wyner else minimal_generative_model
-    for name, builder in (("functional", functional_generative_model), ("lifted", lifted_builder)):
-        if name not in stages or not small:
-            if name in stages:
-                log.append({"stage": f"{name} channel", "skipped": f"more than {large} causal-state pairs"})
-            continue
+    if "functional" in stages:
         try:
-            kwargs = {"rng": rng} if name == "lifted" else {}
-            model = builder(bidir, **kwargs)
-            offer(f"{name} channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
-        except (StochasticValidationError, ImportError) as exc:
-            log.append({"stage": f"{name} channel", "error": str(exc)})
+            cover = functional_cover_search(problem)
+        except StochasticValidationError as exc:
+            log.append({"stage": "functional cover search", "error": str(exc)})
+        else:
+            log.append(
+                {
+                    "stage": "functional cover search",
+                    "value": cover.value,
+                    "exact": cover.exact,
+                    "rejected covers": cover.rejected,
+                }
+            )
+            offer("minimal functional generator", problem.channel_seed(np.eye(cover.labels.max() + 1)[cover.labels]))
+
+    if "lifted" in stages:
+        if small:
+            builder = wyner_generative_model if wyner else minimal_generative_model
+            try:
+                model = builder(bidir, rng=rng)
+                offer("lifted channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
+            except (StochasticValidationError, ImportError) as exc:
+                log.append({"stage": "lifted channel", "error": str(exc)})
+        else:
+            log.append({"stage": "lifted channel", "skipped": f"more than {large} causal-state pairs"})
 
     if "coupled" in stages:
         hard_cap = max_states if max_states is not None else 8
@@ -685,7 +702,7 @@ def generative_model_from_bidirectional(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
@@ -795,7 +812,7 @@ def generative_model(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,

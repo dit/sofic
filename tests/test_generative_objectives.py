@@ -77,6 +77,27 @@ def test_functional_generator_certified_on_sixteen_pair_interleaved() -> None:
     assert result.upper >= result.lower - 1e-12
 
 
+def test_generative_model_uses_certified_coverage_on_full_support() -> None:
+    from sofic.generators.generative_search import generative_model_from_bidirectional
+
+    result = generative_model_from_bidirectional(_interleaved(9 / 20), stages=("machines",))
+    assert result.lower_source == "coverage bound (certified)"
+    assert result.lower_certified
+    assert result.lower == pytest.approx(0.78730, abs=1e-4)
+
+
+def test_generative_model_offers_minimal_functional_generator() -> None:
+    from sofic.generators.generative_search import generative_model_from_bidirectional
+
+    result = generative_model_from_bidirectional(
+        _interleaved(0.1), stages=("functional",), rng=np.random.default_rng(0)
+    )
+    stage = next(s for s in result.stages if s["stage"] == "functional cover search")
+    assert stage["exact"]
+    assert result.upper_source == "minimal functional generator"
+    assert result.upper == pytest.approx(stage["value"], abs=1e-9)
+
+
 _FAST_WYNER = {"max_states": 3, "starts": 4, "exact_starts": 8, "entropy_sweep_starts": 10, "memory_starts": 4}
 
 

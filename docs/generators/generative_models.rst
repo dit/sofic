@@ -205,7 +205,8 @@ runs the same search when the bidirectional machine is already known.
   may propose feasible channels, then an entropy-ordered sweep over multistart
   separating decompositions (:func:`~sofic.generators.coupled_generators.separating_decomposition_channels`);
 * upper bounds over nested classes, cheapest first: the ε-machines and
-  bidirectional machine, memory-1 lifts, deterministic and lifted channels (for
+  bidirectional machine, memory-1 lifts, the exact minimal functional generator
+  (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels (for
   small machines), and the coupled search seeded with everything found so far.
 
 .. code-block:: python

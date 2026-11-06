@@ -5,6 +5,18 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Generator search reliability
+
+- **Fixed:** `generative_model` skipped the coverage bound on full-support joints. It ran only
+  with more than 7 maximal rectangles, but a full support has one, and there the support-type
+  bound is 0, so the lower bound fell back to the excess entropy. On the 43-case survey of
+  3-state processes with positive persistent crypticity, running it raises the lower bound in
+  26 cases and cuts the median bracket width from 0.285 to 0.044 bits (mean 0.449 to 0.110).
+- `coverage` now defaults to ``"certified"`` (cheap, and a valid lower bound; ``"heuristic"``
+  is not).
+- The functional stage of `generative_model` uses the exact `functional_cover_search` at any
+  joint size instead of the old partition search (exhaustive up to 9 pairs, greedy beyond).
+
 ### Added (generator objectives)
 
 - `minimal_wyner_model`: generator search ranked by ``I[W : S+, S-]`` (Wyner analogue of
