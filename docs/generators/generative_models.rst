@@ -219,6 +219,39 @@ runs the same search when the bidirectional machine is already known.
 The searches are local; ``certified`` reports when the bracket closes (for
 example the golden mean, where the support bound meets :math:`C_\mu`).
 
+Wyner and functional generators
+-------------------------------
+
+Two variants return the same :class:`~sofic.generators.generative_search.GenerativeModelResult`,
+with ``objective`` naming what the bracket bounds.
+
+:func:`~sofic.generators.generative_search.minimal_wyner_model` minimizes
+:math:`\I{W : S^+, S^-}` over generators, the Wyner :cite:`Wyner1975` analogue of :math:`C_g`.
+It runs the candidate stages of :func:`~sofic.generators.generative_search.generative_model`,
+adds the lifted Wyner model and the unconstrained Wyner optimum (when it passes the generator
+kernel), and ranks the verified generators by
+:math:`\I{W : S^+, S^-} = \H{S^+, S^-} - \sum_w \pi_w (\H{S^+ \mid w} + \H{S^- \mid w})`.
+The state-entropy lower bounds do not apply, so ``lower`` is the excess entropy. When both
+persistent crypticities vanish the minimum is the Wyner common information
+:math:`\op{C}{S^+ : S^-}` (2/3 bit for the golden mean).
+
+:func:`~sofic.generators.functional_generators.minimal_functional_generator` minimizes the state
+entropy over generators whose state is a function of :math:`(S^+, S^-)`. Such a generator is a
+coarse-graining of the bidirectional machine whose blocks are product rectangles of the joint
+support, so the search
+(:func:`~sofic.generators.functional_generators.functional_cover_search`) solves the
+least-entropy exact cover by product rectangles, whose value is the functional common information
+:math:`\op{F}{S^+ : S^-}` :cite:`james2017multivariate`, checks the lifting conditions, and
+excludes failed covers until one generates. The result is exact, with a certified lower bound if
+``max_covers`` runs out. On the :math:`(2, \infty)` process the first cover has entropy
+:math:`2 - \tfrac38 \log_2 3` but does not generate; the minimal functional generator has
+:math:`3/2` bits, equal to :math:`C_g`.
+
+.. code-block:: python
+
+   bidir.minimal_wyner_model().upper         # min I[W : S+, S-] over generators found
+   bidir.minimal_functional_generator()      # exact, certified bracket
+
 Lower bounds
 ============
 
@@ -248,6 +281,10 @@ Coupled generators and bounds
 
 .. autofunction:: sofic.generators.generative_search.generative_model
 .. autofunction:: sofic.generators.generative_search.generative_model_from_bidirectional
+.. autofunction:: sofic.generators.generative_search.minimal_wyner_model
+.. autofunction:: sofic.generators.functional_generators.minimal_functional_generator
+.. autofunction:: sofic.generators.functional_generators.functional_cover_search
+.. autofunction:: sofic.generators.functional_generators.product_rectangles
 .. autofunction:: sofic.generators.generative_search.resolve_bidirectional
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate

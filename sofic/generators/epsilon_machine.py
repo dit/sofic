@@ -372,6 +372,18 @@ class EpsilonMachine(MealyHMM):
 
         return generative_model(self, **kwargs)
 
+    def minimal_wyner_model(self, **kwargs: Any) -> Any:
+        """Search for a verified generator minimizing ``I[W : S+, S-]`` and a bracket on it."""
+        from sofic.generators.generative_search import minimal_wyner_model
+
+        return minimal_wyner_model(self, **kwargs)
+
+    def minimal_functional_generator(self, **kwargs: Any) -> Any:
+        """Least-state-entropy generator whose state is a function of ``(S+, S-)``, with a bracket."""
+        from sofic.generators.functional_generators import minimal_functional_generator
+
+        return minimal_functional_generator(self, **kwargs)
+
     def crypticity(self) -> float:
         """χ = C_μ − E (forward statistical complexity minus excess entropy)."""
         return self.statistical_complexity() - self.excess_entropy()

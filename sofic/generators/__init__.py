@@ -22,10 +22,12 @@ from sofic.generators.directional_flow import (
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.epsilon_transducer import EpsilonTransducer
+from sofic.generators.functional_generators import minimal_functional_generator
 from sofic.generators.generative_search import (
     GenerativeModelResult,
     generative_model,
     generative_model_from_bidirectional,
+    minimal_wyner_model,
     ultimate_generative_model,
 )
 from sofic.generators.lumping import LumpabilityError, is_lumpable, lump, normalize_partition
@@ -85,6 +87,8 @@ __all__ = [
     "coverage_entropy_lower",
     "generative_model",
     "generative_model_from_bidirectional",
+    "minimal_functional_generator",
+    "minimal_wyner_model",
     "ultimate_generative_model",
     "mu1_brute_2x2",
     "mu1_search",

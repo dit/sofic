@@ -17,6 +17,8 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 4. *Upper bounds:* ε-machines, memory lifts, functional/lifted channels (small joints), coupled search.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
+:func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
+variant lives in :mod:`~sofic.generators.functional_generators`.
 """
 
 from __future__ import annotations
@@ -68,7 +70,12 @@ def _entropy(p: np.ndarray) -> float:
 
 @dataclass
 class GenerativeModelResult:
-    """Best verified generator and a bracket on the generative complexity."""
+    """Best verified generator and a bracket on the minimized objective.
+
+    ``objective`` names what ``upper`` and ``lower`` bound: ``"entropy"`` (state entropy, the generative
+    complexity :math:`C_g`), ``"wyner"`` (:math:`\\I{W : S^+, S^-}` over generators) or ``"functional"``
+    (state entropy over generators whose state is a function of :math:`(S^+, S^-)`).
+    """
 
     model: CoupledGenerativeModel
     upper: float
@@ -83,6 +90,7 @@ class GenerativeModelResult:
     n_g_optima_generating: int = 0
     cg_exceeds_g: bool | None = None
     lower_certified: bool = True
+    objective: str = "entropy"
 
     @property
     def certified(self) -> bool:
@@ -102,6 +110,7 @@ class GenerativeModelResult:
 def _reliability_summary(result: GenerativeModelResult) -> dict[str, Any]:
     return {
         "stage": "reliability summary",
+        "objective": result.objective,
         "certified": result.certified,
         "gap": result.gap,
         "upper": result.upper,
@@ -128,6 +137,16 @@ def _persistent_criteria(problem: _GeneratorProblem) -> tuple[float, float]:
     J = np.einsum("pb,pxq,qa->bxa", lifted.minus, lifted.edges, lifted.plus)
     h_joint = _entropy(J.ravel())
     return h_joint - _entropy(J.sum(axis=2).ravel()), h_joint - _entropy(J.sum(axis=0).ravel())
+
+
+def _wyner_information(problem: _GeneratorProblem, seed: tuple[np.ndarray, ...]) -> float:
+    r"""``I[W : S+, S-]`` of a generator seed: ``H[S+, S-] - sum_w pi_w (H[Q_w] + H[R_w])``.
+
+    Every generator state separates the causal states, so ``H[S+, S- | W] = H[S+ | W] + H[S- | W]``.
+    """
+    pi, Q, R = seed[0], seed[1], seed[2]
+    h_given_w = sum(float(pi[w]) * (_entropy(Q[w]) + _entropy(R[w])) for w in range(len(pi)))
+    return max(0.0, _entropy(problem.p_pair) - h_given_w)
 
 
 def _theorem_applies(problem: _GeneratorProblem, *, atol: float = 1e-10) -> bool:
@@ -221,19 +240,20 @@ def _try_best_candidate(
     cg_exceeds_g: bool | None,
     log: list[dict[str, Any]],
     reproduction_atol: float,
+    objective: str = "entropy",
 ) -> GenerativeModelResult | None:
     from sofic.generators.minimal_generative_model import _reproduction_error
 
     g_generates = n_generating > 0
     sep_gen = g_generates if n_g_optima > 0 else theorem
 
-    for _value, name, seed in sorted(candidates, key=lambda t: t[0]):
+    for value, name, seed in sorted(candidates, key=lambda t: t[0]):
         pi, Q, R, K = seed
         result = CoupledSearchResult(pi, Q, R, K, _entropy(pi), problem.residual(pi, Q, R, K), name)
         model = _model_from_kernel(problem, result, 1e-9)
         if _reproduction_error(model, reference, max_length=length) > reproduction_atol:
             continue
-        upper = float(model.state_entropy())
+        upper = float(value) if objective == "wyner" else float(model.state_entropy())
         return GenerativeModelResult(
             model=model,
             upper=upper,
@@ -248,13 +268,15 @@ def _try_best_candidate(
             n_g_optima_generating=n_generating,
             cg_exceeds_g=cg_exceeds_g,
             lower_certified=lower_certified,
+            objective=objective,
         )
     return None
 
 
-def generative_model_from_bidirectional(
+def _bracket_search(
     bidir: BidirectionalEpsilonMachine,
     *,
+    objective: Literal["entropy", "wyner"],
     max_states: int | None = None,
     starts: int = 20,
     memory_starts: int = 10,
@@ -277,14 +299,16 @@ def generative_model_from_bidirectional(
     coupled_dual_strategy: bool = True,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
-    """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring."""
+    """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring."""
     from sofic.generators.lifted_common_information import _unconstrained_channel
     from sofic.generators.minimal_generative_model import (
         _normalized_joint_distribution,
         functional_generative_model,
         minimal_generative_model,
+        wyner_generative_model,
     )
 
+    wyner = objective == "wyner"
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
     lifted = problem.lifted
@@ -302,8 +326,10 @@ def generative_model_from_bidirectional(
     lower, lower_source = excess, "excess entropy"
     lower_certified = True
     log.append({"stage": "excess entropy", "value": excess})
+    if wyner:
+        log.append({"stage": "entropy lower bounds", "skipped": "they bound H[W], not I[W : S+, S-]"})
 
-    if n_rect <= _MAX_RECTANGLES:
+    if not wyner and n_rect <= _MAX_RECTANGLES:
         exact_cover = support_exact_cover_bound(joint)
         if exact_cover is not None:
             log.append(
@@ -328,7 +354,7 @@ def generative_model_from_bidirectional(
                 lower, lower_source = fb.value, f"flow bound {thresholds}"
                 lower_certified = fb.certified
 
-    if coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
+    if not wyner and coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -369,7 +395,7 @@ def generative_model_from_bidirectional(
 
     def offer(name: str, seed: tuple[np.ndarray, ...]) -> None:
         residual = problem.residual(*seed)
-        value = _entropy(seed[0])
+        value = _wyner_information(problem, seed) if wyner else _entropy(seed[0])
         log.append({"stage": name, "value": value, "residual": residual})
         if residual <= residual_atol:
             candidates.append((value, name, seed))
@@ -394,6 +420,7 @@ def generative_model_from_bidirectional(
             cg_exceeds_g=cg_exceeds_g,
             log=log,
             reproduction_atol=reproduction_atol,
+            objective=objective,
         )
 
     if "machines" in stages:
@@ -431,6 +458,35 @@ def generative_model_from_bidirectional(
                         optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
+        if wyner and dit_fallback:
+            try:
+                c = _unconstrained_channel(
+                    lifted,
+                    _normalized_joint_distribution(bidir, cutoff=1e-10),
+                    "wyner",
+                    niter=10,
+                    maxiter=1000,
+                    polish=1e-8,
+                    backend="numpy",
+                    cutoff=1e-10,
+                    rng=rng,
+                )
+            except (StochasticValidationError, ImportError):
+                c = None
+            if c is not None:
+                violation, K = generator_kernel(problem, c)
+                log.append(
+                    {
+                        "stage": "Wyner common information",
+                        "value": lifted.objective(c, "wyner")[0],
+                        "kernel violation": violation,
+                    }
+                )
+                pi, Q, R, _ = problem.channel_seed(c)
+                if violation <= 1e-9:
+                    offer("Wyner-common-information optimum", (pi, Q, R, K))
+                else:
+                    repair.append(("Wyner-common-information optimum (repair)", (pi, Q, R, K)))
         n_g_optima = len(optima)
         systematic_channels = list(optima)
         for i, c in enumerate(optima):
@@ -474,8 +530,8 @@ def generative_model_from_bidirectional(
         best_upper = min((c[0] for c in candidates), default=np.inf)
         hit = None
         if n_generating == 0 and sweep_channels:
-            max_h = best_upper if np.isfinite(best_upper) else None
-            if lower_certified:
+            max_h = best_upper if np.isfinite(best_upper) and not wyner else None
+            if lower_certified and not wyner:
                 max_h = min(max_h, lower) if max_h is not None else lower
             hit = first_generating_separator(
                 problem,
@@ -498,7 +554,7 @@ def generative_model_from_bidirectional(
             n_generating += 1
             cg_exceeds_g = False
 
-        if early_theorem_g_exit and theorem and n_generating > 0:
+        if early_theorem_g_exit and not wyner and theorem and n_generating > 0:
             early_g = _try_best_candidate(
                 problem,
                 reference,
@@ -532,7 +588,8 @@ def generative_model_from_bidirectional(
             if residual <= residual_atol:
                 offer("memory-1 lift", memory_lift(problem, nu))
 
-    for name, builder in (("functional", functional_generative_model), ("lifted", minimal_generative_model)):
+    lifted_builder = wyner_generative_model if wyner else minimal_generative_model
+    for name, builder in (("functional", functional_generative_model), ("lifted", lifted_builder)):
         if name not in stages or not small:
             if name in stages:
                 log.append({"stage": f"{name} channel", "skipped": f"more than {large} causal-state pairs"})
@@ -591,7 +648,7 @@ def generative_model_from_bidirectional(
                     alternating=coupled_alternating,
                     dual_strategy=coupled_dual_strategy,
                     rng=rng,
-                )[:2]:
+                )[: None if wyner else 2]:
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
     result = _try_best_candidate(
@@ -609,12 +666,120 @@ def generative_model_from_bidirectional(
         cg_exceeds_g=cg_exceeds_g,
         log=log,
         reproduction_atol=reproduction_atol,
+        objective=objective,
     )
     if result is None:
-        raise StochasticValidationError(
-            "generative_model_from_bidirectional: no candidate reproduced the source process"
-        )
+        raise StochasticValidationError(f"{objective} generator search: no candidate reproduced the source process")
     return _finalize_result(result)
+
+
+def generative_model_from_bidirectional(
+    bidir: BidirectionalEpsilonMachine,
+    *,
+    max_states: int | None = None,
+    starts: int = 20,
+    memory_starts: int = 10,
+    residual_atol: float = 1e-7,
+    reproduction_atol: float = 1e-5,
+    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled"),
+    large: int = 9,
+    exact_starts: int = 30,
+    dit_fallback: bool = True,
+    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage_mu_starts: int = 25,
+    coverage_k_max: int = 8,
+    coverage_certified_only: bool = False,
+    entropy_sweep_starts: int = 80,
+    bilevel: bool = True,
+    early_certified: bool = True,
+    early_theorem_g_exit: bool = False,
+    universal_coupled: bool = False,
+    coupled_alternating: bool = False,
+    coupled_dual_strategy: bool = True,
+    rng: np.random.Generator | None = None,
+) -> GenerativeModelResult:
+    """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring."""
+    return _bracket_search(
+        bidir,
+        objective="entropy",
+        max_states=max_states,
+        starts=starts,
+        memory_starts=memory_starts,
+        residual_atol=residual_atol,
+        reproduction_atol=reproduction_atol,
+        stages=stages,
+        large=large,
+        exact_starts=exact_starts,
+        dit_fallback=dit_fallback,
+        coverage=coverage,
+        coverage_mu_starts=coverage_mu_starts,
+        coverage_k_max=coverage_k_max,
+        coverage_certified_only=coverage_certified_only,
+        entropy_sweep_starts=entropy_sweep_starts,
+        bilevel=bilevel,
+        early_certified=early_certified,
+        early_theorem_g_exit=early_theorem_g_exit,
+        universal_coupled=universal_coupled,
+        coupled_alternating=coupled_alternating,
+        coupled_dual_strategy=coupled_dual_strategy,
+        rng=rng,
+    )
+
+
+def minimal_wyner_model(
+    machine: BidirectionalEpsilonMachine | EpsilonMachine,
+    *,
+    reverse_max_states: int = 10_000,
+    use_ladder: bool = True,
+    max_states: int | None = None,
+    starts: int = 20,
+    memory_starts: int = 10,
+    residual_atol: float = 1e-7,
+    reproduction_atol: float = 1e-5,
+    large: int = 9,
+    exact_starts: int = 30,
+    dit_fallback: bool = True,
+    entropy_sweep_starts: int = 80,
+    bilevel: bool = True,
+    coupled_alternating: bool = False,
+    coupled_dual_strategy: bool = True,
+    rng: np.random.Generator | None = None,
+) -> GenerativeModelResult:
+    r"""Generator minimizing :math:`\I{W : S^+, S^-}`, the Wyner analogue of :func:`generative_model`.
+
+    Every generator state separates the causal states :cite:`Ellison2009`, so
+    :math:`\I{W : S^+, S^-}` is at least the Wyner common information :math:`\op{C}{S^+ : S^-}`
+    :cite:`Wyner1975`, which is at least the excess entropy :math:`\I{S^+ : S^-}`; when both
+    persistent crypticities vanish the minimum over generators equals :math:`\op{C}{S^+ : S^-}`.
+
+    The candidates are those of :func:`generative_model` (ε-machines, exact-common-information optima,
+    the separator sweep, memory lifts, functional and lifted channels, coupled search) plus the lifted
+    Wyner model and the unconstrained Wyner optimum when it passes the generator kernel. They are ranked
+    by :math:`\I{W : S^+, S^-} = \H{S^+, S^-} - \sum_w \pi_w (\H{S^+ \mid w} + \H{S^- \mid w})` and
+    word-verified. The state-entropy lower bounds do not apply, so ``lower`` is the excess entropy and
+    the bracket is certified only when a candidate attains it.
+    """
+    bidir, build_meta = resolve_bidirectional(machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    result = _bracket_search(
+        bidir,
+        objective="wyner",
+        max_states=max_states,
+        starts=starts,
+        memory_starts=memory_starts,
+        residual_atol=residual_atol,
+        reproduction_atol=reproduction_atol,
+        large=large,
+        exact_starts=exact_starts,
+        dit_fallback=dit_fallback,
+        coverage="off",
+        entropy_sweep_starts=entropy_sweep_starts,
+        bilevel=bilevel,
+        coupled_alternating=coupled_alternating,
+        coupled_dual_strategy=coupled_dual_strategy,
+        rng=rng,
+    )
+    result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
+    return result
 
 
 def generative_model(
@@ -699,6 +864,7 @@ __all__ = [
     "GenerativeModelResult",
     "generative_model",
     "generative_model_from_bidirectional",
+    "minimal_wyner_model",
     "resolve_bidirectional",
     "ultimate_generative_model",
 ]

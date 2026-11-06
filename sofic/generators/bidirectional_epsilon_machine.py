@@ -617,6 +617,24 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return generative_model(self, **kwargs)
 
+    def minimal_wyner_model(self, **kwargs: Any) -> Any:
+        """Search for a verified generator minimizing ``I[W : S+, S-]`` and a bracket on it.
+
+        See :func:`~sofic.generators.generative_search.minimal_wyner_model`.
+        """
+        from sofic.generators.generative_search import minimal_wyner_model
+
+        return minimal_wyner_model(self, **kwargs)
+
+    def minimal_functional_generator(self, **kwargs: Any) -> Any:
+        """Least-state-entropy generator whose state is a function of ``(S+, S-)``, with a bracket.
+
+        See :func:`~sofic.generators.functional_generators.minimal_functional_generator`.
+        """
+        from sofic.generators.functional_generators import minimal_functional_generator
+
+        return minimal_functional_generator(self, **kwargs)
+
     def wyner_common_information(self, **kwargs: Any) -> float:
         """Wyner common information C[S+ : S-] = C[past : future] (no generator requirement)."""
         from sofic.generators.minimal_generative_model import wyner_common_information
