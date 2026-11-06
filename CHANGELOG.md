@@ -5,6 +5,18 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Added (generator objectives)
+
+- `minimal_wyner_model`: generator search ranked by ``I[W : S+, S-]`` (Wyner analogue of
+  `generative_model`), with the lifted Wyner model and unconstrained Wyner optimum as extra
+  candidates; ``lower`` is the excess entropy.
+- `minimal_functional_generator`: exact least-state-entropy generator whose state is a function of
+  ``(S+, S-)``, by least-entropy exact cover with product rectangles plus no-good cuts
+  (`functional_cover_search`, `product_rectangles`); certified at any size unless ``max_covers``
+  runs out.
+- `GenerativeModelResult.objective` (``"entropy"``, ``"wyner"`` or ``"functional"``); both new
+  searches are also methods on `EpsilonMachine` and `BidirectionalEpsilonMachine`.
+
 ### Added (Phases A & B)
 
 - ``coverage_bound`` with ``k_used = min(k_max, na, nb)`` caps; ``coverage_k_max`` and
