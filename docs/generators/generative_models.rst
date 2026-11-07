@@ -194,7 +194,11 @@ runs the same search when the bidirectional machine is already known.
   vertex enumeration (:func:`~sofic.generators.coverage_bound.mu1_vertex`), the
   singular-value tail cap ``mu_k <= 1 - sum_{i>k} sigma_i``
   (:func:`~sofic.generators.coverage_bound.mu_k_spectral_cap`, via
-  Eckart–Young–Mirsky :cite:`mirsky1960symmetric`), ``k mu_1``, and subadditivity;
+  Eckart–Young–Mirsky :cite:`mirsky1960symmetric`), ``k mu_1``, subadditivity, and, when
+  the smaller side of the joint has three states, the exact ``mu_2`` of
+  :func:`~sofic.generators.coverage_bound.mu_hyperplane_cap` (branch and bound over the plane
+  containing the columns of a rank-2 matrix; exact since nonnegative rank two equals rank two
+  :cite:`cohen1993nonnegative`);
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
@@ -295,6 +299,7 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coverage_bound.mu_caps
 .. autofunction:: sofic.generators.coverage_bound.mu_k_optimize
 .. autofunction:: sofic.generators.coverage_bound.mu_k_spectral_cap
+.. autofunction:: sofic.generators.coverage_bound.mu_hyperplane_cap
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model

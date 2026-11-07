@@ -14,6 +14,14 @@ brute-force reference or a closed-form value and has a regression test.
   26 cases and cuts the median bracket width from 0.285 to 0.044 bits (mean 0.449 to 0.110).
 - `coverage` now defaults to ``"certified"`` (cheap, and a valid lower bound; ``"heuristic"``
   is not).
+- `mu_hyperplane_cap`: certified cap on ``mu_{m-1}`` (``m`` the smaller side) by branch and bound
+  over the hyperplane containing the columns of a rank-``(m-1)`` matrix; exact for ``m = 3``.
+  `mu_caps` uses it for ``mu_2`` on 3-state sides, lowering the median survey bracket width
+  from 0.044 to 0.0073 bits on the same uppers.
+- **Fixed:** `exact_common_information_estimate` (and the exact-CI optima tested for
+  generation) could come from dit's channel even when polishing left it short of exact
+  separation, reporting an entropy below the true ``G[S+ : S-]`` and below the certified lower
+  bound. Such channels are now discarded (``I[S+ : S- | W] > 1e-9``).
 - The functional stage of `generative_model` uses the exact `functional_cover_search` at any
   joint size instead of the old partition search (exhaustive up to 9 pairs, greedy beyond).
 

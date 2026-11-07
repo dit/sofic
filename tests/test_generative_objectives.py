@@ -86,6 +86,36 @@ def test_generative_model_uses_certified_coverage_on_full_support() -> None:
     assert result.lower == pytest.approx(0.78730, abs=1e-4)
 
 
+def _near_degenerate_survey_machine():
+    """Survey process ((0, 1), (2, 0), (0, None)): dit's exact-CI channel misses exact separation."""
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+    from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+
+    a, b = 0.9928125105284444, 0.8050849845480182
+    mats = {
+        0: np.array([[a, 0.0, 0.0], [0.0, 0.0, b], [1.0, 0.0, 0.0]]),
+        1: np.array([[0.0, 1 - a, 0.0], [1 - b, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+    }
+    return BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1, 2), (0, 1), mats))
+
+
+@pytest.mark.parametrize("seed", [4, 7])
+def test_exact_common_information_estimate_is_never_below_certified_lower(seed: int) -> None:
+    from sofic.generators.generative_search import generative_model_from_bidirectional
+
+    result = generative_model_from_bidirectional(
+        _near_degenerate_survey_machine(),
+        stages=("machines", "exact"),
+        exact_starts=6,
+        entropy_sweep_starts=6,
+        bilevel=False,
+        rng=np.random.default_rng(seed),
+    )
+    assert result.lower_certified
+    assert result.exact_common_information_estimate is not None
+    assert result.exact_common_information_estimate >= result.lower - 1e-9
+
+
 def test_generative_model_offers_minimal_functional_generator() -> None:
     from sofic.generators.generative_search import generative_model_from_bidirectional
 

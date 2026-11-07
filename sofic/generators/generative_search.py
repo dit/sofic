@@ -63,6 +63,8 @@ from sofic.generators.generator_bounds import (
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 _CERT_TOL = 1e-6
+# ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
+_SEPARATION_ATOL = 1e-9
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -454,11 +456,14 @@ def _bracket_search(
                 )
                 if c is not None:
                     c = polish_separating_channel(problem, c)
+                    separation = float(lifted.constraint_informations(c)[0])
                     value = _entropy(lifted.p @ c)
-                    if g_estimate is None or value < g_estimate - 1e-9:
-                        g_estimate, optima = value, [c]
-                    elif value <= g_estimate + 1e-7:
-                        optima.append(c)
+                    log.append({"stage": "dit exact common information", "value": value, "separation": separation})
+                    if separation <= _SEPARATION_ATOL:
+                        if g_estimate is None or value < g_estimate - 1e-9:
+                            g_estimate, optima = value, [c]
+                        elif value <= g_estimate + 1e-7:
+                            optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
         if wyner and dit_fallback:
