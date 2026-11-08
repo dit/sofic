@@ -7,6 +7,15 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator search reliability
 
+- `generator_caps` module: `generator_weight_cap` caps the total weight of a generator's ``k``
+  heaviest states (``k`` explicit states plus one aggregate, generator equations on group
+  moments, McCormick envelopes over branched belief boxes); `generator_coverage_bound` feeds the
+  caps into the coverage bound. These are the first full-support lower bounds above
+  ``G[S+ : S-]``. New pipeline stage ``generator_caps`` (default 2 explicit states, with
+  ``coverage="certified"``). On the 43-case survey (v5 brackets): certified 11 -> 18, median
+  width 0.0164 -> 0.0007 bits, lower bound above the ``G`` estimate in 24 cases. On the
+  ``(2, inf)`` process the caps are ``(1/2, 3/4)``, giving ``C_g >= 3/2`` to LP tolerance.
+
 - **Fixed:** `generative_model` skipped the coverage bound on full-support joints. It ran only
   with more than 7 maximal rectangles, but a full support has one, and there the support-type
   bound is 0, so the lower bound fell back to the excess entropy. On the 43-case survey of

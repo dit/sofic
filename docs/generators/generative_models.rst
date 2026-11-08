@@ -270,6 +270,19 @@ exact for the :math:`(2, \infty)` process (:math:`2 - \tfrac38 \log_2 3`) and
 for the golden mean process (:math:`C_\mu`, proving :math:`C_g = C_\mu` there);
 it is uninformative when the support is the full product.
 
+Every bound above is at most :math:`\op{G}{S^+ : S^-}` except the flow bound, which
+needs a sparse support. :mod:`sofic.generators.generator_caps` uses the generator
+equations on full supports too: :func:`~sofic.generators.generator_caps.generator_weight_cap`
+caps the total weight of a generator's ``k`` heaviest states by keeping them explicit,
+aggregating the rest, writing the edge law, forward stationarity and reverse
+consistency for the group moments, and branching over boxes of the explicit states'
+beliefs with McCormick envelopes :cite:`mccormick1976computability`. Coverage with these
+caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
+``generator_caps`` stage of the pipeline) exceeds :math:`\op{G}{S^+ : S^-}` on most
+survey processes with positive persistent crypticity, and on the :math:`(2, \infty)`
+process it gives caps :math:`(1/2, 3/4)` and :math:`C_g \ge 3/2` up to the LP tolerance,
+which with the known generator gives :math:`C_g = 3/2`.
+
 API
 ===
 
@@ -300,6 +313,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coverage_bound.mu_k_optimize
 .. autofunction:: sofic.generators.coverage_bound.mu_k_spectral_cap
 .. autofunction:: sofic.generators.coverage_bound.mu_hyperplane_cap
+.. autofunction:: sofic.generators.generator_caps.generator_weight_cap
+.. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model

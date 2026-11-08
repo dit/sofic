@@ -8,7 +8,9 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 
 1. *Lower bounds.* Excess entropy; support-type and flow bounds when the joint has few maximal rectangles;
    the certified coverage bound (:mod:`~sofic.generators.coverage_bound`), the informative one on
-   full supports, where the support-type bound vanishes.
+   full supports, where the support-type bound vanishes; and coverage with caps on the heaviest
+   generator states from the generator equations (:mod:`~sofic.generators.generator_caps`,
+   ``generator_caps`` explicit states), which can exceed :math:`\op{G}{S^+ : S^-}`.
 2. *Persistent crypticity.* When both :math:`p.\chi^\pm` vanish on the bidirectional edge,
    :math:`C_g = \op{G}{S^+ : S^-}`.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
@@ -295,6 +297,7 @@ def _bracket_search(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -382,6 +385,14 @@ def _bracket_search(
                 log.append({"stage": "coverage bound", "skipped": True, "certified": False})
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
+
+    if not wyner and coverage == "certified" and generator_caps > 0:
+        from sofic.generators.generator_caps import generator_coverage_bound
+
+        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps)
+        log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
+        if gen.value > lower + 1e-9:
+            lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
 
     f_crit, r_crit = _persistent_criteria(problem)
     theorem = f_crit < 1e-10 and r_crit < 1e-10
@@ -711,6 +722,7 @@ def generative_model_from_bidirectional(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -737,6 +749,7 @@ def generative_model_from_bidirectional(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_caps=generator_caps,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,
@@ -821,6 +834,7 @@ def generative_model(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -856,6 +870,7 @@ def generative_model(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_caps=generator_caps,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,
