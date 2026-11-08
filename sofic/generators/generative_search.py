@@ -17,7 +17,8 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate; then an
    **entropy-ordered sweep** over all multistart separating decompositions (not only
    :math:`\op{G}` optima) up to the current best upper bound.
-4. *Upper bounds:* ε-machines, memory lifts, the exact minimal functional generator
+4. *Upper bounds:* ε-machines, line-split seeds from the exact optima
+   (:func:`~sofic.generators.coupled_generators.line_split_seeds`), memory lifts, the exact minimal functional generator
    (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
    (small joints), coupled search.
 
@@ -42,11 +43,13 @@ from sofic.generators.coupled_generators import (
     CoupledSearchResult,
     _GeneratorProblem,
     _model_from_kernel,
+    _optimize_coupled,
     bilevel_search,
     coupled_search,
     first_generating_separator,
     generator_kernel,
     generator_state_cap,
+    line_split_seeds,
     memory_lift,
     memory_lift_search,
     polish_separating_channel,
@@ -65,6 +68,7 @@ from sofic.generators.generator_bounds import (
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 _CERT_TOL = 1e-6
+_LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
 # ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
 _SEPARATION_ATOL = 1e-9
 
@@ -601,6 +605,13 @@ def _bracket_search(
                 "seeds": len(repair),
             }
         )
+        # Saturated logits freeze softmax gradients, so each seed is polished from several floors.
+        for name, seed in line_split_seeds(problem, optima):
+            k = len(seed[0])
+            for floor in _LINE_SPLIT_FLOORS:
+                theta = problem.logits(*seed, floor=floor)
+                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol)
+                offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
     if "memory" in stages:
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:

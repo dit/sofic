@@ -324,6 +324,7 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coupled_generators.memory_lift_search
 .. autofunction:: sofic.generators.coupled_generators.generator_kernel
 .. autofunction:: sofic.generators.coupled_generators.bilevel_search
+.. autofunction:: sofic.generators.coupled_generators.line_split_seeds
 .. autofunction:: sofic.generators.generator_bounds.support_type_bound
 .. autofunction:: sofic.generators.generator_bounds.flow_bound
 .. autofunction:: sofic.generators.generator_bounds.flow_bound_result

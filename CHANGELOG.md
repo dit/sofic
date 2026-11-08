@@ -7,6 +7,12 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator search reliability
 
+- `line_split_seeds`: coupled seeds that keep the one or two heaviest terms of each exact
+  common-information optimum and split the remainder into point-mass states (one per row or
+  column of the joint), with kernels from the kernel LP. The pipeline polishes each from
+  several logit floors (saturated logits freeze the softmax gradients). On the survey's 20 open
+  brackets this lowered the upper bound in 3 cases, e.g. ``[1.234, 1.397] -> [1.234, 1.237]``.
+
 - `generator_caps` module: `generator_weight_cap` caps the total weight of a generator's ``k``
   heaviest states (``k`` explicit states plus one aggregate, generator equations on group
   moments, McCormick envelopes over branched belief boxes); `generator_coverage_bound` feeds the

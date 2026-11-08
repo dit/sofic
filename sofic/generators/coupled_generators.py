@@ -750,6 +750,43 @@ def systematic_coupled_seeds(
     return out
 
 
+def line_split_seeds(
+    problem: _GeneratorProblem,
+    channels: Sequence[np.ndarray],
+    *,
+    max_broad: int = 2,
+) -> list[tuple[str, Seed]]:
+    """Exact decompositions mixing broad terms with point-mass beliefs, as coupled seeds.
+
+    For each separating channel, keep the ``j <= max_broad`` heaviest terms of its decomposition
+    :math:`p(s^+, s^-) = \\sum_w \\pi_w Q_w R_w^\\top` and split the nonnegative remainder by columns
+    (one state per reverse causal state, ``R = e_b``) or by rows (``Q = e_a``). Minimal generators
+    found by random restarts often have this shape: broad states that nearly separate the causal
+    states plus small states certain of one of them. Kernels come from the kernel LP.
+    """
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    na, nb = P.shape
+    out: list[tuple[str, Seed]] = []
+    for i, c in enumerate(channels):
+        pi, Q, R, _ = problem.channel_seed(c)
+        order = np.argsort(-pi)
+        for j in range(1, min(max_broad, int((pi > 1e-9).sum())) + 1):
+            top = order[:j]
+            rest = np.maximum(P - np.einsum("w,wa,wb->ab", pi[top], Q[top], R[top]), 0.0)
+            for axis, name in ((0, "columns"), (1, "rows")):
+                lines = rest.sum(axis=axis)
+                live = np.flatnonzero(lines > 1e-12)
+                if axis == 0:
+                    Q_new, R_new = (rest[:, live] / lines[live]).T, np.eye(nb)[live]
+                else:
+                    Q_new, R_new = np.eye(na)[live], rest[live] / lines[live][:, None]
+                weights = np.concatenate([pi[top], lines[live]])
+                beliefs = (weights / weights.sum(), np.vstack([Q[top], Q_new]), np.vstack([R[top], R_new]))
+                _violation, K = _kernel_lp_beliefs(problem, *beliefs)
+                out.append((f"line split {i} (top {j} + {name})", (*beliefs, K)))
+    return out
+
+
 def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
     """Fit a seed with fewer or more states into ``k`` states, adding small mass to empty states."""
     pi, Q, R, K = seed
@@ -1047,6 +1084,7 @@ __all__ = [
     "first_generating_separator",
     "generator_kernel",
     "generator_state_cap",
+    "line_split_seeds",
     "memory_lift",
     "memory_lift_search",
     "polish_separating_channel",

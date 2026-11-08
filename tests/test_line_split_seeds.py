@@ -1,0 +1,49 @@
+"""Line-split coupled seeds: broad decomposition terms plus point-mass states."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from sofic.examples.epsilon_machines import from_symbol_matrices
+from sofic.generators import coupled_generators as cg
+from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+
+
+def _survey_machine() -> BidirectionalEpsilonMachine:
+    """Survey process ((0, 1), (2, 1), (0, 1)): bracket [1.234, 1.397] before line-split seeds."""
+    a, b, c = 0.23098961132583967, 0.4322639772906034, 0.7484936101088153
+    mats = {
+        0: np.array([[a, 0.0, 0.0], [0.0, 0.0, b], [c, 0.0, 0.0]]),
+        1: np.array([[0.0, 1 - a, 0.0], [0.0, 1 - b, 0.0], [0.0, 1 - c, 0.0]]),
+    }
+    return BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1, 2), (0, 1), mats))
+
+
+def test_line_split_seeds_are_exact_decompositions_with_point_mass_states() -> None:
+    problem = cg._GeneratorProblem(_survey_machine())
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
+    seeds = cg.line_split_seeds(problem, optima)
+    assert seeds
+    for _name, (pi, Q, R, K) in seeds:
+        assert np.einsum("w,wa,wb->ab", pi, Q, R) == pytest.approx(P, abs=1e-9)
+        point = np.isclose(Q.max(axis=1), 1.0) | np.isclose(R.max(axis=1), 1.0)
+        assert point.sum() >= len(pi) - 2
+        assert K.reshape(len(pi), -1).sum(axis=1) == pytest.approx(1.0)
+
+
+def test_pipeline_finds_line_split_generator() -> None:
+    from sofic.generators.generative_search import generative_model_from_bidirectional
+
+    result = generative_model_from_bidirectional(
+        _survey_machine(),
+        stages=("machines", "exact"),
+        exact_starts=10,
+        entropy_sweep_starts=10,
+        bilevel=False,
+        generator_caps=0,
+        rng=np.random.default_rng(0),
+    )
+    assert result.upper_source.startswith("line split")
+    assert result.upper <= 1.2368
