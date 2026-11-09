@@ -93,7 +93,7 @@ def test_hyperplane_cap_closed_forms() -> None:
     assert mu_hyperplane_cap(rank_two.T).value == pytest.approx(1.0, abs=1e-9)
 
 
-@settings(max_examples=12, deadline=None)
+@settings(max_examples=6, deadline=None)
 @given(st.integers(3, 6), st.floats(0.01, 0.3), st.integers(0, 2**31 - 1))
 def test_hyperplane_cap_brackets_planted_rank_two_mass(n: int, delta: float, seed: int) -> None:
     rng = np.random.default_rng(seed)

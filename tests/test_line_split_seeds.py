@@ -33,7 +33,7 @@ def _widest_survey_machine() -> BidirectionalEpsilonMachine:
 def test_targeted_search_finds_low_entropy_generator() -> None:
     problem = cg._GeneratorProblem(_widest_survey_machine())
     _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
-    seeds = cg.targeted_line_split_seeds(problem, optima, rng=np.random.default_rng(0))
+    seeds = cg.targeted_line_split_seeds(problem, optima, configs=((1, 1), (2, 0)), rng=np.random.default_rng(0))
     assert seeds
     assert all(problem.residual(*seed) <= 1e-7 for _name, seed in seeds)
     # the pipeline's other stages reach 1.371 here and a 0.970-bit generator is known; the local

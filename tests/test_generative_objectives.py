@@ -80,7 +80,7 @@ def test_functional_generator_certified_on_sixteen_pair_interleaved() -> None:
 def test_generative_model_uses_certified_coverage_on_full_support() -> None:
     from sofic.generators.generative_search import generative_model_from_bidirectional
 
-    result = generative_model_from_bidirectional(_interleaved(9 / 20), stages=("machines",))
+    result = generative_model_from_bidirectional(_interleaved(9 / 20), stages=("machines",), generator_caps=0)
     assert result.lower_source == "coverage bound (certified)"
     assert result.lower_certified
     assert result.lower == pytest.approx(0.78730, abs=1e-4)
@@ -109,6 +109,9 @@ def test_exact_common_information_estimate_is_never_below_certified_lower(seed: 
         exact_starts=6,
         entropy_sweep_starts=6,
         bilevel=False,
+        # generator caps bound C_g and may exceed G; this test is about bounds on G
+        generator_caps=0,
+        targeted=False,
         rng=np.random.default_rng(seed),
     )
     assert result.lower_certified
@@ -120,7 +123,7 @@ def test_generative_model_offers_minimal_functional_generator() -> None:
     from sofic.generators.generative_search import generative_model_from_bidirectional
 
     result = generative_model_from_bidirectional(
-        _interleaved(0.1), stages=("functional",), rng=np.random.default_rng(0)
+        _interleaved(0.1), stages=("functional",), generator_caps=0, rng=np.random.default_rng(0)
     )
     stage = next(s for s in result.stages if s["stage"] == "functional cover search")
     assert stage["exact"]

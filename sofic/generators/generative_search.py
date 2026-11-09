@@ -610,7 +610,8 @@ def _bracket_search(
             }
         )
         # Saturated logits freeze softmax gradients, so each seed is polished from several floors.
-        for name, seed in line_split_seeds(problem, optima):
+        # Line splits target low state entropy, so the Wyner search skips them.
+        for name, seed in [] if wyner else line_split_seeds(problem, optima):
             k = len(seed[0])
             for floor in _LINE_SPLIT_FLOORS:
                 theta = problem.logits(*seed, floor=floor)
