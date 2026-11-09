@@ -34,11 +34,11 @@ def test_targeted_search_finds_low_entropy_generator() -> None:
     problem = cg._GeneratorProblem(_widest_survey_machine())
     _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
     seeds = cg.targeted_line_split_seeds(problem, optima, configs=((1, 1), (2, 0)), rng=np.random.default_rng(0))
-    assert seeds
+    assert 0 < len(seeds) <= 3
     assert all(problem.residual(*seed) <= 1e-7 for _name, seed in seeds)
-    # the pipeline's other stages reach 1.371 here and a 0.970-bit generator is known; the local
-    # optimizers land between the two depending on platform floating point (0.98 to 1.02 seen)
-    assert min(cg._entropy(seed[0]) for _name, seed in seeds) < 1.1
+    # the pipeline's other stages reach 1.371 here and a 0.970-bit generator is known; COBYLA alone
+    # stops at 0.98 to 1.10 depending on the seed, and the local-search hops reach 0.970 to 0.975
+    assert min(cg._entropy(seed[0]) for _name, seed in seeds) < 0.98
 
 
 def test_line_split_seeds_are_exact_decompositions_with_point_mass_states() -> None:
