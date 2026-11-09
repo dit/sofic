@@ -194,7 +194,11 @@ runs the same search when the bidirectional machine is already known.
   vertex enumeration (:func:`~sofic.generators.coverage_bound.mu1_vertex`), the
   singular-value tail cap ``mu_k <= 1 - sum_{i>k} sigma_i``
   (:func:`~sofic.generators.coverage_bound.mu_k_spectral_cap`, via
-  Eckart–Young–Mirsky :cite:`mirsky1960symmetric`), ``k mu_1``, and subadditivity;
+  Eckart–Young–Mirsky :cite:`mirsky1960symmetric`), ``k mu_1``, subadditivity, and, when
+  the smaller side of the joint has three states, the exact ``mu_2`` of
+  :func:`~sofic.generators.coverage_bound.mu_hyperplane_cap` (branch and bound over the plane
+  containing the columns of a rank-2 matrix; exact since nonnegative rank two equals rank two
+  :cite:`cohen1993nonnegative`);
 * the persistent-crypticity criteria; when both vanish every separating variable
   is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
 * the exact-common-information optima (dit, several starts, since the optimum
@@ -205,7 +209,8 @@ runs the same search when the bidirectional machine is already known.
   may propose feasible channels, then an entropy-ordered sweep over multistart
   separating decompositions (:func:`~sofic.generators.coupled_generators.separating_decomposition_channels`);
 * upper bounds over nested classes, cheapest first: the ε-machines and
-  bidirectional machine, memory-1 lifts, deterministic and lifted channels (for
+  bidirectional machine, memory-1 lifts, the exact minimal functional generator
+  (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels (for
   small machines), and the coupled search seeded with everything found so far.
 
 .. code-block:: python
@@ -265,6 +270,19 @@ exact for the :math:`(2, \infty)` process (:math:`2 - \tfrac38 \log_2 3`) and
 for the golden mean process (:math:`C_\mu`, proving :math:`C_g = C_\mu` there);
 it is uninformative when the support is the full product.
 
+Every bound above is at most :math:`\op{G}{S^+ : S^-}` except the flow bound, which
+needs a sparse support. :mod:`sofic.generators.generator_caps` uses the generator
+equations on full supports too: :func:`~sofic.generators.generator_caps.generator_weight_cap`
+caps the total weight of a generator's ``k`` heaviest states by keeping them explicit,
+aggregating the rest, writing the edge law, forward stationarity and reverse
+consistency for the group moments, and branching over boxes of the explicit states'
+beliefs with McCormick envelopes :cite:`mccormick1976computability`. Coverage with these
+caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
+``generator_caps`` stage of the pipeline) exceeds :math:`\op{G}{S^+ : S^-}` on most
+survey processes with positive persistent crypticity, and on the :math:`(2, \infty)`
+process it gives caps :math:`(1/2, 3/4)` and :math:`C_g \ge 3/2` up to the LP tolerance,
+which with the known generator gives :math:`C_g = 3/2`.
+
 API
 ===
 
@@ -294,6 +312,9 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coverage_bound.mu_caps
 .. autofunction:: sofic.generators.coverage_bound.mu_k_optimize
 .. autofunction:: sofic.generators.coverage_bound.mu_k_spectral_cap
+.. autofunction:: sofic.generators.coverage_bound.mu_hyperplane_cap
+.. autofunction:: sofic.generators.generator_caps.generator_weight_cap
+.. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
@@ -303,6 +324,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coupled_generators.memory_lift_search
 .. autofunction:: sofic.generators.coupled_generators.generator_kernel
 .. autofunction:: sofic.generators.coupled_generators.bilevel_search
+.. autofunction:: sofic.generators.coupled_generators.line_split_seeds
+.. autofunction:: sofic.generators.coupled_generators.targeted_line_split_seeds
 .. autofunction:: sofic.generators.generator_bounds.support_type_bound
 .. autofunction:: sofic.generators.generator_bounds.flow_bound
 .. autofunction:: sofic.generators.generator_bounds.flow_bound_result

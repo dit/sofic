@@ -14,6 +14,7 @@ from sofic.generators.coverage_bound import (
     mu1_rank1_mass,
     mu1_vertex,
     mu_caps,
+    mu_hyperplane_cap,
     mu_k_spectral_cap,
 )
 
@@ -81,6 +82,33 @@ def test_spectral_caps_tighten_interleaved_product() -> None:
     assert cov.certified
     assert cov.value == pytest.approx(_h(caps[0], caps[1] - caps[0], caps[2] - caps[1], 1 - caps[2]), rel=1e-9)
     assert cov.value <= 2 * _h(10 / 11, 1 / 11) + 1e-9
+
+
+def test_hyperplane_cap_closed_forms() -> None:
+    assert mu_hyperplane_cap(np.eye(3) / 3).value == pytest.approx(2 / 3, abs=1e-8)
+    rng = np.random.default_rng(1)
+    U, V = rng.dirichlet(np.ones(3), size=2), rng.dirichlet(np.ones(5), size=2)
+    rank_two = 0.6 * np.outer(U[0], V[0]) + 0.4 * np.outer(U[1], V[1])
+    assert mu_hyperplane_cap(rank_two).value == pytest.approx(1.0, abs=1e-9)
+    assert mu_hyperplane_cap(rank_two.T).value == pytest.approx(1.0, abs=1e-9)
+
+
+@settings(max_examples=6, deadline=None)
+@given(st.integers(3, 6), st.floats(0.01, 0.3), st.integers(0, 2**31 - 1))
+def test_hyperplane_cap_brackets_planted_rank_two_mass(n: int, delta: float, seed: int) -> None:
+    rng = np.random.default_rng(seed)
+    U, V = rng.dirichlet(np.ones(3), size=2), rng.dirichlet(np.ones(n), size=2)
+    w = rng.dirichlet(np.ones(2))
+    noise = rng.random((3, n)) * (rng.random((3, n)) < 0.5)
+    planted = (1 - delta) * (w[0] * np.outer(U[0], V[0]) + w[1] * np.outer(U[1], V[1]))
+    raw = planted + (delta * noise / noise.sum() if noise.sum() > 0 else 0.0)
+    m = raw / raw.sum()
+    cap = mu_hyperplane_cap(m)
+    assert cap.certified
+    assert (cap.feasible or 0.0) <= cap.value
+    assert cap.value >= planted.sum() / raw.sum() - 1e-9
+    assert cap.value <= mu_k_spectral_cap(m, 2) + 1e-9
+    assert mu_caps(m, k=3)[0][1] <= cap.value + 1e-12
 
 
 def test_coverage_exact_on_block_diagonal_support() -> None:

@@ -9,8 +9,10 @@ certified **upper** bounds on the :math:`\mu_k`.
 
 from __future__ import annotations
 
+import heapq
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import combinations, count, product
 
 import numpy as np
 from scipy.optimize import differential_evolution, linprog, minimize
@@ -154,6 +156,84 @@ def mu_k_spectral_cap(M: np.ndarray, k: int) -> float:
     tail = float(sv[k:].sum())
     slack = 1e-12 * max(1.0, float(sv[0])) * len(sv)
     return float(M.sum()) - max(0.0, tail - slack)
+
+
+def _column_box_lp(U: np.ndarray, A: np.ndarray, C: np.ndarray) -> np.ndarray:
+    """``max 1.x`` over ``0 <= x <= U[b]``, ``A[p].x <= 0``, ``C[p].x >= 0`` for every column ``b`` and pair ``p``.
+
+    Vertex enumeration over the ``2m + 2`` constraints in ``R^m``; ``x = 0`` is always feasible.
+    Returns an array of shape ``(len(U), len(A))``.
+    """
+    nb, m = U.shape
+    npairs = A.shape[0]
+    G = np.zeros((nb, npairs, 2 * m + 2, m))
+    h = np.zeros((nb, npairs, 2 * m + 2))
+    G[:, :, :m] = -np.eye(m)
+    G[:, :, m : 2 * m] = np.eye(m)
+    h[:, :, m : 2 * m] = U[:, None, :]
+    G[:, :, 2 * m] = A[None]
+    G[:, :, 2 * m + 1] = -C[None]
+    combos = np.array(list(combinations(range(2 * m + 2), m)))
+    Gs, hs = G[:, :, combos], h[:, :, combos]
+    regular = np.abs(np.linalg.det(Gs)) > 1e-14
+    x = np.linalg.solve(np.where(regular[..., None, None], Gs, np.eye(m)), hs[..., None])[..., 0]
+    slack = np.einsum("bpkm,bpcm->bpck", G, x) - h[:, :, None, :]
+    feasible = regular & (slack.max(axis=-1) <= 1e-12 * (1.0 + float(U.max())))
+    return np.where(feasible, x.sum(axis=-1), -np.inf).max(axis=-1)
+
+
+def mu_hyperplane_cap(M: np.ndarray, *, max_nodes: int = 4000, tol: float = 1e-8) -> MuKResult:
+    r"""Certified cap on ``mu_{m-1}``, ``m = min(M.shape)``, by branch and bound over hyperplanes.
+
+    A sum ``N`` of ``m - 1`` rank-1 terms has rank at most ``m - 1``, so its columns lie in a
+    hyperplane ``nu^T x = 0`` of ``R^m``, and for a fixed normal the columns are independent:
+    ``mu_{m-1} <= max_nu sum_b max{1.x : 0 <= x <= M_b, nu.x = 0}``. For ``m = 3`` this is
+    equality, since nonnegative matrices of rank at most two have nonnegative rank at most two
+    :cite:`cohen1993nonnegative`. The normals are branched over spherical simplices (orthant cones,
+    bisected along their longest edge); a column lies in the hyperplane of some normal in the cone
+    of ``v_1, ..., v_m`` exactly when ``min_i v_i.x <= 0 <= max_j v_j.x``, which bounds each column
+    by ``m^2`` small LPs. The value is the largest open bound, valid at any ``max_nodes``;
+    ``feasible`` is the best normal found, exact for ``m = 3`` when the search converges.
+    """
+    M = np.asarray(M, dtype=float)
+    U = M.T if M.shape[0] <= M.shape[1] else M
+    m = U.shape[1]
+    if m < 2:
+        return MuKResult(float(M.sum()), True, max(m - 1, 0), feasible=float(M.sum()))
+
+    def lower(nu: np.ndarray) -> float:
+        nu = nu / np.linalg.norm(nu)
+        return float(_column_box_lp(U, nu[None], nu[None]).sum())
+
+    def upper(V: np.ndarray) -> float:
+        pairs = list(product(range(m), repeat=2))
+        A = np.array([V[i] for i, _ in pairs])
+        C = np.array([V[j] for _, j in pairs])
+        return float(_column_box_lp(U, A, C).max(axis=1).sum())
+
+    best = 0.0
+    heap: list[tuple[float, int, np.ndarray]] = []
+    order = count()
+    for signs in product((1.0, -1.0), repeat=m - 1):
+        V = np.eye(m)
+        V[1:] *= np.array(signs)[:, None]
+        best = max(best, lower(V.mean(axis=0)))
+        heapq.heappush(heap, (-upper(V), next(order), V))
+    nodes = 0
+    while heap and nodes < max_nodes and -heap[0][0] > best + tol:
+        bound, _, V = heapq.heappop(heap)
+        nodes += 1
+        i, j = max(combinations(range(m), 2), key=lambda e: float(np.linalg.norm(V[e[0]] - V[e[1]])))
+        mid = (V[i] + V[j]) / np.linalg.norm(V[i] + V[j])
+        for side in (i, j):
+            W = V.copy()
+            W[side] = mid
+            best = max(best, lower(W.mean(axis=0)))
+            ub = min(upper(W), -bound)
+            if ub > best + tol:
+                heapq.heappush(heap, (-ub, next(order), W))
+    value = max(best, -heap[0][0]) if heap else best
+    return MuKResult(min(float(M.sum()), value + 1e-12), True, m - 1, feasible=best)
 
 
 def mu_k_optimize(
@@ -337,16 +417,20 @@ def mu_caps(
     ``cap_j = min(mass, j mu_1, spectral_j, cap_i + cap_{j-i})`` with :func:`mu_k_spectral_cap`
     (``j mu_1`` only when ``mu_1`` is certified; splitting ``j`` terms into two groups gives the
     subadditive term), followed by a suffix minimum since ``mu_j`` is nondecreasing in ``j``.
+    When ``min(M.shape) == 3``, ``cap_2`` also uses :func:`mu_hyperplane_cap`, which is exact there.
     Every term is a valid upper bound, so the caps are always certified.
     """
     M = np.asarray(M, dtype=float)
     mu1 = mu1 if mu1 is not None else mu1_optimize(M, seed=seed)
     mass = min(1.0, float(M.sum()))
+    hyperplane = mu_hyperplane_cap(M).value if min(M.shape) == 3 and k >= 2 else None
     raw: list[float] = []
     for j in range(1, k + 1):
         c = min(mass, mu_k_spectral_cap(M, j))
         if mu1.certified:
             c = min(c, j * mu1.value)
+        if j == 2 and hyperplane is not None:
+            c = min(c, hyperplane)
         for i in range(1, j):
             c = min(c, raw[i - 1] + raw[j - i - 1])
         raw.append(c)
@@ -515,5 +599,6 @@ __all__ = [
     "mu_k_certified_trivial_cap",
     "mu_k_lp_simplex",
     "mu_k_optimize",
+    "mu_hyperplane_cap",
     "mu_k_spectral_cap",
 ]

@@ -196,7 +196,12 @@ def test_generative_model_brackets_the_rll_process() -> None:
     from sofic.generators.generative_search import generative_model_from_bidirectional
 
     result = generative_model_from_bidirectional(
-        _rll(), stages=("machines", "exact", "coupled"), starts=6, max_states=3, rng=np.random.default_rng(1)
+        _rll(),
+        stages=("machines", "exact", "coupled"),
+        starts=6,
+        max_states=3,
+        generator_caps=0,
+        rng=np.random.default_rng(1),
     )
     h11 = -(0.5 * np.log2(0.5) + (3 / 11) * np.log2(3 / 11) + (5 / 22) * np.log2(5 / 22))
     assert result.lower == pytest.approx(h11, abs=1e-6)

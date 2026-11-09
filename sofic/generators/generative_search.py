@@ -7,14 +7,20 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 :math:`C_g` of Löhr & Ay :cite:`LohrAy2009`:
 
 1. *Lower bounds.* Excess entropy; support-type and flow bounds when the joint has few maximal rectangles;
-   optional heuristic coverage bound on full supports (:mod:`~sofic.generators.coverage_bound`).
+   the certified coverage bound (:mod:`~sofic.generators.coverage_bound`), the informative one on
+   full supports, where the support-type bound vanishes; and coverage with caps on the heaviest
+   generator states from the generator equations (:mod:`~sofic.generators.generator_caps`,
+   ``generator_caps`` explicit states), which can exceed :math:`\op{G}{S^+ : S^-}`.
 2. *Persistent crypticity.* When both :math:`p.\chi^\pm` vanish on the bidirectional edge,
    :math:`C_g = \op{G}{S^+ : S^-}`.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
    :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate; then an
    **entropy-ordered sweep** over all multistart separating decompositions (not only
    :math:`\op{G}` optima) up to the current best upper bound.
-4. *Upper bounds:* ε-machines, memory lifts, functional/lifted channels (small joints), coupled search.
+4. *Upper bounds:* ε-machines, line-split seeds from the exact optima
+   (:func:`~sofic.generators.coupled_generators.line_split_seeds`), memory lifts, the exact minimal functional generator
+   (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
+   (small joints), coupled search.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
@@ -37,17 +43,20 @@ from sofic.generators.coupled_generators import (
     CoupledSearchResult,
     _GeneratorProblem,
     _model_from_kernel,
+    _optimize_coupled,
     bilevel_search,
     coupled_search,
     first_generating_separator,
     generator_kernel,
     generator_state_cap,
+    line_split_seeds,
     memory_lift,
     memory_lift_search,
     polish_separating_channel,
     separating_decomposition_channels,
     separating_optima,
     systematic_coupled_seeds,
+    targeted_line_split_seeds,
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.generator_bounds import (
@@ -60,6 +69,11 @@ from sofic.generators.generator_bounds import (
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 _CERT_TOL = 1e-6
+_LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
+# Bracket width (bits) above which the costly targeted line-split search runs.
+_TARGETED_GAP = 1e-2
+# ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
+_SEPARATION_ATOL = 1e-9
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -286,10 +300,12 @@ def _bracket_search(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -300,10 +316,10 @@ def _bracket_search(
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring."""
+    from sofic.generators.functional_generators import functional_cover_search
     from sofic.generators.lifted_common_information import _unconstrained_channel
     from sofic.generators.minimal_generative_model import (
         _normalized_joint_distribution,
-        functional_generative_model,
         minimal_generative_model,
         wyner_generative_model,
     )
@@ -354,7 +370,7 @@ def _bracket_search(
                 lower, lower_source = fb.value, f"flow bound {thresholds}"
                 lower_certified = fb.certified
 
-    if not wyner and coverage in ("heuristic", "certified") and n_rect > _MAX_RECTANGLES:
+    if not wyner and coverage in ("heuristic", "certified"):
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -377,6 +393,14 @@ def _bracket_search(
                 log.append({"stage": "coverage bound", "skipped": True, "certified": False})
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
+
+    if not wyner and coverage == "certified" and generator_caps > 0:
+        from sofic.generators.generator_caps import generator_coverage_bound
+
+        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps)
+        log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
+        if gen.value > lower + 1e-9:
+            lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
 
     f_crit, r_crit = _persistent_criteria(problem)
     theorem = f_crit < 1e-10 and r_crit < 1e-10
@@ -451,11 +475,14 @@ def _bracket_search(
                 )
                 if c is not None:
                     c = polish_separating_channel(problem, c)
+                    separation = float(lifted.constraint_informations(c)[0])
                     value = _entropy(lifted.p @ c)
-                    if g_estimate is None or value < g_estimate - 1e-9:
-                        g_estimate, optima = value, [c]
-                    elif value <= g_estimate + 1e-7:
-                        optima.append(c)
+                    log.append({"stage": "dit exact common information", "value": value, "separation": separation})
+                    if separation <= _SEPARATION_ATOL:
+                        if g_estimate is None or value < g_estimate - 1e-9:
+                            g_estimate, optima = value, [c]
+                        elif value <= g_estimate + 1e-7:
+                            optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
         if wyner and dit_fallback:
@@ -582,24 +609,46 @@ def _bracket_search(
                 "seeds": len(repair),
             }
         )
+        # Saturated logits freeze softmax gradients, so each seed is polished from several floors.
+        # Line splits target low state entropy, so the Wyner search skips them.
+        for name, seed in [] if wyner else line_split_seeds(problem, optima):
+            k = len(seed[0])
+            for floor in _LINE_SPLIT_FLOORS:
+                theta = problem.logits(*seed, floor=floor)
+                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol)
+                offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
     if "memory" in stages:
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:
             if residual <= residual_atol:
                 offer("memory-1 lift", memory_lift(problem, nu))
 
-    lifted_builder = wyner_generative_model if wyner else minimal_generative_model
-    for name, builder in (("functional", functional_generative_model), ("lifted", lifted_builder)):
-        if name not in stages or not small:
-            if name in stages:
-                log.append({"stage": f"{name} channel", "skipped": f"more than {large} causal-state pairs"})
-            continue
+    if "functional" in stages:
         try:
-            kwargs = {"rng": rng} if name == "lifted" else {}
-            model = builder(bidir, **kwargs)
-            offer(f"{name} channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
-        except (StochasticValidationError, ImportError) as exc:
-            log.append({"stage": f"{name} channel", "error": str(exc)})
+            cover = functional_cover_search(problem)
+        except StochasticValidationError as exc:
+            log.append({"stage": "functional cover search", "error": str(exc)})
+        else:
+            log.append(
+                {
+                    "stage": "functional cover search",
+                    "value": cover.value,
+                    "exact": cover.exact,
+                    "rejected covers": cover.rejected,
+                }
+            )
+            offer("minimal functional generator", problem.channel_seed(np.eye(cover.labels.max() + 1)[cover.labels]))
+
+    if "lifted" in stages:
+        if small:
+            builder = wyner_generative_model if wyner else minimal_generative_model
+            try:
+                model = builder(bidir, rng=rng)
+                offer("lifted channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
+            except (StochasticValidationError, ImportError) as exc:
+                log.append({"stage": "lifted channel", "error": str(exc)})
+        else:
+            log.append({"stage": "lifted channel", "skipped": f"more than {large} causal-state pairs"})
 
     if "coupled" in stages:
         hard_cap = max_states if max_states is not None else 8
@@ -651,6 +700,13 @@ def _bracket_search(
                 )[: None if wyner else 2]:
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
+    best_value = min((c[0] for c in candidates), default=np.inf)
+    if targeted and optima and best_value - lower > _TARGETED_GAP:
+        seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, rng=rng)
+        log.append({"stage": "targeted line-split search", "gap before": best_value - lower, "generators": len(seeds)})
+        for name, seed in seeds:
+            offer(name, seed)
+
     result = _try_best_candidate(
         problem,
         reference,
@@ -685,10 +741,12 @@ def generative_model_from_bidirectional(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -715,6 +773,8 @@ def generative_model_from_bidirectional(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_caps=generator_caps,
+        targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,
@@ -763,6 +823,7 @@ def minimal_wyner_model(
     result = _bracket_search(
         bidir,
         objective="wyner",
+        targeted=False,
         max_states=max_states,
         starts=starts,
         memory_starts=memory_starts,
@@ -795,10 +856,12 @@ def generative_model(
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
-    coverage: Literal["off", "heuristic", "certified"] = "heuristic",
+    coverage: Literal["off", "heuristic", "certified"] = "certified",
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -834,6 +897,8 @@ def generative_model(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_caps=generator_caps,
+        targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,
