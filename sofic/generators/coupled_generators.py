@@ -70,45 +70,13 @@ def _kernel_lp_beliefs(
     k, X = len(pi), problem.n_sym
     A = pi[:, None] * Q
     nK = k * X * k
-    idx = lambda w, x, v: (w * X + x) * k + v  # noqa: E731
-    rows, rhs = [], []
-
-    def add(terms, target: float) -> None:
-        row = np.zeros(nK)
-        for j, val in terms:
-            row[j] += val
-        rows.append(row)
-        rhs.append(target)
-
-    for a in range(problem.n_plus):
-        for x in range(X):
-            for b in range(problem.n_minus):
-                add(((idx(w, x, v), A[w, a] * R[v, b]) for w in range(k) for v in range(k)), problem.Pe[a, x, b])
-    for v in range(k):
-        for c_ in range(problem.n_plus):
-            add(
-                (
-                    (idx(w, x, v), A[w, a] * problem.F[a, x, c_])
-                    for w in range(k)
-                    for x in range(X)
-                    for a in range(problem.n_plus)
-                ),
-                A[v, c_],
-            )
-    for w in range(k):
-        for b in range(problem.n_minus):
-            add(
-                (
-                    (idx(w, x, v), pi[w] * R[v, c_] * problem.G[x, c_, b])
-                    for x in range(X)
-                    for v in range(k)
-                    for c_ in range(problem.n_minus)
-                ),
-                pi[w] * R[w, b],
-            )
-    dense = np.array(rows)
-    target = np.array(rhs)
-    m = len(rows)
+    # Columns are K[w, x, v] in C order. Edge law rows (a, x, b), forward rows (v, a'), reverse rows (w, b).
+    edge = np.einsum("wa,vb,xy->axbwyv", A, R, np.eye(X)).reshape(-1, nK)
+    forward = np.einsum("wxc,uv->ucwxv", np.einsum("wa,axc->wxc", A, problem.F), np.eye(k)).reshape(-1, nK)
+    reverse = np.einsum("w,uw,xvb->ubwxv", pi, np.eye(k), np.einsum("vc,xcb->xvb", R, problem.G)).reshape(-1, nK)
+    dense = np.vstack([edge, forward, reverse])
+    target = np.concatenate([problem.Pe.ravel(), A.ravel(), (pi[:, None] * R).ravel()])
+    m = len(dense)
     A_ub = np.block([[dense, -np.ones((m, 1))], [-dense, -np.ones((m, 1))]])
     b_ub = np.concatenate([target, -target])
     A_eq = np.zeros((k, nK + 1))
@@ -823,6 +791,10 @@ def targeted_line_split_seeds(
     *,
     configs: Sequence[tuple[int, int]] = ((1, 0), (1, 1), (2, 0), (2, 1)),
     perturbations: int = 2,
+    polish_best: int | None = 3,
+    hop_chains: int = 2,
+    hops: int = 30,
+    hop_scales: Sequence[float] = (0.03, 0.05, 0.1),
     residual_atol: float = 1e-7,
     rng: np.random.Generator | None = None,
 ) -> list[tuple[str, Seed]]:
@@ -833,12 +805,16 @@ def targeted_line_split_seeds(
     an exact decomposition fixed by the broad terms' beliefs. From the heaviest terms of each channel's
     decomposition (and ``perturbations`` perturbations of them), Nelder-Mead reaches a decomposition
     whose kernel LP is feasible, then COBYLA minimizes its state entropy subject to staying feasible.
-    Each result is polished by the coupled ALM from several logit floors; seeds that reach the
-    generator equations to ``residual_atol`` are returned. ``configs`` lists ``(broad, axis)`` pairs.
+    COBYLA stops in nearby local minima, so the ``hop_chains`` best decompositions then run ``hops``
+    steps of iterated local search (perturb the broad terms' logits at a scale cycling through
+    ``hop_scales``, re-run the local search, keep improvements). The ``polish_best`` lowest-entropy
+    decompositions (all if ``None``) are polished by the coupled ALM from several logit floors; seeds
+    that reach the generator equations to ``residual_atol`` are returned. ``configs`` lists
+    ``(broad, axis)`` pairs.
     """
     rng = rng or np.random.default_rng()
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
-    out: list[tuple[str, Seed]] = []
+    found: list[tuple[float, str, np.ndarray, int, int]] = []
     for i, c in enumerate(channels):
         pi0, Q0, R0, _ = problem.channel_seed(c)
         order = np.argsort(-pi0)
@@ -846,52 +822,77 @@ def targeted_line_split_seeds(
             if broad > int((pi0 > 1e-9).sum()):
                 continue
             base = np.concatenate([np.log(np.maximum(np.concatenate([Q0[w], R0[w]]), 1e-6)) for w in order[:broad]])
-
-            def violation(z: np.ndarray, broad: int = broad, axis: int = axis) -> float:
-                return _kernel_lp_beliefs(problem, *_line_split_beliefs(P, z, broad, axis))[0]
-
-            def entropy(z: np.ndarray, broad: int = broad, axis: int = axis) -> float:
-                return _entropy(_line_split_beliefs(P, z, broad, axis)[0])
-
             starts = [base] + [base + rng.normal(scale=0.3, size=base.shape) for _ in range(perturbations)]
+            lines = "columns" if axis == 0 else "rows"
             for s, z in enumerate(starts):
-                if violation(z) >= 1e-6:
-                    res = minimize(
-                        violation,
-                        z,
-                        method="Nelder-Mead",
-                        options={"maxiter": 300 * len(z), "xatol": 1e-9, "fatol": 1e-13},
-                    )
-                    if res.fun >= 1e-6:
-                        continue
-                    z = res.x
-                constraint = [{"type": "ineq", "fun": lambda y, v=violation: 1e-9 - v(y)}]
-                for rho in (0.5, 0.1):
-                    res = minimize(
-                        entropy,
-                        z,
-                        method="COBYLA",
-                        constraints=constraint,
-                        options={"rhobeg": rho, "maxiter": 3000, "tol": 1e-10},
-                    )
-                    if violation(res.x) < 1e-6:
-                        z = res.x
-                beliefs = _line_split_beliefs(P, z, broad, axis)
-                _violation, K = _kernel_lp_beliefs(problem, *beliefs)
-                k = len(beliefs[0])
-                lines = "columns" if axis == 0 else "rows"
-                polished = []
-                for floor in (1e-12, 1e-5, 1e-3):
-                    theta = _optimize_coupled(
-                        problem, problem.logits(*beliefs, K, floor=floor), k, 3000, residual_atol=residual_atol
-                    )
-                    seed = problem.unpack(theta, k)
-                    if problem.residual(*seed) <= residual_atol:
-                        polished.append((_entropy(seed[0]), seed))
-                if polished:
-                    seed = min(polished, key=lambda pair: pair[0])[1]
-                    out.append((f"targeted line split {i}.{s} ({broad} broad + {lines})", cast(Seed, seed)))
+                local = _line_split_local(problem, P, z, broad, axis, nm_factor=300, cobyla_iter=3000)
+                if local is not None:
+                    name = f"targeted line split {i}.{s} ({broad} broad + {lines})"
+                    found.append((local[0], name, local[1], broad, axis))
+    found.sort(key=lambda item: item[0])
+    for j, (h, name, z, broad, axis) in enumerate(found[:hop_chains]):
+        for step in range(hops):
+            scale = hop_scales[step % len(hop_scales)]
+            local = _line_split_local(problem, P, z + rng.normal(scale=scale, size=z.shape), broad, axis)
+            if local is not None and local[0] < h - 1e-6:
+                h, z = local
+        found[j] = (h, name if h >= found[j][0] - 1e-6 else f"{name}, hops", z, broad, axis)
+    found.sort(key=lambda item: item[0])
+    out: list[tuple[str, Seed]] = []
+    for _h, name, z, broad, axis in found if polish_best is None else found[:polish_best]:
+        beliefs = _line_split_beliefs(P, z, broad, axis)
+        _violation, K = _kernel_lp_beliefs(problem, *beliefs)
+        k = len(beliefs[0])
+        polished = []
+        for floor in (1e-12, 1e-5, 1e-3):
+            theta = _optimize_coupled(
+                problem, problem.logits(*beliefs, K, floor=floor), k, 3000, residual_atol=residual_atol
+            )
+            seed = problem.unpack(theta, k)
+            if problem.residual(*seed) <= residual_atol:
+                polished.append((_entropy(seed[0]), seed))
+        if polished:
+            out.append((name, cast(Seed, min(polished, key=lambda pair: pair[0])[1])))
     return out
+
+
+def _line_split_local(
+    problem: _GeneratorProblem,
+    P: np.ndarray,
+    z: np.ndarray,
+    broad: int,
+    axis: int,
+    *,
+    nm_factor: int = 100,
+    cobyla_iter: int = 1000,
+) -> tuple[float, np.ndarray] | None:
+    """Nelder-Mead to kernel-LP feasibility, then COBYLA on the state entropy; ``(entropy, z)`` or ``None``."""
+
+    def violation(y: np.ndarray) -> float:
+        return _kernel_lp_beliefs(problem, *_line_split_beliefs(P, y, broad, axis))[0]
+
+    def entropy(y: np.ndarray) -> float:
+        return _entropy(_line_split_beliefs(P, y, broad, axis)[0])
+
+    if violation(z) >= 1e-6:
+        res = minimize(
+            violation, z, method="Nelder-Mead", options={"maxiter": nm_factor * len(z), "xatol": 1e-9, "fatol": 1e-13}
+        )
+        if res.fun >= 1e-6:
+            return None
+        z = res.x
+    constraint = [{"type": "ineq", "fun": lambda y: 1e-9 - violation(y)}]
+    for rho in (0.5, 0.1):
+        res = minimize(
+            entropy,
+            z,
+            method="COBYLA",
+            constraints=constraint,
+            options={"rhobeg": rho, "maxiter": cobyla_iter, "tol": 1e-10},
+        )
+        if violation(res.x) < 1e-6:
+            z = res.x
+    return entropy(z), z
 
 
 def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
