@@ -20,6 +20,26 @@ def _survey_machine() -> BidirectionalEpsilonMachine:
     return BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1, 2), (0, 1), mats))
 
 
+def _widest_survey_machine() -> BidirectionalEpsilonMachine:
+    """Survey process ((0, 1), (0, 2), (0, 1)): bracket [0.906, 1.371] before the targeted search."""
+    a, b, c = 0.06761675137492751, 0.5575272429346271, 0.45789456421998476
+    mats = {
+        0: np.array([[a, 0.0, 0.0], [0.44247275706537287, 0.0, 0.0], [c, 0.0, 0.0]]),
+        1: np.array([[0.0, 1 - a, 0.0], [0.0, 0.0, b], [0.0, 1 - c, 0.0]]),
+    }
+    return BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1, 2), (0, 1), mats))
+
+
+def test_targeted_search_finds_low_entropy_generator() -> None:
+    problem = cg._GeneratorProblem(_widest_survey_machine())
+    _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
+    seeds = cg.targeted_line_split_seeds(problem, optima, rng=np.random.default_rng(0))
+    assert seeds
+    assert all(problem.residual(*seed) <= 1e-7 for _name, seed in seeds)
+    # the pipeline's other stages reach 1.371 here; a 0.970-bit generator is known
+    assert min(cg._entropy(seed[0]) for _name, seed in seeds) < 1.0
+
+
 def test_line_split_seeds_are_exact_decompositions_with_point_mass_states() -> None:
     problem = cg._GeneratorProblem(_survey_machine())
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
@@ -43,6 +63,7 @@ def test_pipeline_finds_line_split_generator() -> None:
         entropy_sweep_starts=10,
         bilevel=False,
         generator_caps=0,
+        targeted=False,
         rng=np.random.default_rng(0),
     )
     assert result.upper_source.startswith("line split")

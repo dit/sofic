@@ -56,6 +56,7 @@ from sofic.generators.coupled_generators import (
     separating_decomposition_channels,
     separating_optima,
     systematic_coupled_seeds,
+    targeted_line_split_seeds,
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.generator_bounds import (
@@ -69,6 +70,8 @@ _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 _CERT_TOL = 1e-6
 _LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
+# Bracket width (bits) above which the costly targeted line-split search runs.
+_TARGETED_GAP = 1e-2
 # ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
 _SEPARATION_ATOL = 1e-9
 
@@ -302,6 +305,7 @@ def _bracket_search(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -695,6 +699,13 @@ def _bracket_search(
                 )[: None if wyner else 2]:
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
+    best_value = min((c[0] for c in candidates), default=np.inf)
+    if targeted and optima and best_value - lower > _TARGETED_GAP:
+        seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, rng=rng)
+        log.append({"stage": "targeted line-split search", "gap before": best_value - lower, "generators": len(seeds)})
+        for name, seed in seeds:
+            offer(name, seed)
+
     result = _try_best_candidate(
         problem,
         reference,
@@ -734,6 +745,7 @@ def generative_model_from_bidirectional(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -761,6 +773,7 @@ def generative_model_from_bidirectional(
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
         generator_caps=generator_caps,
+        targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,
@@ -809,6 +822,7 @@ def minimal_wyner_model(
     result = _bracket_search(
         bidir,
         objective="wyner",
+        targeted=False,
         max_states=max_states,
         starts=starts,
         memory_starts=memory_starts,
@@ -846,6 +860,7 @@ def generative_model(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_caps: int = 2,
+    targeted: bool = True,
     entropy_sweep_starts: int = 80,
     bilevel: bool = True,
     early_certified: bool = True,
@@ -882,6 +897,7 @@ def generative_model(
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
         generator_caps=generator_caps,
+        targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
         bilevel=bilevel,
         early_certified=early_certified,

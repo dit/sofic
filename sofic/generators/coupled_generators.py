@@ -787,6 +787,113 @@ def line_split_seeds(
     return out
 
 
+def _line_split_beliefs(
+    P: np.ndarray, z: np.ndarray, broad: int, axis: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``broad`` rank-1 terms with softmax beliefs ``z``, each at its largest weight under the running
+    remainder, then the remainder split into point-mass states by columns (``axis=0``) or rows."""
+    from sofic.generators.coverage_bound import mu1_rank1_mass
+
+    na, nb = P.shape
+    rest = P.copy()
+    weights, Qs, Rs = [], [], []
+    for i in range(broad):
+        zi = z[i * (na + nb) : (i + 1) * (na + nb)]
+        q = np.exp(zi[:na] - zi[:na].max())
+        r = np.exp(zi[na:] - zi[na:].max())
+        q, r = q / q.sum(), r / r.sum()
+        lam = mu1_rank1_mass(rest, q, r)
+        rest = np.maximum(rest - lam * np.outer(q, r), 0.0)
+        weights.append(lam)
+        Qs.append(q)
+        Rs.append(r)
+    lines = rest.sum(axis=axis)
+    live = np.flatnonzero(lines > 1e-12)
+    if axis == 0:
+        Q_new, R_new = (rest[:, live] / lines[live]).T, np.eye(nb)[live]
+    else:
+        Q_new, R_new = np.eye(na)[live], rest[live] / lines[live][:, None]
+    w = np.concatenate([weights, lines[live]])
+    return w / w.sum(), np.vstack([*Qs, Q_new]), np.vstack([*Rs, R_new])
+
+
+def targeted_line_split_seeds(
+    problem: _GeneratorProblem,
+    channels: Sequence[np.ndarray],
+    *,
+    configs: Sequence[tuple[int, int]] = ((1, 0), (1, 1), (2, 0), (2, 1)),
+    perturbations: int = 2,
+    residual_atol: float = 1e-7,
+    rng: np.random.Generator | None = None,
+) -> list[tuple[str, Seed]]:
+    """Generators found by searching the line-split family directly for kernel-LP feasibility.
+
+    A member of the family is ``broad`` rank-1 terms, each at its largest weight under the
+    remainder, plus the remainder split into point-mass states (:func:`line_split_seeds`), so it is
+    an exact decomposition fixed by the broad terms' beliefs. From the heaviest terms of each channel's
+    decomposition (and ``perturbations`` perturbations of them), Nelder-Mead reaches a decomposition
+    whose kernel LP is feasible, then COBYLA minimizes its state entropy subject to staying feasible.
+    Each result is polished by the coupled ALM from several logit floors; seeds that reach the
+    generator equations to ``residual_atol`` are returned. ``configs`` lists ``(broad, axis)`` pairs.
+    """
+    rng = rng or np.random.default_rng()
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    out: list[tuple[str, Seed]] = []
+    for i, c in enumerate(channels):
+        pi0, Q0, R0, _ = problem.channel_seed(c)
+        order = np.argsort(-pi0)
+        for broad, axis in configs:
+            if broad > int((pi0 > 1e-9).sum()):
+                continue
+            base = np.concatenate([np.log(np.maximum(np.concatenate([Q0[w], R0[w]]), 1e-6)) for w in order[:broad]])
+
+            def violation(z: np.ndarray, broad: int = broad, axis: int = axis) -> float:
+                return _kernel_lp_beliefs(problem, *_line_split_beliefs(P, z, broad, axis))[0]
+
+            def entropy(z: np.ndarray, broad: int = broad, axis: int = axis) -> float:
+                return _entropy(_line_split_beliefs(P, z, broad, axis)[0])
+
+            starts = [base] + [base + rng.normal(scale=0.3, size=base.shape) for _ in range(perturbations)]
+            for s, z in enumerate(starts):
+                if violation(z) >= 1e-6:
+                    res = minimize(
+                        violation,
+                        z,
+                        method="Nelder-Mead",
+                        options={"maxiter": 300 * len(z), "xatol": 1e-9, "fatol": 1e-13},
+                    )
+                    if res.fun >= 1e-6:
+                        continue
+                    z = res.x
+                constraint = [{"type": "ineq", "fun": lambda y, v=violation: 1e-9 - v(y)}]
+                for rho in (0.5, 0.1):
+                    res = minimize(
+                        entropy,
+                        z,
+                        method="COBYLA",
+                        constraints=constraint,
+                        options={"rhobeg": rho, "maxiter": 3000, "tol": 1e-10},
+                    )
+                    if violation(res.x) < 1e-6:
+                        z = res.x
+                beliefs = _line_split_beliefs(P, z, broad, axis)
+                _violation, K = _kernel_lp_beliefs(problem, *beliefs)
+                k = len(beliefs[0])
+                lines = "columns" if axis == 0 else "rows"
+                polished = []
+                for floor in (1e-12, 1e-5, 1e-3):
+                    theta = _optimize_coupled(
+                        problem, problem.logits(*beliefs, K, floor=floor), k, 3000, residual_atol=residual_atol
+                    )
+                    seed = problem.unpack(theta, k)
+                    if problem.residual(*seed) <= residual_atol:
+                        polished.append((_entropy(seed[0]), seed))
+                if polished:
+                    seed = min(polished, key=lambda pair: pair[0])[1]
+                    out.append((f"targeted line split {i}.{s} ({broad} broad + {lines})", cast(Seed, seed)))
+    return out
+
+
 def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
     """Fit a seed with fewer or more states into ``k`` states, adding small mass to empty states."""
     pi, Q, R, K = seed
@@ -1091,4 +1198,5 @@ __all__ = [
     "separating_decomposition_channels",
     "separating_optima",
     "systematic_coupled_seeds",
+    "targeted_line_split_seeds",
 ]

@@ -7,6 +7,14 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator search reliability
 
+- `targeted_line_split_seeds`: searches the line-split family directly (broad terms at their
+  largest fitting weight plus point-mass row/column states, an exact decomposition fixed by the
+  broad terms' beliefs). From each exact-CI optimum's heaviest terms, Nelder-Mead reaches kernel-LP
+  feasibility and COBYLA then minimizes the state entropy subject to staying feasible. Pipeline
+  stage ``targeted`` (default on, skipped for ``minimal_wyner_model``) runs only when the bracket is
+  still wider than 0.01 bits. On the widest survey bracket, ``[0.906, 1.371]``, it finds a
+  0.98-bit generator (a 0.970-bit one is known).
+
 - `line_split_seeds`: coupled seeds that keep the one or two heaviest terms of each exact
   common-information optimum and split the remainder into point-mass states (one per row or
   column of the joint), with kernels from the kernel LP. The pipeline polishes each from
