@@ -30,12 +30,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from scipy.optimize import minimize
 
 from sofic.exceptions import StochasticValidationError
+from sofic.generators.generator_problem_spec import GeneratorProblemSpec
 from sofic.generators.lifted_common_information import _LiftedProblem
 from sofic.generators.mealy import MealyHMM
 from sofic.generators.minimal_generative_model import _normalized_joint_distribution
@@ -125,6 +127,29 @@ class _GeneratorProblem:
                 weight_reverse=1.0 / np.maximum(self.p_minus, 1e-8),
             )
         return self._weights
+
+    @classmethod
+    def from_spec(cls, spec: GeneratorProblemSpec) -> _GeneratorProblem:
+        """A problem from edge tensors alone (no bidirectional machine).
+
+        Supports what needs only the tensors: the kernel LP, generator residuals and the generator caps.
+        Word-level verification needs ``bidir`` and is unavailable.
+        """
+        if spec.pairs is None:
+            raise StochasticValidationError("GeneratorProblemSpec.pairs is required to build a problem")
+        problem = cls.__new__(cls)
+        n = len(spec.pairs)
+        plus, minus = np.zeros((n, spec.n_plus)), np.zeros((n, spec.n_minus))
+        for i, (a, b) in enumerate(spec.pairs):
+            plus[i, a] = minus[i, b] = 1.0
+        problem.bidir = None
+        problem.lifted = SimpleNamespace(plus=plus, minus=minus, p=np.asarray(spec.p_pair, float), pairs=spec.pairs)
+        problem.symbols = list(spec.symbols)
+        problem.Pe, problem.F, problem.G = spec.Pe, spec.F, spec.G
+        problem.p_pair, problem.p_plus, problem.p_minus = spec.p_pair, spec.p_plus, spec.p_minus
+        problem.n_plus, problem.n_minus, problem.n_sym = spec.n_plus, spec.n_minus, spec.n_sym
+        problem._weights = None
+        return problem
 
     @classmethod
     def from_edge_tensors(
