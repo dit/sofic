@@ -5,6 +5,15 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### State labels
+
+- `sofic.states.sequential_labels` no longer stops at 26 states: after ``A``–``Z`` it continues
+  ``AA``–``ZZ``, then ``AAA``–``ZZZ`` and so on (bijective base 26, like spreadsheet columns), and
+  `letter_label_index` / `next_sequential_label_index` read multi-letter labels. Bidirectional
+  builds whose reverse machine has more than 26 states used to fail with "sequential_labels
+  supports at most 26 states A–Z"; the cover, residual-automaton and ε-machine constructions
+  that fell back to integer labels above 26 states now use letters too.
+
 ### Generator search reliability
 
 - `certificates` module: rigorous LP/SDP lower bounds from approximate duals in exact rational

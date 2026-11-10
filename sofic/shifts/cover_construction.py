@@ -86,7 +86,7 @@ def _follower_classes(delta: dict[Subset, dict[Any, Subset]]) -> dict[Subset, in
 
 
 def _labels(count: int) -> tuple[Hashable, ...]:
-    return sequential_labels(count) if count <= 26 else tuple(range(count))
+    return sequential_labels(count)
 
 
 def _quotient_shift(

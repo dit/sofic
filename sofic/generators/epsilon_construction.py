@@ -136,7 +136,7 @@ def _quotient_machine(
 
     graph = TransitionGraph()
     count = len(partitions)
-    labels = sequential_labels(count) if count <= 26 else tuple(range(count))
+    labels = sequential_labels(count)
     for label in labels:
         graph.add_state(label)
     label_for_index = {index: labels[index] for index in range(len(partitions))}

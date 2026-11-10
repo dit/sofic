@@ -149,7 +149,11 @@ def test_reciprocal_edges_bend_same_direction():
 
 def test_graphviz_layout_spreads_nodes():
     graphviz = pytest.importorskip("graphviz")
-    del graphviz
+    try:
+        graphviz.Graph(engine="circo", body=["a -- b"]).pipe(format="plain")
+    except graphviz.CalledProcessError:
+        # without circo the layout falls back to `dot`, which may stack nodes in one column
+        pytest.skip("Graphviz circo layout engine unavailable")
     from sofic.viz._tikz_layout import layout_graphviz
 
     coords = layout_graphviz(golden_mean_bidirectional(0.5), style="paper")
