@@ -60,6 +60,11 @@ jobs:
       - name: Install Graphviz
         uses: ts-graphviz/setup-graphviz@v2
 
+      - name: Register Graphviz layout plugins
+        # some Ubuntu images ship graphviz without the plugin registry, leaving only `dot`
+        if: runner.os == 'Linux'
+        run: sudo dot -c
+
       - name: Install package and dependencies
         run: uv sync --extra test --extra symbolic
 
@@ -95,6 +100,11 @@ jobs:
 
       - name: Install Graphviz
         uses: ts-graphviz/setup-graphviz@v2
+
+      - name: Register Graphviz layout plugins
+        # some Ubuntu images ship graphviz without the plugin registry, leaving only `dot`
+        if: runner.os == 'Linux'
+        run: sudo dot -c
 
       - name: Install package and dependencies
         run: uv sync --extra test
