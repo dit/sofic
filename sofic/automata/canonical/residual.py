@@ -167,7 +167,7 @@ def _automaton_kwargs(aut: LabeledAutomaton) -> dict[str, Any]:
 
 
 def _labels(count: int) -> tuple[Hashable, ...]:
-    return sequential_labels(count) if count <= 26 else tuple(range(count))
+    return sequential_labels(count)
 
 
 def canonical_rfsa_from_language(language: RegularLanguage | LabeledAutomaton) -> CanonicalRFSA:
