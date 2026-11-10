@@ -7,6 +7,14 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator search reliability
 
+- `certificates` module: rigorous LP/SDP lower bounds from approximate duals in exact rational
+  arithmetic (`dual_bound`, `certified_lp_minimum` with Farkas certificates from an elastic LP,
+  `certified_psd` for positive-definite rounding of SDP duals).
+  `generator_caps.certified_generator_weight_cap` certifies every branch-and-bound leaf this way
+  (box tightening now rounds outward), optionally against rationalized problem data, and
+  `verify_weight_cap_certificate` rechecks a certificate without an LP solver. On the
+  `(2, inf)` process the caps are exactly 1/2 and 3/4, so `C_g = 3/2` (computer-assisted proof).
+
 - `targeted_line_split_seeds`: searches the line-split family directly (broad terms at their
   largest fitting weight plus point-mass row/column states, an exact decomposition fixed by the
   broad terms' beliefs). From each exact-CI optimum's heaviest terms, Nelder-Mead reaches kernel-LP

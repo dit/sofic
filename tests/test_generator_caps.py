@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from fractions import Fraction
+
 import numpy as np
 import pytest
 
@@ -10,7 +13,12 @@ from sofic.generators import coupled_generators as cg
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.coverage_bound import mu1_vertex
 from sofic.generators.functional_generators import functional_cover_search
-from sofic.generators.generator_caps import generator_coverage_bound, generator_weight_cap
+from sofic.generators.generator_caps import (
+    certified_generator_weight_cap,
+    generator_coverage_bound,
+    generator_weight_cap,
+    verify_weight_cap_certificate,
+)
 from tests.test_coupled_generators import _rll
 
 _SURVEY_UPPER = 1.50195  # minimal functional generator of the survey process below
@@ -44,6 +52,24 @@ def test_generator_coverage_meets_three_halves_on_rll() -> None:
     # caps (1/2, 3/4, 1) give H(1/2, 1/4, 1/4) = 3/2, the entropy of the known minimal generator
     assert cov.caps[:2] == pytest.approx((0.5, 0.75), abs=1e-6)
     assert cov.value == pytest.approx(1.5, abs=1e-6)
+
+
+def test_rll_caps_are_exactly_one_half_and_three_quarters() -> None:
+    rll = cg._GeneratorProblem(_rll())
+    for k, nodes, cap in ((1, 200, Fraction(1, 2)), (2, 400, Fraction(3, 4))):
+        cert = certified_generator_weight_cap(rll, k, max_nodes=nodes, data_denominator=10**6)
+        # the true (2, inf) edge law has denominators <= 16, the unique such rationals this close
+        assert cert.data_error < 1 / (2 * 10**12)
+        assert cert.cap == cap and cert.failed == 0
+        assert verify_weight_cap_certificate(rll, cert)
+
+
+def test_verifier_rejects_tampered_certificates() -> None:
+    rll = cg._GeneratorProblem(_rll())
+    cert = certified_generator_weight_cap(rll, 1, max_nodes=60, data_denominator=10**6)
+    assert verify_weight_cap_certificate(rll, cert)
+    assert not verify_weight_cap_certificate(rll, replace(cert, cap=Fraction(49, 100)))
+    assert not verify_weight_cap_certificate(rll, replace(cert, records=cert.records[1:]))
 
 
 def test_caps_dominate_the_functional_generator_and_improve_on_mu1() -> None:

@@ -279,9 +279,19 @@ consistency for the group moments, and branching over boxes of the explicit stat
 beliefs with McCormick envelopes :cite:`mccormick1976computability`. Coverage with these
 caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
 ``generator_caps`` stage of the pipeline) exceeds :math:`\op{G}{S^+ : S^-}` on most
-survey processes with positive persistent crypticity, and on the :math:`(2, \infty)`
-process it gives caps :math:`(1/2, 3/4)` and :math:`C_g \ge 3/2` up to the LP tolerance,
-which with the known generator gives :math:`C_g = 3/2`.
+survey processes with positive persistent crypticity.
+
+:func:`~sofic.generators.generator_caps.certified_generator_weight_cap` removes the LP
+tolerance: every branch-and-bound leaf gets an exact bound from rationalized HiGHS duals or an
+exact Farkas certificate of infeasibility (:mod:`sofic.generators.certificates`, after
+Neumaier & Shcherbina :cite:`neumaier2004safe`; the same module bounds SDPs through
+positive-definite rounding of the dual matrices, as in Jansson et al. :cite:`jansson2007rigorous`),
+and box tightening rounds outward so the leaves cover every generator.
+:func:`~sofic.generators.generator_caps.verify_weight_cap_certificate` rechecks a certificate
+without an LP solver. On the :math:`(2, \infty)` process the caps are exactly :math:`1/2` and
+:math:`3/4`. The sorted weights of any generator are then majorized by
+:math:`(1/2, 1/4, 1/4)`, so :math:`C_g \ge \operatorname{H}(1/2, 1/4, 1/4) = 3/2`. The
+ε-machine attains this, so :math:`C_g = 3/2` (computer-assisted proof).
 
 API
 ===
@@ -315,6 +325,12 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coverage_bound.mu_hyperplane_cap
 .. autofunction:: sofic.generators.generator_caps.generator_weight_cap
 .. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
+.. autofunction:: sofic.generators.generator_caps.certified_generator_weight_cap
+.. autofunction:: sofic.generators.generator_caps.verify_weight_cap_certificate
+.. autoclass:: sofic.generators.generator_caps.WeightCapCertificate
+.. autofunction:: sofic.generators.certificates.certified_lp_minimum
+.. autofunction:: sofic.generators.certificates.dual_bound
+.. autofunction:: sofic.generators.certificates.certified_psd
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model
