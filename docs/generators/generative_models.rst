@@ -293,6 +293,17 @@ without an LP solver. On the :math:`(2, \infty)` process the caps are exactly :m
 :math:`(1/2, 1/4, 1/4)`, so :math:`C_g \ge \operatorname{H}(1/2, 1/4, 1/4) = 3/2`. The
 ε-machine attains this, so :math:`C_g = 3/2` (computer-assisted proof).
 
+When the reverse ε-machine is infinite there is no bidirectional machine, but the generator
+caps still apply with the reverse causal state replaced by the window of the next ``L``
+symbols (:func:`~sofic.generators.generator_problem_spec.window_spec`): a generator state
+separates the forward causal state from the window, the window at time 0 is a function of
+:math:`X_0` and the window at time 1, and the later window is screened off by the next
+generator state. Every generator therefore satisfies the window equations, and
+:meth:`_GeneratorProblem.from_spec <sofic.generators.coupled_generators._GeneratorProblem.from_spec>`
+feeds them to :func:`~sofic.generators.generator_caps.generator_coverage_bound` for lower bounds
+on :math:`C_g` from the forward ε-machine alone. On the :math:`(2, \infty)` process a
+two-symbol window already gives :math:`C_g \ge 3/2`.
+
 API
 ===
 
@@ -331,6 +342,7 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.certificates.certified_lp_minimum
 .. autofunction:: sofic.generators.certificates.dual_bound
 .. autofunction:: sofic.generators.certificates.certified_psd
+.. autofunction:: sofic.generators.generator_problem_spec.window_spec
 .. autofunction:: sofic.generators.coverage_bound.lp_rank_k_weights
 .. autofunction:: sofic.generators.coverage_bound.mu1_search
 .. autofunction:: sofic.generators.coupled_generators.coupled_generative_model

@@ -24,6 +24,18 @@ brute-force reference or a closed-form value and has a regression test.
   `verify_weight_cap_certificate` rechecks a certificate without an LP solver. On the
   `(2, inf)` process the caps are exactly 1/2 and 3/4, so `C_g = 3/2` (computer-assisted proof).
 
+- `generator_problem_spec.window_spec` and `_GeneratorProblem.from_spec`: generator equations from
+  edge tensors alone, with the reverse causal state replaced by the next ``L`` symbols. Every
+  generator satisfies the window equations, so generator caps and coverage on a window spec are
+  lower bounds on `C_g` that need only the forward ε-machine, for processes whose reverse
+  ε-machine is infinite. On `(2, inf)` a two-symbol window gives `C_g >= 3/2`.
+
+- `targeted_line_split_seeds`: iterated local search after COBYLA (``hop_chains`` best decompositions,
+  ``hops`` perturbations of the broad terms' logits each, keeping improvements), and only the
+  ``polish_best`` lowest-entropy decompositions get the coupled-ALM polish. On the widest survey
+  bracket it reaches the known 0.970-bit generator in 8 of 8 seeds (COBYLA alone: 0.978 to 1.10).
+  The kernel LP is now assembled with `einsum` (same LP, 1.5-3.5x faster to build).
+
 - `targeted_line_split_seeds`: searches the line-split family directly (broad terms at their
   largest fitting weight plus point-mass row/column states, an exact decomposition fixed by the
   broad terms' beliefs). From each exact-CI optimum's heaviest terms, Nelder-Mead reaches kernel-LP

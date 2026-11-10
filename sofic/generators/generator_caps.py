@@ -63,6 +63,7 @@ class _HeaviestStatesRelaxation:
             var[name] = np.arange(offset, offset + int(np.prod(shape))).reshape(shape)
             offset += int(np.prod(shape))
         self.n = offset
+        self.var = var
         m, y, z, T = var["m"], var["y"], var["z"], var["T"]
         phi, Fl, Hr, Gt = var["phi"], var["Fl"], var["Hr"], var["Gt"]
 
