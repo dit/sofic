@@ -5,6 +5,15 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Generator caps
+
+- `generator_weight_cap` adds the forward analogue of the reverse joint-moment rows: per-state forward
+  stationarity times the state's own reverse belief gives
+  `T_h(a', b) = sum_{x, g, a : f(a, x) = a'} Gt[x, g, h, a, b]`, which every generator satisfies.
+  Same cost; two-state caps drop (e.g. 0.918 -> 0.907 at 600 nodes) and the coverage bound on the
+  survey processes `((1,1),(2,0),(1,0))` and `((1,·),(2,0),(1,0))` rises 1.261 -> 1.277 and
+  1.175 -> 1.184.
+
 ### State labels
 
 - `sofic.states.sequential_labels` no longer stops at 26 states: after ``A``–``Z`` it continues

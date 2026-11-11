@@ -54,6 +54,15 @@ def test_generator_coverage_meets_three_halves_on_rll() -> None:
     assert cov.value == pytest.approx(1.5, abs=1e-6)
 
 
+def test_forward_joint_stationarity_tightens_the_two_state_cap() -> None:
+    problem = cg._GeneratorProblem(_survey_machine())
+    cover = functional_cover_search(problem)
+    weights = np.sort(np.bincount(cover.labels, weights=problem.p_pair))[::-1]
+    cap2 = generator_weight_cap(problem, 2, max_nodes=600)
+    # 0.918 without the forward joint-moment rows at this budget
+    assert weights[:2].sum() <= cap2 + 1e-9 < 0.91
+
+
 def test_rll_caps_are_exactly_one_half_and_three_quarters() -> None:
     rll = cg._GeneratorProblem(_rll())
     for k, nodes, cap in ((1, 200, Fraction(1, 2)), (2, 400, Fraction(3, 4))):
