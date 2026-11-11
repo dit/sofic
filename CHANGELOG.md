@@ -5,6 +5,14 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Support-type bound speed
+
+- Exact vertex enumeration of the support-type polytope (`support_type_bound`, the certified flow
+  bounds) first drops rows that the others imply, each proved redundant by an exact LP dual bound,
+  then screens candidate active sets in batched floating point and verifies each candidate in exact
+  arithmetic. A 4-state survey support with 6 maximal rectangles went from hours (all
+  `C(132, 5)` row subsets in `Fraction` arithmetic) to 0.3 s; 7 rectangles take about 7 s.
+
 ### State labels
 
 - `sofic.states.sequential_labels` no longer stops at 26 states: after ``A``–``Z`` it continues

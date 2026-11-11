@@ -64,17 +64,72 @@ def _solve(M: list[list[Fraction]], r: list[Fraction]) -> list[Fraction] | None:
     return [A[i][n] for i in range(n)]
 
 
+def _irredundant(ineq: list[tuple[list[Fraction], Fraction]], n: int) -> list[tuple[list[Fraction], Fraction]]:
+    """Drop rows of ``{A x <= b, sum x = 1}`` that the other remaining rows imply.
+
+    A row is dropped only when an exact dual bound (:func:`~sofic.generators.certificates.certified_lp_minimum`)
+    shows that its maximum over the remaining rows is at most its right-hand side, so the polytope is unchanged.
+    Nonnegativity rows ``-x_i <= 0`` are always kept; with them and ``sum x = 1`` the box ``0 <= x <= 1`` is
+    implied, which the dual bound uses.
+    """
+    from sofic.generators.certificates import certified_lp_minimum
+
+    def nonnegativity(row: list[Fraction], bound: Fraction) -> bool:
+        return bound == 0 and sum(1 for a in row if a) == 1 and min(row) == -1
+
+    keep = list(ineq)
+    i = 0
+    while i < len(keep):
+        row, bound = keep[i]
+        others = keep[:i] + keep[i + 1 :]
+        if others and not nonnegativity(row, bound):
+            result = certified_lp_minimum(
+                [-float(a) for a in row],
+                np.zeros(n),
+                np.ones(n),
+                A_eq=np.ones((1, n)),
+                b_eq=[Fraction(1)],
+                A_ub=np.array([[float(a) for a in r] for r, _ in others]),
+                b_ub=[v for _, v in others],
+            )
+            if result.status == "optimal" and result.bound is not None and -result.bound <= bound:
+                keep.pop(i)
+                continue
+        i += 1
+    return keep
+
+
 def _polytope_vertices(ineq: list[tuple[list[Fraction], Fraction]], n: int) -> set[tuple[Fraction, ...]]:
-    """Vertices of ``{x >= 0 : A x <= b}`` intersected with ``sum x = 1`` (first row normalization)."""
+    """Vertices of ``{x >= 0 : A x <= b}`` intersected with ``sum x = 1`` (first row normalization).
+
+    Redundant rows are removed first (:func:`_irredundant`; the type polytopes have ``2^n`` family rows).
+    Candidate active sets are screened in batched floating point (nonsingular and feasible to ``1e-7``);
+    every true vertex passes the screen, and each candidate is then solved and checked in exact arithmetic.
+    """
+    ineq = _irredundant(ineq, n)
     out: set[tuple[Fraction, ...]] = set()
-    for subset in itertools.combinations(range(len(ineq)), n - 1):
-        M = [[Fraction(1)] * n] + [ineq[i][0] for i in subset]
-        r = [Fraction(1)] + [ineq[i][1] for i in subset]
-        x = _solve(M, r)
-        if x is None:
+    A = np.array([[float(a) for a in row] for row, _ in ineq])
+    b = np.array([float(v) for _, v in ineq])
+    scale = np.maximum(np.linalg.norm(A, axis=1), 1e-300)
+    combos = itertools.combinations(range(len(ineq)), n - 1)
+    while chunk := list(itertools.islice(combos, 100_000)):
+        idx = np.array(chunk, dtype=int).reshape(len(chunk), n - 1)
+        M = np.concatenate([np.ones((len(chunk), 1, n)), A[idx]], axis=1)
+        r = np.concatenate([np.ones((len(chunk), 1)), b[idx]], axis=1)
+        det = np.linalg.det(M) / (np.sqrt(n) * scale[idx].prod(axis=1))
+        live = np.abs(det) > 1e-12
+        if not live.any():
             continue
-        if all(sum(a * xi for a, xi in zip(row, x, strict=False)) <= v for row, v in ineq):
-            out.add(tuple(x))
+        x = np.linalg.solve(M[live], r[live][..., None])[..., 0]
+        feasible = np.all(x @ A.T <= b + 1e-7 * (1 + np.abs(b)), axis=1)
+        for subset in idx[live][feasible]:
+            Mx = [[Fraction(1)] * n] + [ineq[i][0] for i in subset]
+            rx = [Fraction(1)] + [ineq[i][1] for i in subset]
+            exact = _solve(Mx, rx)
+            if exact is not None and all(
+                sum(a * xi for a, xi in zip(row, exact, strict=False)) <= v for row, v in ineq
+            ):
+                out.add(tuple(exact))
     return out
 
 
