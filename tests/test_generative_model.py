@@ -50,3 +50,21 @@ def test_generative_model_from_bidirectional_matches_pipeline_on_bidir() -> None
     )
     assert full.certified and direct.certified
     assert abs(full.upper - direct.upper) < 1e-5
+
+
+def test_zero_time_budget_returns_a_valid_bracket_from_the_machines() -> None:
+    from tests.test_generator_caps import _survey_machine
+
+    result = generative_model_from_bidirectional(_survey_machine(), time_budget=0.0, rng=np.random.default_rng(0))
+    assert result.budget_exhausted
+    assert result.upper_source == "epsilon machine" or result.upper_source.endswith("epsilon machine")
+    assert result.lower <= result.upper + 1e-9
+    skipped = {s["stage"] for s in result.stages if s.get("skipped") == "time budget exhausted"}
+    assert {"generator coverage bound", "exact common information", "coupled search"} <= skipped
+    assert all("elapsed" in s for s in result.stages[:-1])
+    assert result.stages[-1]["budget_exhausted"] is True
+
+
+def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
+    result = generative_model(golden_mean(0.5), rng=np.random.default_rng(0))
+    assert not result.budget_exhausted
