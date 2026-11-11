@@ -100,3 +100,13 @@ def test_generative_model_reports_generator_coverage() -> None:
     assert result.lower_source == "generator coverage bound (certified)"
     assert result.lower_certified
     assert 1.15 < result.lower <= result.upper + 1e-9
+
+
+def test_expired_deadline_still_gives_a_valid_cap() -> None:
+    import time
+
+    rll = cg._GeneratorProblem(_rll())
+    cap = generator_weight_cap(rll, 1, max_nodes=10_000, deadline=time.monotonic())
+    assert 0.5 - 1e-9 <= cap <= 1.0
+    cov = generator_coverage_bound(rll, explicit=2, deadline=time.monotonic())
+    assert cov.value <= 1.5 + 1e-6

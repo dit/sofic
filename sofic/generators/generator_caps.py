@@ -19,6 +19,7 @@ from __future__ import annotations
 import heapq
 import itertools
 import math
+import time
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -255,7 +256,7 @@ def _tighten(lo: np.ndarray, hi: np.ndarray) -> tuple[np.ndarray, np.ndarray] | 
 
 
 def _branch_and_bound(
-    relaxation: _HeaviestStatesRelaxation, max_nodes: int
+    relaxation: _HeaviestStatesRelaxation, max_nodes: int, deadline: float | None = None
 ) -> tuple[list[tuple[float, Boxes, Path]], list[tuple[Boxes, Path]]]:
     """Best-first branching over belief boxes.
 
@@ -272,7 +273,7 @@ def _branch_and_bound(
     infeasible: list[tuple[Boxes, Path]] = []
     order = itertools.count(1)
     nodes = 0
-    while heap and nodes < max_nodes:
+    while heap and nodes < max_nodes and (deadline is None or time.monotonic() < deadline):
         bound, _, boxes, path = heapq.heappop(heap)
         nodes += 1
         widths = [(boxes[e][1] - boxes[e][0], boxes[e][3] - boxes[e][2]) for e in range(k)]
@@ -298,17 +299,19 @@ def generator_weight_cap(
     k: int,
     *,
     max_nodes: int = 1000,
+    deadline: float | None = None,
 ) -> float:
     """Certified cap on the total weight of the ``k`` heaviest states of any generator; see the module docstring.
 
     Branches on the widest belief coordinate of any explicit state; the result is valid at any
-    ``max_nodes`` and decreases as it grows. It is valid up to the LP tolerance (``1e-7`` is added);
+    ``max_nodes`` and decreases as it grows. Branching also stops at ``deadline`` (a
+    :func:`time.monotonic` value), which leaves a valid but looser cap. It is valid up to the LP tolerance (``1e-7`` is added);
     :func:`certified_generator_weight_cap` removes that caveat.
     """
     problem = bidir if isinstance(bidir, _GeneratorProblem) else _GeneratorProblem(bidir)
     if k <= 0:
         return 0.0
-    leaves, _ = _branch_and_bound(_HeaviestStatesRelaxation(problem, k), max_nodes)
+    leaves, _ = _branch_and_bound(_HeaviestStatesRelaxation(problem, k), max_nodes, deadline)
     cap = max((leaf[0] for leaf in leaves), default=0.0)
     return min(1.0, cap + _LP_SLACK)
 
@@ -479,19 +482,27 @@ def generator_coverage_bound(
     k_max: int = 8,
     explicit: int = 2,
     max_nodes: tuple[int, ...] = (1000, 2000),
+    deadline: float | None = None,
 ) -> CoverageLowerResult:
     """Coverage lower bound on :math:`C_g` from :func:`~sofic.generators.coverage_bound.mu_caps` tightened by
     :func:`generator_weight_cap` for the ``explicit`` heaviest states.
 
     The caps on the ``j`` heaviest states for ``j > explicit`` use subadditivity, ``cap_j <= cap_{j-1} + cap_1``.
+    ``deadline`` (a :func:`time.monotonic` value) is split evenly between the explicit caps still to run;
+    every cap stays valid, only looser.
     """
     problem = bidir if isinstance(bidir, _GeneratorProblem) else _GeneratorProblem(bidir)
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
     k_used = max(1, min(int(k_max), *P.shape))
     caps = list(mu_caps(P, k=k_used)[0])
-    for j in range(1, min(explicit, k_used) + 1):
+    n_explicit = min(explicit, k_used)
+    for j in range(1, n_explicit + 1):
         budget = max_nodes[min(j, len(max_nodes)) - 1]
-        caps[j - 1] = min(caps[j - 1], generator_weight_cap(problem, j, max_nodes=budget))
+        stop = None
+        if deadline is not None:
+            now = time.monotonic()
+            stop = now + max(0.0, deadline - now) / (n_explicit - j + 1)
+        caps[j - 1] = min(caps[j - 1], generator_weight_cap(problem, j, max_nodes=budget, deadline=stop))
     for j in range(1, k_used):
         caps[j] = min(caps[j], caps[j - 1] + caps[0])
     for j in range(k_used - 2, -1, -1):

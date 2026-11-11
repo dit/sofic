@@ -28,6 +28,7 @@ result bounds the generative complexity :math:`C_g` of Löhr & Ay
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -552,6 +553,7 @@ def separating_optima(
     starts: int = 60,
     sizes: Sequence[int] | None = None,
     atol: float = 1e-7,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> tuple[float, list[np.ndarray]]:
     """Distinct optima of the exact common information ``G[S+ : S-]`` found by multistart exact decomposition.
@@ -560,7 +562,8 @@ def separating_optima(
     ``sizes`` (default ``2 .. min(|S+| |S-|, 8)``, within the Kumar-Li-El Gamal bound :cite:`Kumar2014`), keeps the
     solutions within ``atol`` of the best value, removes duplicates (equal sets of terms up to relabeling) and
     returns ``(best value, channels)``. The optimum need not be unique, and only some optima may be generator
-    states; :func:`generator_kernel` decides which.
+    states; :func:`generator_kernel` decides which. No new start begins after ``deadline`` (a
+    :func:`time.monotonic` value) once some decomposition has been found.
     """
     problem = _as_problem(bidir)
     rng = rng or np.random.default_rng()
@@ -570,6 +573,8 @@ def separating_optima(
     found = []
     for k in sizes:
         for _ in range(starts):
+            if deadline is not None and found and time.monotonic() > deadline:
+                break
             lam, A, B, residual = _decompose(
                 P, rng.dirichlet(np.ones(k)), rng.dirichlet(np.ones(na), size=k), rng.dirichlet(np.ones(nb), size=k)
             )
@@ -665,10 +670,12 @@ def bilevel_search(
     *,
     weight: float = 1e3,
     maxiter: int = 300,
+    deadline: float | None = None,
 ) -> list[tuple[float, float, np.ndarray]]:
     """Outer search over channels ``c[pair, w]`` scoring ``H[W] + weight * t(c)``, where ``t`` is the
     linear-programming violation of :func:`generator_kernel`, from the given starting channels (derivative-free;
-    small problems). Returns ``(entropy, violation, channel)`` per start, best feasible first.
+    small problems). Returns ``(entropy, violation, channel)`` per start, best feasible first. Past
+    ``deadline`` (a :func:`time.monotonic` value) the current start stops and no new one begins.
     """
     problem = _GeneratorProblem(bidir)
     n = len(problem.lifted.p)
@@ -687,8 +694,17 @@ def bilevel_search(
             p = pi[pi > 1e-15]
             return float(-(p * np.log2(p)).sum()) + weight * generator_kernel(problem, c)[0]
 
+        if deadline is not None and out and time.monotonic() > deadline:
+            break
+
+        def stop(intermediate_result: Any) -> None:
+            if deadline is not None and time.monotonic() > deadline:
+                raise StopIteration
+
         z0 = np.log(np.maximum(c0, 1e-6)).ravel()
-        z = minimize(score, z0, method="Powell", options={"maxiter": maxiter, "xtol": 1e-6, "ftol": 1e-10}).x
+        z = minimize(
+            score, z0, method="Powell", callback=stop, options={"maxiter": maxiter, "xtol": 1e-6, "ftol": 1e-10}
+        ).x
         c = channel(z)
         pi = problem.lifted.p @ c
         p = pi[pi > 1e-15]

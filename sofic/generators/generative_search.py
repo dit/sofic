@@ -359,6 +359,13 @@ def _bracket_search(
             log.append({"stage": stage, "skipped": "time budget exhausted"})
         return True
 
+    def share(fraction: float) -> float | None:
+        """Deadline for a stage allowed ``fraction`` of the remaining budget."""
+        if deadline is None:
+            return None
+        now = time.monotonic()
+        return now + fraction * max(0.0, deadline - now)
+
     reference = bidir.forward_machine
     length = __import__(
         "sofic.generators.minimal_generative_model", fromlist=["_reproduction_length"]
@@ -427,7 +434,7 @@ def _bracket_search(
     if not wyner and coverage == "certified" and generator_caps > 0 and not out_of_time("generator coverage bound"):
         from sofic.generators.generator_caps import generator_coverage_bound
 
-        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps)
+        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps, deadline=share(0.3))
         log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
         if gen.value > lower + 1e-9:
             lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
@@ -486,7 +493,7 @@ def _bracket_search(
             return _finalize_result(early)
 
     if "exact" in stages and not out_of_time("exact common information"):
-        best, optima = separating_optima(problem, starts=exact_starts, rng=rng)
+        best, optima = separating_optima(problem, starts=exact_starts, deadline=share(0.25), rng=rng)
         if np.isfinite(best):
             g_estimate = best
         if dit_fallback:
@@ -573,7 +580,7 @@ def _bracket_search(
             }
         )
         if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
-            for ent, viol, c in bilevel_search(bidir, optima[:8])[:4]:
+            for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})
                 systematic_channels.append(c)
                 if viol <= 1e-9:

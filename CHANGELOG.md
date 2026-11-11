@@ -12,6 +12,9 @@ brute-force reference or a closed-form value and has a regression test.
   ``skipped: time budget exhausted``) and the best verified bracket so far is returned, with
   `GenerativeModelResult.budget_exhausted` set. Every ``stages`` entry now records ``elapsed``
   seconds, so slow stages are visible.
+  The expensive inner searches take a ``deadline`` too (`generator_weight_cap`,
+  `generator_coverage_bound`, `separating_optima`, `bilevel_search`), each stopping with a valid
+  result; the pipeline gives them 30%, 25% and 15% of the remaining budget.
 
 ### State labels
 
