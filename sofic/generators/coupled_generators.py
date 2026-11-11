@@ -602,13 +602,15 @@ def separating_decomposition_channels(
     starts: int = 40,
     sizes: Sequence[int] | None = None,
     residual_atol: float = 1e-10,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> list[tuple[float, np.ndarray]]:
     """Separating channels from multistart exact decompositions, sorted by ``H[W]`` (not only ``G`` optima).
 
     Each entry is ``(entropy, channel)`` for one distinct decomposition of ``p(s^+, s^-)`` found by
     :func:`_decompose`. Used to search for a **generating** separator with entropy below the current upper
-    bound when every minimum-entropy optimum fails :func:`generator_kernel`.
+    bound when every minimum-entropy optimum fails :func:`generator_kernel`. No new start begins after
+    ``deadline`` (a :func:`time.monotonic` value).
     """
     problem = _as_problem(bidir)
     rng = rng or np.random.default_rng()
@@ -618,6 +620,8 @@ def separating_decomposition_channels(
     found: list[tuple[float, np.ndarray, tuple]] = []
     for k in sizes:
         for _ in range(starts):
+            if deadline is not None and time.monotonic() > deadline:
+                break
             lam, A, B, residual = _decompose(
                 P, rng.dirichlet(np.ones(k)), rng.dirichlet(np.ones(na), size=k), rng.dirichlet(np.ones(nb), size=k)
             )

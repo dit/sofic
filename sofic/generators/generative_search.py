@@ -496,7 +496,7 @@ def _bracket_search(
         best, optima = separating_optima(problem, starts=exact_starts, deadline=share(0.25), rng=rng)
         if np.isfinite(best):
             g_estimate = best
-        if dit_fallback:
+        if dit_fallback and not out_of_time("dit exact common information"):
             try:
                 joint_n = _normalized_joint_distribution(bidir, cutoff=1e-10)
                 c = _unconstrained_channel(
@@ -522,7 +522,7 @@ def _bracket_search(
                             optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
-        if wyner and dit_fallback:
+        if wyner and dit_fallback and not out_of_time("dit Wyner common information"):
             try:
                 c = _unconstrained_channel(
                     lifted,
@@ -593,7 +593,7 @@ def _bracket_search(
         sweep_channels = (
             []
             if out_of_time("entropy sweep")
-            else separating_decomposition_channels(problem, starts=entropy_sweep_starts, rng=rng)
+            else separating_decomposition_channels(problem, starts=entropy_sweep_starts, deadline=share(0.2), rng=rng)
         )
         best_upper = min((c[0] for c in candidates), default=np.inf)
         hit = None
