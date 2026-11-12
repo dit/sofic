@@ -21,6 +21,17 @@ brute-force reference or a closed-form value and has a regression test.
   survey processes `((1,1),(2,0),(1,0))` and `((1,·),(2,0),(1,0))` rises 1.261 -> 1.277 and
   1.175 -> 1.184.
 
+### Anytime generator search
+
+- `generative_model`, `generative_model_from_bidirectional` and `minimal_wyner_model` take
+  ``time_budget`` (seconds). Once it is spent, the remaining stages are skipped (each logged as
+  ``skipped: time budget exhausted``) and the best verified bracket so far is returned, with
+  `GenerativeModelResult.budget_exhausted` set. Every ``stages`` entry now records ``elapsed``
+  seconds, so slow stages are visible.
+  The expensive inner searches take a ``deadline`` too (`generator_weight_cap`,
+  `generator_coverage_bound`, `separating_optima`, `bilevel_search`), each stopping with a valid
+  result; the pipeline gives them 30%, 25% and 15% of the remaining budget.
+
 ### State labels
 
 - `sofic.states.sequential_labels` no longer stops at 26 states: after ``A``–``Z`` it continues

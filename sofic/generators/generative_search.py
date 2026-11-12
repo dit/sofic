@@ -29,6 +29,7 @@ variant lives in :mod:`~sofic.generators.functional_generators`.
 
 from __future__ import annotations
 
+import time
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -89,6 +90,8 @@ class GenerativeModelResult:
     ``objective`` names what ``upper`` and ``lower`` bound: ``"entropy"`` (state entropy, the generative
     complexity :math:`C_g`), ``"wyner"`` (:math:`\\I{W : S^+, S^-}` over generators) or ``"functional"``
     (state entropy over generators whose state is a function of :math:`(S^+, S^-)`).
+    ``budget_exhausted`` is set when a ``time_budget`` ran out and later stages were skipped; the bracket
+    is still valid, just possibly wider. Each ``stages`` entry records ``elapsed`` seconds.
     """
 
     model: CoupledGenerativeModel
@@ -105,6 +108,7 @@ class GenerativeModelResult:
     cg_exceeds_g: bool | None = None
     lower_certified: bool = True
     objective: str = "entropy"
+    budget_exhausted: bool = False
 
     @property
     def certified(self) -> bool:
@@ -137,7 +141,20 @@ def _reliability_summary(result: GenerativeModelResult) -> dict[str, Any]:
         "cg_exceeds_g": result.cg_exceeds_g,
         "separating_variables_generate": result.separating_variables_generate,
         "persistent_crypticity_theorem_applies": result.persistent_crypticity_theorem_applies,
+        "budget_exhausted": result.budget_exhausted,
     }
+
+
+class _StageLog(list):
+    """Stage log whose entries record ``elapsed`` seconds since the search started."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.start = time.monotonic()
+
+    def append(self, entry: dict[str, Any]) -> None:
+        entry.setdefault("elapsed", time.monotonic() - self.start)
+        super().append(entry)
 
 
 def _finalize_result(result: GenerativeModelResult) -> GenerativeModelResult:
@@ -313,6 +330,7 @@ def _bracket_search(
     universal_coupled: bool = False,
     coupled_alternating: bool = False,
     coupled_dual_strategy: bool = True,
+    time_budget: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring."""
@@ -328,7 +346,26 @@ def _bracket_search(
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
     lifted = problem.lifted
-    log: list[dict[str, Any]] = []
+    log = _StageLog()
+    deadline = None if time_budget is None else log.start + time_budget
+    skipped: list[str] = []
+
+    def out_of_time(stage: str) -> bool:
+        """Whether the budget is spent; logs the skipped ``stage`` once."""
+        if deadline is None or time.monotonic() < deadline:
+            return False
+        if stage not in skipped:
+            skipped.append(stage)
+            log.append({"stage": stage, "skipped": "time budget exhausted"})
+        return True
+
+    def share(fraction: float) -> float | None:
+        """Deadline for a stage allowed ``fraction`` of the remaining budget."""
+        if deadline is None:
+            return None
+        now = time.monotonic()
+        return now + fraction * max(0.0, deadline - now)
+
     reference = bidir.forward_machine
     length = __import__(
         "sofic.generators.minimal_generative_model", fromlist=["_reproduction_length"]
@@ -370,7 +407,7 @@ def _bracket_search(
                 lower, lower_source = fb.value, f"flow bound {thresholds}"
                 lower_certified = fb.certified
 
-    if not wyner and coverage in ("heuristic", "certified"):
+    if not wyner and coverage in ("heuristic", "certified") and not out_of_time("coverage bound"):
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -394,10 +431,10 @@ def _bracket_search(
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
 
-    if not wyner and coverage == "certified" and generator_caps > 0:
+    if not wyner and coverage == "certified" and generator_caps > 0 and not out_of_time("generator coverage bound"):
         from sofic.generators.generator_caps import generator_coverage_bound
 
-        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps)
+        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps, deadline=share(0.3))
         log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
         if gen.value > lower + 1e-9:
             lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
@@ -455,11 +492,11 @@ def _bracket_search(
         if early is not None and early.certified:
             return _finalize_result(early)
 
-    if "exact" in stages:
-        best, optima = separating_optima(problem, starts=exact_starts, rng=rng)
+    if "exact" in stages and not out_of_time("exact common information"):
+        best, optima = separating_optima(problem, starts=exact_starts, deadline=share(0.25), rng=rng)
         if np.isfinite(best):
             g_estimate = best
-        if dit_fallback:
+        if dit_fallback and not out_of_time("dit exact common information"):
             try:
                 joint_n = _normalized_joint_distribution(bidir, cutoff=1e-10)
                 c = _unconstrained_channel(
@@ -485,7 +522,7 @@ def _bracket_search(
                             optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
-        if wyner and dit_fallback:
+        if wyner and dit_fallback and not out_of_time("dit Wyner common information"):
             try:
                 c = _unconstrained_channel(
                     lifted,
@@ -542,8 +579,8 @@ def _bracket_search(
                 "cg exceeds g": cg_exceeds_g,
             }
         )
-        if bilevel and n_generating == 0 and optima:
-            for ent, viol, c in bilevel_search(bidir, optima[:8])[:4]:
+        if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
+            for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})
                 systematic_channels.append(c)
                 if viol <= 1e-9:
@@ -553,7 +590,11 @@ def _bracket_search(
                     pi, Q, R, K = problem.channel_seed(c)
                     repair.append(("bilevel near-feasible", (pi, Q, R, K)))
 
-        sweep_channels = separating_decomposition_channels(problem, starts=entropy_sweep_starts, rng=rng)
+        sweep_channels = (
+            []
+            if out_of_time("entropy sweep")
+            else separating_decomposition_channels(problem, starts=entropy_sweep_starts, deadline=share(0.2), rng=rng)
+        )
         best_upper = min((c[0] for c in candidates), default=np.inf)
         hit = None
         if n_generating == 0 and sweep_channels:
@@ -612,18 +653,20 @@ def _bracket_search(
         # Saturated logits freeze softmax gradients, so each seed is polished from several floors.
         # Line splits target low state entropy, so the Wyner search skips them.
         for name, seed in [] if wyner else line_split_seeds(problem, optima):
+            if out_of_time("line-split seeds"):
+                break
             k = len(seed[0])
             for floor in _LINE_SPLIT_FLOORS:
                 theta = problem.logits(*seed, floor=floor)
                 theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
-    if "memory" in stages:
+    if "memory" in stages and not out_of_time("memory lifts"):
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:
             if residual <= residual_atol:
                 offer("memory-1 lift", memory_lift(problem, nu))
 
-    if "functional" in stages:
+    if "functional" in stages and not out_of_time("functional cover search"):
         try:
             cover = functional_cover_search(problem)
         except StochasticValidationError as exc:
@@ -639,7 +682,7 @@ def _bracket_search(
             )
             offer("minimal functional generator", problem.channel_seed(np.eye(cover.labels.max() + 1)[cover.labels]))
 
-    if "lifted" in stages:
+    if "lifted" in stages and not out_of_time("lifted channel"):
         if small:
             builder = wyner_generative_model if wyner else minimal_generative_model
             try:
@@ -650,7 +693,7 @@ def _bracket_search(
         else:
             log.append({"stage": "lifted channel", "skipped": f"more than {large} causal-state pairs"})
 
-    if "coupled" in stages:
+    if "coupled" in stages and not out_of_time("coupled search"):
         hard_cap = max_states if max_states is not None else 8
         k_cap = generator_state_cap(problem, hard_cap=hard_cap)
         log.append({"stage": "coupled state cap", "k_max": k_cap})
@@ -688,6 +731,8 @@ def _bracket_search(
         else:
             extra = [(name, seed) for _v, name, seed in sorted(candidates, key=lambda t: t[0])[:6]] + repair
             for k in range(2, k_cap + 1):
+                if out_of_time("coupled search"):
+                    break
                 for res in coupled_search(
                     bidir,
                     k,
@@ -701,7 +746,7 @@ def _bracket_search(
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
     best_value = min((c[0] for c in candidates), default=np.inf)
-    if targeted and optima and best_value - lower > _TARGETED_GAP:
+    if targeted and optima and best_value - lower > _TARGETED_GAP and not out_of_time("targeted line-split search"):
         seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, rng=rng)
         log.append({"stage": "targeted line-split search", "gap before": best_value - lower, "generators": len(seeds)})
         for name, seed in seeds:
@@ -726,6 +771,7 @@ def _bracket_search(
     )
     if result is None:
         raise StochasticValidationError(f"{objective} generator search: no candidate reproduced the source process")
+    result.budget_exhausted = bool(skipped)
     return _finalize_result(result)
 
 
@@ -754,6 +800,7 @@ def generative_model_from_bidirectional(
     universal_coupled: bool = False,
     coupled_alternating: bool = False,
     coupled_dual_strategy: bool = True,
+    time_budget: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring."""
@@ -782,6 +829,7 @@ def generative_model_from_bidirectional(
         universal_coupled=universal_coupled,
         coupled_alternating=coupled_alternating,
         coupled_dual_strategy=coupled_dual_strategy,
+        time_budget=time_budget,
         rng=rng,
     )
 
@@ -803,6 +851,7 @@ def minimal_wyner_model(
     bilevel: bool = True,
     coupled_alternating: bool = False,
     coupled_dual_strategy: bool = True,
+    time_budget: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     r"""Generator minimizing :math:`\I{W : S^+, S^-}`, the Wyner analogue of :func:`generative_model`.
@@ -837,6 +886,7 @@ def minimal_wyner_model(
         bilevel=bilevel,
         coupled_alternating=coupled_alternating,
         coupled_dual_strategy=coupled_dual_strategy,
+        time_budget=time_budget,
         rng=rng,
     )
     result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
@@ -867,6 +917,7 @@ def generative_model(
     early_certified: bool = True,
     coupled_alternating: bool = False,
     coupled_dual_strategy: bool = True,
+    time_budget: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
     """Full generative-complexity search from a forward ε-machine or bidirectional presentation.
@@ -880,6 +931,10 @@ def generative_model(
        (full coupled equations).
 
     The final ``stages`` entry is a **reliability summary** (``certified``, ``gap``, sources, …).
+    With ``time_budget`` (seconds) the search becomes anytime: once the budget is spent, remaining
+    stages are skipped and the best verified bracket so far is returned with ``budget_exhausted`` set.
+    The check runs between stages (and between line-split seeds and coupled-search sizes), so a single
+    long stage can overrun it.
     """
     bidir, build_meta = resolve_bidirectional(machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
     result = generative_model_from_bidirectional(
@@ -906,6 +961,7 @@ def generative_model(
         universal_coupled=True,
         coupled_alternating=coupled_alternating,
         coupled_dual_strategy=coupled_dual_strategy,
+        time_budget=time_budget,
         rng=rng,
     )
     result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
