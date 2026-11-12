@@ -21,6 +21,14 @@ brute-force reference or a closed-form value and has a regression test.
   survey processes `((1,1),(2,0),(1,0))` and `((1,·),(2,0),(1,0))` rises 1.261 -> 1.277 and
   1.175 -> 1.184.
 
+### Support-type bound speed
+
+- Exact vertex enumeration of the support-type polytope (`support_type_bound`, the certified flow
+  bounds) first drops rows that the others imply, each proved redundant by an exact LP dual bound,
+  then screens candidate active sets in batched floating point and verifies each candidate in exact
+  arithmetic. A 4-state survey support with 6 maximal rectangles went from hours (all
+  `C(132, 5)` row subsets in `Fraction` arithmetic) to 0.3 s; 7 rectangles take about 7 s.
+  
 ### Anytime generator search
 
 - `generative_model`, `generative_model_from_bidirectional` and `minimal_wyner_model` take
