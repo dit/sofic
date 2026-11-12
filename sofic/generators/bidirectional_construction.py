@@ -175,16 +175,17 @@ def _prune_to_stationary_support(
 
     keep = _recurrent_support(graph) or set(states)
     trimmed = _restrict_graph(graph, keep)
-    initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
-    if not initial:
-        return trimmed, {}
-
-    trimmed = _restrict_graph(trimmed, set(initial.keys()))
-    keep = _recurrent_support(trimmed) or set(initial.keys())
-    trimmed = _restrict_graph(trimmed, keep)
-    initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
-    if initial:
-        trimmed = _restrict_graph(trimmed, set(initial.keys()))
+    # Dropping states outside the stationary support can leave others with incomplete rows, and
+    # dropping those changes the support, so alternate the two until neither removes anything.
+    for _ in range(len(states) + 1):
+        initial = _joint_pi_minimum_support(trimmed, forward, reverse, tol=tol)
+        if not initial:
+            return trimmed, {}
+        current = set(trimmed.states())
+        keep = _recurrent_support(_restrict_graph(trimmed, set(initial))) or set(initial)
+        if keep == current:
+            break
+        trimmed = _restrict_graph(trimmed, keep)
     return trimmed, initial
 
 
