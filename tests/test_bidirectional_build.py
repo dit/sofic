@@ -58,3 +58,27 @@ def test_survey_explosion_code_may_build_with_ladder() -> None:
     else:
         built = try_build_bidirectional(forward)
         assert built.bidir is not None
+
+
+def test_truncated_reverse_machine_prunes_to_complete_rows() -> None:
+    """Regression: dropping sub-tolerance joint states left (2, 'CE') with 86% of its outgoing mass."""
+    mats = {x: np.zeros((4, 4)) for x in (0, 1)}
+    for x, i, j, p in (
+        (0, 1, 2, 0.8848986395305858),
+        (0, 2, 3, 0.42866489513010786),
+        (0, 3, 1, 0.3568362368298324),
+        (1, 0, 1, 1.0),
+        (1, 1, 0, 0.11510136046941416),
+        (1, 2, 1, 0.571335104869892),
+        (1, 3, 2, 0.6431637631701677),
+    ):
+        mats[x][i, j] = p
+    forward = from_symbol_matrices(tuple(range(4)), (0, 1), mats)
+    built = try_build_bidirectional(forward)
+    assert built.preflight.bidir_class == "truncated"
+    assert built.bidir is not None
+    bidir_pi = built.bidir.forward_machine.stationary_distribution()
+    marginal = np.zeros(4)
+    for (alpha, _gamma), mass in built.bidir._joint_pi.items():
+        marginal[alpha] += float(mass)
+    assert np.allclose(marginal, bidir_pi, atol=1e-8)

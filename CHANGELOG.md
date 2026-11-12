@@ -5,6 +5,13 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Bidirectional builds
+
+- `build_bidirectional_epsilon_machine` prunes joint states to a fixed point: dropping states
+  outside the stationary support could leave others with incomplete outgoing rows, so builds from
+  truncated reverse machines failed with "joint masses from ... sum to 0.86". Restriction to the
+  stationary support and to states with complete rows now alternate until neither removes anything.
+
 ### Generator caps
 
 - `generator_weight_cap` adds the forward analogue of the reverse joint-moment rows: per-state forward
