@@ -28,6 +28,17 @@ brute-force reference or a closed-form value and has a regression test.
   then screens candidate active sets in batched floating point and verifies each candidate in exact
   arithmetic. A 4-state survey support with 6 maximal rectangles went from hours (all
   `C(132, 5)` row subsets in `Fraction` arithmetic) to 0.3 s; 7 rectangles take about 7 s.
+  
+### Anytime generator search
+
+- `generative_model`, `generative_model_from_bidirectional` and `minimal_wyner_model` take
+  ``time_budget`` (seconds). Once it is spent, the remaining stages are skipped (each logged as
+  ``skipped: time budget exhausted``) and the best verified bracket so far is returned, with
+  `GenerativeModelResult.budget_exhausted` set. Every ``stages`` entry now records ``elapsed``
+  seconds, so slow stages are visible.
+  The expensive inner searches take a ``deadline`` too (`generator_weight_cap`,
+  `generator_coverage_bound`, `separating_optima`, `bilevel_search`), each stopping with a valid
+  result; the pipeline gives them 30%, 25% and 15% of the remaining budget.
 
 ### State labels
 

@@ -377,3 +377,13 @@ def test_first_generating_separator_on_golden_mean() -> None:
     g, _ = cg.separating_optima(problem, starts=30, rng=np.random.default_rng(0))
     assert entropy >= g - 1e-5
     assert cg.generator_kernel(problem, hit[1])[0] <= 1e-9
+
+
+def test_separating_optima_and_bilevel_respect_an_expired_deadline() -> None:
+    import time
+
+    problem = cg._GeneratorProblem(_rll())
+    best, optima = cg.separating_optima(problem, starts=500, deadline=time.monotonic(), rng=np.random.default_rng(0))
+    assert optima and np.isfinite(best)
+    out = cg.bilevel_search(_rll(), optima, deadline=time.monotonic())
+    assert len(out) == 1
