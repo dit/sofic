@@ -6,7 +6,11 @@ A generator's states :math:`w` carry rank-1 terms :math:`\pi_w Q_w R_w^\top` of 
 :mod:`~sofic.generators.coupled_generators` (edge law, forward stationarity, reverse consistency)
 constrain them further. :func:`generator_weight_cap` keeps ``k`` states explicit, aggregates every
 other state into one group, and writes those equations for per-group and per-group-pair moments
-(masses, belief moments, flows). Products of an explicit state's beliefs with flows are relaxed by
+(masses, belief moments, flows). Stationarity and reverse consistency are imposed both on belief
+moments and on the joint moments :math:`\sum_w \pi_w Q_w R_w^\top`: forward stationarity of each
+state, multiplied by that state's own :math:`R_{w'}`, is an identity between the edge moments and the
+target group's joint moment, the mirror of the reverse one. Products of an explicit state's beliefs
+with flows are relaxed by
 McCormick envelopes :cite:`mccormick1976computability` over a box of beliefs, and the boxes are
 branched. Every generator gives a feasible point (its ``k`` heaviest states explicit, the rest
 aggregated), so the largest open bound caps the total weight of the ``k`` heaviest states at any
@@ -106,6 +110,10 @@ class _HeaviestStatesRelaxation:
         for h, a2 in itertools.product(groups, range(na)):
             sources = [(a, x) for a in range(na) for x in symbols if problem.F[a, x, a2]]
             eq([(int(Fl[x, g, h, a]), 1.0) for a, x in sources for g in groups] + [(int(y[h, a2]), -1.0)], 0.0)
+            # forward stationarity of each state times its own R_{w'}(b), the mirror of the reverse rows below
+            for b in range(nb):
+                terms = [(int(Gt[x, g, h, a, b]), 1.0) for a, x in sources for g in groups]
+                eq(terms + [(int(T[h, a2, b]), -1.0)], 0.0)
         for g, b in itertools.product(groups, range(nb)):
             targets = [(x, b2) for x in symbols for b2 in range(nb) if problem.G[x, b2, b]]
             eq([(int(Hr[x, g, h, b2]), 1.0) for x, b2 in targets for h in groups] + [(int(z[g, b]), -1.0)], 0.0)
