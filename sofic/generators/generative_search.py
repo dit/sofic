@@ -190,6 +190,7 @@ def resolve_bidirectional(
     *,
     reverse_max_states: int = 10_000,
     use_ladder: bool = True,
+    time_budget: float | None = None,
 ) -> tuple[BidirectionalEpsilonMachine, dict[str, Any]]:
     """Build or accept a bidirectional ε-machine for generator search."""
     from sofic.generators.bidirectional_build import try_build_bidirectional
@@ -197,13 +198,16 @@ def resolve_bidirectional(
     if isinstance(machine, BidirectionalEpsilonMachine):
         return machine, {"bidir_class": "finite", "source": "bidirectional input"}
     forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
-    built = try_build_bidirectional(forward, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    built = try_build_bidirectional(
+        forward, reverse_max_states=reverse_max_states, use_ladder=use_ladder, time_budget=time_budget
+    )
     meta: dict[str, Any] = {
         "bidir_class": built.preflight.bidir_class,
         "reverse_max_states": built.preflight.reverse_max_states,
         "reverse_recurrence_finite": built.preflight.reverse_recurrence_finite,
         "pe_drift": built.pe_drift,
         "edge_stabilized": built.edge_stabilized,
+        "budget_exhausted": built.budget_exhausted,
     }
     if built.preflight.error:
         meta["build_error"] = built.preflight.error
@@ -872,7 +876,12 @@ def minimal_wyner_model(
     word-verified. The state-entropy lower bounds do not apply, so ``lower`` is the excess entropy and
     the bracket is certified only when a candidate attains it.
     """
-    bidir, build_meta = resolve_bidirectional(machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    start = time.monotonic()
+    bidir, build_meta = resolve_bidirectional(
+        machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder, time_budget=time_budget
+    )
+    if time_budget is not None:
+        time_budget = max(0.0, time_budget - (time.monotonic() - start))
     result = _bracket_search(
         bidir,
         objective="wyner",
@@ -938,9 +947,15 @@ def generative_model(
     With ``time_budget`` (seconds) the search becomes anytime: once the budget is spent, remaining
     stages are skipped and the best verified bracket so far is returned with ``budget_exhausted`` set.
     The check runs between stages (and between line-split seeds and coupled-search sizes), so a single
-    long stage can overrun it.
+    long stage can overrun it. The bidirectional build's retry ladder counts against the budget
+    (see :func:`~sofic.generators.bidirectional_build.build_bidirectional_with_ladder`).
     """
-    bidir, build_meta = resolve_bidirectional(machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder)
+    start = time.monotonic()
+    bidir, build_meta = resolve_bidirectional(
+        machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder, time_budget=time_budget
+    )
+    if time_budget is not None:
+        time_budget = max(0.0, time_budget - (time.monotonic() - start))
     result = generative_model_from_bidirectional(
         bidir,
         max_states=max_states,
