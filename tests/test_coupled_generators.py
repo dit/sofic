@@ -393,13 +393,14 @@ def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> N
     import time
 
     bidir = _rll()
+    problem = cg._GeneratorProblem(bidir)
+    # separating_optima takes no deadline; keep it out of the timed region (slow CI runners)
+    _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
     start = time.monotonic()
     results = cg.coupled_search(bidir, 3, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
     assert results and all(r.residual <= 1e-6 for r in results)
     lifts = cg.memory_lift_search(bidir, 2, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
     assert len(lifts) == 1
-    problem = cg._GeneratorProblem(bidir)
-    _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
     seeds = cg.targeted_line_split_seeds(problem, optima, deadline=time.monotonic(), rng=np.random.default_rng(0))
     assert len(seeds) <= 1
     assert time.monotonic() - start < 120
