@@ -31,6 +31,12 @@ brute-force reference or a closed-form value and has a regression test.
   
 ### Anytime generator search
 
+- The remaining search loops take a ``deadline`` too: `coupled_search` (the ε-machine seed always
+  runs), `memory_lift_search`, `targeted_line_split_seeds` (no new start or hop, and only the best
+  decomposition is polished, once it passes) and `universal_generative_optimizer` (no larger state
+  count once a generator is verified). The pipeline gives them 50%, 20%, 80% and 60% of the remaining
+  budget, so with ``time_budget`` set every stage either finishes or stops between iterations.
+
 - `generative_model`, `generative_model_from_bidirectional` and `minimal_wyner_model` take
   ``time_budget`` (seconds). Once it is spent, the remaining stages are skipped (each logged as
   ``skipped: time budget exhausted``) and the best verified bracket so far is returned, with

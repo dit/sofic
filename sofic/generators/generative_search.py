@@ -662,7 +662,9 @@ def _bracket_search(
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
     if "memory" in stages and not out_of_time("memory lifts"):
-        for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, rng=rng)[:3]:
+        for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, deadline=share(0.2), rng=rng)[
+            :3
+        ]:
             if residual <= residual_atol:
                 offer("memory-1 lift", memory_lift(problem, nu))
 
@@ -710,6 +712,7 @@ def _bracket_search(
                     reproduction_atol=reproduction_atol,
                     alternating=coupled_alternating,
                     dual_strategy=coupled_dual_strategy,
+                    deadline=share(0.6),
                     rng=rng,
                 )
             except StochasticValidationError as exc:
@@ -741,13 +744,14 @@ def _bracket_search(
                     residual_atol=residual_atol,
                     alternating=coupled_alternating,
                     dual_strategy=coupled_dual_strategy,
+                    deadline=share(0.5),
                     rng=rng,
                 )[: None if wyner else 2]:
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
     best_value = min((c[0] for c in candidates), default=np.inf)
     if targeted and optima and best_value - lower > _TARGETED_GAP and not out_of_time("targeted line-split search"):
-        seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, rng=rng)
+        seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, deadline=share(0.8), rng=rng)
         log.append({"stage": "targeted line-split search", "gap before": best_value - lower, "generators": len(seeds)})
         for name, seed in seeds:
             offer(name, seed)
