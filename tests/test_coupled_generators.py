@@ -410,6 +410,22 @@ def test_memory_lift_search_stops_inside_a_start_at_the_deadline(monkeypatch: py
     assert calls["n"] <= 6
 
 
+def test_alm_polish_returns_at_an_expired_deadline() -> None:
+    import time
+
+    problem = cg._GeneratorProblem(_rll())
+    pi = np.full(3, 1 / 3)
+    Q = np.full((3, problem.n_plus), 1 / problem.n_plus)
+    R = np.full((3, problem.n_minus), 1 / problem.n_minus)
+    K = np.full((3, problem.n_sym, 3), 1 / (3 * problem.n_sym))
+    theta = problem.logits(pi, Q, R, K)
+    assert problem.residual(*problem.unpack(theta, 3)) > 1e-6
+    start = time.monotonic()
+    out = cg._optimize_coupled(problem, theta, 3, 3000, deadline=start - 1.0)
+    assert time.monotonic() - start < 5
+    assert np.allclose(problem.unpack(out, 3)[0], problem.unpack(theta, 3)[0])
+
+
 def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> None:
     import time
 

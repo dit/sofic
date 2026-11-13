@@ -667,8 +667,10 @@ def _bracket_search(
                 break
             k = len(seed[0])
             for floor in _LINE_SPLIT_FLOORS:
+                if out_of_time("line-split seeds"):
+                    break
                 theta = problem.logits(*seed, floor=floor)
-                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol)
+                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol, deadline=deadline)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
     if "memory" in stages and not out_of_time("memory lifts"):
