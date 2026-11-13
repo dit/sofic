@@ -60,6 +60,33 @@ def test_survey_explosion_code_may_build_with_ladder() -> None:
         assert built.bidir is not None
 
 
+def test_ladder_budget_skips_caps_forecast_to_overrun(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A cap whose forecast (previous time x cap ratio squared) overruns the budget is not attempted."""
+    import sofic.generators.bidirectional_build as bb
+
+    clock = {"now": 0.0}
+    attempted: list[int] = []
+
+    def fake_preflight(forward, *, reverse_max_states):
+        attempted.append(reverse_max_states)
+        clock["now"] += 10.0 * (reverse_max_states / 10_000) ** 2
+        return bb.BidirPreflightResult("explosion", reverse_max_states=reverse_max_states)
+
+    monkeypatch.setattr(bb, "preflight_bidir", fake_preflight)
+    monkeypatch.setattr(bb.time, "monotonic", lambda: clock["now"])
+    built = bb.build_bidirectional_with_ladder(None, caps=(10_000, 20_000, 40_000), time_budget=100.0)
+    assert attempted == [10_000, 20_000]
+    assert built.bidir is None
+    assert built.budget_exhausted
+    assert built.preflight.reverse_max_states == 20_000
+
+    attempted.clear()
+    clock["now"] = 0.0
+    built = bb.build_bidirectional_with_ladder(None, caps=(10_000, 20_000, 40_000))
+    assert attempted == [10_000, 20_000, 40_000]
+    assert not built.budget_exhausted
+
+
 def test_truncated_reverse_machine_prunes_to_complete_rows() -> None:
     """Regression: dropping sub-tolerance joint states left (2, 'CE') with 86% of its outgoing mass."""
     mats = {x: np.zeros((4, 4)) for x in (0, 1)}

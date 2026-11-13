@@ -11,6 +11,12 @@ brute-force reference or a closed-form value and has a regression test.
   outside the stationary support could leave others with incomplete outgoing rows, so builds from
   truncated reverse machines failed with "joint masses from ... sum to 0.86". Restriction to the
   stationary support and to states with complete rows now alternate until neither removes anything.
+- The retry ladder takes a `time_budget` (`build_bidirectional_with_ladder`, `try_build_bidirectional`,
+  `resolve_bidirectional`), and `generative_model` / `minimal_wyner_model` charge the build to their
+  own `time_budget`. Mixed-state construction is not interruptible, so the ladder skips a cap when the
+  previous cap's time times the squared cap ratio would overrun, and sets `budget_exhausted`. On a
+  4-state survey process the 10k and 50k caps took 9 s and 86 s and the 200k cap did not finish in
+  15 minutes, so the ladder ran past the survey's hard timeout before any bounds were reported.
 
 ### Generator caps
 

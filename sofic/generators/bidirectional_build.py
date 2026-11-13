@@ -7,6 +7,7 @@ When the reverse mixed-state presentation does not close at the default cap,
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -44,6 +45,7 @@ class BidirBuildResult:
     preflight: BidirPreflightResult
     pe_drift: float | None = None
     edge_stabilized: bool | None = None
+    budget_exhausted: bool = False
 
 
 def _edge_tensor(bidir: BidirectionalEpsilonMachine) -> np.ndarray:
@@ -102,20 +104,39 @@ def build_bidirectional_with_ladder(
     *,
     caps: tuple[int, ...] = _DEFAULT_CAPS,
     edge_tol: float = 1e-8,
+    time_budget: float | None = None,
 ) -> BidirBuildResult:
-    """Build a bidirectional machine, increasing reverse ``max_states`` until ``Pe`` stabilizes."""
+    """Build a bidirectional machine, increasing reverse ``max_states`` until ``Pe`` stabilizes.
+
+    With ``time_budget`` (seconds) the ladder stops before a cap whose forecast cost would overrun
+    the budget, and ``budget_exhausted`` is set on the result. A single mixed-state construction
+    cannot be interrupted, so the forecast scales the previous cap's time by the square of the cap
+    ratio (construction time grows faster than linearly in the cap); the first cap always runs.
+    """
+    start = time.monotonic()
     last_pe: np.ndarray | None = None
     last_bidir: BidirectionalEpsilonMachine | None = None
     last_preflight: BidirPreflightResult | None = None
+    previous: tuple[int, float] | None = None
+    exhausted = False
 
     for cap in caps:
+        if time_budget is not None and previous is not None:
+            prev_cap, prev_seconds = previous
+            forecast = prev_seconds * (cap / prev_cap) ** 2
+            if time.monotonic() - start + forecast > time_budget:
+                exhausted = True
+                break
+        attempt = time.monotonic()
         pre = preflight_bidir(forward, reverse_max_states=cap)
         last_preflight = pre
         if pre.bidir_class in ("explosion", "failed_build"):
+            previous = (cap, time.monotonic() - attempt)
             continue
         reverse = infer_reverse_epsilon_machine(forward, max_states=cap)
         bidir = build_bidirectional_epsilon_machine(forward, reverse)
         pe = _edge_tensor(bidir)
+        previous = (cap, time.monotonic() - attempt)
         if last_pe is not None:
             drift = _pe_max_drift(last_pe, pe)
             if drift <= edge_tol:
@@ -134,10 +155,11 @@ def build_bidirectional_with_ladder(
             last_preflight,
             pe_drift=drift,
             edge_stabilized=False,
+            budget_exhausted=exhausted,
         )
 
     if last_preflight is not None:
-        return BidirBuildResult(None, last_preflight)
+        return BidirBuildResult(None, last_preflight, budget_exhausted=exhausted)
     pre = preflight_bidir(forward, reverse_max_states=caps[-1])
     return BidirBuildResult(None, pre)
 
@@ -149,11 +171,18 @@ def try_build_bidirectional(
     use_ladder: bool = False,
     caps: tuple[int, ...] = _DEFAULT_CAPS,
     edge_tol: float = 1e-8,
+    time_budget: float | None = None,
 ) -> BidirBuildResult:
-    """Single-cap build, or ladder when ``use_ladder`` and the default cap explodes."""
+    """Single-cap build, or ladder when ``use_ladder`` and the default cap explodes.
+
+    ``time_budget`` (seconds, including the first preflight) is passed on to
+    :func:`build_bidirectional_with_ladder`.
+    """
+    start = time.monotonic()
     pre = preflight_bidir(forward, reverse_max_states=reverse_max_states)
     if pre.bidir_class == "explosion" and use_ladder:
-        return build_bidirectional_with_ladder(forward, caps=caps, edge_tol=edge_tol)
+        remaining = None if time_budget is None else max(0.0, time_budget - (time.monotonic() - start))
+        return build_bidirectional_with_ladder(forward, caps=caps, edge_tol=edge_tol, time_budget=remaining)
     if pre.bidir_class in ("explosion", "failed_build"):
         return BidirBuildResult(None, pre)
     reverse = infer_reverse_epsilon_machine(forward, max_states=reverse_max_states)
