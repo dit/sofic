@@ -387,3 +387,19 @@ def test_separating_optima_and_bilevel_respect_an_expired_deadline() -> None:
     assert optima and np.isfinite(best)
     out = cg.bilevel_search(_rll(), optima, deadline=time.monotonic())
     assert len(out) == 1
+
+
+def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> None:
+    import time
+
+    bidir = _rll()
+    start = time.monotonic()
+    results = cg.coupled_search(bidir, 3, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
+    assert results and all(r.residual <= 1e-6 for r in results)
+    lifts = cg.memory_lift_search(bidir, 2, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
+    assert len(lifts) == 1
+    problem = cg._GeneratorProblem(bidir)
+    _best, optima = cg.separating_optima(problem, starts=10, rng=np.random.default_rng(0))
+    seeds = cg.targeted_line_split_seeds(problem, optima, deadline=time.monotonic(), rng=np.random.default_rng(0))
+    assert len(seeds) <= 1
+    assert time.monotonic() - start < 120

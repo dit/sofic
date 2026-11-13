@@ -413,12 +413,14 @@ def memory_lift_search(
     *,
     starts: int = 10,
     maxiter: int = 400,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> list[tuple[float, float, np.ndarray]]:
     """Minimize the state entropy of memory-1 lifts with ``m`` values of V subject to the generator equations.
 
     A penalty continuation over the channel's logits (numerical gradients; meant for small problems).
-    Returns ``(entropy, residual, nu)`` for every start, best first.
+    Returns ``(entropy, residual, nu)`` for every start, best first. No new start begins after
+    ``deadline`` (a :func:`time.monotonic` value).
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -437,6 +439,8 @@ def memory_lift_search(
 
     out = []
     for _ in range(starts):
+        if deadline is not None and out and time.monotonic() > deadline:
+            break
         z = rng.normal(scale=2.0, size=n * m)
         for mu in (1e2, 1e4, 1e6, 1e8):
             z = minimize(value, z, args=(mu,), method="L-BFGS-B", options={"maxiter": maxiter}).x
@@ -841,6 +845,7 @@ def targeted_line_split_seeds(
     hops: int = 30,
     hop_scales: Sequence[float] = (0.03, 0.05, 0.1),
     residual_atol: float = 1e-7,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> list[tuple[str, Seed]]:
     """Generators found by searching the line-split family directly for kernel-LP feasibility.
@@ -855,8 +860,13 @@ def targeted_line_split_seeds(
     ``hop_scales``, re-run the local search, keep improvements). The ``polish_best`` lowest-entropy
     decompositions (all if ``None``) are polished by the coupled ALM from several logit floors; seeds
     that reach the generator equations to ``residual_atol`` are returned. ``configs`` lists
-    ``(broad, axis)`` pairs.
+    ``(broad, axis)`` pairs. After ``deadline`` (a :func:`time.monotonic` value) no new start or hop
+    begins and only the best decomposition found so far is polished.
     """
+
+    def late() -> bool:
+        return deadline is not None and time.monotonic() > deadline
+
     rng = rng or np.random.default_rng()
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
     found: list[tuple[float, str, np.ndarray, int, int]] = []
@@ -870,6 +880,8 @@ def targeted_line_split_seeds(
             starts = [base] + [base + rng.normal(scale=0.3, size=base.shape) for _ in range(perturbations)]
             lines = "columns" if axis == 0 else "rows"
             for s, z in enumerate(starts):
+                if late() and found:
+                    break
                 local = _line_split_local(problem, P, z, broad, axis, nm_factor=300, cobyla_iter=3000)
                 if local is not None:
                     name = f"targeted line split {i}.{s} ({broad} broad + {lines})"
@@ -877,6 +889,8 @@ def targeted_line_split_seeds(
     found.sort(key=lambda item: item[0])
     for j, (h, name, z, broad, axis) in enumerate(found[:hop_chains]):
         for step in range(hops):
+            if late():
+                break
             scale = hop_scales[step % len(hop_scales)]
             local = _line_split_local(problem, P, z + rng.normal(scale=scale, size=z.shape), broad, axis)
             if local is not None and local[0] < h - 1e-6:
@@ -884,7 +898,8 @@ def targeted_line_split_seeds(
         found[j] = (h, name if h >= found[j][0] - 1e-6 else f"{name}, hops", z, broad, axis)
     found.sort(key=lambda item: item[0])
     out: list[tuple[str, Seed]] = []
-    for _h, name, z, broad, axis in found if polish_best is None else found[:polish_best]:
+    keep = found if polish_best is None else found[:polish_best]
+    for _h, name, z, broad, axis in keep[:1] if late() else keep:
         beliefs = _line_split_beliefs(P, z, broad, axis)
         _violation, K = _kernel_lp_beliefs(problem, *beliefs)
         k = len(beliefs[0])
@@ -1103,11 +1118,13 @@ def coupled_search(
     residual_atol: float = 1e-6,
     alternating: bool = False,
     dual_strategy: bool = True,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> list[CoupledSearchResult]:
     """Optimize k-state generators from the standard seeds, ``extra`` named seeds and random starts.
 
-    Returns every candidate whose generator equations hold to ``residual_atol``, best first.
+    Returns every candidate whose generator equations hold to ``residual_atol``, best first. No new start
+    begins after ``deadline`` (a :func:`time.monotonic` value); the ε-machine seed always runs.
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -1119,7 +1136,9 @@ def coupled_search(
         for i in range(starts)
     ]
     out = []
-    for name, theta in thetas:
+    for index, (name, theta) in enumerate(thetas):
+        if deadline is not None and index > 0 and time.monotonic() > deadline:
+            break
         pi, Q, R, K = problem.unpack(theta, k)
         init_res = problem.residual(pi, Q, R, K)
         if init_res > residual_atol:

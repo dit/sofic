@@ -9,6 +9,7 @@ without the lower-bound or :math:`\op{G}{S^+ : S^-}` decision tree of
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -111,9 +112,14 @@ def universal_generative_optimizer(
     alternating: bool = False,
     dual_strategy: bool = True,
     cutoff: float = 1e-9,
+    deadline: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> UniversalGenerativeResult:
-    """Search over hidden state count and seeds; return the best verified coupled generator."""
+    """Search over hidden state count and seeds; return the best verified coupled generator.
+
+    Past ``deadline`` (a :func:`time.monotonic` value) no larger state count is tried once some
+    generator is verified, and each :func:`coupled_search` stops starting new seeds.
+    """
     from sofic.generators.minimal_generative_model import _reproduction_error, _reproduction_length
 
     rng = rng or np.random.default_rng()
@@ -132,6 +138,8 @@ def universal_generative_optimizer(
     n_verified = 0
 
     for k in range(2, k_max + 1):
+        if deadline is not None and best_verified is not None and time.monotonic() > deadline:
+            break
         candidates = coupled_search(
             bidir,
             k,
@@ -141,6 +149,7 @@ def universal_generative_optimizer(
             residual_atol=residual_atol,
             alternating=alternating,
             dual_strategy=dual_strategy,
+            deadline=deadline,
             rng=rng,
         )
         n_feasible += len(candidates)
