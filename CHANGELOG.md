@@ -20,12 +20,28 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator caps
 
+- With a deadline, each branch-and-bound child LP of `generator_weight_cap` gets the time left as a
+  HiGHS `time_limit`; a cut-off LP keeps its parent's bound, so the cap stays valid. On a 4-state
+  survey process (4 × 36 causal states) one degenerate node LP had run more than 8 minutes past a
+  90 s stage deadline; the stage now ends on time (92.7 s).
+
 - `generator_weight_cap` adds the forward analogue of the reverse joint-moment rows: per-state forward
   stationarity times the state's own reverse belief gives
   `T_h(a', b) = sum_{x, g, a : f(a, x) = a'} Gt[x, g, h, a, b]`, which every generator satisfies.
   Same cost; two-state caps drop (e.g. 0.918 -> 0.907 at 600 nodes) and the coverage bound on the
   survey processes `((1,1),(2,0),(1,0))` and `((1,·),(2,0),(1,0))` rises 1.261 -> 1.277 and
   1.175 -> 1.184.
+
+### Anytime pipeline on large joints
+
+- `generative_model` skips the dit exact- and Wyner-common-information fallbacks when the joint has
+  more than 30 causal-state pairs (logged as a skipped `dit fallbacks` stage). dit's optimizers take no
+  deadline: on finished 4-state survey cases with 30-70 pairs they used 190-760 s of a 900 s budget,
+  and on a 95-pair case one call ran past the survey's hard timeout. Every 3-state survey joint has at
+  most 21 pairs, so the benchmark is unaffected.
+- `memory_lift_search` stops a start in progress at its `deadline` (keeping the last finished penalty
+  stage) instead of only refusing to begin new starts. Its first start used to run all four
+  finite-difference L-BFGS-B stages whatever the deadline, more than 14 minutes on a 95-pair joint.
 
 ### Support-type bound speed
 

@@ -389,6 +389,27 @@ def test_separating_optima_and_bilevel_respect_an_expired_deadline() -> None:
     assert len(out) == 1
 
 
+def test_memory_lift_search_stops_inside_a_start_at_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first start used to run all four penalty stages to the end whatever the deadline."""
+    clock = {"now": 0.0}
+    calls = {"n": 0}
+    real = cg.memory_lift
+
+    def tick() -> float:
+        clock["now"] += 1.0
+        return clock["now"]
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(cg.time, "monotonic", tick)
+    monkeypatch.setattr(cg, "memory_lift", counted)
+    lifts = cg.memory_lift_search(_rll(), 2, starts=5, deadline=5.0, rng=np.random.default_rng(0))
+    assert len(lifts) == 1
+    assert calls["n"] <= 6
+
+
 def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> None:
     import time
 

@@ -407,6 +407,10 @@ def memory_lift(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, nu: np.n
     return pi, Q, R, K
 
 
+class _DeadlineReached(Exception):
+    """Raised inside an objective to stop an optimizer at a deadline."""
+
+
 def memory_lift_search(
     bidir: BidirectionalEpsilonMachine,
     m: int,
@@ -420,7 +424,8 @@ def memory_lift_search(
 
     A penalty continuation over the channel's logits (numerical gradients; meant for small problems).
     Returns ``(entropy, residual, nu)`` for every start, best first. No new start begins after
-    ``deadline`` (a :func:`time.monotonic` value).
+    ``deadline`` (a :func:`time.monotonic` value), and a start in progress stops at it, keeping the logits
+    of its last finished penalty stage.
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -432,6 +437,8 @@ def memory_lift_search(
         return z / z.sum(axis=1, keepdims=True)
 
     def value(z: np.ndarray, mu: float) -> float:
+        if deadline is not None and time.monotonic() > deadline:
+            raise _DeadlineReached
         pi, Q, R, K = memory_lift(problem, channel(z))
         p = pi[pi > 1e-15]
         penalty = sum(float((r**2).sum()) for r in problem.residuals(pi, Q, R, K))
@@ -443,7 +450,10 @@ def memory_lift_search(
             break
         z = rng.normal(scale=2.0, size=n * m)
         for mu in (1e2, 1e4, 1e6, 1e8):
-            z = minimize(value, z, args=(mu,), method="L-BFGS-B", options={"maxiter": maxiter}).x
+            try:
+                z = minimize(value, z, args=(mu,), method="L-BFGS-B", options={"maxiter": maxiter}).x
+            except _DeadlineReached:
+                break
         nu = channel(z)
         pi, Q, R, K = memory_lift(problem, nu)
         p = pi[pi > 1e-15]

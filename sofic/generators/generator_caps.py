@@ -174,8 +174,11 @@ class _HeaviestStatesRelaxation:
         self.c = np.zeros(self.n)
         self.c[m[:k]] = -1.0
 
-    def bound(self, boxes: tuple[tuple[np.ndarray, ...], ...]) -> float | None:
-        """Max total weight of the explicit states with beliefs in ``boxes``; ``None`` if the box is infeasible."""
+    def bound(self, boxes: tuple[tuple[np.ndarray, ...], ...], time_limit: float | None = None) -> float | None:
+        """Max total weight of the explicit states with beliefs in ``boxes``; ``None`` if the box is infeasible.
+
+        An LP stopped by ``time_limit`` (seconds) returns the trivial bound 1.
+        """
         res = linprog(
             self.c,
             A_ub=self.inequalities(boxes),
@@ -184,6 +187,7 @@ class _HeaviestStatesRelaxation:
             b_eq=self.b_eq,
             bounds=(0, 1),
             method="highs",
+            options=None if time_limit is None else {"time_limit": max(time_limit, 1e-3)},
         )
         if res.status == _HIGHS_INFEASIBLE:
             return None
@@ -271,9 +275,15 @@ def _branch_and_bound(
     Returns the open leaves ``(bound, boxes, path)`` and the ``(boxes, path)`` dropped because their LP is
     infeasible; a path lists the ``(state, part, coordinate, side)`` splits from the root. Boxes dropped
     by :func:`_tighten` miss the simplex, so the open and infeasible leaves cover every generator.
+    With a ``deadline`` each child LP is also limited to the time left, since a single degenerate LP can
+    otherwise run far past it; a cut-off LP keeps its parent's bound. The root LP always runs to the end.
     """
     k = relaxation.k
     root = _root(relaxation)
+
+    def left() -> float | None:
+        return None if deadline is None else deadline - time.monotonic()
+
     first = relaxation.bound(root)
     if first is None:
         return [], [(root, ())]
@@ -294,7 +304,7 @@ def _branch_and_bound(
             if child is None:
                 continue
             child_path = (*path, (e, part, i, side))
-            value = relaxation.bound(child)
+            value = relaxation.bound(child, left())
             if value is None:
                 infeasible.append((child, child_path))
             else:
