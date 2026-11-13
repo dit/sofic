@@ -63,11 +63,18 @@ def _pe_max_drift(a: np.ndarray, b: np.ndarray) -> float:
 
 def preflight_bidir(forward: EpsilonMachine, *, reverse_max_states: int = 10_000) -> BidirPreflightResult:
     """Classify reverse presentation and whether a bidirectional machine builds at ``reverse_max_states``."""
+    return _preflight(forward, reverse_max_states)[0]
+
+
+def _preflight(
+    forward: EpsilonMachine, reverse_max_states: int
+) -> tuple[BidirPreflightResult, BidirectionalEpsilonMachine | None]:
+    """:func:`preflight_bidir` plus the bidirectional machine it built (``None`` unless it built)."""
     twins = forward.reverse_is_finite()
     recurrence = forward.reverse_epsilon_machine_is_finite()
     try:
         reverse = infer_reverse_epsilon_machine(forward, max_states=reverse_max_states)
-        build_bidirectional_epsilon_machine(forward, reverse)
+        bidir = build_bidirectional_epsilon_machine(forward, reverse)
     except MixedStateExplosionError as exc:
         return BidirPreflightResult(
             "explosion",
@@ -75,7 +82,7 @@ def preflight_bidir(forward: EpsilonMachine, *, reverse_max_states: int = 10_000
             reverse_recurrence_finite=recurrence,
             reverse_twins_finite=twins,
             error=str(exc)[:300],
-        )
+        ), None
     except (StochasticValidationError, ValueError) as exc:
         return BidirPreflightResult(
             "failed_build",
@@ -83,20 +90,20 @@ def preflight_bidir(forward: EpsilonMachine, *, reverse_max_states: int = 10_000
             reverse_recurrence_finite=recurrence,
             reverse_twins_finite=twins,
             error=str(exc)[:300],
-        )
+        ), None
     if recurrence:
         return BidirPreflightResult(
             "finite",
             reverse_max_states=reverse_max_states,
             reverse_recurrence_finite=True,
             reverse_twins_finite=twins,
-        )
+        ), bidir
     return BidirPreflightResult(
         "truncated",
         reverse_max_states=reverse_max_states,
         reverse_recurrence_finite=False,
         reverse_twins_finite=twins,
-    )
+    ), bidir
 
 
 def build_bidirectional_with_ladder(
@@ -128,13 +135,11 @@ def build_bidirectional_with_ladder(
                 exhausted = True
                 break
         attempt = time.monotonic()
-        pre = preflight_bidir(forward, reverse_max_states=cap)
+        pre, bidir = _preflight(forward, cap)
         last_preflight = pre
-        if pre.bidir_class in ("explosion", "failed_build"):
+        if bidir is None:
             previous = (cap, time.monotonic() - attempt)
             continue
-        reverse = infer_reverse_epsilon_machine(forward, max_states=cap)
-        bidir = build_bidirectional_epsilon_machine(forward, reverse)
         pe = _edge_tensor(bidir)
         previous = (cap, time.monotonic() - attempt)
         if last_pe is not None:
@@ -179,14 +184,12 @@ def try_build_bidirectional(
     :func:`build_bidirectional_with_ladder`.
     """
     start = time.monotonic()
-    pre = preflight_bidir(forward, reverse_max_states=reverse_max_states)
+    pre, bidir = _preflight(forward, reverse_max_states)
     if pre.bidir_class == "explosion" and use_ladder:
         remaining = None if time_budget is None else max(0.0, time_budget - (time.monotonic() - start))
         return build_bidirectional_with_ladder(forward, caps=caps, edge_tol=edge_tol, time_budget=remaining)
-    if pre.bidir_class in ("explosion", "failed_build"):
+    if bidir is None:
         return BidirBuildResult(None, pre)
-    reverse = infer_reverse_epsilon_machine(forward, max_states=reverse_max_states)
-    bidir = build_bidirectional_epsilon_machine(forward, reverse)
     return BidirBuildResult(bidir, pre, edge_stabilized=True, pe_drift=0.0)
 
 

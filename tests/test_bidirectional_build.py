@@ -67,12 +67,12 @@ def test_ladder_budget_skips_caps_forecast_to_overrun(monkeypatch: pytest.Monkey
     clock = {"now": 0.0}
     attempted: list[int] = []
 
-    def fake_preflight(forward, *, reverse_max_states):
+    def fake_preflight(forward, reverse_max_states):
         attempted.append(reverse_max_states)
         clock["now"] += 10.0 * (reverse_max_states / 10_000) ** 2
-        return bb.BidirPreflightResult("explosion", reverse_max_states=reverse_max_states)
+        return bb.BidirPreflightResult("explosion", reverse_max_states=reverse_max_states), None
 
-    monkeypatch.setattr(bb, "preflight_bidir", fake_preflight)
+    monkeypatch.setattr(bb, "_preflight", fake_preflight)
     monkeypatch.setattr(bb.time, "monotonic", lambda: clock["now"])
     built = bb.build_bidirectional_with_ladder(None, caps=(10_000, 20_000, 40_000), time_budget=100.0)
     assert attempted == [10_000, 20_000]

@@ -7,6 +7,14 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Bidirectional builds
 
+- `stationary_distribution_hmm` solves chains with more than 2,000 states sparsely (sparse transition
+  matrix from the edges, one balance equation replaced by the normalization, `spsolve`). The dense
+  path built the full matrix and ran `matrix_rank` and `eig` on it, $O(n^3)$, which never finished on
+  a 50k-state reverse machine. Symbolic weights, several closed classes, or a failed residual check
+  fall back to the dense path and its warnings.
+- The retry ladder and `try_build_bidirectional` reuse the reverse and bidirectional machines built by
+  the preflight instead of inferring and building them a second time (about half the build time).
+
 - `build_bidirectional_epsilon_machine` prunes joint states to a fixed point: dropping states
   outside the stationary support could leave others with incomplete outgoing rows, so builds from
   truncated reverse machines failed with "joint masses from ... sum to 0.86". Restriction to the
