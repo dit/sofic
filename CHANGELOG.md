@@ -42,6 +42,9 @@ brute-force reference or a closed-form value and has a regression test.
 - `memory_lift_search` stops a start in progress at its `deadline` (keeping the last finished penalty
   stage) instead of only refusing to begin new starts. Its first start used to run all four
   finite-difference L-BFGS-B stages whatever the deadline, more than 14 minutes on a 95-pair joint.
+- The line-split seeds' ALM polish (`_optimize`, `_optimize_coupled`) stops at the pipeline deadline
+  and returns its last finished step; one polish had run more than 10 minutes past the budget on a
+  144-pair joint.
 
 ### Support-type bound speed
 
