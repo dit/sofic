@@ -97,12 +97,21 @@ def build_mixed_state_presentation(
     symbolic_unique: list[MixedState] = []
     numeric_keys: list[float] = []
     numeric_unique: list[MixedState] = []
+    # Index numeric beliefs by a projection onto fixed positive weights summing to one. Beliefs equal
+    # coordinatewise to within _NUMERIC_WINDOW project to within it too, and unlike a single
+    # coordinate the projection rarely ties, so a lookup scans few candidates.
+    weights = np.array([0.5 + (index * 0.6180339887498949) % 1.0 for index in range(len(basis))])
+    weights = weights / weights.sum()
+
+    def key(state: MixedState) -> float:
+        return float(np.dot(weights, np.asarray(state.belief, dtype=float)))
+
     queue: deque[MixedState] = deque()
 
     def candidates(state: MixedState) -> Sequence[MixedState]:
-        if is_symbolic(state.belief[0]):
+        if any(is_symbolic(b) for b in state.belief):
             return unique
-        lead = float(state.belief[0])
+        lead = key(state)
         window = _NUMERIC_WINDOW * (1.0 + abs(lead))
         low = bisect.bisect_left(numeric_keys, lead - window)
         high = bisect.bisect_right(numeric_keys, lead + window)
@@ -122,11 +131,12 @@ def build_mixed_state_presentation(
             )
         discovered[state] = state
         unique.append(state)
-        if is_symbolic(state.belief[0]):
+        if any(is_symbolic(b) for b in state.belief):
             symbolic_unique.append(state)
         else:
-            position = bisect.bisect_right(numeric_keys, float(state.belief[0]))
-            numeric_keys.insert(position, float(state.belief[0]))
+            lead = key(state)
+            position = bisect.bisect_right(numeric_keys, lead)
+            numeric_keys.insert(position, lead)
             numeric_unique.insert(position, state)
         graph.add_state(state)
         queue.append(state)

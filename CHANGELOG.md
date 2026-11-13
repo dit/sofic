@@ -29,6 +29,14 @@ brute-force reference or a closed-form value and has a regression test.
   arithmetic. A 4-state survey support with 6 maximal rectangles went from hours (all
   `C(132, 5)` row subsets in `Fraction` arithmetic) to 0.3 s; 7 rectangles take about 7 s.
   
+### Mixed-state presentation speed
+
+- `build_mixed_state_presentation` indexes numeric beliefs by a projection onto fixed positive weights
+  instead of their first coordinate. Beliefs equal to within the matching tolerance still land in the
+  same window, but many beliefs sharing a first coordinate (often 0) no longer make every lookup scan
+  all states. Reverse inference on a 4-state process reaches a 5,000-state cap in 2.5 s instead of
+  135 s; reverse machines of the 100 finite 3-state survey processes are unchanged.
+
 ### Anytime generator search
 
 - The remaining search loops take a ``deadline`` too: `coupled_search` (the ε-machine seed always
