@@ -99,6 +99,14 @@ class GenerativeModelResult:
     (state entropy over generators whose state is a function of :math:`(S^+, S^-)`).
     ``budget_exhausted`` is set when a ``time_budget`` ran out and later stages were skipped; the bracket
     is still valid, just possibly wider. Each ``stages`` entry records ``elapsed`` seconds.
+
+    ``n_g_optima_generating``, ``separating_variables_generate`` and ``cg_exceeds_g`` report the kernel LP
+    (:func:`~sofic.generators.coupled_generators.generator_kernel`), whose one-step generator equations
+    are necessary but not sufficient. A failed kernel LP rules an exact-common-information optimum out as a
+    generator state, so ``cg_exceeds_g=True`` (no optimum found passes) is evidence that :math:`C_g` exceeds
+    :math:`\\op{G}{S^+ : S^-}`, though only over the optima found. A passing kernel LP is only a candidate:
+    ``cg_exceeds_g=False`` does not prove :math:`C_g = \\op{G}{S^+ : S^-}`. ``model`` and ``upper`` always come
+    from a candidate whose word process was checked against the source (``_reproduction_error``).
     """
 
     model: CoupledGenerativeModel
@@ -128,7 +136,7 @@ class GenerativeModelResult:
 
     @property
     def g_optima_generate(self) -> bool:
-        """Whether some :math:`\\op{G}{S^+ : S^-}` optimum passed the generator kernel LP."""
+        """Whether some :math:`\\op{G}{S^+ : S^-}` optimum passed the generator kernel LP (a necessary condition)."""
         return self.n_g_optima_generating > 0
 
 

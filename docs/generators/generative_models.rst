@@ -179,7 +179,9 @@ Two narrower tools share the same equations:
   violation 0 can still emit the wrong word distribution (on a survey process an
   11-state example matches words up to length 3 and is off by about 0.02 at
   length 8). Every candidate the pipeline reports is therefore checked against
-  the source's word probabilities. :func:`~sofic.generators.coupled_generators.bilevel_search`
+  the source's word process: word probabilities up to a fixed length, and a
+  difference-automaton test (Schützenberger, Tzeng) over words that span all word
+  vectors, so a candidate that matches short words but drifts later is rejected. :func:`~sofic.generators.coupled_generators.bilevel_search`
   (experimental) searches channels against this violation.
 
 All three searches are local and return upper bounds on :math:`C_g` for the
