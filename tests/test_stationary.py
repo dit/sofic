@@ -67,13 +67,13 @@ def test_sparse_stationary_declines_two_closed_classes() -> None:
     assert stationary._stationary_distribution_sparse(_chain(4, _edges(T)), [0, 1, 2, 3]) is None
 
 
-def test_large_chain_uses_the_sparse_solve() -> None:
-    import time
+def test_large_chain_uses_the_sparse_solve(monkeypatch: pytest.MonkeyPatch) -> None:
+    def dense(*args, **kwargs):
+        raise AssertionError("dense stationary solve on a large chain")
 
+    monkeypatch.setattr(stationary, "_stationary_distribution_numeric", dense)
     n = 20_000
     edges = [(i, (i + 1) % n, 0.75) for i in range(n)] + [(i, 0, 0.25) for i in range(n)]
-    start = time.monotonic()
     pi = stationary.stationary_distribution_hmm(_chain(n, edges))
-    assert time.monotonic() - start < 30
     expected = 0.25 * 0.75 ** np.arange(n) / (1 - 0.75**n)
     assert np.allclose(pi, expected, atol=1e-12)
