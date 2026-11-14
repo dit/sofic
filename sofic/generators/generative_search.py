@@ -596,7 +596,9 @@ def _bracket_search(
             and not out_of_time("heaviest-term bound")
         ):
             joint_matrix = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
-            htb = heaviest_term_bound(joint_matrix, target=g_estimate - _CERT_TOL, deadline=share(0.15))
+            # aim inside the certification tolerance of the best upper so far, so a closed bracket certifies
+            aim = min(g_estimate, min((c[0] for c in candidates), default=np.inf)) - 0.5 * _CERT_TOL
+            htb = heaviest_term_bound(joint_matrix, target=aim, deadline=share(0.15))
             log.append(
                 {
                     "stage": "heaviest-term bound (certified)",
