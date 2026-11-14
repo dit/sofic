@@ -67,12 +67,12 @@ def test_ladder_budget_skips_caps_forecast_to_overrun(monkeypatch: pytest.Monkey
     clock = {"now": 0.0}
     attempted: list[int] = []
 
-    def fake_preflight(forward, *, reverse_max_states):
+    def fake_preflight(forward, reverse_max_states):
         attempted.append(reverse_max_states)
         clock["now"] += 10.0 * (reverse_max_states / 10_000) ** 2
-        return bb.BidirPreflightResult("explosion", reverse_max_states=reverse_max_states)
+        return bb.BidirPreflightResult("explosion", reverse_max_states=reverse_max_states), None
 
-    monkeypatch.setattr(bb, "preflight_bidir", fake_preflight)
+    monkeypatch.setattr(bb, "_preflight", fake_preflight)
     monkeypatch.setattr(bb.time, "monotonic", lambda: clock["now"])
     built = bb.build_bidirectional_with_ladder(None, caps=(10_000, 20_000, 40_000), time_budget=100.0)
     assert attempted == [10_000, 20_000]
@@ -85,6 +85,23 @@ def test_ladder_budget_skips_caps_forecast_to_overrun(monkeypatch: pytest.Monkey
     built = bb.build_bidirectional_with_ladder(None, caps=(10_000, 20_000, 40_000))
     assert attempted == [10_000, 20_000, 40_000]
     assert not built.budget_exhausted
+
+
+def test_ladder_treats_an_oversized_reverse_machine_as_an_explosion(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import sofic.generators.bidirectional_build as bb
+
+    huge = SimpleNamespace(reverse_machine=SimpleNamespace(states=lambda: range(5000)))
+
+    def fake_preflight(forward, reverse_max_states):
+        return bb.BidirPreflightResult("truncated", reverse_max_states=reverse_max_states), huge
+
+    monkeypatch.setattr(bb, "_preflight", fake_preflight)
+    built = bb.build_bidirectional_with_ladder(None, caps=(50_000,), max_reverse_states=1000)
+    assert built.bidir is None
+    assert built.preflight.bidir_class == "explosion"
+    assert "5000 states" in (built.preflight.error or "")
 
 
 def test_truncated_reverse_machine_prunes_to_complete_rows() -> None:

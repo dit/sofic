@@ -7,6 +7,18 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Bidirectional builds
 
+- `stationary_distribution_hmm` solves chains with more than 2,000 states sparsely (sparse transition
+  matrix from the edges, one balance equation replaced by the normalization, `spsolve`). The dense
+  path built the full matrix and ran `matrix_rank` and `eig` on it, $O(n^3)$, which never finished on
+  a 50k-state reverse machine. Symbolic weights, several closed classes, or a failed residual check
+  fall back to the dense path and its warnings.
+- The retry ladder and `try_build_bidirectional` reuse the reverse and bidirectional machines built by
+  the preflight instead of inferring and building them a second time (about half the build time).
+- `build_bidirectional_with_ladder` and `try_build_bidirectional` take `max_reverse_states`: a ladder
+  build whose truncated reverse machine is larger is classified as an explosion, so surveys fall back
+  to window bounds. Off by default. A 4-state survey process built at the 50k cap with tens of
+  thousands of reverse states, and the pipeline then spent its whole budget setting up the problem.
+
 - `build_bidirectional_epsilon_machine` prunes joint states to a fixed point: dropping states
   outside the stationary support could leave others with incomplete outgoing rows, so builds from
   truncated reverse machines failed with "joint masses from ... sum to 0.86". Restriction to the
@@ -20,12 +32,31 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator caps
 
+- With a deadline, each branch-and-bound child LP of `generator_weight_cap` gets the time left as a
+  HiGHS `time_limit`; a cut-off LP keeps its parent's bound, so the cap stays valid. On a 4-state
+  survey process (4 × 36 causal states) one degenerate node LP had run more than 8 minutes past a
+  90 s stage deadline; the stage now ends on time (92.7 s).
+
 - `generator_weight_cap` adds the forward analogue of the reverse joint-moment rows: per-state forward
   stationarity times the state's own reverse belief gives
   `T_h(a', b) = sum_{x, g, a : f(a, x) = a'} Gt[x, g, h, a, b]`, which every generator satisfies.
   Same cost; two-state caps drop (e.g. 0.918 -> 0.907 at 600 nodes) and the coverage bound on the
   survey processes `((1,1),(2,0),(1,0))` and `((1,·),(2,0),(1,0))` rises 1.261 -> 1.277 and
   1.175 -> 1.184.
+
+### Anytime pipeline on large joints
+
+- `generative_model` skips the dit exact- and Wyner-common-information fallbacks when the joint has
+  more than 30 causal-state pairs (logged as a skipped `dit fallbacks` stage). dit's optimizers take no
+  deadline: on finished 4-state survey cases with 30-70 pairs they used 190-760 s of a 900 s budget,
+  and on a 95-pair case one call ran past the survey's hard timeout. Every 3-state survey joint has at
+  most 21 pairs, so the benchmark is unaffected.
+- `memory_lift_search` stops a start in progress at its `deadline` (keeping the last finished penalty
+  stage) instead of only refusing to begin new starts. Its first start used to run all four
+  finite-difference L-BFGS-B stages whatever the deadline, more than 14 minutes on a 95-pair joint.
+- The line-split seeds' ALM polish (`_optimize`, `_optimize_coupled`) stops at the pipeline deadline
+  and returns its last finished step; one polish had run more than 10 minutes past the budget on a
+  144-pair joint.
 
 ### Support-type bound speed
 

@@ -75,6 +75,9 @@ _LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
 _TARGETED_GAP = 1e-2
 # ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
 _SEPARATION_ATOL = 1e-9
+# Causal-state pairs above which the dit fallbacks are skipped: dit's optimizers take no deadline, and
+# on 4-state survey joints with 30-70 pairs they spent 190-760 s of a 900 s budget (95 pairs: over 10 min).
+_DIT_MAX_PAIRS = 30
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -500,7 +503,10 @@ def _bracket_search(
         best, optima = separating_optima(problem, starts=exact_starts, deadline=share(0.25), rng=rng)
         if np.isfinite(best):
             g_estimate = best
-        if dit_fallback and not out_of_time("dit exact common information"):
+        dit_small = len(lifted.pairs) <= _DIT_MAX_PAIRS
+        if dit_fallback and not dit_small:
+            log.append({"stage": "dit fallbacks", "skipped": f"more than {_DIT_MAX_PAIRS} causal-state pairs"})
+        if dit_fallback and dit_small and not out_of_time("dit exact common information"):
             try:
                 joint_n = _normalized_joint_distribution(bidir, cutoff=1e-10)
                 c = _unconstrained_channel(
@@ -526,7 +532,7 @@ def _bracket_search(
                             optima.append(c)
             except (StochasticValidationError, ImportError):
                 pass
-        if wyner and dit_fallback and not out_of_time("dit Wyner common information"):
+        if wyner and dit_fallback and dit_small and not out_of_time("dit Wyner common information"):
             try:
                 c = _unconstrained_channel(
                     lifted,
@@ -661,8 +667,10 @@ def _bracket_search(
                 break
             k = len(seed[0])
             for floor in _LINE_SPLIT_FLOORS:
+                if out_of_time("line-split seeds"):
+                    break
                 theta = problem.logits(*seed, floor=floor)
-                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol)
+                theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol, deadline=deadline)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
     if "memory" in stages and not out_of_time("memory lifts"):

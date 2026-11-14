@@ -407,6 +407,10 @@ def memory_lift(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, nu: np.n
     return pi, Q, R, K
 
 
+class _DeadlineReachedError(Exception):
+    """Raised inside an objective to stop an optimizer at a deadline."""
+
+
 def memory_lift_search(
     bidir: BidirectionalEpsilonMachine,
     m: int,
@@ -420,7 +424,8 @@ def memory_lift_search(
 
     A penalty continuation over the channel's logits (numerical gradients; meant for small problems).
     Returns ``(entropy, residual, nu)`` for every start, best first. No new start begins after
-    ``deadline`` (a :func:`time.monotonic` value).
+    ``deadline`` (a :func:`time.monotonic` value), and a start in progress stops at it, keeping the logits
+    of its last finished penalty stage.
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -432,6 +437,8 @@ def memory_lift_search(
         return z / z.sum(axis=1, keepdims=True)
 
     def value(z: np.ndarray, mu: float) -> float:
+        if deadline is not None and time.monotonic() > deadline:
+            raise _DeadlineReachedError
         pi, Q, R, K = memory_lift(problem, channel(z))
         p = pi[pi > 1e-15]
         penalty = sum(float((r**2).sum()) for r in problem.residuals(pi, Q, R, K))
@@ -443,7 +450,10 @@ def memory_lift_search(
             break
         z = rng.normal(scale=2.0, size=n * m)
         for mu in (1e2, 1e4, 1e6, 1e8):
-            z = minimize(value, z, args=(mu,), method="L-BFGS-B", options={"maxiter": maxiter}).x
+            try:
+                z = minimize(value, z, args=(mu,), method="L-BFGS-B", options={"maxiter": maxiter}).x
+            except _DeadlineReachedError:
+                break
         nu = channel(z)
         pi, Q, R, K = memory_lift(problem, nu)
         p = pi[pi > 1e-15]
@@ -997,8 +1007,12 @@ def _optimize(
     maxiter: int,
     *,
     alternating: bool = False,
+    deadline: float | None = None,
 ) -> np.ndarray:
-    """Feasibility pass, then block ALM; joint beliefs+kernel by default."""
+    """Feasibility pass, then block ALM; joint beliefs+kernel by default.
+
+    At ``deadline`` (a :func:`time.monotonic` value) the run stops and returns its last finished step.
+    """
     block_mus = (_ALM_MU, _ALM_MU, _ALM_MU)
     pi, Q, R, K = problem.unpack(theta, k)
     if problem.residual(pi, Q, R, K) <= _ALM_TOL:
@@ -1007,31 +1021,45 @@ def _optimize(
     def _block_max(res: tuple[np.ndarray, ...]) -> tuple[float, float, float]:
         return float(np.abs(res[0]).max()), float(np.abs(res[1]).max()), float(np.abs(res[2]).max())
 
+    def lbfgs(fun, x: np.ndarray, args: tuple) -> np.ndarray:
+        def timed(*a):
+            if deadline is not None and time.monotonic() > deadline:
+                raise _DeadlineReachedError
+            return fun(*a)
+
+        return minimize(timed, x, args=args, jac=True, method="L-BFGS-B", options={"maxiter": maxiter}).x
+
     if alternating:
         theta_b = problem.logits_beliefs(pi, Q, R)
         lam = [np.zeros_like(r) for r in problem.residuals(pi, Q, R, K)]
-        theta_b = minimize(
-            problem.loss_and_grad_beliefs,
-            theta_b,
-            args=(k, K, 1.0, None, 0.0, block_mus),
-            jac=True,
-            method="L-BFGS-B",
-            options={"maxiter": maxiter},
-        ).x
-        pi, Q, R = problem.unpack_beliefs(theta_b, k)
-        for _ in range(_ALM_ROUNDS):
-            _viol, K = _kernel_lp_beliefs(problem, pi, Q, R)
-            shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
-            theta_b = minimize(
-                problem.loss_and_grad_beliefs,
-                theta_b,
-                args=(k, K, 1.0, shifts, 0.0, block_mus),
-                jac=True,
-                method="L-BFGS-B",
-                options={"maxiter": maxiter},
-            ).x
+        try:
+            theta_b = lbfgs(problem.loss_and_grad_beliefs, theta_b, (k, K, 1.0, None, 0.0, block_mus))
             pi, Q, R = problem.unpack_beliefs(theta_b, k)
-            res = problem.residuals(pi, Q, R, K)
+            for _ in range(_ALM_ROUNDS):
+                _viol, K = _kernel_lp_beliefs(problem, pi, Q, R)
+                shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
+                theta_b = lbfgs(problem.loss_and_grad_beliefs, theta_b, (k, K, 1.0, shifts, 0.0, block_mus))
+                pi, Q, R = problem.unpack_beliefs(theta_b, k)
+                res = problem.residuals(pi, Q, R, K)
+                lam = [l + m * r for l, r, m in zip(lam, res, block_mus, strict=False)]
+                mE, mF, mB = _block_max(res)
+                if max(mE, mF, mB) < _ALM_TOL:
+                    break
+                block_mus = tuple(
+                    min(m * (2.0 if v > _ALM_TOL else 1.0), _ALM_MU_MAX)
+                    for m, v in zip(block_mus, (mE, mF, mB), strict=False)
+                )
+        except _DeadlineReachedError:
+            pass
+        return problem.logits(pi, Q, R, K)
+
+    try:
+        theta = lbfgs(problem.loss_and_grad, theta, (k, 1.0, None, 0.0, block_mus))
+        lam = [np.zeros_like(r) for r in problem.residuals(*problem.unpack(theta, k))]
+        for _ in range(_ALM_ROUNDS):
+            shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
+            theta = lbfgs(problem.loss_and_grad, theta, (k, 1.0, shifts, 0.0, block_mus))
+            res = problem.residuals(*problem.unpack(theta, k))
             lam = [l + m * r for l, r, m in zip(lam, res, block_mus, strict=False)]
             mE, mF, mB = _block_max(res)
             if max(mE, mF, mB) < _ALM_TOL:
@@ -1040,35 +1068,8 @@ def _optimize(
                 min(m * (2.0 if v > _ALM_TOL else 1.0), _ALM_MU_MAX)
                 for m, v in zip(block_mus, (mE, mF, mB), strict=False)
             )
-        return problem.logits(pi, Q, R, K)
-
-    theta = minimize(
-        problem.loss_and_grad,
-        theta,
-        args=(k, 1.0, None, 0.0, block_mus),
-        jac=True,
-        method="L-BFGS-B",
-        options={"maxiter": maxiter},
-    ).x
-    lam = [np.zeros_like(r) for r in problem.residuals(*problem.unpack(theta, k))]
-    for _ in range(_ALM_ROUNDS):
-        shifts = tuple(l / m for l, m in zip(lam, block_mus, strict=False))
-        theta = minimize(
-            problem.loss_and_grad,
-            theta,
-            args=(k, 1.0, shifts, 0.0, block_mus),
-            jac=True,
-            method="L-BFGS-B",
-            options={"maxiter": maxiter},
-        ).x
-        res = problem.residuals(*problem.unpack(theta, k))
-        lam = [l + m * r for l, r, m in zip(lam, res, block_mus, strict=False)]
-        mE, mF, mB = _block_max(res)
-        if max(mE, mF, mB) < _ALM_TOL:
-            break
-        block_mus = tuple(
-            min(m * (2.0 if v > _ALM_TOL else 1.0), _ALM_MU_MAX) for m, v in zip(block_mus, (mE, mF, mB), strict=False)
-        )
+    except _DeadlineReachedError:
+        pass
     return theta
 
 
@@ -1081,18 +1082,21 @@ def _optimize_coupled(
     alternating: bool = False,
     dual_strategy: bool = True,
     residual_atol: float = 1e-6,
+    deadline: float | None = None,
 ) -> np.ndarray:
     """Run block ALM; optionally retry with alternating ``K`` LP if joint ALM stays infeasible."""
     pi, Q, R, K = problem.unpack(theta, k)
     if problem.residual(pi, Q, R, K) <= residual_atol:
         return theta
     if alternating:
-        return _optimize(problem, theta, k, maxiter, alternating=True)
-    theta_joint = _optimize(problem, theta, k, maxiter, alternating=False)
+        return _optimize(problem, theta, k, maxiter, alternating=True, deadline=deadline)
+    theta_joint = _optimize(problem, theta, k, maxiter, alternating=False, deadline=deadline)
     r_joint = problem.residual(*problem.unpack(theta_joint, k))
     if r_joint <= residual_atol or not dual_strategy:
         return theta_joint
-    theta_alt = _optimize(problem, theta, k, maxiter, alternating=True)
+    if deadline is not None and time.monotonic() > deadline:
+        return theta_joint
+    theta_alt = _optimize(problem, theta, k, maxiter, alternating=True, deadline=deadline)
     r_alt = problem.residual(*problem.unpack(theta_alt, k))
     if r_alt + 1e-15 < r_joint:
         return theta_alt
