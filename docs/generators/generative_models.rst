@@ -168,12 +168,18 @@ Two narrower tools share the same equations:
   interleaved process's minimal generator is the memory-1 lift of a single
   flag, and :func:`~sofic.generators.coupled_generators.memory_lift_search`
   finds it.
-* :func:`~sofic.generators.coupled_generators.generator_kernel` decides whether
-  a given channel's variable is the state of *any* generator: for a fixed channel
-  the equations are linear in :math:`K`, and a linear program returns the
-  smallest violation and the kernel. The exact-common-information optimum of the
+* :func:`~sofic.generators.coupled_generators.generator_kernel` tests a given
+  channel's variable against the generator equations: for a fixed channel the
+  equations are linear in :math:`K`, and a linear program returns the smallest
+  violation and the kernel. The equations are necessary, so a positive violation
+  rules the variable out: the exact-common-information optimum of the
   :math:`(2, \infty)` process has violation 0.0625, so no generator has it as
-  its state. :func:`~sofic.generators.coupled_generators.bilevel_search`
+  its state. They are not sufficient: future-side consistency only constrains
+  the belief :math:`R_w` through its one-step average, and a kernel with
+  violation 0 can still emit the wrong word distribution (on a survey process an
+  11-state example matches words up to length 3 and is off by about 0.02 at
+  length 8). Every candidate the pipeline reports is therefore checked against
+  the source's word probabilities. :func:`~sofic.generators.coupled_generators.bilevel_search`
   (experimental) searches channels against this violation.
 
 All three searches are local and return upper bounds on :math:`C_g` for the

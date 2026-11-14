@@ -464,9 +464,10 @@ def memory_lift_search(
 def generator_kernel(bidir: BidirectionalEpsilonMachine | _GeneratorProblem, c: np.ndarray) -> tuple[float, np.ndarray]:
     """Best kernel for a fixed channel ``c[pair, w]``: the generator equations are linear in ``K``.
 
-    Solves the linear program minimizing the largest violation ``t`` over stochastic kernels; ``t = 0`` means
-    the channel's variable is the state of a generator, whatever the coupling. ``c`` is indexed by the
-    causal-state pairs in sorted order. Returns ``(t, K)``.
+    Solves the linear program minimizing the largest violation ``t`` over stochastic kernels. The equations
+    are necessary, so ``t > 0`` rules the channel's variable out as a generator state, whatever the coupling;
+    they are not sufficient, so ``t = 0`` still needs a word-level check (the HMM built from ``K`` can emit
+    the wrong word distribution). ``c`` is indexed by the causal-state pairs in sorted order. Returns ``(t, K)``.
     """
     problem = _as_problem(bidir)
     pi, Q, R, _ = problem.channel_seed(c)
