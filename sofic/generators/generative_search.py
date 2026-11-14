@@ -60,6 +60,7 @@ from sofic.generators.coupled_generators import (
     targeted_line_split_seeds,
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
+from sofic.generators.exact_ci_bounds import heaviest_term_bound
 from sofic.generators.generator_bounds import (
     flow_bound_result,
     maximal_rectangles,
@@ -75,6 +76,9 @@ _LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
 _TARGETED_GAP = 1e-2
 # ``I[S+ : S- | W]`` (bits) above which a channel is not treated as an exact decomposition.
 _SEPARATION_ATOL = 1e-9
+# The heaviest-term bound branches over |S+| + |S-| - 1 coordinates; run it only up to this many causal
+# states (|S+| + |S-|), where it converges within a stage budget.
+_HEAVIEST_TERM_MAX_DIMS = 7
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -583,6 +587,28 @@ def _bracket_search(
                 "cg exceeds g": cg_exceeds_g,
             }
         )
+        if (
+            not wyner
+            and coverage == "certified"
+            and g_estimate is not None
+            and lower < g_estimate - _CERT_TOL
+            and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
+            and not out_of_time("heaviest-term bound")
+        ):
+            joint_matrix = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+            # aim inside the certification tolerance of the best upper so far, so a closed bracket certifies
+            aim = min(g_estimate, min((c[0] for c in candidates), default=np.inf)) - 0.5 * _CERT_TOL
+            htb = heaviest_term_bound(joint_matrix, target=aim, deadline=share(0.15))
+            log.append(
+                {
+                    "stage": "heaviest-term bound (certified)",
+                    "value": htb.value,
+                    "nodes": htb.nodes,
+                    "reached": htb.reached,
+                }
+            )
+            if htb.value > lower + 1e-9:
+                lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
         if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
             for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})

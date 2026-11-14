@@ -18,6 +18,18 @@ brute-force reference or a closed-form value and has a regression test.
   4-state survey process the 10k and 50k caps took 9 s and 86 s and the 200k cap did not finish in
   15 minutes, so the ladder ran past the survey's hard timeout before any bounds were reported.
 
+### Exact common information: heaviest-term bound
+
+- `heaviest_term_bound` (new module `sofic.generators.exact_ci_bounds`) gives a certified lower bound on
+  `G[X : Y]` by branching on the heaviest term of the decomposition and bounding the remainder by the
+  coverage of its caps, with every remaining atom at most `t/(1 - t)` (`capped_coverage_entropy`, which
+  takes the least concave majorant of the caps). An optimum has at most `2^min - 1` terms (Kumar, Li &
+  El Gamal), so the heaviest weighs at least the reciprocal. `generative_model` runs it after the exact
+  stage when the certified lower is below the estimate and `|S+| + |S-| <= 7`. On the 3 × 3 survey
+  joints `((0,1),(2,·),(0,1))`, `((0,1),(0,2),(0,1))` and `((0,1),(2,1),(0,·))` it certifies `G` to
+  within 1e-5 of the estimate (0.9335, 0.9243, 0.4717; was 0.9118, 0.9056, 0.4436), which closes the
+  first bracket.
+
 ### Generator caps
 
 - `generator_weight_cap` adds the forward analogue of the reverse joint-moment rows: per-state forward
