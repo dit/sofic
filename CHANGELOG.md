@@ -14,6 +14,10 @@ brute-force reference or a closed-form value and has a regression test.
   fall back to the dense path and its warnings.
 - The retry ladder and `try_build_bidirectional` reuse the reverse and bidirectional machines built by
   the preflight instead of inferring and building them a second time (about half the build time).
+- `build_bidirectional_with_ladder` and `try_build_bidirectional` take `max_reverse_states`: a ladder
+  build whose truncated reverse machine is larger is classified as an explosion, so surveys fall back
+  to window bounds. Off by default. A 4-state survey process built at the 50k cap with tens of
+  thousands of reverse states, and the pipeline then spent its whole budget setting up the problem.
 
 - `build_bidirectional_epsilon_machine` prunes joint states to a fixed point: dropping states
   outside the stationary support could leave others with incomplete outgoing rows, so builds from

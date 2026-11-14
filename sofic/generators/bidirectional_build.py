@@ -8,7 +8,7 @@ When the reverse mixed-state presentation does not close at the default cap,
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
@@ -112,6 +112,7 @@ def build_bidirectional_with_ladder(
     caps: tuple[int, ...] = _DEFAULT_CAPS,
     edge_tol: float = 1e-8,
     time_budget: float | None = None,
+    max_reverse_states: int | None = None,
 ) -> BidirBuildResult:
     """Build a bidirectional machine, increasing reverse ``max_states`` until ``Pe`` stabilizes.
 
@@ -119,6 +120,8 @@ def build_bidirectional_with_ladder(
     the budget, and ``budget_exhausted`` is set on the result. A single mixed-state construction
     cannot be interrupted, so the forecast scales the previous cap's time by the square of the cap
     ratio (construction time grows faster than linearly in the cap); the first cap always runs.
+    A build whose reverse machine has more than ``max_reverse_states`` states is classified as an
+    explosion: such truncated machines are far too large for any generator search.
     """
     start = time.monotonic()
     last_pe: np.ndarray | None = None
@@ -136,6 +139,11 @@ def build_bidirectional_with_ladder(
                 break
         attempt = time.monotonic()
         pre, bidir = _preflight(forward, cap)
+        if bidir is not None and max_reverse_states is not None:
+            size = len(list(bidir.reverse_machine.states()))
+            if size > max_reverse_states:
+                error = f"reverse machine has {size} states, more than max_reverse_states={max_reverse_states}"
+                pre, bidir = replace(pre, bidir_class="explosion", error=error), None
         last_preflight = pre
         if bidir is None:
             previous = (cap, time.monotonic() - attempt)
@@ -177,17 +185,20 @@ def try_build_bidirectional(
     caps: tuple[int, ...] = _DEFAULT_CAPS,
     edge_tol: float = 1e-8,
     time_budget: float | None = None,
+    max_reverse_states: int | None = None,
 ) -> BidirBuildResult:
     """Single-cap build, or ladder when ``use_ladder`` and the default cap explodes.
 
-    ``time_budget`` (seconds, including the first preflight) is passed on to
-    :func:`build_bidirectional_with_ladder`.
+    ``time_budget`` (seconds, including the first preflight) and ``max_reverse_states`` are passed on
+    to :func:`build_bidirectional_with_ladder`.
     """
     start = time.monotonic()
     pre, bidir = _preflight(forward, reverse_max_states)
     if pre.bidir_class == "explosion" and use_ladder:
         remaining = None if time_budget is None else max(0.0, time_budget - (time.monotonic() - start))
-        return build_bidirectional_with_ladder(forward, caps=caps, edge_tol=edge_tol, time_budget=remaining)
+        return build_bidirectional_with_ladder(
+            forward, caps=caps, edge_tol=edge_tol, time_budget=remaining, max_reverse_states=max_reverse_states
+        )
     if bidir is None:
         return BidirBuildResult(None, pre)
     return BidirBuildResult(bidir, pre, edge_stabilized=True, pe_drift=0.0)

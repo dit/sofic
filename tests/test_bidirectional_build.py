@@ -87,6 +87,23 @@ def test_ladder_budget_skips_caps_forecast_to_overrun(monkeypatch: pytest.Monkey
     assert not built.budget_exhausted
 
 
+def test_ladder_treats_an_oversized_reverse_machine_as_an_explosion(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import sofic.generators.bidirectional_build as bb
+
+    huge = SimpleNamespace(reverse_machine=SimpleNamespace(states=lambda: range(5000)))
+
+    def fake_preflight(forward, reverse_max_states):
+        return bb.BidirPreflightResult("truncated", reverse_max_states=reverse_max_states), huge
+
+    monkeypatch.setattr(bb, "_preflight", fake_preflight)
+    built = bb.build_bidirectional_with_ladder(None, caps=(50_000,), max_reverse_states=1000)
+    assert built.bidir is None
+    assert built.preflight.bidir_class == "explosion"
+    assert "5000 states" in (built.preflight.error or "")
+
+
 def test_truncated_reverse_machine_prunes_to_complete_rows() -> None:
     """Regression: dropping sub-tolerance joint states left (2, 'CE') with 86% of its outgoing mass."""
     mats = {x: np.zeros((4, 4)) for x in (0, 1)}
