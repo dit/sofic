@@ -119,3 +119,29 @@ def test_expired_deadline_still_gives_a_valid_cap() -> None:
     assert 0.5 - 1e-9 <= cap <= 1.0
     cov = generator_coverage_bound(rll, explicit=2, deadline=time.monotonic())
     assert cov.value <= 1.5 + 1e-6
+
+
+def test_child_lps_get_the_time_left_and_keep_the_parent_bound(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With a deadline, a child LP that HiGHS stops at its time limit keeps the parent's bound."""
+    import time
+    from types import SimpleNamespace
+
+    import sofic.generators.generator_caps as gc
+
+    real = gc.linprog
+    seen: list[dict | None] = []
+
+    def fake(*args, options=None, **kwargs):
+        seen.append(options)
+        if options is not None:
+            return SimpleNamespace(status=1, success=False, fun=None)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(gc, "linprog", fake)
+    relaxation = gc._HeaviestStatesRelaxation(cg._GeneratorProblem(golden_mean_bidirectional(0.5)), 1)
+    leaves, infeasible = gc._branch_and_bound(relaxation, 4, deadline=time.monotonic() + 60)
+    assert seen[0] is None
+    assert len(seen) > 1 and all(o is not None and 0 < o["time_limit"] <= 60 for o in seen[1:])
+    root = relaxation.bound(gc._root(relaxation))
+    assert not infeasible
+    assert max(b for b, _, _ in leaves) == pytest.approx(root)

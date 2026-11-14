@@ -15,6 +15,10 @@ from sofic.generators.prob import (
 )
 from sofic.graph import ATTR_PROB
 
+# Above this many states a numeric chain is solved with sparse matrices: the dense path builds the full
+# matrix and computes its rank and eigendecomposition (O(n^2) memory, O(n^3) time).
+_SPARSE_STATES = 2000
+
 
 def stationary_distribution_hmm(hmm: HiddenMarkovModel) -> np.ndarray:
     from sofic.properties import transition_matrix
@@ -22,8 +26,57 @@ def stationary_distribution_hmm(hmm: HiddenMarkovModel) -> np.ndarray:
     idx = hmm.reindex()
     if len(idx) == 0:
         return np.array([], dtype=float)
+    if len(idx) > _SPARSE_STATES:
+        pi = _stationary_distribution_sparse(hmm, idx.states)
+        if pi is not None:
+            return pi
     transition, _states = transition_matrix(hmm, attr=ATTR_PROB, states=idx.states)
     return stationary_distribution_from_transition(transition)
+
+
+def _stationary_distribution_sparse(hmm: HiddenMarkovModel, states: list) -> np.ndarray | None:
+    """Sparse solve of ``π P = π``, ``sum(π) = 1`` for a large numeric chain.
+
+    One balance equation is replaced by the normalization, which leaves a nonsingular system exactly when
+    the stationary distribution is unique. Returns ``None`` (so the caller falls back to the dense path,
+    with its warnings) for symbolic weights, a singular system, or a solution that is not a stationary
+    distribution.
+    """
+    import scipy.sparse as sp
+    from scipy.sparse.linalg import MatrixRankWarning, spsolve
+
+    index = {state: i for i, state in enumerate(states)}
+    rows, cols, values = [], [], []
+    for state in states:
+        for transition in hmm.graph.out_transitions(state):
+            j = index.get(transition.target)
+            if j is None:
+                continue
+            value = transition.data.get(ATTR_PROB, 0.0)
+            if has_symbolic([value]):
+                return None
+            rows.append(index[state])
+            cols.append(j)
+            values.append(float(value))
+    n = len(states)
+    matrix = sp.csr_matrix((values, (rows, cols)), shape=(n, n))
+    system = (matrix.T - sp.identity(n, format="csr")).tolil()
+    system[n - 1, :] = np.ones(n)
+    target = np.zeros(n)
+    target[-1] = 1.0
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", MatrixRankWarning)
+        pi = spsolve(system.tocsc(), target)
+    if not np.all(np.isfinite(pi)) or np.any(pi < -1e-10):
+        return None
+    pi = np.maximum(pi, 0.0)
+    total = float(pi.sum())
+    if total <= 0.0:
+        return None
+    pi = _clean_stationary_distribution(pi / total)
+    if not np.allclose(matrix.T @ pi, pi, rtol=1e-8, atol=1e-10):
+        return None
+    return pi
 
 
 def stationary_distribution_from_transition(transition: np.ndarray) -> np.ndarray:

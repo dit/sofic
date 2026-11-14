@@ -68,3 +68,27 @@ def test_zero_time_budget_returns_a_valid_bracket_from_the_machines() -> None:
 def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
     result = generative_model(golden_mean(0.5), rng=np.random.default_rng(0))
     assert not result.budget_exhausted
+
+
+def test_dit_fallbacks_are_skipped_on_large_joints(monkeypatch) -> None:
+    import sofic.generators.generative_search as gs
+    import sofic.generators.lifted_common_information as lci
+    from tests.test_generator_caps import _survey_machine
+
+    def fail(*args, **kwargs):
+        raise AssertionError("dit fallback ran")
+
+    monkeypatch.setattr(gs, "_DIT_MAX_PAIRS", 0)
+    monkeypatch.setattr(lci, "_unconstrained_channel", fail)
+    result = generative_model_from_bidirectional(
+        _survey_machine(),
+        stages=("machines", "exact"),
+        exact_starts=2,
+        coverage="off",
+        generator_caps=0,
+        early_certified=False,
+        time_budget=5.0,
+        rng=np.random.default_rng(0),
+    )
+    skipped = [s for s in result.stages if s["stage"] == "dit fallbacks"]
+    assert skipped and skipped[0]["skipped"] == "more than 0 causal-state pairs"
