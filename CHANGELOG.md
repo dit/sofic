@@ -5,7 +5,20 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
-### Bidirectional builds
+### Generator verification
+
+- The one-step generator equations (edge law, forward stationarity, summed future-side consistency) are
+  necessary but not sufficient: a kernel with kernel-LP violation 0 can emit the wrong word process,
+  because nothing forces a state's belief `R_w` to be the generated future's actual conditional. On survey
+  process `((1,·),(2,0),(1,0))` an 11-state example matches words up to length 3 and is off by 0.024 at
+  length 8. `generator_kernel`, the result flags (`n_g_optima_generating`, `separating_variables_generate`,
+  `cg_exceeds_g`) and the docs now say so; positive violations still rule a variable out.
+- Candidate verification (`_reproduction_error`, used by every search that returns a generator) adds a
+  difference-automaton test (`_equivalence_error`): breadth-first search over words keeping those whose
+  difference vectors are independent (at most `n1 + n2`, Schützenberger / Tzeng), with the largest
+  word-probability deviation over the visited words. The fixed cutoff (at most length 8) alone could
+  accept a candidate that matched short words and drifted later; two HMMs are only guaranteed equal once
+  they agree up to length `n1 + n2 - 1`.
 
 - `stationary_distribution_hmm` solves chains with more than 2,000 states sparsely (sparse transition
   matrix from the edges, one balance equation replaced by the normalization, `spsolve`). The dense

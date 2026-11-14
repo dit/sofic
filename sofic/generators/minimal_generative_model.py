@@ -888,13 +888,67 @@ def _reproduction_length(reference: Any) -> int:
 
 
 def _reproduction_error(model: Any, reference: Any, *, max_length: int) -> float:
-    """Max abs word-probability deviation of ``model`` from ``reference`` up to ``max_length``."""
+    """Deviation of ``model``'s word process from ``reference``'s, over all word lengths.
+
+    The larger of the max abs word-probability deviation up to ``max_length`` and
+    :func:`_equivalence_error`, which bounds the deviation of every word. Agreement up to a fixed
+    length is not enough: a model can match all short words and still differ later (models that satisfy
+    the one-step generator equations do this), while two HMMs with ``n1`` and ``n2`` states are only
+    guaranteed equal once they agree up to length ``n1 + n2 - 1``.
+    """
     error = 0.0
     for length in range(max_length + 1):
         model_words = model.word_probabilities(length, sparse=False)
         reference_words = reference.word_probabilities(length, sparse=False)
         for word in set(model_words) | set(reference_words):
             error = max(error, abs(model_words.get(word, 0.0) - reference_words.get(word, 0.0)))
+    return max(error, _equivalence_error(model, reference))
+
+
+def _equivalence_error(model: Any, reference: Any, *, rank_tol: float = 1e-7) -> float:
+    """Word-probability deviation of two HMMs on a spanning set of words (difference-automaton test).
+
+    The difference automaton has start vector ``[s1, -s2]`` and block-diagonal symbol matrices, so a word
+    ``w``'s probability difference is ``v_w . 1`` with ``v_w = [s1, -s2] M_w``. Breadth-first search
+    expands a word only when its ``v_w`` is (relatively, ``rank_tol``) outside the span of the words kept
+    so far; at most ``n1 + n2`` are kept, and every word's ``v_w`` lies in their span (Schutzenberger,
+    Tzeng). In exact arithmetic the processes are therefore equal iff every visited word has deviation 0.
+    Returns the largest ``|v_w . 1|`` over the visited words, which include words far longer than any fixed
+    cutoff along the directions where the two processes could differ.
+    """
+    from sofic.generators.matrices import start_vector, symbol_matrices
+
+    m1, m2 = model.to_mealy(), reference.to_mealy()
+    A, B = symbol_matrices(m1), symbol_matrices(m2)
+    s1 = np.asarray(start_vector(m1, None), dtype=float)
+    s2 = np.asarray(start_vector(m2, None), dtype=float)
+    n1, n2 = len(s1), len(s2)
+    blocks = {}
+    for x in set(A) | set(B):
+        M = np.zeros((n1 + n2, n1 + n2))
+        if x in A:
+            M[:n1, :n1] = np.asarray(A[x], dtype=float)
+        if x in B:
+            M[n1:, n1:] = np.asarray(B[x], dtype=float)
+        blocks[x] = M
+    ones = np.ones(n1 + n2)
+    basis: list[np.ndarray] = []
+    queue = [np.concatenate([s1, -s2])]
+    error = 0.0
+    while queue and len(basis) < n1 + n2:
+        v = queue.pop(0)
+        error = max(error, abs(float(v @ ones)))
+        residual = v.copy()
+        for _ in range(2):  # re-orthogonalize: one Gram-Schmidt pass loses orthogonality on near-dependent vectors
+            for b in basis:
+                residual -= (b @ residual) * b
+        norm = float(np.linalg.norm(residual))
+        if norm <= rank_tol * max(1.0, float(np.linalg.norm(v))):
+            continue
+        basis.append(residual / norm)
+        queue.extend(v @ M for M in blocks.values())
+    for v in queue:  # one-step extensions of the last kept words
+        error = max(error, abs(float(v @ ones)))
     return error
 
 
