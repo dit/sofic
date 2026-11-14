@@ -281,6 +281,18 @@ caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
 ``generator_caps`` stage of the pipeline) exceeds :math:`\op{G}{S^+ : S^-}` on most
 survey processes with positive persistent crypticity.
 
+Coverage only sees the top weights. :func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`
+uses the whole decomposition: with heaviest term :math:`T = t\, q r^\top`, any exact decomposition has
+entropy :math:`h(t) + (1 - t) H(\lambda')`, where :math:`\lambda'` decomposes the remainder
+:math:`(P - T)/(1 - t)` with atoms at most :math:`t/(1 - t)`. Branching over boxes of :math:`(q, r, t)`
+and bounding the remainder by certified caps of its entrywise upper envelope gives a lower bound on
+:math:`\op{G}{S^+ : S^-}`; an optimum needs at most :math:`2^{\min(|S^+|, |S^-|)} - 1` terms
+:cite:`Kumar2014`, so :math:`t` is at least the reciprocal. On joints whose optimum leaves two terms
+after the heaviest, the bound is tight. The pipeline runs it (the ``heaviest-term bound`` stage) when
+the certified lower bound is still below the exact-common-information estimate and
+:math:`|S^+| + |S^-| \le 7`. On three survey processes with :math:`3 \times 3` joints it raises the
+lower bound to the estimate, closing ``((0,1),(2,·),(0,1))`` at :math:`0.9335` bits.
+
 :func:`~sofic.generators.generator_caps.certified_generator_weight_cap` removes the LP
 tolerance: every branch-and-bound leaf gets an exact bound from rationalized HiGHS duals or an
 exact Farkas certificate of infeasibility (:mod:`sofic.generators.certificates`, after
@@ -336,6 +348,9 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coverage_bound.mu_hyperplane_cap
 .. autofunction:: sofic.generators.generator_caps.generator_weight_cap
 .. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
+.. autofunction:: sofic.generators.exact_ci_bounds.heaviest_term_bound
+.. autofunction:: sofic.generators.exact_ci_bounds.capped_coverage_entropy
+.. autoclass:: sofic.generators.exact_ci_bounds.HeaviestTermBoundResult
 .. autofunction:: sofic.generators.generator_caps.certified_generator_weight_cap
 .. autofunction:: sofic.generators.generator_caps.verify_weight_cap_certificate
 .. autoclass:: sofic.generators.generator_caps.WeightCapCertificate
