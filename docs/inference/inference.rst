@@ -48,6 +48,7 @@ The historical names ``InferMC`` and ``InferEM`` are retained as aliases for
    markov
    epsilon
    spectral
+   active_epsilon_learning
    model_selection
    diagnostics
    hdp_hmm

@@ -12,10 +12,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from itertools import product
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sofic.graph import ATTR_OUTPUT, ATTR_SYMBOL, TransitionGraph
 from sofic.shifts.sofic import SoficShift
+
+if TYPE_CHECKING:
+    from sofic.generators.base import HiddenMarkovModel
+    from sofic.generators.mealy import MealyHMM
 
 
 class SlidingBlockCode:
@@ -112,6 +116,19 @@ class SlidingBlockCode:
                     queue.append(successor)
         image.symbol_alphabet = frozenset(used_outputs)
         return image.trim_transient()
+
+    def apply_to_process(self, hmm: HiddenMarkovModel) -> MealyHMM:
+        """Return an HMM generating the image process ``Phi(X)`` of ``hmm``.
+
+        The image is ``Y_t = Phi(X_{t:t+window})`` :cite:`LindMarcus1995`
+        (§1.5): its length-``n`` word distribution is the pushforward of
+        ``hmm``'s length-``(n + window - 1)`` word distribution, and its entropy
+        rate is at most that of ``hmm`` :cite:`Gray1990`. See
+        :func:`~sofic.generators.factor_codes.image_process`.
+        """
+        from sofic.generators.factor_codes import image_process
+
+        return image_process(hmm, self)
 
     def is_right_resolving(self, shift: Any | None = None) -> bool:
         """Return whether the induced image presentation is right-resolving."""

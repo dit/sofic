@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Any, Literal, NamedTuple
 
 import numpy as np
@@ -56,6 +56,21 @@ def dit_state_label(state: Any) -> Any:
     return state
 
 
+def dit_state_labels(states: Iterable[Any]) -> dict[Any, Any]:
+    """Map each state to a dit-safe label that dit can sort against the others.
+
+    Per-state labels from :func:`dit_state_label` are kept when they share a
+    type. Mixed types (e.g. ``0`` beside an encoded tuple after a state split)
+    cannot be ordered, so every label becomes its ``repr``, which keeps them
+    distinct.
+    """
+    states = list(states)
+    labels = [dit_state_label(state) for state in states]
+    if len({type(label) for label in labels}) > 1:
+        labels = [repr(label) for label in labels]
+    return dict(zip(states, labels, strict=True))
+
+
 def state_distribution(model: StochasticModel) -> Any:
     """Return the stationary state law as a ``dit.Distribution``.
 
@@ -65,7 +80,8 @@ def state_distribution(model: StochasticModel) -> Any:
     dit = _require_dit()
     idx = model.reindex()
     pi = model.stationary_distribution()
-    outcomes = [(dit_state_label(idx.state(i)),) for i in range(len(idx))]
+    labels = dit_state_labels(idx.states)
+    outcomes = [(labels[idx.state(i)],) for i in range(len(idx))]
     from sofic.generators.prob import as_prob, has_symbolic, simplify_prob
 
     probs = [as_prob(pi[i]) for i in range(len(idx))]
@@ -203,9 +219,10 @@ def entropy_rate_hmm(hmm: HiddenMarkovModel) -> Any:
     # states like ("A", "0", "A")) do not break dit.Distribution.
     outcomes: list[tuple[Any, Any]] = []
     probs: list[Any] = []
+    labels = dit_state_labels(idx.states)
     for state in idx.states:
         i = idx.index(state)
-        label = dit_state_label(state)
+        label = labels[state]
         for symbol, matrix in joint.items():
             row_mass = as_prob(pi[i]) * array_sum(matrix[i])
             row_mass = simplify_prob(row_mass) if symbolic or is_symbolic(row_mass) else float(row_mass)

@@ -78,7 +78,7 @@ class _HistoryFutureWordList:
         mealy = hmm.to_mealy()
         return cls(
             alphabet=tuple(sorted(mealy.observation_alphabet, key=repr)),
-            matrices=symbol_matrices(mealy),
+            matrices={symbol: np.asarray(matrix, dtype=float) for symbol, matrix in symbol_matrices(mealy).items()},
             start=np.asarray(start_vector(mealy, start), dtype=float),
         )
 

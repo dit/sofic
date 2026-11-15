@@ -39,6 +39,11 @@ Computational mechanics
    edge_machine
    information_anatomy
    relative_entropy_rate
+   support
+   conditioning
+   omega_probability
+   renyi
+   canonical_residual_hmm
    correlations
    predictive_rate_distortion
    symbolic_hmm
@@ -56,6 +61,9 @@ Constructions and conversions
    constructions
    conversions
    lumping
+   bisimulation
+   factor_codes
+   state_splitting
 
 Advanced
 ========
@@ -65,5 +73,6 @@ Advanced
 
    nmachine
    quasi_realization
+   minimal_quasi_realization
    synchronization
    topological_epsilon_enumeration
