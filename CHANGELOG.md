@@ -5,6 +5,19 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### ε-machine construction
+
+- Processes whose hidden state no finite word reveals (e.g. a period-2 process whose phase stays
+  uncertain) synchronize only asymptotically. Their mixed-state presentation either closed on hundreds of
+  beliefs within round-off of the simplex boundary (rounding acts as a reflecting barrier for the
+  posterior's random walk) or exceeded `max_states`, so `EpsilonMachine.from_hmm` returned a huge
+  machine or raised `MixedStateExplosionError` although the ε-machine is finite. It now seeds the
+  presentation from a limit belief (the heaviest near-boundary belief, or the belief after filtering a
+  long sample) with sub-`1e-8` entries set to zero, and accepts the result only if it generates the
+  source process exactly (difference-automaton test). On the 138 minimal binary 3-state topologies,
+  9 reverse-machine "explosions" are now 3-state reverse ε-machines, and finite/infinite now agrees
+  with `reverse_epsilon_machine_is_finite` on every topology.
+
 ### Generator verification
 
 - The one-step generator equations (edge law, forward stationarity, summed future-side consistency) are
