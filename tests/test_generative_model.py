@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from sofic.examples import golden_mean, golden_mean_bidirectional
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
@@ -32,6 +33,15 @@ def test_generative_model_from_forward_epsilon_machine_certifies_golden_mean() -
     assert result.structure["n_states"] == 2
     assert result.structure["functional"] and result.structure["lifted"]
     assert result.stages[-1]["structure"] == result.structure
+    dec = result.decomposition
+    assert dec is not None and len(dec["states"]) == 2
+    assert np.allclose(np.sum(dec["pi"]), 1.0)
+    assert np.allclose(np.sum(dec["K"], axis=(1, 2)), 1.0)
+    # weights, beliefs and the model agree: pi Q is the forward causal-state distribution
+    assert np.allclose(np.array(dec["pi"]) @ np.array(dec["Q"]), [2 / 3, 1 / 3]) or np.allclose(
+        np.array(dec["pi"]) @ np.array(dec["Q"]), [1 / 3, 2 / 3]
+    )
+    assert sorted(dec["pi"]) == pytest.approx(sorted(result.structure["weights"]))
 
 
 def test_certified_requires_the_model_to_reproduce_the_source() -> None:

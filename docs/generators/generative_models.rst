@@ -230,6 +230,7 @@ runs the same search when the bidirectional machine is already known.
    result.model                                   # the generator, verified against the source
    result.reproduction_error                      # its word-process deviation from the source
    result.structure                               # states, weights, functional, lifted
+   result.decomposition                           # pi, Q, R, K with labels (JSON-ready)
 
 The searches are local; ``certified`` reports when the bracket closes and the generator reproduces the
 source to the same tolerance (for example the golden mean, where the support bound meets :math:`C_\mu`).
