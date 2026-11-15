@@ -34,6 +34,7 @@ Computational mechanics
    block_convergence
    bidirectional_epsilon_machine
    mixed_state_presentation
+   quantized_filter
    nonunifilar_entropy_rate
    edge_machine
    information_anatomy

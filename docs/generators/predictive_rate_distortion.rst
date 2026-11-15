@@ -28,6 +28,12 @@ distortion reported is the predictive information lost,
 Algorithm
 =========
 
+This is a static encoder from causal states to features, not a construction
+of a recursively updated finite-state observer. Its information rate is not
+an allocated label-capacity bound. For an explicit rounded filter of a known
+positive-transition Moore HMM, with separate query and sequential-generation
+losses, see :doc:`quantized_filter` :cite:`feng2026recursive`.
+
 * **Future morphs** :math:`P(X_{0:L} = w \mid S = s) = \langle \delta_s | T^{(w)}
   | \mathbf{1} \rangle` are exact. Futures are built by prepending symbols
   to the column vectors :math:`T^{(w)}\mathbf{1}`. Words whose columns are

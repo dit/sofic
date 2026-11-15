@@ -10,6 +10,12 @@ probability simplices over hidden states of an HMM. The construction is the
 mixed-state presentation used for nonunifilar hidden processes and
 time-symmetric computational mechanics :cite:`Ellison2009`.
 
+This constructor enumerates beliefs and raises ``MixedStateExplosionError``
+if they do not close within the state cap. Numeric equality tolerances are
+not approximation-error budgets. For an opt-in finite approximation of a
+known positive-transition Moore HMM, see :doc:`quantized_filter`
+:cite:`feng2026recursive`.
+
 Use :meth:`MixedStatePresentation.to_recurrent` to drop transient belief states
 and work only with the recurrent component. Pure recurrent components are
 returned as :class:`~sofic.generators.epsilon_machine.EpsilonMachine`;
