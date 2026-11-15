@@ -20,6 +20,12 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator verification
 
+- `GenerativeModelResult` records the returned generator's word-process deviation from the source
+  (`reproduction_error`, from the exact difference-automaton check) and its `structure`: state count,
+  weights, whether the state is a function of `(S+, S-)` (`functional`), and the largest violation of the
+  lifting conditions (`lifting_residual`; `lifted` when it vanishes). `certified` now also requires
+  `reproduction_error <= 1e-6`, so a closed bracket is never reported on an approximate generator.
+
 - The one-step generator equations (edge law, forward stationarity, summed future-side consistency) are
   necessary but not sufficient: a kernel with kernel-LP violation 0 can emit the wrong word process,
   because nothing forces a state's belief `R_w` to be the generated future's actual conditional. On survey

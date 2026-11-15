@@ -71,6 +71,7 @@ from sofic.generators.generator_bounds import (
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
 _CERT_TOL = 1e-6
+_LIFTED_ATOL = 1e-8
 _LINE_SPLIT_FLOORS = (1e-2, 1e-3, 1e-5)
 # Bracket width (bits) above which the costly targeted line-split search runs.
 _TARGETED_GAP = 1e-2
@@ -106,7 +107,11 @@ class GenerativeModelResult:
     generator state, so ``cg_exceeds_g=True`` (no optimum found passes) is evidence that :math:`C_g` exceeds
     :math:`\\op{G}{S^+ : S^-}`, though only over the optima found. A passing kernel LP is only a candidate:
     ``cg_exceeds_g=False`` does not prove :math:`C_g = \\op{G}{S^+ : S^-}`. ``model`` and ``upper`` always come
-    from a candidate whose word process was checked against the source (``_reproduction_error``).
+    from a candidate whose word process was checked against the source (``_reproduction_error``);
+    ``reproduction_error`` is that deviation, and ``certified`` requires it to be within the certification
+    tolerance. ``structure`` describes the generator: its state count and weights, whether its state is a
+    function of :math:`(S^+, S^-)` (``functional``), and the largest violation of the lifting conditions
+    (``lifting_residual``, bits; ``lifted`` when it vanishes, so the lift of its channel generates too).
     """
 
     model: CoupledGenerativeModel
@@ -124,11 +129,14 @@ class GenerativeModelResult:
     lower_certified: bool = True
     objective: str = "entropy"
     budget_exhausted: bool = False
+    reproduction_error: float | None = None
+    structure: dict[str, Any] | None = None
 
     @property
     def certified(self) -> bool:
-        """Whether the upper and lower bounds meet (to 1e-6 bits)."""
-        return self.upper - self.lower <= _CERT_TOL
+        """Whether the bounds meet (to 1e-6 bits) and the model's word process is the source's (to 1e-6)."""
+        reproduced = self.reproduction_error is None or self.reproduction_error <= _CERT_TOL
+        return self.upper - self.lower <= _CERT_TOL and reproduced
 
     @property
     def gap(self) -> float:
@@ -157,6 +165,26 @@ def _reliability_summary(result: GenerativeModelResult) -> dict[str, Any]:
         "separating_variables_generate": result.separating_variables_generate,
         "persistent_crypticity_theorem_applies": result.persistent_crypticity_theorem_applies,
         "budget_exhausted": result.budget_exhausted,
+        "reproduction_error": result.reproduction_error,
+        "structure": result.structure,
+    }
+
+
+def _generator_structure(problem: _GeneratorProblem, seed: tuple[np.ndarray, ...], cutoff: float) -> dict[str, Any]:
+    """State weights, functionality and lifting residual of a generator ``(pi, Q, R, K)``."""
+    pi, Q, R = (np.asarray(part, dtype=float) for part in seed[:3])
+    active = pi > cutoff
+    lifted = problem.lifted
+    rows_plus, rows_minus = lifted.plus.argmax(axis=1), lifted.minus.argmax(axis=1)
+    channel = (pi[active] * Q[active][:, rows_plus].T * R[active][:, rows_minus].T) / lifted.p[:, None]
+    channel /= channel.sum(axis=1, keepdims=True)
+    residual = float(lifted.markov_residual(channel))
+    return {
+        "n_states": int(active.sum()),
+        "weights": sorted((float(w) for w in pi[active] / pi[active].sum()), reverse=True),
+        "functional": bool(((channel > cutoff).sum(axis=1) == 1).all()),
+        "lifting_residual": residual,
+        "lifted": residual <= _LIFTED_ATOL,
     }
 
 
@@ -301,7 +329,8 @@ def _try_best_candidate(
         pi, Q, R, K = seed
         result = CoupledSearchResult(pi, Q, R, K, _entropy(pi), problem.residual(pi, Q, R, K), name)
         model = _model_from_kernel(problem, result, 1e-9)
-        if _reproduction_error(model, reference, max_length=length) > reproduction_atol:
+        error = float(_reproduction_error(model, reference, max_length=length))
+        if error > reproduction_atol:
             continue
         upper = float(value) if objective == "wyner" else float(model.state_entropy())
         return GenerativeModelResult(
@@ -319,6 +348,8 @@ def _try_best_candidate(
             cg_exceeds_g=cg_exceeds_g,
             lower_certified=lower_certified,
             objective=objective,
+            reproduction_error=error,
+            structure=_generator_structure(problem, seed, 1e-9),
         )
     return None
 
