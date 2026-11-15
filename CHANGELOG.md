@@ -73,6 +73,11 @@ brute-force reference or a closed-form value and has a regression test.
   joints `((0,1),(2,·),(0,1))`, `((0,1),(0,2),(0,1))` and `((0,1),(2,1),(0,·))` it certifies `G` to
   within 1e-5 of the estimate (0.9335, 0.9243, 0.4717; was 0.9118, 0.9056, 0.4436), which closes the
   first bracket.
+- `generator_heaviest_term_bound` bounds `C_g` the same way with the heavy term restricted to generator
+  states: `heaviest_term_bound(weight_cap=...)` caps each box's weight by the one-explicit-state
+  generator-cap LP over the box of beliefs, and prunes boxes the LP rules out. On `((0,1),(0,2),(0,1))`
+  it certifies `C_g >= 0.928 > G = 0.924`, but only after ~220k boxes, so the pipeline runs it on
+  request (`generator_heaviest_term=True`).
 
 ### Generator caps
 

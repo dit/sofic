@@ -60,7 +60,7 @@ from sofic.generators.coupled_generators import (
     targeted_line_split_seeds,
 )
 from sofic.generators.epsilon_machine import EpsilonMachine
-from sofic.generators.exact_ci_bounds import heaviest_term_bound
+from sofic.generators.exact_ci_bounds import generator_heaviest_term_bound, heaviest_term_bound
 from sofic.generators.generator_bounds import (
     flow_bound_result,
     maximal_rectangles,
@@ -371,6 +371,7 @@ def _bracket_search(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_heaviest_term: bool = False,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -654,6 +655,26 @@ def _bracket_search(
             )
             if htb.value > lower + 1e-9:
                 lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
+        best_upper = min((c[0] for c in candidates), default=np.inf)
+        if (
+            generator_heaviest_term
+            and not wyner
+            and lower < best_upper - _CERT_TOL
+            and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
+            and not out_of_time("generator heaviest-term bound")
+        ):
+            gtb = generator_heaviest_term_bound(problem, target=best_upper - 0.5 * _CERT_TOL, deadline=share(0.3))
+            log.append(
+                {
+                    "stage": "generator heaviest-term bound (certified)",
+                    "value": gtb.value,
+                    "nodes": gtb.nodes,
+                    "reached": gtb.reached,
+                }
+            )
+            if gtb.value > lower + 1e-9:
+                lower, lower_source = gtb.value, "generator heaviest-term bound (certified)"
+                lower_certified = True
         if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
             for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})
@@ -872,6 +893,7 @@ def generative_model_from_bidirectional(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_heaviest_term: bool = False,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -901,6 +923,7 @@ def generative_model_from_bidirectional(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_heaviest_term=generator_heaviest_term,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
@@ -996,6 +1019,7 @@ def generative_model(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
+    generator_heaviest_term: bool = False,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -1044,6 +1068,7 @@ def generative_model(
         coverage_mu_starts=coverage_mu_starts,
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
+        generator_heaviest_term=generator_heaviest_term,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
