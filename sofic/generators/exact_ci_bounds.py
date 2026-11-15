@@ -21,12 +21,17 @@ from __future__ import annotations
 import heapq
 import itertools
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from sofic.generators.coverage_bound import mu1_vertex, mu_k_spectral_cap
 from sofic.generators.generator_caps import _tighten
+
+if TYPE_CHECKING:
+    from sofic.generators.coupled_generators import _GeneratorProblem
 
 Box = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, float]
 
@@ -121,6 +126,7 @@ def heaviest_term_bound(
     target: float | None = None,
     max_nodes: int = 200_000,
     deadline: float | None = None,
+    weight_cap: Callable[[Box], float | None] | None = None,
 ) -> HeaviestTermBoundResult:
     """Certified lower bound on :math:`\\op{G}{X : Y}` for the joint ``P``; see the module docstring.
 
@@ -128,6 +134,10 @@ def heaviest_term_bound(
     is at least ``target``, after ``max_nodes`` boxes, or at ``deadline`` (a :func:`time.monotonic` value).
     The caps are :func:`~sofic.generators.coverage_bound.mu1_vertex` and the spectral caps, as in the
     certified coverage bound. The work grows quickly with ``|X| + |Y|``; it is meant for small joints.
+
+    ``weight_cap(box)``, if given, is an extra upper bound on the heavy term's weight over a box (``None``
+    when no admissible term lies in it, which prunes the box);
+    :func:`generator_heaviest_term_bound` uses it to restrict the heavy term to generator states.
     """
     P = np.asarray(P, dtype=float)
     P = P / P.sum()
@@ -135,26 +145,68 @@ def heaviest_term_bound(
     mu1 = mu1_vertex(P)
     t_hi = min(1.0, mu1.value if mu1 is not None else 1.0)
     t_lo = 1.0 / (2 ** min(na, nb) - 1)
-    root: Box = (np.zeros(na), np.ones(na), np.zeros(nb), np.ones(nb), t_lo, t_hi)
-    first = _box_bound(P, root)
+
+    def bound(box: Box) -> tuple[float | None, Box]:
+        if weight_cap is not None:
+            cap = weight_cap(box)
+            if cap is None or cap < box[4]:
+                return None, box
+            box = (*box[:5], min(box[5], cap))
+        return _box_bound(P, box), box
+
+    first, root = bound((np.zeros(na), np.ones(na), np.zeros(nb), np.ones(nb), t_lo, t_hi))
     heap: list[tuple[float, int, Box]] = [] if first is None else [(first, 0, root)]
     order = itertools.count(1)
     nodes = 0
     goal = np.inf if target is None else target
     while heap and nodes < max_nodes and (deadline is None or time.monotonic() < deadline):
-        bound, _, box = heap[0]
-        if bound >= goal:
+        lowest, _, box = heap[0]
+        if lowest >= goal:
             break
         heapq.heappop(heap)
         nodes += 1
         qlo, qhi, rlo, rhi, tlo, thi = box
         widths = np.concatenate([qhi - qlo, rhi - rlo, [thi - tlo]])
-        for child in _split(box, int(np.argmax(widths))):
-            value = _box_bound(P, child)
+        for split in _split(box, int(np.argmax(widths))):
+            value, child = bound(split)
             if value is not None:
-                heapq.heappush(heap, (max(bound, value), next(order), child))
+                heapq.heappush(heap, (max(lowest, value), next(order), child))
     value = heap[0][0] if heap else float("inf")
     return HeaviestTermBoundResult(value, nodes, len(heap), target is not None and value >= target)
 
 
-__all__ = ["HeaviestTermBoundResult", "capped_coverage_entropy", "heaviest_term_bound"]
+def generator_heaviest_term_bound(
+    problem: _GeneratorProblem,
+    *,
+    target: float | None = None,
+    max_nodes: int = 200_000,
+    deadline: float | None = None,
+) -> HeaviestTermBoundResult:
+    """Certified lower bound on the generative complexity :math:`C_g` by branching on the heaviest *state*.
+
+    A generator's states give an exact decomposition of the causal-state joint
+    :math:`p(s^+, s^-) = \\sum_w \\pi_w Q_w R_w^\\top`, whose heaviest term is its heaviest state; that state also
+    satisfies the generator equations. So :func:`heaviest_term_bound` applies with an extra cap on the heavy
+    weight: the one-explicit-state generator-cap LP over the box of the state's beliefs
+    (:func:`~sofic.generators.generator_caps.generator_weight_cap`). Where that LP excludes the
+    :math:`\\op{G}{S^+ : S^-}`-optimal heavy term the bound exceeds :math:`\\op{G}{S^+ : S^-}`.
+
+    The root's weight floor :math:`1/(2^m - 1)`, :math:`m = \\min(|S^+|, |S^-|)`, is the cardinality bound on
+    optimal decompositions, and a generator may have more states. It stays valid: a generator whose
+    heaviest state weighs less has :math:`\\H{\\pi} \\ge \\log_2(2^m - 1) \\ge \\log_2 m \\ge \\min(C_\\mu^+,
+    C_\\mu^-) \\ge C_g`, so it cannot lower :math:`C_g`.
+    """
+    from sofic.generators.generator_caps import _HeaviestStatesRelaxation
+
+    relaxation = _HeaviestStatesRelaxation(problem, 1)
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    return heaviest_term_bound(
+        P,
+        target=target,
+        max_nodes=max_nodes,
+        deadline=deadline,
+        weight_cap=lambda box: relaxation.bound((box[:4],)),
+    )
+
+
+__all__ = ["HeaviestTermBoundResult", "capped_coverage_entropy", "generator_heaviest_term_bound", "heaviest_term_bound"]
