@@ -539,6 +539,8 @@ def _bracket_search(
         offer("epsilon machine", problem.epsilon_seed())
         offer("reverse epsilon machine", problem.reverse_seed())
         offer("bidirectional machine", problem.pair_seed())
+        offer("canonical RFSA generator", problem.residual_seed()[0])
+        offer("maximized prime átomaton generator", problem.prime_atomaton_seed()[0])
         early = maybe_return_early()
         if early is not None and early.certified:
             return _finalize_result(early)

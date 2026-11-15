@@ -362,6 +362,40 @@ class _GeneratorProblem:
         """W = (S+, S-): the bidirectional machine."""
         return self.channel_seed(np.eye(len(self.p_pair)))
 
+    def residual_seed(self, *, tol: float = 1e-7) -> tuple[tuple[np.ndarray, ...], list[int]]:
+        """Canonical-RFSA analogue: forward causal states whose reverse beliefs are vertices of their hull.
+
+        A causal state's future morph is ``sum_b R[s+](b) Pr(future | S- = b)``, and those conditional futures
+        have disjoint supports, so a morph is not a mixture of other morphs exactly when ``R[s+]`` is a vertex
+        of ``conv{R[s+]}``. With every row written as ``R[t] = sum_e C[t, e] R[e]``, the HMM on the vertices
+        with kernel ``K[E] C`` emits the same futures (:func:`canonical_rfsa_hmm`). Returns the seed
+        ``(pi, Q, R, K)``, ``Q`` completed by the forward stationarity fixed point, and the vertex indices.
+        """
+        pa, _, R, K = self.epsilon_seed()
+        E, C = _extreme_rows(R, tol)
+        pi = pa @ C
+        Ks = np.einsum("rxt,te->rxe", K[E], C)
+        Q = _complete_forward_beliefs(self, pi, np.eye(self.n_plus)[E], Ks)
+        return (pi, Q, R[E], Ks), E
+
+    def prime_atomaton_seed(self, *, tol: float = 1e-7) -> tuple[tuple[np.ndarray, ...], list[int]]:
+        """Maximized-prime-átomaton analogue: :meth:`residual_seed` of the reversed process, reversed back.
+
+        The states are the reverse causal states whose forward beliefs ``Q[s-]`` are vertices of
+        ``conv{Q[s-]}`` (their past morphs are not mixtures of the others). The generator is built in reverse
+        time and reversed with its stationary law (:func:`maximized_prime_atomaton_hmm`). Returns the seed, its
+        ``R`` completed by the future-side fixed point, and the vertex indices.
+        """
+        pb, Q, _, K = self.reverse_seed()
+        E, D = _extreme_rows(Q, tol)
+        J = pb[:, None, None] * K  # J[b, x, c] = Pr(S-_0 = b, X_0 = x, S-_1 = c)
+        backward = J.transpose(2, 1, 0) / np.maximum(pb[:, None, None], 1e-300)  # from S-_1 = c emit x to S-_0 = b
+        reverse_kernel = np.einsum("cxb,be->cxe", backward[E], D)
+        rho = pb @ D
+        Kf = np.einsum("e,exf->fxe", rho, reverse_kernel) / np.maximum(rho[:, None, None], 1e-300)
+        R = _complete_reverse_beliefs(self, np.eye(self.n_minus)[E], Kf)
+        return (rho, Q[E], R, Kf), E
+
     def channel_seed(self, c: np.ndarray) -> tuple[np.ndarray, ...]:
         """The lift of a channel ``c[pair, w]`` (e.g. a lifted or unconstrained optimum)."""
         lifted = self.lifted
@@ -966,6 +1000,78 @@ def _line_split_local(
     return entropy(z), z
 
 
+def _conic_residual(target: np.ndarray, generators: np.ndarray) -> tuple[float, np.ndarray]:
+    """L1 distance from ``target`` to the cone of the columns of ``generators``, and the coefficients."""
+    from scipy.optimize import linprog
+
+    rows, cols = generators.shape
+    if cols == 0:
+        return float(np.abs(target).sum()), np.zeros(0)
+    eye = np.eye(rows)
+    res = linprog(
+        np.concatenate([np.zeros(cols), np.ones(2 * rows)]),
+        A_eq=np.hstack([generators, eye, -eye]),
+        b_eq=target,
+        bounds=(0, None),
+        method="highs",
+    )
+    return float(res.fun), res.x[:cols]
+
+
+def _extreme_rows(M: np.ndarray, tol: float) -> tuple[list[int], np.ndarray]:
+    """Rows of a row-stochastic ``M`` that are vertices of the rows' convex hull, and every row's weights on them.
+
+    Rows within ``tol`` (L1) of an earlier row are merged first. Returns the vertex indices ``E`` and ``C``
+    with ``M = C @ M[E]``, ``C`` row-stochastic.
+    """
+    representatives: list[int] = []
+    for i in range(len(M)):
+        if not any(np.abs(M[i] - M[j]).sum() <= tol for j in representatives):
+            representatives.append(i)
+    E = [i for i in representatives if _conic_residual(M[i], M[[j for j in representatives if j != i]].T)[0] > tol]
+    C = np.zeros((len(M), len(E)))
+    for t in range(len(M)):
+        if t in E:
+            C[t, E.index(t)] = 1.0
+        else:
+            c = _conic_residual(M[t], M[E].T)[1]
+            C[t] = c / c.sum()
+    return E, C
+
+
+def _complete_forward_beliefs(
+    problem: _GeneratorProblem,
+    pi: np.ndarray,
+    Q: np.ndarray,
+    K: np.ndarray,
+    *,
+    atol: float = 1e-14,
+    max_iter: int = 100_000,
+) -> np.ndarray:
+    """Forward beliefs of a generator: the fixed point of ``A' = sum A[w, a] K[w, x, v] F[a, x, c]``, ``A = pi Q``."""
+    A = pi[:, None] * Q
+    for _ in range(max_iter):
+        nxt = np.einsum("wa,wxv,axc->vc", A, K, problem.F)
+        if np.abs(nxt - A).max() <= atol:
+            A = nxt
+            break
+        A = nxt
+    return A / np.maximum(A.sum(axis=1, keepdims=True), 1e-300)
+
+
+def _complete_reverse_beliefs(
+    problem: _GeneratorProblem, R: np.ndarray, K: np.ndarray, *, atol: float = 1e-14, max_iter: int = 100_000
+) -> np.ndarray:
+    """Reverse beliefs of a generator: the fixed point of ``R[w, b] = sum K[w, x, v] R[v, c] G[x, c, b]``."""
+    for _ in range(max_iter):
+        nxt = np.einsum("wxv,vc,xcb->wb", K, R, problem.G)
+        nxt = nxt / np.maximum(nxt.sum(axis=1, keepdims=True), 1e-300)
+        if np.abs(nxt - R).max() <= atol:
+            return nxt
+        R = nxt
+    return R
+
+
 def _pad(seed: Seed, k: int, rng: np.random.Generator, noise: float) -> Seed:
     """Fit a seed with fewer or more states into ``k`` states, adding small mass to empty states."""
     pi, Q, R, K = seed
@@ -1133,7 +1239,13 @@ def coupled_search(
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
-    named = [("eps", problem.epsilon_seed()), ("reverse", problem.reverse_seed()), ("bidir", problem.pair_seed())]
+    named = [
+        ("eps", problem.epsilon_seed()),
+        ("reverse", problem.reverse_seed()),
+        ("bidir", problem.pair_seed()),
+        ("rfsa", problem.residual_seed()[0]),
+        ("prime", problem.prime_atomaton_seed()[0]),
+    ]
     named += list(extra)
     thetas = [(name, problem.logits(*_pad(cast(Seed, seed), k, rng, 1e-3))) for name, seed in named]
     thetas += [

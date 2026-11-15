@@ -29,6 +29,23 @@ brute-force reference or a closed-form value and has a regression test.
   9 reverse-machine "explosions" are now 3-state reverse ε-machines, and finite/infinite now agrees
   with `reverse_epsilon_machine_is_finite` on every topology.
 
+### Canonical NFAs as generators and presentations
+
+- `canonical_rfsa_hmm`, `maximized_prime_atomaton_hmm` and `atomaton_hmm` (new module
+  `sofic.generators.canonical_generators`; also `EpsilonMachine` / `BidirectionalEpsilonMachine` methods) build the
+  stochastic analogues of the canonical RFSA, the maximized prime átomaton and the átomaton as generators of a
+  process with a finite bidirectional machine. The RFSA analogue's states are the forward causal states whose
+  reverse beliefs are vertices of their convex hull (future morphs that are not mixtures of the others); the
+  prime-átomaton analogue is the same construction in reverse time on the forward beliefs of the reverse causal
+  states, time-reversed back. Both are linear programs and generally non-unifilar.
+- `generative_model` offers both as candidates (`canonical RFSA generator`, `maximized prime átomaton
+  generator`) and `coupled_search` starts from them. On the binary 3-state dataset the prime-átomaton analogue
+  compresses the reverse machine on 112 of 620 processes and is the best generator known on 14, lowering the
+  best upper bound on `C_g` on three (e.g. 1.2809 to 1.0994).
+- `SoficShift.canonical_rfsa_presentation`, `maximized_prime_atomaton_presentation` and `atomaton_presentation`
+  (new module `sofic.shifts.canonical_presentations`) present a sofic shift by the canonical NFAs of its factor
+  language, trimmed to the essential states.
+
 ### Generator verification
 
 - `GenerativeModelResult` records the returned generator's word-process deviation from the source

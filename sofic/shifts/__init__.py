@@ -2,6 +2,12 @@
 
 from sofic.shifts.algorithms import periodic_points, zeta_function
 from sofic.shifts.base import SymbolicModel
+from sofic.shifts.canonical_presentations import (
+    atomaton_presentation,
+    canonical_rfsa_presentation,
+    factor_language_nfa,
+    maximized_prime_atomaton_presentation,
+)
 from sofic.shifts.covers import (
     LeftFischerCover,
     LeftKriegerCover,
@@ -52,6 +58,10 @@ from sofic.shifts.wheeler import (
 )
 
 __all__ = [
+    "atomaton_presentation",
+    "canonical_rfsa_presentation",
+    "factor_language_nfa",
+    "maximized_prime_atomaton_presentation",
     "BowenFranksGroup",
     "bowen_franks_group",
     "in_amalgamate",

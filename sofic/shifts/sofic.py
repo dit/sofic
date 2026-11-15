@@ -76,6 +76,33 @@ class SoficShift(SymbolicModel):
 
         return transformation_semigroup(self, **kwargs)
 
+    def canonical_rfsa_presentation(self) -> SoficShift:
+        """Presentation by the canonical RFSA of the factor language.
+
+        See :func:`~sofic.shifts.canonical_presentations.canonical_rfsa_presentation`.
+        """
+        from sofic.shifts.canonical_presentations import canonical_rfsa_presentation
+
+        return canonical_rfsa_presentation(self)
+
+    def maximized_prime_atomaton_presentation(self) -> SoficShift:
+        """Presentation by the maximized prime átomaton of the factor language.
+
+        See :func:`~sofic.shifts.canonical_presentations.maximized_prime_atomaton_presentation`.
+        """
+        from sofic.shifts.canonical_presentations import maximized_prime_atomaton_presentation
+
+        return maximized_prime_atomaton_presentation(self)
+
+    def atomaton_presentation(self) -> SoficShift:
+        """Presentation by the átomaton of the factor language.
+
+        See :func:`~sofic.shifts.canonical_presentations.atomaton_presentation`.
+        """
+        from sofic.shifts.canonical_presentations import atomaton_presentation
+
+        return atomaton_presentation(self)
+
     def krohn_rhodes_complexity(self) -> ComplexityBounds:
         """Krohn-Rhodes complexity bounds of the factor language's syntactic monoid.
 
