@@ -36,6 +36,9 @@ brute-force reference or a closed-form value and has a regression test.
   weights, whether the state is a function of `(S+, S-)` (`functional`), and the largest violation of the
   lifting conditions (`lifting_residual`; `lifted` when it vanishes). `certified` now also requires
   `reproduction_error <= 1e-6`, so a closed bracket is never reported on an approximate generator.
+- `GenerativeModelResult.decomposition` returns the generator as JSON-ready lists (state names, forward and
+  reverse causal-state labels, symbols, `pi`, `Q`, `R`, and the model's kernel `K[w][x][w']`), so minimal
+  generators can be saved and studied later.
 
 - The one-step generator equations (edge law, forward stationarity, summed future-side consistency) are
   necessary but not sufficient: a kernel with kernel-LP violation 0 can emit the wrong word process,
