@@ -14,11 +14,11 @@ from typing import Any
 
 import numpy as np
 
-from sofic.exceptions import StochasticValidationError
+from sofic.exceptions import MixedStateExplosionError, StochasticValidationError
 from sofic.generators.base import HiddenMarkovModel
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mealy import MealyHMM
-from sofic.generators.mixed_state import MixedStatePresentation
+from sofic.generators.mixed_state import MixedState, MixedStatePresentation
 from sofic.generators.prob import (
     array_sum,
     as_prob,
@@ -34,17 +34,100 @@ from sofic.states import sequential_labels
 
 TransitionSignature = tuple[tuple[Any, int, Any], ...]
 
+_SUPPORT_ATOL = 1e-8
+_LIMIT_VERIFY_ATOL = 1e-9
+
 
 def build_epsilon_machine(hmm: HiddenMarkovModel, *, max_states: int = 10_000) -> EpsilonMachine:
     hmm = hmm.to_mealy()
-    presentation = _unifilar_presentation(hmm, max_states=max_states)
+    try:
+        presentation = _unifilar_presentation(hmm, max_states=max_states)
+    except MixedStateExplosionError:
+        limit = _limit_machine(hmm, _filtered_belief(hmm), max_states=max(64, max_states // 10))
+        if limit is None:
+            raise
+        return limit
+    machine = _minimize(presentation, constraints=getattr(hmm, "symbol_constraints", None))
+    seed = _boundary_belief(presentation)
+    if seed is None:
+        return machine
+    limit = _limit_machine(hmm, seed, max_states=len(list(presentation.states())) - 1)
+    if limit is None or len(list(limit.states())) >= len(list(machine.states())):
+        return machine
+    return limit
+
+
+def _minimize(presentation: MealyHMM, *, constraints: Any = None) -> EpsilonMachine:
     stationary = presentation.stationary_distribution()
     if is_zero(array_sum(stationary)):
         raise StochasticValidationError("generator must have a stationary distribution")
 
-    constraints = getattr(presentation, "symbol_constraints", None) or getattr(hmm, "symbol_constraints", None)
+    constraints = getattr(presentation, "symbol_constraints", None) or constraints
     partitions = _refine_probabilistic_partitions(presentation, constraints=constraints)
     return _quotient_machine(presentation, partitions, stationary, constraints=constraints)
+
+
+def _boundary_belief(presentation: MealyHMM) -> np.ndarray | None:
+    """The heaviest recurrent belief, if the recurrent beliefs sit within round-off of the simplex boundary.
+
+    When no finite word reveals the hidden state (e.g. the phase of a period-2 process), beliefs
+    converge to the causal states without reaching them. Rounding then closes the mixed-state
+    presentation on a reflecting boundary: a large recurrent class of beliefs with positive entries
+    below ``_SUPPORT_ATOL``, carrying geometrically decaying mass. Returns ``None`` for any other
+    presentation.
+    """
+    states = [state for state in presentation.states() if isinstance(state, MixedState)]
+    if not states or any(state.is_symbolic() for state in states):
+        return None
+    beliefs = np.array([state.as_array() for state in states])
+    if not ((beliefs > 0.0) & (beliefs < _SUPPORT_ATOL)).any():
+        return None
+    stationary = np.asarray(presentation.stationary_distribution(), dtype=float)
+    mass = dict(zip(presentation.reindex().states, stationary, strict=True))
+    return max(states, key=lambda state: mass[state]).as_array()
+
+
+def _filtered_belief(hmm: MealyHMM, *, length: int = 4096) -> np.ndarray | None:
+    """Belief over ``hmm``'s states after Bayes-filtering a sampled word of ``length`` symbols."""
+    from sofic.generators.matrices import symbol_matrices
+
+    if has_symbolic(hmm.stationary_distribution().ravel()):
+        return None
+    matrices = {symbol: np.asarray(matrix, dtype=float) for symbol, matrix in symbol_matrices(hmm).items()}
+    symbols, _ = hmm.sample(length, rng=np.random.default_rng(0))
+    belief = np.asarray(hmm.stationary_distribution(), dtype=float)
+    for symbol in symbols:
+        belief = belief @ matrices[symbol]
+        belief /= belief.sum()
+    return belief
+
+
+def _limit_machine(hmm: MealyHMM, seed: np.ndarray | None, *, max_states: int) -> EpsilonMachine | None:
+    """The ε-machine generated from a limit belief, if it is finite and generates ``hmm``'s process.
+
+    ``seed`` approximates a causal state of a process that synchronizes only asymptotically; entries
+    below ``_SUPPORT_ATOL`` are set to zero, and the mixed-state presentation it generates under exact
+    Bayes updates (at most ``max_states`` beliefs) is minimized. The result is accepted only if it
+    generates the same process as ``hmm``
+    (:func:`~sofic.generators.minimal_generative_model._equivalence_error`): a finite unifilar
+    presentation of the process minimizes to its ε-machine.
+    """
+    if seed is None:
+        return None
+    seed = np.where(seed < _SUPPORT_ATOL, 0.0, seed)
+    from sofic.generators.minimal_generative_model import _equivalence_error
+    from sofic.generators.mixed_state_construction import build_mixed_state_presentation
+
+    try:
+        limit = build_mixed_state_presentation(
+            hmm, initial_mixed_state=MixedState.from_vector(seed), max_states=max(1, max_states)
+        )
+    except MixedStateExplosionError:
+        return None
+    candidate = _minimize(_unifilar_presentation(limit))
+    if _equivalence_error(candidate, hmm) > _LIMIT_VERIFY_ATOL:
+        return None
+    return candidate
 
 
 def _unifilar_presentation(hmm: MealyHMM, *, max_states: int = 10_000) -> MealyHMM:

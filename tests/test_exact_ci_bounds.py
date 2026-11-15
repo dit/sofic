@@ -61,3 +61,53 @@ def test_survey_case_closes_against_its_exact_common_information() -> None:
     result = heaviest_term_bound(P, target=best - 1e-2, max_nodes=100_000)
     assert result.reached
     assert best - 1e-2 <= result.value <= best + 1e-9
+
+
+def test_weight_cap_that_admits_no_term_prunes_every_box() -> None:
+    D = np.array([[0.3, 0.2], [0.2, 0.3]])
+    result = heaviest_term_bound(D, max_nodes=10, weight_cap=lambda box: None)
+    assert result.value == np.inf
+    assert result.open_boxes == 0
+
+
+def _survey_case_a():
+    """Survey process ``((0,1),(0,2),(0,1))`` (v11 seed 54), where C_g >= 0.928 > G = 0.92433."""
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+    from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+    from sofic.generators.coupled_generators import _GeneratorProblem
+    from sofic.generators.epsilon_machine import EpsilonMachine
+
+    a, b, c = 0.06761675137492751, 0.44247275706537287, 0.45789456421998476
+    mats = {
+        0: np.array([[a, 0, 0], [b, 0, 0], [c, 0, 0]]),
+        1: np.array([[0, 1 - a, 0], [0, 0, 1 - b], [0, 1 - c, 0]]),
+    }
+    machine = from_symbol_matrices((0, 1, 2), (0, 1), mats)
+    forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
+    return _GeneratorProblem(BidirectionalEpsilonMachine.from_forward(forward))
+
+
+def test_generator_equations_exclude_the_g_optimal_heavy_term() -> None:
+    from sofic.generators.generator_caps import _HeaviestStatesRelaxation
+
+    problem = _survey_case_a()
+    # heaviest term of the G-optimal decomposition (entropy 0.92433)
+    t = 0.6943850024064206
+    q = np.array([0.06761675137400137, 0.5912539107207103, 0.3411293379052883])
+    r = np.array([0.18172612379896527, 0.46738361190932987, 0.3508902642917049])
+    relaxation = _HeaviestStatesRelaxation(problem, 1)
+    wide = relaxation.bound(
+        ((np.clip(q - 1e-2, 0, 1), np.clip(q + 1e-2, 0, 1), np.clip(r - 1e-2, 0, 1), np.clip(r + 1e-2, 0, 1)),)
+    )
+    tight = relaxation.bound(
+        ((np.clip(q - 1e-4, 0, 1), np.clip(q + 1e-4, 0, 1), np.clip(r - 1e-4, 0, 1), np.clip(r + 1e-4, 0, 1)),)
+    )
+    assert wide is not None and wide > t
+    assert tight is not None and tight < t - 1e-3
+
+
+def test_generator_heaviest_term_bound_is_below_a_known_generator() -> None:
+    from sofic.generators.exact_ci_bounds import generator_heaviest_term_bound
+
+    result = generator_heaviest_term_bound(_survey_case_a(), max_nodes=300)
+    assert 0.85 < result.value <= 0.9697134 + 1e-9  # entropy of a word-verified generator

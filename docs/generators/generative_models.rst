@@ -228,9 +228,14 @@ runs the same search when the bidirectional machine is already known.
    result.cg_exceeds_g                            # True when no G optimum generates
    result.separating_variables_generate           # some G optimum passed kernel LP
    result.model                                   # the generator, verified against the source
+   result.reproduction_error                      # its word-process deviation from the source
+   result.structure                               # states, weights, functional, lifted
 
-The searches are local; ``certified`` reports when the bracket closes (for
-example the golden mean, where the support bound meets :math:`C_\mu`).
+The searches are local; ``certified`` reports when the bracket closes and the generator reproduces the
+source to the same tolerance (for example the golden mean, where the support bound meets :math:`C_\mu`).
+``structure["lifted"]`` says whether the generator's channel satisfies the lifting conditions, so that
+drawing its states independently at both ends of each bidirectional edge also generates the process;
+coupled generators such as the interleaved product flag do not.
 
 Wyner and functional generators
 -------------------------------
@@ -301,6 +306,16 @@ the certified lower bound is still below the exact-common-information estimate a
 :math:`|S^+| + |S^-| \le 7`. On three survey processes with :math:`3 \times 3` joints it raises the
 lower bound to the estimate, closing ``((0,1),(2,·),(0,1))`` at :math:`0.9335` bits.
 
+A generator's states are an exact decomposition whose heaviest term is its heaviest state, and that
+state satisfies the generator equations, so the same branching bounds :math:`C_g` when each box's
+weight is also capped by the one-explicit-state generator-cap LP over the box of beliefs
+(:func:`~sofic.generators.exact_ci_bounds.generator_heaviest_term_bound`). Where the LP excludes the
+:math:`\op{G}{}`-optimal heavy term the bound exceeds :math:`\op{G}{S^+ : S^-}`: on
+``((0,1),(0,2),(0,1))`` it certifies :math:`C_g \ge 0.928 > \op{G}{} = 0.924`, but only after about
+220,000 boxes (half an hour), because the LP excludes that term only in boxes of radius about
+:math:`10^{-4}`. The pipeline therefore runs it only on request (``generator_heaviest_term=True``).
+This combination is not from the literature.
+
 :func:`~sofic.generators.generator_caps.certified_generator_weight_cap` removes the LP
 tolerance: every branch-and-bound leaf gets an exact bound from rationalized HiGHS duals or an
 exact Farkas certificate of infeasibility (:mod:`sofic.generators.certificates`, after
@@ -357,6 +372,7 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.generator_caps.generator_weight_cap
 .. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
 .. autofunction:: sofic.generators.exact_ci_bounds.heaviest_term_bound
+.. autofunction:: sofic.generators.exact_ci_bounds.generator_heaviest_term_bound
 .. autofunction:: sofic.generators.exact_ci_bounds.capped_coverage_entropy
 .. autoclass:: sofic.generators.exact_ci_bounds.HeaviestTermBoundResult
 .. autofunction:: sofic.generators.generator_caps.certified_generator_weight_cap

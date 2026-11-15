@@ -16,7 +16,26 @@ brute-force reference or a closed-form value and has a regression test.
   interval-certified (`bounds.rigorous=False`). Tests reproduce the paper's
   log-grid state counts and check finite-horizon losses against exact enumeration.
 
+### ε-machine construction
+
+- Processes whose hidden state no finite word reveals (e.g. a period-2 process whose phase stays
+  uncertain) synchronize only asymptotically. Their mixed-state presentation either closed on hundreds of
+  beliefs within round-off of the simplex boundary (rounding acts as a reflecting barrier for the
+  posterior's random walk) or exceeded `max_states`, so `EpsilonMachine.from_hmm` returned a huge
+  machine or raised `MixedStateExplosionError` although the ε-machine is finite. It now seeds the
+  presentation from a limit belief (the heaviest near-boundary belief, or the belief after filtering a
+  long sample) with sub-`1e-8` entries set to zero, and accepts the result only if it generates the
+  source process exactly (difference-automaton test). On the 138 minimal binary 3-state topologies,
+  9 reverse-machine "explosions" are now 3-state reverse ε-machines, and finite/infinite now agrees
+  with `reverse_epsilon_machine_is_finite` on every topology.
+
 ### Generator verification
+
+- `GenerativeModelResult` records the returned generator's word-process deviation from the source
+  (`reproduction_error`, from the exact difference-automaton check) and its `structure`: state count,
+  weights, whether the state is a function of `(S+, S-)` (`functional`), and the largest violation of the
+  lifting conditions (`lifting_residual`; `lifted` when it vanishes). `certified` now also requires
+  `reproduction_error <= 1e-6`, so a closed bracket is never reported on an approximate generator.
 
 - The one-step generator equations (edge law, forward stationarity, summed future-side consistency) are
   necessary but not sufficient: a kernel with kernel-LP violation 0 can emit the wrong word process,
@@ -65,6 +84,11 @@ brute-force reference or a closed-form value and has a regression test.
   joints `((0,1),(2,·),(0,1))`, `((0,1),(0,2),(0,1))` and `((0,1),(2,1),(0,·))` it certifies `G` to
   within 1e-5 of the estimate (0.9335, 0.9243, 0.4717; was 0.9118, 0.9056, 0.4436), which closes the
   first bracket.
+- `generator_heaviest_term_bound` bounds `C_g` the same way with the heavy term restricted to generator
+  states: `heaviest_term_bound(weight_cap=...)` caps each box's weight by the one-explicit-state
+  generator-cap LP over the box of beliefs, and prunes boxes the LP rules out. On `((0,1),(0,2),(0,1))`
+  it certifies `C_g >= 0.928 > G = 0.924`, but only after ~220k boxes, so the pipeline runs it on
+  request (`generator_heaviest_term=True`).
 
 ### Generator caps
 
