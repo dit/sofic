@@ -5,6 +5,17 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Finite-state rounded HMM filters
+
+- `quantized_filter` builds the reachable log-odds-grid observer of Feng & Meng
+  (arXiv:2611.13760) for positive-transition Moore HMMs, with bit-valued event,
+  uniform-word, and total-forward-KL budgets. It preserves the exact initial
+  label, permits zero emissions, exposes label-capacity/error metadata, and
+  separates recursively rounded generation from posterior-initialized private
+  simulation. Bounds are theorem-derived in real arithmetic, explicitly not
+  interval-certified (`bounds.rigorous=False`). Tests reproduce the paper's
+  log-grid state counts and check finite-horizon losses against exact enumeration.
+
 ### ε-machine construction
 
 - Processes whose hidden state no finite word reveals (e.g. a period-2 process whose phase stays

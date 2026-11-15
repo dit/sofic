@@ -49,6 +49,7 @@ from sofic.generators.moore import MooreHMM
 from sofic.generators.nmachine import NMachine
 from sofic.generators.pfa import ProbabilisticFiniteAutomaton
 from sofic.generators.predictive_rd import PredictiveRateDistortionCurve, predictive_rate_distortion
+from sofic.generators.quantized_filter import QuantizedFilter, QuantizedFilterBounds, quantized_filter
 from sofic.generators.quasi_realization import QuasiRealization
 from sofic.generators.relative_entropy_rate import (
     RelativeEntropyRateBounds,
@@ -119,6 +120,9 @@ __all__ = [
     "MooreHMM",
     "NMachine",
     "ProbabilisticFiniteAutomaton",
+    "QuantizedFilter",
+    "QuantizedFilterBounds",
+    "quantized_filter",
     "QuasiRealization",
     "QuasiStochasticModel",
     "StochasticModel",
