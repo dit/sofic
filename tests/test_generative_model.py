@@ -27,6 +27,31 @@ def test_generative_model_from_forward_epsilon_machine_certifies_golden_mean() -
     target = float(-(1 / 3) * np.log2(1 / 3) - (2 / 3) * np.log2(2 / 3))
     assert abs(result.upper - target) < 1e-5
     assert "universal coupled" not in result.upper_source
+    assert result.reproduction_error is not None and result.reproduction_error < 1e-9
+    assert result.structure is not None
+    assert result.structure["n_states"] == 2
+    assert result.structure["functional"] and result.structure["lifted"]
+    assert result.stages[-1]["structure"] == result.structure
+
+
+def test_certified_requires_the_model_to_reproduce_the_source() -> None:
+    from sofic.generators.generative_search import GenerativeModelResult
+
+    def result(error):
+        return GenerativeModelResult(
+            model=None,
+            upper=1.0,
+            lower=1.0,
+            upper_source="test",
+            lower_source="test",
+            exact_common_information_estimate=None,
+            separating_variables_generate=False,
+            reproduction_error=error,
+        )
+
+    assert result(None).certified
+    assert result(1e-9).certified
+    assert not result(1e-4).certified
 
 
 def test_generative_model_accepts_bidirectional_input() -> None:

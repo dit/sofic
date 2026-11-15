@@ -127,6 +127,21 @@ def test_memory_lift_of_the_flag_is_the_minimal_interleaved_generator() -> None:
     assert float(-(pi * np.log2(pi)).sum()) == pytest.approx(2 * _h(4 / 9), abs=1e-12)
 
 
+def test_generator_structure_tells_lifted_from_coupled_generators() -> None:
+    from sofic.generators.generative_search import _generator_structure
+
+    problem = cg._GeneratorProblem(_interleaved(0.1))
+    machine = _generator_structure(problem, problem.epsilon_seed(), 1e-9)
+    assert machine["n_states"] == 4
+    assert machine["weights"] == pytest.approx([0.25] * 4)
+    assert machine["functional"] and machine["lifted"]
+
+    coupled = _generator_structure(problem, cg.memory_lift(problem, _flag_channel(problem, 0.1)), 1e-9)
+    assert not coupled["functional"]
+    assert not coupled["lifted"]
+    assert coupled["lifting_residual"] == pytest.approx(0.019, abs=1e-3)
+
+
 def test_generator_kernel_decides_generator_states() -> None:
     rll = cg._GeneratorProblem(_rll())
     assert cg.generator_kernel(rll, np.eye(len(rll.lifted.pairs)))[0] == pytest.approx(0.0, abs=1e-10)

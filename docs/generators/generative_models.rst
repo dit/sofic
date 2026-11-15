@@ -228,9 +228,14 @@ runs the same search when the bidirectional machine is already known.
    result.cg_exceeds_g                            # True when no G optimum generates
    result.separating_variables_generate           # some G optimum passed kernel LP
    result.model                                   # the generator, verified against the source
+   result.reproduction_error                      # its word-process deviation from the source
+   result.structure                               # states, weights, functional, lifted
 
-The searches are local; ``certified`` reports when the bracket closes (for
-example the golden mean, where the support bound meets :math:`C_\mu`).
+The searches are local; ``certified`` reports when the bracket closes and the generator reproduces the
+source to the same tolerance (for example the golden mean, where the support bound meets :math:`C_\mu`).
+``structure["lifted"]`` says whether the generator's channel satisfies the lifting conditions, so that
+drawing its states independently at both ends of each bidirectional edge also generates the process;
+coupled generators such as the interleaved product flag do not.
 
 Wyner and functional generators
 -------------------------------
