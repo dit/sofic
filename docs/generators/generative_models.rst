@@ -316,6 +316,19 @@ weight is also capped by the one-explicit-state generator-cap LP over the box of
 :math:`10^{-4}`. The pipeline therefore runs it only on request (``generator_heaviest_term=True``).
 This combination is not from the literature.
 
+Lifted generators get their own bound.
+:func:`~sofic.generators.exact_ci_bounds.lifted_heaviest_term_bound` uses that a lifted generator draws
+consecutive states from one channel, so its heaviest state :math:`e` has channel
+:math:`c_e(a, b) = t\, q_a r_b / p(a, b)` at both ends of every edge. Coarse-graining the other end to the
+event that it is :math:`e` turns each lifting condition into a condition on :math:`(q, r)` alone: a
+polynomial in the beliefs must be the same for every supported forward (or reverse) state. Its
+coefficients are nonnegative, so it is checked on boxes by interval arithmetic and prunes the
+heaviest-term branching. A coupled generator need not pass the test. On dataset process
+``((0,1),(0,2),(0,2))`` (a :math:`3 \times 3` joint) every lifted generator has entropy at least
+:math:`1.4815`, with a lifted generator at :math:`1.4817`, while :math:`C_g = \op{G}{S^+ : S^-} = 1.4225`:
+the minimal generator is not lifted even though an exact-common-information optimum generates. This
+bound is not from the literature.
+
 :func:`~sofic.generators.generator_caps.certified_generator_weight_cap` removes the LP
 tolerance: every branch-and-bound leaf gets an exact bound from rationalized HiGHS duals or an
 exact Farkas certificate of infeasibility (:mod:`sofic.generators.certificates`, after
@@ -373,6 +386,7 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.generator_caps.generator_coverage_bound
 .. autofunction:: sofic.generators.exact_ci_bounds.heaviest_term_bound
 .. autofunction:: sofic.generators.exact_ci_bounds.generator_heaviest_term_bound
+.. autofunction:: sofic.generators.exact_ci_bounds.lifted_heaviest_term_bound
 .. autofunction:: sofic.generators.exact_ci_bounds.capped_coverage_entropy
 .. autoclass:: sofic.generators.exact_ci_bounds.HeaviestTermBoundResult
 .. autofunction:: sofic.generators.generator_caps.certified_generator_weight_cap

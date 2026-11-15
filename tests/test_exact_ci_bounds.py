@@ -111,3 +111,42 @@ def test_generator_heaviest_term_bound_is_below_a_known_generator() -> None:
 
     result = generator_heaviest_term_bound(_survey_case_a(), max_nodes=300)
     assert 0.85 < result.value <= 0.9697134 + 1e-9  # entropy of a word-verified generator
+
+
+def _dataset_case_t055():
+    """Dataset process ``n3-t055-d2`` (code ((0,1),(0,2),(0,2))): C_g = G = 1.42254, minimal lifted model 1.4815+."""
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+    from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+    from sofic.generators.coupled_generators import _GeneratorProblem
+    from sofic.generators.epsilon_machine import EpsilonMachine
+
+    a, b, c = 0.29501936538151036, 0.7629418805405772, 0.1416369489322688
+    mats = {
+        0: np.array([[a, 0, 0], [b, 0, 0], [c, 0, 0]]),
+        1: np.array([[0, 1 - a, 0], [0, 0, 1 - b], [0, 0, 1 - c]]),
+    }
+    machine = from_symbol_matrices((0, 1, 2), (0, 1), mats)
+    forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
+    return _GeneratorProblem(BidirectionalEpsilonMachine.from_forward(forward))
+
+
+def test_epsilon_machine_states_pass_the_lifted_term_test() -> None:
+    from sofic.generators.exact_ci_bounds import _LiftedTermTest
+
+    problem = _dataset_case_t055()
+    test = _LiftedTermTest(problem.lifted)
+    _, Q, R, _ = problem.epsilon_seed()
+    assert all(test.violation(q, r) < 1e-12 for q, r in zip(Q, R, strict=True))
+
+
+def test_lifted_bound_separates_lifted_generators_from_g() -> None:
+    from sofic.generators.exact_ci_bounds import lifted_heaviest_term_bound
+
+    problem = _dataset_case_t055()
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    lifted = lifted_heaviest_term_bound(problem, target=1.43, max_nodes=50_000)
+    static = heaviest_term_bound(P, target=1.43, max_nodes=50_000)
+    assert lifted.reached  # every lifted generator has entropy >= 1.43
+    assert static.value <= 1.42255 + 1e-6  # a coupled generator of entropy 1.4225448 exists, so G <= 1.42255
+    c_mu = float(-(problem.p_plus * np.log2(problem.p_plus)).sum())
+    assert lifted.value <= c_mu  # the epsilon-machine is a lifted generator
