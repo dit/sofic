@@ -78,6 +78,11 @@ brute-force reference or a closed-form value and has a regression test.
   generator-cap LP over the box of beliefs, and prunes boxes the LP rules out. On `((0,1),(0,2),(0,1))`
   it certifies `C_g >= 0.928 > G = 0.924`, but only after ~220k boxes, so the pipeline runs it on
   request (`generator_heaviest_term=True`).
+- `lifted_heaviest_term_bound` bounds the state entropy of every *lifted* generator from below. A lifted
+  generator's heaviest state has channel `t q_a r_b / p(a, b)` at both ends of each edge; coarse-graining
+  the other end to "is that state" turns each lifting condition into a condition on `(q, r)` alone, checked
+  on boxes by interval arithmetic inside `heaviest_term_bound`. On `((0,1),(0,2),(0,2))` it shows every
+  lifted generator has entropy >= 1.4815 while `C_g = G = 1.4225`.
 
 ### Generator caps
 

@@ -23,7 +23,7 @@ import itertools
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -209,4 +209,95 @@ def generator_heaviest_term_bound(
     )
 
 
-__all__ = ["HeaviestTermBoundResult", "capped_coverage_entropy", "generator_heaviest_term_bound", "heaviest_term_bound"]
+class _LiftedTermTest:
+    """Necessary conditions for a decomposition term to be a state of a *lifted* generator (see below)."""
+
+    def __init__(self, lifted: Any) -> None:
+        self.pa = lifted.plus.argmax(axis=1)
+        self.pb = lifted.minus.argmax(axis=1)
+        self.p = lifted.p
+        self.edges = lifted.edges
+        self.na, self.nb = lifted.plus.shape[1], lifted.minus.shape[1]
+
+    def _forward(self, q: np.ndarray, r: np.ndarray) -> np.ndarray:
+        u = q[self.pa] * r[self.pb] / self.p
+        inner = np.einsum("pxq,q->px", self.edges, u)
+        out = np.zeros((self.na, inner.shape[1]))
+        np.add.at(out, self.pa, (r[self.pb] / self.p)[:, None] * inner)
+        return out
+
+    def _reverse(self, q: np.ndarray, r: np.ndarray) -> np.ndarray:
+        u = q[self.pa] * r[self.pb] / self.p
+        inner = np.einsum("pxq,p->qx", self.edges, u)
+        out = np.zeros((self.nb, inner.shape[1]))
+        np.add.at(out, self.pb, (q[self.pa] / self.p)[:, None] * inner)
+        return out
+
+    def violation(self, q: np.ndarray, r: np.ndarray, *, support_tol: float = 1e-12) -> float:
+        """Largest spread of ``L_B`` over ``supp q`` or of ``L_A`` over ``supp r`` (0 for a lifted state)."""
+        worst = 0.0
+        for values, support in ((self._forward(q, r), q > support_tol), (self._reverse(q, r), r > support_tol)):
+            rows = values[support]
+            if len(rows) > 1:
+                worst = max(worst, float((rows.max(axis=0) - rows.min(axis=0)).max()))
+        return worst
+
+    def excludes(self, box: Box) -> bool:
+        """Whether no term with beliefs in ``box`` passes: two surely supported states have disjoint intervals."""
+        qlo, qhi, rlo, rhi = box[:4]
+        for f, support in ((self._forward, qlo > 0.0), (self._reverse, rlo > 0.0)):
+            lo, hi = f(qlo, rlo)[support], f(qhi, rhi)[support]
+            if len(lo) > 1 and (lo.max(axis=0) > hi.min(axis=0) + 1e-12).any():
+                return True
+        return False
+
+
+def lifted_heaviest_term_bound(
+    problem: _GeneratorProblem,
+    *,
+    target: float | None = None,
+    max_nodes: int = 200_000,
+    deadline: float | None = None,
+) -> HeaviestTermBoundResult:
+    """Certified lower bound on the state entropy of every *lifted* generator, by branching on its heaviest state.
+
+    A lifted generator draws :math:`W_0` and :math:`W_1` from one channel :math:`c(w \\mid s^+, s^-)`, independently
+    given the bidirectional edge (see :mod:`sofic.generators.lifted_common_information`). Its states form an exact
+    decomposition :math:`p = \\sum_w t_w q_w r_w^\\top`, so state :math:`e` has channel
+    :math:`c_e(a, b) = t\\, q_a r_b / p(a, b)`. Coarse-graining :math:`W_1` (or :math:`W_0`) to the event that it
+    equals :math:`e` cannot raise the lifting conditions' conditional mutual informations, so with :math:`E` the
+    joint edge law and :math:`u(a, b) = q_a r_b / p(a, b)`, for every symbol :math:`x`
+
+    .. math::
+
+       L_B(a, x) = \\sum_b \\frac{r_b}{p(a, b)} \\sum_{a', b'} E[(a, b), x, (a', b')]\\, u(a', b')
+       \\quad\\text{is constant over } a \\in \\operatorname{supp} q,
+
+       L_A(b', x) = \\sum_{a'} \\frac{q_{a'}}{p(a', b')} \\sum_{a, b} E[(a, b), x, (a', b')]\\, u(a, b)
+       \\quad\\text{is constant over } b' \\in \\operatorname{supp} r
+
+    (the factor :math:`t` cancels). A general generator need not satisfy them: it may couple consecutive states.
+    The coefficients are nonnegative, so a box's lower and upper corners bound :math:`L_A, L_B`; a box is pruned
+    when two surely supported states get disjoint intervals, inside :func:`heaviest_term_bound`. The root's weight
+    floor stays valid because the forward ε-machine is a lifted generator of entropy
+    :math:`C_\\mu^+ \\le \\log_2 |S^+|`, so a lifted generator whose heaviest state weighs less than
+    :math:`1/(2^m - 1)` cannot be minimal.
+    """
+    test = _LiftedTermTest(problem.lifted)
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    return heaviest_term_bound(
+        P,
+        target=target,
+        max_nodes=max_nodes,
+        deadline=deadline,
+        weight_cap=lambda box: None if test.excludes(box) else box[5],
+    )
+
+
+__all__ = [
+    "HeaviestTermBoundResult",
+    "capped_coverage_entropy",
+    "generator_heaviest_term_bound",
+    "heaviest_term_bound",
+    "lifted_heaviest_term_bound",
+]
