@@ -394,3 +394,68 @@ def compose_relations(
     """Relational composition ``{x: {z : y in first[x], z in second(y)}}``."""
     apply = second if callable(second) else (lambda y: second.get(y, set()))
     return {x: {z for y in ys for z in apply(y)} for x, ys in first.items()}
+
+
+# --------------------------------------------------------------------------- lifted common information
+
+
+def _cmi_bits(joint: np.ndarray) -> float:
+    """``I[a : b | c]`` in bits for a joint indexed ``[a, b, c]``, from the four entropies."""
+
+    def h(p: np.ndarray) -> float:
+        p = p[p > 0.0]
+        return float(-(p * np.log2(p)).sum())
+
+    return max(0.0, h(joint.sum(axis=1)) + h(joint.sum(axis=0)) - h(joint) - h(joint.sum(axis=(0, 1))))
+
+
+def _cmi_gradient_bits(joint: np.ndarray) -> np.ndarray:
+    def log(x: np.ndarray) -> np.ndarray:
+        return np.log2(np.maximum(x, 1e-300))
+
+    return (
+        log(joint)
+        + log(joint.sum(axis=(0, 1)))[None, None, :]
+        - log(joint.sum(axis=1))[:, None, :]
+        - log(joint.sum(axis=0))[None, :, :]
+    )
+
+
+def lifted_tensors(problem: Any, c: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``p(s+, s-, g)``, ``p(g_0, x_0, s-_1, g_1)`` and ``p(s+_0, g_0, x_0, g_1)`` by direct ``einsum``."""
+    plus, minus, edges = problem.plus, problem.minus, problem.edges
+    screen = np.einsum("pa,pb,pg->abg", plus, minus, problem.p[:, None] * c)
+    future = np.einsum("pg,pxq,qs,qv->gxsv", c, edges, minus, c)
+    past = np.einsum("pa,pg,pxq,qv->agxv", plus, c, edges, c)
+    return screen, future, past
+
+
+def lifted_constraint_informations(problem: Any, c: np.ndarray) -> np.ndarray:
+    screen, future, past = lifted_tensors(problem, c)
+    return np.array(
+        [
+            _cmi_bits(screen),
+            _cmi_bits(future.reshape(-1, *future.shape[2:])),
+            _cmi_bits(np.moveaxis(past, 1, -1).reshape(past.shape[0], -1, past.shape[1])),
+        ]
+    )
+
+
+def lifted_constraint_jacobian(problem: Any, c: np.ndarray) -> np.ndarray:
+    plus, minus, edges = problem.plus, problem.minus, problem.edges
+    screen, future, past = lifted_tensors(problem, c)
+    g_screen = _cmi_gradient_bits(screen)
+    g_future = _cmi_gradient_bits(future.reshape(-1, *future.shape[2:])).reshape(future.shape)
+    moved = np.moveaxis(past, 1, -1)
+    g_past = np.moveaxis(
+        _cmi_gradient_bits(moved.reshape(past.shape[0], -1, past.shape[1])).reshape(moved.shape), -1, 1
+    )
+    jac = np.empty((3, *c.shape))
+    jac[0] = problem.p[:, None] * np.einsum("pa,pb,abg->pg", plus, minus, g_screen)
+    jac[1] = np.einsum("gxsv,pxq,qs,qv->pg", g_future, edges, minus, c) + np.einsum(
+        "gxsv,pg,pxq,qs->qv", g_future, c, edges, minus
+    )
+    jac[2] = np.einsum("agxv,pa,pxq,qv->pg", g_past, plus, edges, c) + np.einsum(
+        "agxv,pa,pg,pxq->qv", g_past, plus, c, edges
+    )
+    return jac
