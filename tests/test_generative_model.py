@@ -92,7 +92,14 @@ def test_zero_time_budget_returns_a_valid_bracket_from_the_machines() -> None:
 
     result = generative_model_from_bidirectional(_survey_machine(), time_budget=0.0, rng=np.random.default_rng(0))
     assert result.budget_exhausted
-    assert result.upper_source == "epsilon machine" or result.upper_source.endswith("epsilon machine")
+    machines = {
+        "epsilon machine",
+        "reverse epsilon machine",
+        "bidirectional machine",
+        "canonical RFSA generator",
+        "maximized prime átomaton generator",
+    }
+    assert result.upper_source in machines
     assert result.lower <= result.upper + 1e-9
     skipped = {s["stage"] for s in result.stages if s.get("skipped") == "time budget exhausted"}
     assert {"generator coverage bound", "exact common information", "coupled search"} <= skipped

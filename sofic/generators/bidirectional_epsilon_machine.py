@@ -635,6 +635,24 @@ class BidirectionalEpsilonMachine(MealyHMM):
 
         return minimal_functional_generator(self, **kwargs)
 
+    def canonical_rfsa_hmm(self, **kwargs: Any) -> Any:
+        """Canonical-RFSA analogue; see :func:`~sofic.generators.canonical_generators.canonical_rfsa_hmm`."""
+        from sofic.generators.canonical_generators import canonical_rfsa_hmm
+
+        return canonical_rfsa_hmm(self, **kwargs)
+
+    def maximized_prime_atomaton_hmm(self, **kwargs: Any) -> Any:
+        """Prime-átomaton analogue; see :func:`~sofic.generators.canonical_generators.maximized_prime_atomaton_hmm`."""
+        from sofic.generators.canonical_generators import maximized_prime_atomaton_hmm
+
+        return maximized_prime_atomaton_hmm(self, **kwargs)
+
+    def atomaton_hmm(self, **kwargs: Any) -> Any:
+        """Átomaton analogue (reverse ε-machine run forward); see :func:`~sofic.generators.canonical_generators.atomaton_hmm`."""
+        from sofic.generators.canonical_generators import atomaton_hmm
+
+        return atomaton_hmm(self, **kwargs)
+
     def wyner_common_information(self, **kwargs: Any) -> float:
         """Wyner common information C[S+ : S-] = C[past : future] (no generator requirement)."""
         from sofic.generators.minimal_generative_model import wyner_common_information
