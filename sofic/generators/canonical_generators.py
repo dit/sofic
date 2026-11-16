@@ -26,8 +26,24 @@ is in general not unifilar. The prime-átomaton analogue uses the forward belief
 reversed process, time-reversed with its stationary law, with at most :math:`|S^-|` states.
 
 These are generators, so their state entropies bound the generative complexity :math:`C_g` of
-:cite:`LohrAy2009` from above; no minimality is claimed. Identifying them with the canonical NFAs is an analogy
-(extreme points of a cone in place of prime residuals) and is not from the literature.
+:cite:`LohrAy2009` from above. Identifying them with the canonical NFAs is an analogy (extreme points of a cone in
+place of prime residuals) and is not from the literature.
+
+They are size-minimal within a class, as the canonical RFSA is size-minimal among NFAs whose states accept unions
+of residuals (:cite:`Myers2014`, Corollary 4.11; :cite:`Zetzsche2021`, Corollary 34), with mixtures in place of
+unions: *a generator of the process in which the future morph* :math:`h_g(w) = \Pr(w \mid G_0 = g)` *of every
+state of positive stationary probability is a mixture of causal-state morphs has at least as many states as*
+:func:`canonical_rfsa_hmm`. Proof: by the Markov property :math:`\Pr(\cdot \mid \text{past}) = \sum_g \Pr(G_0 = g
+\mid \text{past})\, h_g`, so every causal-state morph lies in :math:`\operatorname{conv}\{h_g\}`; the hypothesis
+gives the reverse inclusion, so the two polytopes coincide and each of their vertices is one of the :math:`h_g`.
+:func:`canonical_rfsa_hmm` has one state per vertex and belongs to the class. Reversing time gives the same
+statement for :func:`maximized_prime_atomaton_hmm`, with past morphs and reverse causal states. Generators outside
+the class can be smaller. This argument is not from the literature.
+
+The other canonical NFAs of :mod:`sofic.automata.canonical.closures` have no analogue here. The distromaton and
+the universal automaton are built from intersections of residuals, and mixtures of morphs have no meet. The
+minimal xor automaton is a minimal linear representation over GF(2), whose counterpart over the reals is
+:func:`~sofic.generators.minimal_quasi_realization.minimal_quasi_realization`.
 """
 
 from __future__ import annotations

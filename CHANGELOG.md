@@ -46,6 +46,34 @@ brute-force reference or a closed-form value and has a regression test.
   (new module `sofic.shifts.canonical_presentations`) present a sofic shift by the canonical NFAs of its factor
   language, trimmed to the essential states.
 
+### Distromaton, xor automata, and the universal automaton
+
+- New module `sofic.automata.canonical.closures` completes the canonical NFAs of Myers, Adámek, Milius & Urbat
+  (CMCS 2014) and Zetzsche, van Heerdt, Sammartino & Silva (MFPS 2021): `Distromaton` (join-irreducible
+  intersections of residuals), `minimal_xor_automaton`, `xor_caba_automaton` (the new acceptor of Zetzsche et al.,
+  on a basis of the Boolean closure read as a GF(2) space), `UniversalAutomaton` (Lombardy & Sakarovitch),
+  `minimal_structured_dfa` (the minimal DFA whose states form a semilattice, distributive lattice, Boolean algebra
+  or GF(2) space), and `is_intersection_closed` (Myers et al.'s criterion for the canonical RFSA to be a
+  state-minimal NFA). Every closure element is stored exactly as a set of atoms, i.e. of states of the minimal
+  DFA of the reversed language, so derivatives are preimages and all constructions are exact.
+- New `sofic.automata.xor.XorAutomaton`: NFA-shaped automata that accept by parity of accepting paths, with the xor
+  subset construction (`determinize`), `reverse` and serialization. It is not a `LabeledAutomaton`, whose language
+  operations assume NFA acceptance.
+- Tests reproduce the papers' examples ((a+b)\*a and (a+b)\*b(a+b)^n), check the distromaton against Myers et al.'s
+  second construction (the reverse minimal DFA ordered by inclusion), the minimal xor automaton's size against the
+  GF(2) rank of a brute-force Hankel matrix, and Corollaries 3.21 and 4.6. Two corrections to the papers: the
+  xor-CABA example of Zetzsche et al. (Fig. 10) uses four linearly dependent vectors where a basis has three, and
+  Myers et al.'s remark that {aa} is not intersection-closed contradicts their Example 4.3 (singletons are).
+- Shifts: `distromaton_presentation`, `universal_presentation` (also `SoficShift` methods), and
+  `follower_sets_intersection_closed`, which certifies that `canonical_rfsa_presentation` has the fewest states of
+  any presentation (brute-force checked against every smaller labeled graph). Canonical presentations now trim the
+  automaton before building the graph, which the new automata need (their `Σ*` and `∅` states) and which leaves
+  the existing presentations unchanged.
+- Generators: `canonical_rfsa_hmm` and `maximized_prime_atomaton_hmm` are now documented as size-minimal among
+  generators whose state morphs are mixtures of causal-state morphs, the stochastic counterpart of the canonical
+  RFSA's minimality, with proof; the minimal xor automaton is cross-referenced as the GF(2) counterpart of
+  `minimal_quasi_realization`.
+
 ### Generator verification
 
 - `GenerativeModelResult` records the returned generator's word-process deviation from the source

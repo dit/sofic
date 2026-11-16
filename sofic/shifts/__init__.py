@@ -5,8 +5,11 @@ from sofic.shifts.base import SymbolicModel
 from sofic.shifts.canonical_presentations import (
     atomaton_presentation,
     canonical_rfsa_presentation,
+    distromaton_presentation,
     factor_language_nfa,
+    follower_sets_intersection_closed,
     maximized_prime_atomaton_presentation,
+    universal_presentation,
 )
 from sofic.shifts.covers import (
     LeftFischerCover,
@@ -60,8 +63,11 @@ from sofic.shifts.wheeler import (
 __all__ = [
     "atomaton_presentation",
     "canonical_rfsa_presentation",
+    "distromaton_presentation",
     "factor_language_nfa",
+    "follower_sets_intersection_closed",
     "maximized_prime_atomaton_presentation",
+    "universal_presentation",
     "BowenFranksGroup",
     "bowen_franks_group",
     "in_amalgamate",

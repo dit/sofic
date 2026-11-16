@@ -17,7 +17,11 @@ states the primes containing the empty word, and a transition
 :math:`p \xrightarrow{a} p'` whenever :math:`L_{p'} \subseteq a^{-1} L_p`
 :cite:`Denis2002`. It is never larger than the minimal DFA and can be
 exponentially smaller: for :math:`\Sigma^* a \Sigma^n` the minimal DFA has
-:math:`2^{n+1}` states and the canonical RFSA :math:`n + 2`.
+:math:`2^{n+1}` states and the canonical RFSA :math:`n + 2`. Myers et al. call it
+the *jiromaton* :cite:`Myers2014`: its states are the join-irreducibles of the
+semilattice of unions of residuals, and it has the fewest states among NFAs whose
+states accept unions of residuals. The other canonical NFAs of that construction
+are in :doc:`canonical_closures`.
 
 Reversing a canonical RFSA gives the maximized prime átomaton of the reversed
 language (:meth:`CanonicalRFSA.dual`; see :doc:`atomaton`). NL\* learns the
