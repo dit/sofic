@@ -99,6 +99,7 @@ def test_joint_pi_on_pair_subset_with_symbolic_rows():
     a, b = ("a", "x"), ("b", "x")
     graph = _graph([(a, a, "0", p), (a, b, "1", 1 - p), (b, a, "0", sp.Integer(1))])
     joint = bc._joint_pi_on_pair_subset(graph, [a, b])
+    assert joint is not None
     assert sp.simplify(joint[a] - 1 / (2 - p)) == 0
     leaky = _graph([(a, a, "0", p), (b, a, "0", sp.Integer(1))])
     assert bc._joint_pi_on_pair_subset(leaky, [a, b]) is None

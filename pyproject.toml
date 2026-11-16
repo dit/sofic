@@ -48,7 +48,7 @@ test = [
     "pytest-cov",
     "pytest-rerunfailures",
     "pytest-sugar",
-    "pytest-xdist",
+    "pytest-xdist>=3.2",
 ]
 docs = [
     "sphinx",
@@ -111,6 +111,7 @@ addopts = [
     "--cov=sofic",
     "--cov-report=term-missing",
     "--numprocesses=auto",
+    "--dist=worksteal",
     "--durations=25",
     "--durations-min=1.0",
     "--reruns=1",

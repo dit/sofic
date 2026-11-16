@@ -135,7 +135,7 @@ def test_dirichlet_prior_random_rows_sum_to_root():
     prior.create_random_prior(1, 6, rng=np.random.default_rng(0))
     for context in "012":
         cells = [prior.get_alpha((context, symbol)) for symbol in "012"]
-        assert all(1 <= alpha < 6 for alpha in cells)
+        assert all(alpha is not None and 1 <= alpha < 6 for alpha in cells)
         assert prior.get_alpha((context, "*")) == sum(cells)
 
 

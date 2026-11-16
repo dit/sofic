@@ -162,5 +162,6 @@ def test_tighten_matches_exact_rational_arithmetic(bounds):
     if exact is None:
         assert fast is None
     else:
+        assert fast is not None
         np.testing.assert_array_equal(fast[0], exact[0])
         np.testing.assert_array_equal(fast[1], exact[1])

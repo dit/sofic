@@ -122,35 +122,19 @@ def build_mixed_state_presentation(
         hits = np.flatnonzero(close.all(axis=1))
         return numeric_unique[low + int(hits[0])] if hits.size else None
 
-    def register(state: MixedState) -> MixedState:
+    def add(state: MixedState, numeric: tuple[np.ndarray, float] | None) -> MixedState:
+        """Record a new belief; ``numeric`` is its vector and key, or ``None`` for a symbolic belief."""
         nonlocal numeric_beliefs
-        existing = discovered.get(state)
-        if existing is not None:
-            return existing
-        symbolic = any(is_symbolic(b) for b in state.belief)
-        if symbolic:
-            match = next((known for known in unique if _beliefs_equal(known, state, constraints=constraints)), None)
-        else:
-            vector = np.asarray(state.belief, dtype=float)
-            lead = float(weights @ vector)
-            match = find_numeric(vector, lead)
-            if match is None:
-                match = next(
-                    (known for known in symbolic_unique if _beliefs_equal(known, state, constraints=constraints)),
-                    None,
-                )
-        if match is not None:
-            discovered[state] = match
-            return match
         if len(unique) >= max_states:
             raise MixedStateExplosionError(
                 f"mixed-state presentation exceeded max_states={max_states}; the reachable belief set may be infinite"
             )
         discovered[state] = state
         unique.append(state)
-        if symbolic:
+        if numeric is None:
             symbolic_unique.append(state)
         else:
+            vector, lead = numeric
             row = len(numeric_unique)
             if row == len(numeric_beliefs):
                 numeric_beliefs = np.concatenate([numeric_beliefs, np.empty_like(numeric_beliefs)])
@@ -162,6 +146,27 @@ def build_mixed_state_presentation(
         graph.add_state(state)
         queue.append(state)
         return state
+
+    def register(state: MixedState) -> MixedState:
+        existing = discovered.get(state)
+        if existing is not None:
+            return existing
+        numeric = None
+        if any(is_symbolic(b) for b in state.belief):
+            match = next((known for known in unique if _beliefs_equal(known, state, constraints=constraints)), None)
+        else:
+            vector = np.asarray(state.belief, dtype=float)
+            numeric = (vector, float(weights @ vector))
+            match = find_numeric(*numeric)
+            if match is None:
+                match = next(
+                    (known for known in symbolic_unique if _beliefs_equal(known, state, constraints=constraints)),
+                    None,
+                )
+        if match is None:
+            return add(state, numeric)
+        discovered[state] = match
+        return match
 
     register(eta0)
 
