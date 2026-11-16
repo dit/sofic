@@ -103,6 +103,24 @@ class SoficShift(SymbolicModel):
 
         return atomaton_presentation(self)
 
+    def distromaton_presentation(self) -> SoficShift:
+        """Presentation by the distromaton of the factor language.
+
+        See :func:`~sofic.shifts.canonical_presentations.distromaton_presentation`.
+        """
+        from sofic.shifts.canonical_presentations import distromaton_presentation
+
+        return distromaton_presentation(self)
+
+    def universal_presentation(self) -> SoficShift:
+        """Presentation by the universal automaton of the factor language.
+
+        See :func:`~sofic.shifts.canonical_presentations.universal_presentation`.
+        """
+        from sofic.shifts.canonical_presentations import universal_presentation
+
+        return universal_presentation(self)
+
     def krohn_rhodes_complexity(self) -> ComplexityBounds:
         """Krohn-Rhodes complexity bounds of the factor language's syntactic monoid.
 

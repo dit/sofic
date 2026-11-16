@@ -12,6 +12,7 @@ from sofic.automata.algorithms import (
 from sofic.automata.base import LabeledAutomaton
 from sofic.automata.buchi import BuchiAutomaton
 from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+from sofic.automata.canonical.closures import Distromaton, UniversalAutomaton
 from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
 from sofic.automata.dfa import DFA
 from sofic.automata.enumeration.icdfa import (
@@ -117,6 +118,7 @@ from sofic.automata.wheeler import (
     wheeler_state_index,
 )
 from sofic.automata.wheeler_index import WheelerIndex, wheeler_index
+from sofic.automata.xor import XorAutomaton
 
 __all__ = [
     "Atomaton",
@@ -140,6 +142,7 @@ __all__ = [
     "CanonicalRFSA",
     "DFA",
     "DeterministicVisiblyPushdownAutomaton",
+    "Distromaton",
     "DyckAlphabet",
     "ERROR_STATE",
     "ERROR_SYMBOL",
@@ -162,11 +165,13 @@ __all__ = [
     "SubsequentialTransducer",
     "Transducer",
     "UnifilarAutomaton",
+    "UniversalAutomaton",
     "WeightedFiniteStateTransducer",
     "WheelerError",
     "WheelerIndex",
     "WheelerOrder",
     "VisiblyPushdownAutomaton",
+    "XorAutomaton",
     "automaton_to_regex",
     "colex_width",
     "generator_product",

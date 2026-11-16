@@ -16,9 +16,13 @@ from sofic.generators.minimal_generative_model import _equivalence_error
 from sofic.shifts.canonical_presentations import (
     atomaton_presentation,
     canonical_rfsa_presentation,
+    distromaton_presentation,
     factor_language_nfa,
+    follower_sets_intersection_closed,
     maximized_prime_atomaton_presentation,
+    universal_presentation,
 )
+from sofic.shifts.sofic import SoficShift
 from sofic.testing.strategies import sofic_shifts
 
 
@@ -94,14 +98,54 @@ def test_generator_search_starts_from_the_prime_atomaton_analogue() -> None:
 
 
 @pytest.mark.parametrize(
-    "present", [canonical_rfsa_presentation, maximized_prime_atomaton_presentation, atomaton_presentation]
+    "present",
+    [
+        canonical_rfsa_presentation,
+        maximized_prime_atomaton_presentation,
+        atomaton_presentation,
+        distromaton_presentation,
+        universal_presentation,
+    ],
 )
 @settings(max_examples=25, deadline=None, derandomize=True)
 @given(shift=sofic_shifts(max_states=3))
 def test_canonical_presentations_present_the_same_shift(present, shift) -> None:
     presented = present(shift)
     assert equivalent(factor_language_nfa(shift), factor_language_nfa(presented))
-    assert len(list(presented.states())) <= 2 ** len(list(shift.trim_transient().states()))
+    if present is not universal_presentation:
+        assert len(list(presented.states())) <= 2 ** len(list(shift.trim_transient().states()))
+
+
+def _presents(shift: SoficShift, states: int, edges) -> bool:
+    candidate = SoficShift(symbol_alphabet=shift.symbol_alphabet)
+    for state in range(states):
+        candidate.graph.add_state(state)
+    for source, target, symbol in edges:
+        candidate.add_transition(source, target, symbol)
+    return equivalent(factor_language_nfa(shift), factor_language_nfa(candidate))
+
+
+@settings(max_examples=40, deadline=None, derandomize=True)
+@given(shift=sofic_shifts(max_states=3))
+def test_intersection_closed_follower_sets_make_the_rfsa_presentation_minimal(shift) -> None:
+    """Every labeled graph with fewer states than the canonical RFSA presentation presents another shift."""
+    if not follower_sets_intersection_closed(shift):
+        return
+    k = len(list(canonical_rfsa_presentation(shift).states()))
+    if not 2 <= k <= 3:
+        return
+    m = k - 1
+    possible = [(s, t, a) for s in range(m) for t in range(m) for a in sorted(shift.symbol_alphabet)]
+    for mask in range(1 << len(possible)):
+        assert not _presents(shift, m, [e for i, e in enumerate(possible) if mask >> i & 1])
+
+
+def test_follower_sets_of_the_golden_mean_shift_are_intersection_closed() -> None:
+    shift = golden_mean(0.4).to_sofic_shift()
+    assert follower_sets_intersection_closed(shift)
+    assert len(list(canonical_rfsa_presentation(shift).states())) == 2
+    assert equivalent(factor_language_nfa(shift), factor_language_nfa(shift.distromaton_presentation()))
+    assert equivalent(factor_language_nfa(shift), factor_language_nfa(shift.universal_presentation()))
 
 
 def test_shift_methods_and_supports() -> None:

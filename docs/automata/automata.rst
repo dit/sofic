@@ -44,6 +44,7 @@ Canonical structures
 
    rfsa
    atomaton
+   canonical_closures
    observation_table
    learning
    wheeler

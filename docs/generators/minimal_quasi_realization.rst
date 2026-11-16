@@ -28,7 +28,9 @@ over all pairs of words :math:`u, v`, and is the dimension of Upper's
 generalized-state space :cite:`Upper1997`. It is a lower bound on the number of
 states of every HMM presentation of the process, including the ε-machine, and
 can be strictly smaller than all of them: the minimal representation is in
-general only a quasi-realization with signed entries.
+general only a quasi-realization with signed entries. The same minimization over
+the two-element field instead of the reals gives the minimal xor automaton of a
+regular language (:func:`~sofic.automata.canonical.closures.minimal_xor_automaton`).
 
 :func:`minimal_quasi_realization` grows bases :math:`R` (rows) and :math:`O`
 (columns) of the reachable and observable spaces breadth-first over words,

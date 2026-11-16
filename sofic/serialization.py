@@ -365,6 +365,7 @@ def _spec(cls: type[StateMachine], fields: tuple[str, ...], builder: str = "defa
 def _specs() -> tuple[_ModelSpec, ...]:
     from sofic.automata.buchi import BuchiAutomaton
     from sofic.automata.canonical.atomaton import Atomaton, AtomicAutomaton, MaximizedPrimeAtomaton
+    from sofic.automata.canonical.closures import Distromaton, UniversalAutomaton
     from sofic.automata.canonical.rfsa import CanonicalRFSA, ResidualFiniteStateAutomaton
     from sofic.automata.dfa import DFA
     from sofic.automata.nfa import NFA
@@ -380,6 +381,7 @@ def _specs() -> tuple[_ModelSpec, ...]:
         SingleEntryVisiblyPushdownAutomaton,
         VisiblyPushdownAutomaton,
     )
+    from sofic.automata.xor import XorAutomaton
     from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel, StochasticModel
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
     from sofic.generators.epsilon_machine import EpsilonMachine
@@ -459,6 +461,9 @@ def _specs() -> tuple[_ModelSpec, ...]:
         _spec(MaximizedPrimeAtomaton, labeled),
         _spec(ResidualFiniteStateAutomaton, labeled),
         _spec(CanonicalRFSA, labeled),
+        _spec(Distromaton, labeled),
+        _spec(UniversalAutomaton, labeled),
+        _spec(XorAutomaton, labeled),
         _spec(MealyMachine, transducer),
         _spec(MooreMachine, transducer),
         _spec(EpsilonTransducer, epsilon_transducer),
