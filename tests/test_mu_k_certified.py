@@ -116,3 +116,33 @@ def test_coverage_exact_on_block_diagonal_support() -> None:
     cov = coverage_bound(m)
     assert cov.certified
     assert cov.value == pytest.approx(_h(0.4, 0.6), abs=1e-6)
+
+
+@settings(max_examples=60, deadline=None)
+@given(st.integers(1, 4), st.integers(1, 4), st.integers(0, 2**32 - 1), st.floats(0.0, 0.6))
+def test_mu1_vertex_matches_the_union_find_reference(na: int, nb: int, seed: int, sparsity: float) -> None:
+    from sofic.generators.coverage_bound import mu1_vertex
+    from tests.oracles import mu1_vertex_reference
+
+    rng = np.random.default_rng(seed)
+    M = rng.random((na, nb)) * (rng.random((na, nb)) >= sparsity)
+    if M.sum() == 0.0:
+        M[0, 0] = 1.0
+    M /= M.sum()
+    got = mu1_vertex(M)
+    value, u, v = mu1_vertex_reference(M)
+    assert got.value == value
+    np.testing.assert_array_equal(got.u, u)
+    np.testing.assert_array_equal(got.v, v)
+
+
+@settings(max_examples=60, deadline=None)
+@given(st.integers(2, 4), st.integers(1, 4), st.integers(1, 5), st.integers(0, 2**32 - 1))
+def test_column_box_lp_matches_the_lapack_reference(m: int, nb: int, npairs: int, seed: int) -> None:
+    from sofic.generators.coverage_bound import _column_box_lp
+    from tests.oracles import column_box_lp_reference
+
+    rng = np.random.default_rng(seed)
+    U = rng.random((nb, m))
+    A, C = rng.normal(size=(npairs, m)), rng.normal(size=(npairs, m))
+    np.testing.assert_allclose(_column_box_lp(U, A, C), column_box_lp_reference(U, A, C), rtol=1e-9, atol=1e-12)

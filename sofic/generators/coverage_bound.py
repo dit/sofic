@@ -158,6 +158,35 @@ def mu_k_spectral_cap(M: np.ndarray, k: int) -> float:
     return float(M.sum()) - max(0.0, tail - slack)
 
 
+def _cross(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return np.stack(
+        [
+            a[..., 1] * b[..., 2] - a[..., 2] * b[..., 1],
+            a[..., 2] * b[..., 0] - a[..., 0] * b[..., 2],
+            a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0],
+        ],
+        axis=-1,
+    )
+
+
+def _solve_square_systems(G: np.ndarray, h: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Solutions of ``G x = h`` over the leading axes, and which systems are regular (``|det G| > 1e-14``).
+
+    The solutions of singular systems are arbitrary finite values. Systems of size three, the common case,
+    are solved by Cramer's rule, which beats a LAPACK call per tiny matrix.
+    """
+    m = G.shape[-1]
+    if m != 3:
+        regular = np.abs(np.linalg.det(G)) > 1e-14
+        return np.linalg.solve(np.where(regular[..., None, None], G, np.eye(m)), h[..., None])[..., 0], regular
+    r0, r1, r2 = G[..., 0, :], G[..., 1, :], G[..., 2, :]
+    c0, c1, c2 = _cross(r1, r2), _cross(r2, r0), _cross(r0, r1)
+    det = (r0 * c0).sum(axis=-1)
+    regular = np.abs(det) > 1e-14
+    x = (h[..., 0, None] * c0 + h[..., 1, None] * c1 + h[..., 2, None] * c2) / np.where(regular, det, 1.0)[..., None]
+    return x, regular
+
+
 def _column_box_lp(U: np.ndarray, A: np.ndarray, C: np.ndarray) -> np.ndarray:
     """``max 1.x`` over ``0 <= x <= U[b]``, ``A[p].x <= 0``, ``C[p].x >= 0`` for every column ``b`` and pair ``p``.
 
@@ -174,9 +203,7 @@ def _column_box_lp(U: np.ndarray, A: np.ndarray, C: np.ndarray) -> np.ndarray:
     G[:, :, 2 * m] = A[None]
     G[:, :, 2 * m + 1] = -C[None]
     combos = np.array(list(combinations(range(2 * m + 2), m)))
-    Gs, hs = G[:, :, combos], h[:, :, combos]
-    regular = np.abs(np.linalg.det(Gs)) > 1e-14
-    x = np.linalg.solve(np.where(regular[..., None, None], Gs, np.eye(m)), hs[..., None])[..., 0]
+    x, regular = _solve_square_systems(G[:, :, combos], h[:, :, combos])
     slack = np.einsum("bpkm,bpcm->bpck", G, x) - h[:, :, None, :]
     feasible = regular & (slack.max(axis=-1) <= 1e-12 * (1.0 + float(U.max())))
     return np.where(feasible, x.sum(axis=-1), -np.inf).max(axis=-1)
@@ -291,24 +318,41 @@ _LOG_FLOOR = float(np.log(1e-300))
 _VERTEX_PERTURBATION = 1e-7
 
 
-def _tree_potentials(tree: frozenset, L: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Solve ``p_a + q_b = L_ab`` on the edges of a spanning tree of ``K_{na,nb}`` with ``p_0 = 0``."""
+def _tree_walk(tree: frozenset, L: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int]], list[int]]:
+    """Solve ``p_a + q_b = L_ab`` on the edges of a spanning tree of ``K_{na,nb}`` with ``p_0 = 0``.
+
+    Also returns the tree edges (in the tree's iteration order) and, for each edge ``(a, b)``, the bitmask
+    of the nodes (rows ``0..na-1``, then columns) left on row ``a``'s side when the edge is removed.
+    """
     na, nb = L.shape
     adj: list[list[int]] = [[] for _ in range(na + nb)]
     for a, b in tree:
         adj[a].append(na + b)
         adj[na + b].append(a)
-    pot = np.full(na + nb, np.nan)
-    pot[0] = 0.0
+    pot = [0.0] * (na + nb)
+    parent = [-1] * (na + nb)
+    parent[0] = 0
+    order = []
     stack = [0]
     while stack:
         x = stack.pop()
+        order.append(x)
         for y in adj[x]:
-            if np.isnan(pot[y]):
+            if parent[y] < 0:
+                parent[y] = x
                 a, b = (x, y - na) if x < na else (y, x - na)
                 pot[y] = L[a, b] - pot[x]
                 stack.append(y)
-    return pot[:na], pot[na:]
+    subtree = [1 << x for x in range(na + nb)]
+    for x in reversed(order[1:]):
+        subtree[parent[x]] |= subtree[x]
+    full = (1 << (na + nb)) - 1
+    edges, sides = [], []
+    for a, b in tree:
+        below = subtree[na + b] if parent[na + b] == a else subtree[a]
+        edges.append((a, b))
+        sides.append(below if below >> a & 1 else full ^ below)
+    return np.array(pot[:na]), np.array(pot[na:]), edges, sides
 
 
 def _initial_tree(L: np.ndarray) -> frozenset:
@@ -369,23 +413,24 @@ def mu1_vertex(M: np.ndarray, *, max_vertices: int = 200_000) -> Mu1Result | Non
     seen = {start}
     queue = [start]
     best, best_pq = -np.inf, None
+    bits = 1 << np.arange(na + nb)
     while queue:
         tree = queue.pop()
-        p, q = _tree_potentials(tree, L)
+        p, q, edges, sides = _tree_walk(tree, L)
         value = _logsumexp(p) + _logsumexp(q)
         if value > best:
             best, best_pq = value, (p, q)
         slack = L - p[:, None] - q[None, :]
-        for edge in tree:
-            comp = _components(na, nb, tree - {edge})
-            side = comp[edge[0]]
-            rows_out = np.array([comp[a] != side for a in range(na)])
-            cols_in = np.array([comp[na + b] == side for b in range(nb)])
-            if not rows_out.any() or not cols_in.any():
+        # For each tree edge: rows off and columns on row a's side once it is removed, and the entering
+        # cell, the first slack minimum in row-major order over that rows x columns block.
+        on_side = (np.array(sides)[:, None] & bits) != 0
+        rows_out, cols_in = ~on_side[:, :na], on_side[:, na:]
+        blocks = rows_out[:, :, None] & cols_in[:, None, :]
+        entering_cells = np.where(blocks, slack, np.inf).reshape(len(edges), -1).argmin(axis=1)
+        for edge, has_block, cell in zip(edges, blocks.any(axis=(1, 2)), entering_cells.tolist(), strict=True):
+            if not has_block:
                 continue
-            sub = slack[np.ix_(rows_out, cols_in)]
-            i, j = np.unravel_index(int(np.argmin(sub)), sub.shape)
-            entering = (int(np.flatnonzero(rows_out)[i]), int(np.flatnonzero(cols_in)[j]))
+            entering = divmod(cell, nb)
             nxt = (tree - {edge}) | {entering}
             if nxt not in seen:
                 if len(seen) >= max_vertices:

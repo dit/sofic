@@ -7,6 +7,8 @@ from fractions import Fraction
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from sofic.examples.epsilon_machines import from_symbol_matrices, golden_mean_bidirectional
 from sofic.generators import coupled_generators as cg
@@ -145,3 +147,20 @@ def test_child_lps_get_the_time_left_and_keep_the_parent_bound(monkeypatch: pyte
     root = relaxation.bound(gc._root(relaxation))
     assert not infeasible
     assert max(b for b, _, _ in leaves) == pytest.approx(root)
+
+
+@settings(max_examples=300, deadline=None)
+@given(st.integers(1, 6).flatmap(lambda n: st.tuples(*[st.tuples(st.floats(0, 1), st.floats(0, 1))] * n)))
+def test_tighten_matches_exact_rational_arithmetic(bounds):
+    from sofic.generators.generator_caps import _tighten
+    from tests.oracles import tighten_exact
+
+    lo = np.array([min(a, b) for a, b in bounds])
+    hi = np.array([max(a, b) for a, b in bounds])
+    exact = tighten_exact(lo.copy(), hi.copy())
+    fast = _tighten(lo.copy(), hi.copy())
+    if exact is None:
+        assert fast is None
+    else:
+        np.testing.assert_array_equal(fast[0], exact[0])
+        np.testing.assert_array_equal(fast[1], exact[1])
