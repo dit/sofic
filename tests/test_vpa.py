@@ -359,3 +359,68 @@ def test_no_call_canonical_vpa_matches_dfa_minimization():
     assert len(list(canonical.states())) == len(list(minimized_dfa.states()))
     for word in [(), ("a",), ("b",), ("a", "a"), ("a", "b"), ("b", "a")]:
         assert canonical.recognizes(word) == minimized_dfa.recognizes(word)
+
+
+_CDA_WORDS = [(), ("c", "r"), ("d", "r"), ("c",), ("r",), ("c", "r", "d", "r"), ("c", "d")]
+
+
+def test_cda_minimize_preserves_the_language():
+    cda = _cda()
+    minimized = ModularVisiblyPushdownAutomaton.minimize(cda)
+    minimized.validate()
+    assert [minimized.recognizes(w) for w in _CDA_WORDS] == [cda.recognizes(w) for w in _CDA_WORDS]
+
+
+def test_mevpa_minimize_with_inferred_and_explicit_entries():
+    cda = _cda()
+    inferred = MultipleEntryVisiblyPushdownAutomaton.minimize(cda)
+    explicit = MultipleEntryVisiblyPushdownAutomaton.minimize(cda, entry_states={"main": "m", "proc": ["e0", "e1"]})
+    for machine in (inferred, explicit):
+        machine.validate()
+        assert [machine.recognizes(w) for w in _CDA_WORDS] == [cda.recognizes(w) for w in _CDA_WORDS]
+
+
+def test_sevpa_minimize_with_explicit_entries_and_rejects_multi_entry_modules():
+    sevpa = _redundant_sevpa()
+    minimized = SingleEntryVisiblyPushdownAutomaton.minimize(sevpa, entry_states={"proc": "p"})
+    assert len(list(minimized.states())) == 2
+    with pytest.raises(ValueError, match="one entry per non-base module"):
+        SingleEntryVisiblyPushdownAutomaton.minimize(_cda())
+
+
+def _source_dependent_calls() -> DeterministicVisiblyPushdownAutomaton:
+    vpa = DeterministicVisiblyPushdownAutomaton(
+        call_alphabet=frozenset({"c"}),
+        return_alphabet=frozenset({"r"}),
+        stack_alphabet=frozenset({"x", "y"}),
+        initial_state="m0",
+        accepting_states=frozenset({"m0"}),
+    )
+    for state in ("m0", "m1", "p0", "p1"):
+        vpa.graph.add_state(state)
+    vpa.add_call_transition("m0", "p0", "c", "x")
+    vpa.add_call_transition("m1", "p1", "c", "y")
+    vpa.add_return_transition("p0", "m1", "r", "x")
+    vpa.add_return_transition("p1", "m0", "r", "y")
+    return vpa
+
+
+def test_modular_minimize_argument_checks():
+    vpa = _source_dependent_calls()
+    modules = {"main": {"m0", "m1"}, "proc": {"p0", "p1"}}
+    with pytest.raises(ValueError, match="call_partition is required"):
+        ModularVisiblyPushdownAutomaton.minimize(vpa, modules=modules, base_module="main")
+    with pytest.raises(ValueError, match="missing call symbol"):
+        ModularVisiblyPushdownAutomaton.minimize(vpa, modules=modules, base_module="main", call_partition={})
+    with pytest.raises(ValueError, match="depends on the source state"):
+        ModularVisiblyPushdownAutomaton.minimize(vpa, modules=modules, base_module="main", call_partition={"c": "proc"})
+
+
+def test_call_entry_map_rejects_source_dependent_targets():
+    cda = _cda()
+    cda.call_entries = {}
+    cda.graph.add_state("e2")
+    cda.modules = {**cda.modules, "proc": frozenset({"e0", "e1", "e2"})}
+    cda.add_call_transition("e0", "e2", "c", "m")
+    with pytest.raises(NonDeterministicError, match="depends on source state"):
+        cda.call_entry_map()

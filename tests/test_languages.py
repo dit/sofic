@@ -182,6 +182,106 @@ def test_right_quotient_by_the_empty_word_is_identity():
     assert quotient._negative == {("b",)}
 
 
+def _ends_in_b() -> DFA:
+    dfa = DFA(input_alphabet=frozenset("ab"), initial_states=frozenset({0}), accepting_states=frozenset({1}))
+    for state in (0, 1):
+        dfa.graph.add_state(state)
+        dfa.add_transition(state, 0, "a")
+        dfa.add_transition(state, 1, "b")
+    return dfa
+
+
+def test_language_operations_match_word_semantics():
+    from sofic.automata.languages import operations as ops
+
+    ends_a, ends_b = _simple_dfa(), _ends_in_b()
+    alphabet = frozenset("ab")
+    words = _brute_words("ab", 4)
+    in_a, in_b = (lambda w: ends_a.recognizes(w)), (lambda w: ends_b.recognizes(w))
+    cases = {
+        "union": (ops.union(ends_a, ends_b), lambda w: in_a(w) or in_b(w)),
+        "intersection": (ops.intersection(ends_a, ends_b), lambda w: False),
+        "product": (ops.product(ends_a, ends_a), in_a),
+        "complement": (ops.complement(ends_a, alphabet), lambda w: not in_a(w)),
+        "difference": (ops.difference(ends_a, ends_b, alphabet), in_a),
+        "reverse": (ops.reverse(ends_a), lambda w: len(w) > 0 and w[0] == "a"),
+        "concat": (
+            ops.concat(ends_a, ends_b),
+            lambda w: any(in_a(w[:i]) and in_b(w[i:]) for i in range(len(w) + 1)),
+        ),
+        "kleene_star": (ops.kleene_star(ends_a), lambda w: len(w) == 0 or in_a(w)),
+    }
+    for name, (language, expected) in cases.items():
+        assert all((w in language) == expected(w) for w in words), name
+
+
+def test_reverse_of_an_explicit_language_reverses_both_samples():
+    from sofic.automata.languages.operations import reverse
+
+    lang = ExplicitLanguage(positive={("a", "b")}, negative={("b", "b", "a")}, alphabet=frozenset("ab"))
+    reversed_lang = reverse(lang)
+    assert reversed_lang._positive == {("b", "a")}
+    assert reversed_lang._negative == {("a", "b", "b")}
+    assert reversed_lang.alphabet == frozenset("ab")
+
+
+def test_language_operations_reject_explicit_languages():
+    import pytest
+
+    from sofic.automata.languages import operations as ops
+
+    sample, dfa = ExplicitLanguage(positive={("a",)}), _simple_dfa()
+    for binary in (ops.union, ops.intersection, ops.difference, ops.concat):
+        with pytest.raises(TypeError, match="automaton-backed"):
+            binary(sample, dfa)
+    with pytest.raises(TypeError, match="automaton-backed"):
+        ops.complement(sample, frozenset("a"))
+    with pytest.raises(TypeError, match="automaton-backed"):
+        ops.kleene_star(sample)
+    with pytest.raises(TypeError, match="unsupported language"):
+        ops.reverse(frozenset())
+
+
+def test_prime_residuals_of_an_automaton_language():
+    from sofic.automata.languages.residuals import prime_residuals
+
+    # Residuals of "ends in a" are L and {epsilon} + L; neither is a union of residuals inside it.
+    primes = prime_residuals(AutomatonLanguage(_simple_dfa()))
+    words = _brute_words("ab", 4)
+    signatures = {frozenset(w for w in words if w in residual) for residual in primes}
+    ends_a = frozenset(w for w in words if w and w[-1] == "a")
+    assert signatures == {ends_a, ends_a | {()}}
+
+
+def test_prime_residuals_of_a_sample_drop_composed_ones():
+    from sofic.automata.languages.quotients import left_quotients
+    from sofic.automata.languages.residuals import prime_residuals
+
+    lang = ExplicitLanguage(positive={("a", "b"), ("a", "c"), ("b", "c"), ("b", "d")}, alphabet=frozenset("abcd"))
+    residuals = left_quotients(lang)
+    primes = {frozenset(r._positive) for r in prime_residuals(lang)}
+    composed = {frozenset(r._positive) for r in residuals if is_composed_residual(r, residuals)}
+    assert composed
+    assert primes == {frozenset(r._positive) for r in residuals} - composed
+
+
+def test_composed_automaton_residuals():
+    from sofic.automata.languages.automaton_ops import union_nfa
+
+    a_only, b_only = DFA(input_alphabet=frozenset("ab")), DFA(input_alphabet=frozenset("ab"))
+    for dfa, symbol in ((a_only, "a"), (b_only, "b")):
+        dfa.graph.add_state(0)
+        dfa.graph.add_state(1)
+        dfa.add_transition(0, 1, symbol)
+        dfa.initial_states, dfa.accepting_states = frozenset({0}), frozenset({1})
+    both = AutomatonLanguage(union_nfa(a_only, b_only))
+    first, second = AutomatonLanguage(a_only), AutomatonLanguage(b_only)
+    residuals = frozenset({first, second, both})
+    assert is_composed_residual(both, residuals)
+    assert not is_composed_residual(first, residuals)
+    assert is_composed_residual(AutomatonLanguage(_empty_dfa()), frozenset({AutomatonLanguage(_empty_dfa())}))
+
+
 def test_composed_residual_ignores_non_contained_residuals():
     r1 = ExplicitLanguage(positive={("a",)})
     r2 = ExplicitLanguage(positive={("a",), ("b",)})

@@ -82,3 +82,65 @@ def test_transcssr_on_trials_matches_the_unsplit_sample():
     whole = learn_epsilon_transducer_cssr(xs, ys, max_history=1)
     split = learn_epsilon_transducer_cssr(_split(xs, 3), _split(ys, 3), max_history=1)
     assert len(list(split.states())) == len(list(whole.states())) == 1
+
+
+def test_suffix_counts_reject_empty_or_foreign_data():
+    from sofic.inference.cssr.counts import SuffixCounts
+
+    with pytest.raises(ValueError, match="non-empty"):
+        SuffixCounts.from_sequence([])
+    with pytest.raises(ValueError, match="non-empty"):
+        SuffixCounts.from_sequences([(), ()])
+    with pytest.raises(ValueError, match="not in alphabet"):
+        SuffixCounts.from_sequence("012", alphabet="01")
+
+
+def test_suffix_count_morphs():
+    from sofic.inference.cssr.counts import SuffixCounts
+
+    counts = SuffixCounts.from_sequence("0010", alphabet="01", max_length=1)
+    assert counts.morph(("0",)) == {"0": 0.5, "1": 0.5}
+    assert counts.morph(("1",)) == {"0": 1.0, "1": 0.0}
+    assert counts.morph(("1",), smoothing=1.0) == {"0": pytest.approx(2 / 3), "1": pytest.approx(1 / 3)}
+    assert counts.morph(("1", "1")) == {"0": 0.5, "1": 0.5}
+    assert counts.state_morph({("0",), ("1",)}) == {"0": pytest.approx(2 / 3), "1": pytest.approx(1 / 3)}
+    assert counts.state_morph({("1", "1")}) == counts.morph(())
+    # Pooled over every counted history: 0010 at L = 0, then 010 at L = 1.
+    assert counts.marginal_morph() == {"0": pytest.approx(5 / 7), "1": pytest.approx(2 / 7)}
+    assert SuffixCounts(alphabet=("a", "b")).marginal_morph() == {"a": 0.5, "b": 0.5}
+
+
+def test_restricted_counts_keep_only_the_given_histories():
+    from sofic.inference.cssr.counts import SuffixCounts
+
+    counts = SuffixCounts.from_sequence("0010", alphabet="01", max_length=1)
+    proxy = counts.restricted_to({("0",)})
+    assert set(proxy.history_counts) == {("0",)}
+    assert proxy.morph(("0",)) == counts.morph(("0",))
+    assert proxy.morph(()) == {"0": 0.5, "1": 0.5}
+
+
+def test_joint_suffix_counts():
+    from sofic.inference.cssr.counts import JointSuffixCounts, Trials
+
+    with pytest.raises(ValueError, match="non-empty"):
+        JointSuffixCounts.from_sequences([], [], max_length=1)
+    with pytest.raises(ValueError, match="both be Trials"):
+        JointSuffixCounts.from_sequences(Trials(["ab"]), "xy", max_length=1)
+    with pytest.raises(ValueError, match="equal length"):
+        JointSuffixCounts.from_sequences("ab", "x", max_length=1)
+    counts = JointSuffixCounts.from_sequences("abab", "xyxx", max_length=1)
+    assert counts.output_counts({(), (("z", "z"),)}, "b") == {"y": 1, "x": 1}
+    assert counts.state_morph({()}, "a") == {"x": 1.0, "y": 0.0}
+    assert counts.state_morph({(("z", "z"),)}, "a") == {}
+
+
+def test_stack_suffix_counts_reject_empty_or_foreign_data():
+    from sofic.automata.learning.papni import DyckAlphabet
+    from sofic.inference.cssr.counts import StackSuffixCounts
+
+    alphabet = DyckAlphabet(frozenset("("), frozenset(")"), frozenset("x"))
+    with pytest.raises(ValueError, match="non-empty"):
+        StackSuffixCounts.from_sequence((), alphabet=alphabet)
+    with pytest.raises(ValueError, match="not in Dyck alphabet"):
+        StackSuffixCounts.from_sequence(("(", "y"), alphabet=alphabet)

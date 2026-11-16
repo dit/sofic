@@ -146,6 +146,33 @@ def test_capacity_gap_is_a_bracket():
     assert bsc_gap <= upper + 1e-6
 
 
+def _partial_channel():
+    """Input ``b`` is not admissible in state ``t``; outputs mix a string and an integer."""
+    from sofic.automata.transducers import MealyMachine
+
+    machine = MealyMachine(input_alphabet=frozenset({"a", "b"}), output_alphabet=frozenset({"x", 1}))
+    machine.add_transition("s", "s", "a", "x", prob=1.0)
+    machine.add_transition("s", "t", "b", 1, prob=1.0)
+    machine.add_transition("t", "s", "a", "x", prob=1.0)
+    machine.initial_states = frozenset({"s"})
+    return FiniteStateChannel(machine)
+
+
+def test_default_maps_keep_non_digit_and_unorderable_symbols():
+    channel = _partial_channel()
+    assert channel.inputs == ("a", "b")
+    assert set(channel.outputs) == {"x", 1}
+    assert channel.log_likelihood(("b", "a"), (1, "x")) == pytest.approx(0.0)
+    assert channel.log_likelihood(("b", "b"), (1, 1)) == -np.inf
+
+
+def test_sample_rejects_inadmissible_inputs():
+    channel = _partial_channel()
+    assert channel.sample(("a", "b", "a"), np.random.default_rng(0)) == ("x", 1, "x")
+    with pytest.raises(ValueError, match="not admissible"):
+        channel.sample(("b", "b"), np.random.default_rng(0))
+
+
 def test_symbol_maps():
     channel = FiniteStateChannel(trapdoor(), input_map={"0": "a", "1": "b"})
     assert channel.inputs == ("a", "b")

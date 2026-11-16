@@ -108,6 +108,32 @@ def test_trapdoor_code_is_zero_error(k):
     assert uses == pytest.approx(code.length + 3.5, abs=1e-6)
 
 
+def test_rll_encode_rejects_out_of_range_indices():
+    with pytest.raises(ValueError, match="index"):
+        rll_encode(3, 2)
+    with pytest.raises(ValueError, match="index"):
+        rll_encode(-1, 2)
+
+
+def test_trapdoor_code_rejects_non_binary_channels():
+    from types import SimpleNamespace
+
+    from dit.exceptions import ditException
+
+    code = trapdoor_code(2)
+    assert repr(code) == "TrapdoorCode(k=2, N=4)"
+    with pytest.raises(ditException, match="inputs and outputs"):
+        code.start(SimpleNamespace(inputs=(0, 1, 2), outputs=(0, 1)))
+
+
+def test_trapdoor_decode_of_unused_word_and_short_state_is_all_zeros():
+    code = trapdoor_code(2)
+    # After one flushing use, outputs 0101 decode to actions 1010, i.e. RLL word 101 of index 4 >= 2**2.
+    assert code.decode((1, 0, 1, 0, 1)) == (0, 0)
+    assert code.decode(()) == (0, 0)
+    assert code.decode((1, 0)) == (0, 0)
+
+
 def test_trapdoor_code_approaches_the_feedback_capacity():
     code = trapdoor_code(32)
     pe, uses = code.performance(
