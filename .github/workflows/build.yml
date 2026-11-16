@@ -71,6 +71,10 @@ jobs:
       - name: Run tests
         env:
           COVERAGE_CORE: sysmon
+          # One BLAS thread per xdist worker: OpenBLAS (Linux/Windows wheels) otherwise starts a thread per
+          # CPU in every worker, and the oversubscription stalls the many tiny LAPACK calls of the optimizers.
+          OPENBLAS_NUM_THREADS: 1
+          OMP_NUM_THREADS: 1
         run: >-
           uv run pytest
           ${{ (matrix.os == 'macos-latest' && matrix.python-version == '3.14') && '--cov-report=xml' || '--no-cov' }}
@@ -110,6 +114,9 @@ jobs:
         run: uv sync --extra test
 
       - name: Run tests
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          OMP_NUM_THREADS: 1
         run: uv run pytest --no-cov
 
   lint:
