@@ -36,14 +36,18 @@ class MarkovChain(StochasticModel):
 
     def lump(
         self,
-        partition: PartitionLike,
+        partition: PartitionLike | None = None,
         *,
         check: bool = True,
         labels: LabelsLike | None = None,
         rtol: float = 1e-8,
         atol: float = 1e-10,
     ) -> MarkovChain:
-        """Aggregate states into blocks, returning the lumped chain."""
+        """Aggregate states into blocks, returning the lumped chain.
+
+        ``partition=None`` uses the coarsest lumpable partition
+        (:func:`~sofic.generators.lumping.bisimulation_partition`).
+        """
         from sofic.generators.lumping import lump
 
         return lump(self, partition, check=check, labels=labels, rtol=rtol, atol=atol)

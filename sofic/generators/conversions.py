@@ -90,7 +90,12 @@ def hmm_to_support_nfa(hmm: HiddenMarkovModel) -> NFA:
 
 
 def hmm_to_support_dfa(hmm: HiddenMarkovModel) -> DFA:
-    """Determinize the HMM support NFA from the all-states subset."""
+    """Determinize the HMM support NFA from the all-states subset.
+
+    The language is the set of finite words some state can emit, which is
+    factorial, so every non-empty reachable subset accepts (the empty word
+    included).
+    """
     support = _mealy_support(hmm)
     states = frozenset(support.states())
     nfa = hmm_to_support_nfa(support)
@@ -100,7 +105,7 @@ def hmm_to_support_dfa(hmm: HiddenMarkovModel) -> DFA:
     empty_subset = frozenset()
     if dfa.graph.has_state(empty_subset):
         dfa.graph.nx.remove_node(empty_subset)
-    dfa.accepting_states = dfa.graph.terminal_recurrent_states()
+    dfa.accepting_states = frozenset(dfa.states())
     return dfa
 
 
