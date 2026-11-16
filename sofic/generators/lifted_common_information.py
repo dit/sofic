@@ -64,6 +64,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.optimize import minimize
+from scipy.special import entr
 
 from sofic.exceptions import StochasticValidationError
 from sofic.generators.minimal_generative_model import (
@@ -84,6 +85,8 @@ if TYPE_CHECKING:
     from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 
 _LN2 = np.log(2.0)
+# I[a : b | c] = H[a, c] + H[b, c] - H[a, b, c] - H[c]
+_CMI_SIGNS = np.array([1.0, 1.0, -1.0, -1.0])
 _COARSE_TOL = 5e-8
 _REFINE = 5
 _SUPPORT_CUTOFF = 1e-8
@@ -120,42 +123,71 @@ class _LiftedProblem:
                         transition.data.get(ATTR_PROB, 0.0)
                     )
         self.edges /= self.edges.sum()
+        # The edge law flattened both ways, and p(s+, s- | pair), for the matrix products below.
+        self._edges_rows = self.edges.reshape(n * len(symbols), n)  # [(p, x), q]
+        self._edges_cols = self.edges.reshape(n, len(symbols) * n)  # [p, (x, q)]
+        self._pair_labels = (self.plus[:, :, None] * self.minus[:, None, :]).reshape(n, -1)  # [p, (a, b)]
+        self._cached: tuple[tuple[int, ...], bytes, dict[str, np.ndarray]] | None = None
+
+    def _products(self, c: np.ndarray) -> dict[str, np.ndarray]:
+        """The tensors of :meth:`tensors` and the intermediate products, for the last ``c`` seen.
+
+        SLSQP evaluates the constraints and their Jacobian at the same point, so the last one is kept.
+        """
+        key = c.tobytes()
+        if self._cached is not None and self._cached[0] == c.shape and self._cached[1] == key:
+            return self._cached[2]
+        n, k = c.shape
+        n_plus, n_minus, n_sym = self.plus.shape[1], self.minus.shape[1], self.edges.shape[1]
+        plus_c = (self.plus[:, :, None] * c[:, None, :]).reshape(n, n_plus * k)  # [p, (a, g)]
+        minus_c = (self.minus[:, :, None] * c[:, None, :]).reshape(n, n_minus * k)  # [q, (s, v)]
+        forward = self._edges_rows @ c  # [(p, x), v]
+        past = (plus_c.T @ forward.reshape(n, n_sym * k)).reshape(n_plus, k, n_sym * k)  # [a, g, (x, v)]
+        products = {
+            "plus_c": plus_c,
+            "minus_c": minus_c,
+            "forward": forward,
+            # The three joints of constraint_informations, each indexed [a, b, c] for I[a : b | c].
+            "screen": (self._pair_labels.T @ (self.p[:, None] * c)).reshape(n_plus, n_minus, k),
+            "future": (c.T @ (self._edges_rows @ minus_c).reshape(n, -1)).reshape(k * n_sym, n_minus, k),
+            "past": past.transpose(0, 2, 1),
+        }
+        self._cached = (c.shape, key, products)
+        return products
 
     def tensors(self, c: np.ndarray) -> tuple[np.ndarray, ...]:
         """``p(s+, s-, g)``, ``p(g_0, x_0, s-_1, g_1)`` and ``p(s+_0, g_0, x_0, g_1)``."""
-        joint_g = self.p[:, None] * c
-        screen = np.einsum("pa,pb,pg->abg", self.plus, self.minus, joint_g)
-        forward = np.einsum("pxq,qv->pxv", self.edges, c)
-        future = np.einsum("pg,pxq,qs,qv->gxsv", c, self.edges, self.minus, c)
-        past = np.einsum("pa,pg,pxv->agxv", self.plus, c, forward)
-        return screen, future, past
+        products = self._products(c)
+        k = c.shape[1]
+        n_plus, n_minus, n_sym = products["screen"].shape[0], products["screen"].shape[1], self.edges.shape[1]
+        future = products["future"].reshape(k, n_sym, n_minus, k)
+        past = products["past"].transpose(0, 2, 1).reshape(n_plus, k, n_sym, k)
+        return products["screen"], future, past
 
     def constraint_informations(self, c: np.ndarray) -> np.ndarray:
         """``I[S+ : S- | G]``, ``I[G_0 X_0 : S-_1 | G_1]`` and ``I[S+_0 : X_0 G_1 | G_0]`` in bits."""
-        screen, future, past = self.tensors(c)
-        return np.array(
-            [
-                _conditional_mutual_information(screen),
-                _conditional_mutual_information(future.reshape(-1, *future.shape[2:])),
-                _conditional_mutual_information(np.moveaxis(past, 1, -1).reshape(past.shape[0], -1, past.shape[1])),
-            ]
-        )
+        products = self._products(c)
+        return _conditional_mutual_informations((products["screen"], products["future"], products["past"]))
 
     def constraint_jacobian(self, c: np.ndarray) -> np.ndarray:
         """Gradients of :meth:`constraint_informations` in ``c``, shape ``(3, *c.shape)``."""
-        screen, future, past = self.tensors(c)
+        products = self._products(c)
+        screen = products["screen"]
+        n, k = c.shape
+        n_plus, n_minus, n_sym = screen.shape[0], screen.shape[1], self.edges.shape[1]
         g_screen = _cmi_gradient(screen)
-        g_future = _cmi_gradient(future.reshape(-1, *future.shape[2:])).reshape(future.shape)
-        moved = np.moveaxis(past, 1, -1)
-        g_past = np.moveaxis(_cmi_gradient(moved.reshape(past.shape[0], -1, past.shape[1])).reshape(moved.shape), -1, 1)
-        jac = np.empty((3, *c.shape))
-        jac[0] = self.p[:, None] * np.einsum("pa,pb,abg->pg", self.plus, self.minus, g_screen)
-        jac[1] = np.einsum("gxsv,pxq,qs,qv->pg", g_future, self.edges, self.minus, c) + np.einsum(
-            "gxsv,pg,pxq,qs->qv", g_future, c, self.edges, self.minus
-        )
-        jac[2] = np.einsum("agxv,pa,pxq,qv->pg", g_past, self.plus, self.edges, c) + np.einsum(
-            "agxv,pa,pg,pxq->qv", g_past, self.plus, c, self.edges
-        )
+        g_future = _cmi_gradient(products["future"]).reshape(k * n_sym, n_minus * k)  # [(g, x), (s, v)]
+        g_past = _cmi_gradient(products["past"]).transpose(0, 2, 1).reshape(n_plus * k, n_sym * k)  # [(a, g), (x, v)]
+        jac = np.empty((3, n, k))
+        jac[0] = self.p[:, None] * (self._pair_labels @ g_screen.reshape(-1, k))
+        # d/dc[p, g] through the c_0 factor of the future, then d/dc[q, v] through the c_1 factor.
+        through_target = (g_future @ products["minus_c"].T).reshape(k, n_sym * n)  # [g, (x, q)]
+        through_source = ((c.T @ self._edges_cols).reshape(k * n_sym, n).T @ g_future).reshape(n, n_minus, k)
+        jac[1] = self._edges_cols @ through_target.T + np.einsum("qs,qsv->qv", self.minus, through_source)
+        # Likewise for the past, whose c_1 factor sits inside the forward map.
+        through_forward = (products["forward"].reshape(n, n_sym * k) @ g_past.T).reshape(n, n_plus, k)
+        through_plus = (products["plus_c"] @ g_past).reshape(n * n_sym, k)
+        jac[2] = np.einsum("pa,pag->pg", self.plus, through_forward) + self._edges_rows.T @ through_plus
         return jac
 
     def markov_residual(self, c: np.ndarray) -> float:
@@ -189,19 +221,18 @@ class _LiftedProblem:
 
 
 def _entropy_bits(p: np.ndarray) -> float:
-    p = p[p > 0.0]
-    return float(-(p * np.log2(p)).sum())
+    return float(entr(np.maximum(p, 0.0)).sum()) / _LN2
 
 
-def _conditional_mutual_information(joint: np.ndarray) -> float:
-    """``I[a : b | c]`` in bits for a joint indexed ``[a, b, c]``."""
-    return max(
-        0.0,
-        _entropy_bits(joint.sum(axis=1))
-        + _entropy_bits(joint.sum(axis=0))
-        - _entropy_bits(joint)
-        - _entropy_bits(joint.sum(axis=(0, 1))),
-    )
+def _conditional_mutual_informations(joints: Sequence[np.ndarray]) -> np.ndarray:
+    """``I[a : b | c]`` in bits for each joint indexed ``[a, b, c]``, from one pass over all the entropies."""
+    parts = []
+    for joint in joints:
+        ac = joint.sum(axis=1)
+        parts += [ac.ravel(), joint.sum(axis=0).ravel(), joint.ravel(), ac.sum(axis=0)]
+    starts = np.cumsum([0] + [part.size for part in parts[:-1]])
+    entropies = np.add.reduceat(entr(np.maximum(np.concatenate(parts), 0.0)), starts).reshape(-1, 4)
+    return np.maximum(entropies @ _CMI_SIGNS / _LN2, 0.0)
 
 
 def _cmi_gradient(joint: np.ndarray) -> np.ndarray:
@@ -210,12 +241,8 @@ def _cmi_gradient(joint: np.ndarray) -> np.ndarray:
     def log(x: np.ndarray) -> np.ndarray:
         return np.log2(np.maximum(x, 1e-300))
 
-    return (
-        log(joint)
-        + log(joint.sum(axis=(0, 1)))[None, None, :]
-        - log(joint.sum(axis=1))[:, None, :]
-        - log(joint.sum(axis=0))[None, :, :]
-    )
+    ac = joint.sum(axis=1)
+    return log(joint) + log(ac.sum(axis=0))[None, None, :] - log(ac)[:, None, :] - log(joint.sum(axis=0))[None, :, :]
 
 
 def _unconstrained_channel(

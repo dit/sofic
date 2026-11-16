@@ -113,6 +113,12 @@ def test_rate_function_domain() -> None:
     assert rate_function(model, 2 / 3) == pytest.approx(0.0, abs=1e-9)
 
 
+@pytest.mark.parametrize("alpha", [1.0 - 2**-53, 1.0 + 2**-52, 1.0 - 1e-12, 1.0 + 1e-9])
+def test_orders_next_to_one_match_shannon(alpha: float) -> None:
+    model = golden_mean(0.3)
+    assert renyi_entropy_rate(model, alpha) == pytest.approx(float(model.entropy_rate()), abs=1e-8)
+
+
 @settings(max_examples=40)
 @given(weighted_machines(), st.floats(0.05, 5.0))
 def test_properties(model: EpsilonMachine, alpha: float) -> None:

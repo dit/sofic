@@ -663,7 +663,7 @@ wheels = [
 
 [[package]]
 name = "dit"
-version = "2.3"
+version = "2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boltons" },
@@ -672,13 +672,13 @@ dependencies = [
     { name = "loguru" },
     { name = "networkx" },
     { name = "numpy" },
-    { name = "pltable" },
+    { name = "prettytable" },
     { name = "scipy" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a0/e0/626a2915f86f142e6f33a645ce36be2daf9d0ce0462972f3d8a983d581d2/dit-2.3.tar.gz", hash = "sha256:3cd12221de65ead9decadf1107d4b9b534cadf936cfc2e2293cfacc5ce99f56b", size = 593505, upload-time = "2026-09-26T23:47:53.275Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/54/02/870a1d15418c8ddbb13ecc8c18fcaa96f391cd01f8ac193c198b45943665/dit-2.4.tar.gz", hash = "sha256:9f9fc623985032e3ee35940066e8ab91d5a1c61f375542452e4f436186039532", size = 986282, upload-time = "2026-11-16T04:55:52.395Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/fc/c8a71a3786ecf945154c45e549e27cb904c51b97f95e2416d90ed93a1f25/dit-2.3-py3-none-any.whl", hash = "sha256:6e3390a9c80311f6b740ca322fbc7aff478c6e07f1039d8d2c5b43250e2bff24", size = 581256, upload-time = "2026-09-26T23:47:51.405Z" },
+    { url = "https://files.pythonhosted.org/packages/05/97/f3e0e318c69c065185e29c62b791be00c30a88e33542056ee6629665281d/dit-2.4-py3-none-any.whl", hash = "sha256:3bbb4db1f031a3d185a2886762a5d3f6b33a9f178726f5fc9029bc8346ff9f5b", size = 842778, upload-time = "2026-11-16T04:55:50.411Z" },
 ]
 
 [package.optional-dependencies]
@@ -1769,18 +1769,24 @@ wheels = [
 ]
 
 [[package]]
-name = "pltable"
-version = "1.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/b9/0276a2c7699255c9a8e459b093db4414162607dcf42636c0bbe4be1bf8e4/PLTable-1.1.0.tar.gz", hash = "sha256:dc8eb7cb9721a7090dc7a5976fbec7d3ef6b82a61f86c3b98700571a3f10401a", size = 17637, upload-time = "2023-11-21T22:14:43.834Z" }
-
-[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "prettytable"
+version = "3.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/74/ba08d81e668ccfe8658d7520a307e63c19862c08eb4ccb26f356c5239a7a/prettytable-3.18.0.tar.gz", hash = "sha256:439217116152244369caf3d9f1caf2f9fe29b03bd79e88d2928c8e718c95d680", size = 76373, upload-time = "2026-06-22T16:07:50.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/be/2e6798ace5cc036f5d05d36b7b2fd85346f1a708c87060890b070d0ec607/prettytable-3.18.0-py3-none-any.whl", hash = "sha256:b3346e0e6f79180833aebaac088ae926340586cf6d7d991b9eb125b65f72313a", size = 37357, upload-time = "2026-06-22T16:07:48.595Z" },
 ]
 
 [[package]]
@@ -2547,10 +2553,10 @@ requires-dist = [
     { name = "arviz", marker = "extra == 'bayes'" },
     { name = "cvxpy", marker = "extra == 'capacity'", specifier = ">=1.4" },
     { name = "cvxpy", marker = "extra == 'dev'", specifier = ">=1.4" },
-    { name = "dit", specifier = ">=2.3" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.3" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.3" },
-    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.3" },
+    { name = "dit", specifier = ">=2.4" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'dev'", specifier = ">=2.4" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'docs'", specifier = ">=2.4" },
+    { name = "dit", extras = ["symbolic"], marker = "extra == 'symbolic'", specifier = ">=2.4" },
     { name = "graphviz", marker = "extra == 'dev'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20" },
     { name = "graphviz", marker = "extra == 'viz'", specifier = ">=0.20" },
@@ -2575,8 +2581,8 @@ requires-dist = [
     { name = "pytest-rerunfailures", marker = "extra == 'test'" },
     { name = "pytest-sugar", marker = "extra == 'dev'" },
     { name = "pytest-sugar", marker = "extra == 'test'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'test'" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.2" },
+    { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.2" },
     { name = "python-sat", marker = "extra == 'sat'", specifier = ">=1.8" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'" },

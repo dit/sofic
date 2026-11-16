@@ -242,14 +242,18 @@ def _sparse(rows: list[list[tuple[int, float]]], n: int) -> sp.csr_matrix:
     return sp.csr_matrix((d, (r, c)), shape=(len(rows), n))
 
 
-def _outward(value: Fraction, down: bool) -> float:
-    """``value`` rounded to a float in the given direction."""
-    f = float(value)
-    if down and Fraction(f) > value:
-        return math.nextafter(f, -math.inf)
-    if not down and Fraction(f) < value:
-        return math.nextafter(f, math.inf)
-    return f
+def _outward_sum(terms: list[float], *, up: bool) -> float:
+    """The exact sum of ``terms`` rounded up (or down) to a float.
+
+    ``math.fsum`` rounds the exact sum to nearest, and the sign of the correctly rounded residual is exact.
+    """
+    total = math.fsum(terms)
+    residual = math.fsum([*terms, -total])
+    if up and residual > 0.0:
+        return math.nextafter(total, math.inf)
+    if not up and residual < 0.0:
+        return math.nextafter(total, -math.inf)
+    return total
 
 
 def _tighten(lo: np.ndarray, hi: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
@@ -257,14 +261,14 @@ def _tighten(lo: np.ndarray, hi: np.ndarray) -> tuple[np.ndarray, np.ndarray] | 
 
     The new bounds are computed exactly and rounded outward, so no point of the simplex in the box is lost.
     """
+    lows, highs = [float(v) for v in lo], [float(v) for v in hi]
     for _ in range(3):
-        exact_lo = [Fraction(float(v)) for v in lo]
-        sum_lo = sum(exact_lo, Fraction(0))
-        hi = np.minimum(hi, [_outward(1 - (sum_lo - v), down=False) for v in exact_lo])
-        exact_hi = [Fraction(float(v)) for v in hi]
-        sum_hi = sum(exact_hi, Fraction(0))
-        lo = np.maximum(lo, [_outward(1 - (sum_hi - v), down=True) for v in exact_hi])
-    return (lo, hi) if np.all(lo <= hi) else None
+        neg = [-v for v in lows]
+        highs = [min(h, _outward_sum([1.0, *neg[:i], *neg[i + 1 :]], up=True)) for i, h in enumerate(highs)]
+        neg = [-v for v in highs]
+        lows = [max(v, _outward_sum([1.0, *neg[:i], *neg[i + 1 :]], up=False)) for i, v in enumerate(lows)]
+    lo_out, hi_out = np.array(lows), np.array(highs)
+    return (lo_out, hi_out) if np.all(lo_out <= hi_out) else None
 
 
 def _branch_and_bound(

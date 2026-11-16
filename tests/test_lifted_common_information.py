@@ -195,3 +195,30 @@ def test_binary_markov_lifted_wyner_bounds(p: float, q: float) -> None:
     assert excess - 1e-6 <= wyner.wyner_common_information <= float(process.statistical_complexity()) + 1e-6
     assert wyner.markov_residual <= 1e-7
     assert _reproduces(wyner, bidir)
+
+
+@settings(max_examples=25, deadline=None)
+@given(st.sampled_from(["golden", "odd", "rll"]), st.integers(1, 6), st.integers(0, 2**32 - 1))
+def test_lifted_tensors_and_jacobian_match_the_einsum_reference(name: str, k: int, seed: int) -> None:
+    from tests import oracles
+
+    bidir = {
+        "golden": lambda: golden_mean_bidirectional(0.4),
+        "odd": lambda: BidirectionalEpsilonMachine.from_forward(odd()),
+        "rll": _rll_two_infinity,
+    }[name]()
+    problem = _LiftedProblem(bidir, _normalized_joint_distribution(bidir, cutoff=0.0))
+    rng = np.random.default_rng(seed)
+    c = rng.dirichlet(np.ones(k), size=len(problem.pairs))
+    c[rng.random(c.shape) < 0.2] = 0.0
+    for got, expected in zip(problem.tensors(c), oracles.lifted_tensors(problem, c), strict=True):
+        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=1e-15)
+    np.testing.assert_allclose(
+        problem.constraint_informations(c), oracles.lifted_constraint_informations(problem, c), atol=1e-12
+    )
+    np.testing.assert_allclose(
+        problem.constraint_jacobian(c), oracles.lifted_constraint_jacobian(problem, c), rtol=1e-10, atol=1e-9
+    )
+    # A second channel must not be served from the cache of the first.
+    other = rng.dirichlet(np.ones(k), size=len(problem.pairs))
+    np.testing.assert_allclose(problem.tensors(other)[1], oracles.lifted_tensors(problem, other)[1], rtol=1e-12)

@@ -356,7 +356,7 @@ def suggest_max_history(
         data: Any = DitTrials(trials)
     else:
         data = trials[0]
-    order = select_markov_order(data, max_order, method=method, alpha=alpha, n_surrogates=n_surrogates, prng=seed)
+    order = select_markov_order(data, max_order, method=method, alpha=alpha, n_surrogates=n_surrogates, rng=seed)
     return max(1, int(order))
 
 

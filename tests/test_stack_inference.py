@@ -312,3 +312,65 @@ def test_stack_mle_accounts_for_illegal_returns_on_empty_stack():
     oracle_bits = np.mean([_held_out_bits_per_symbol(oracle, w) for w in windows])
     fitted_bits = np.mean([_held_out_bits_per_symbol(fitted, w) for w in windows])
     assert fitted_bits == pytest.approx(oracle_bits, abs=0.01)
+
+
+def _motzkin_alphabet() -> DyckAlphabet:
+    return DyckAlphabet(
+        call_alphabet=frozenset({"("}), return_alphabet=frozenset({")"}), internal_alphabet=frozenset({"x"})
+    )
+
+
+def test_dyck_alphabet_roles():
+    from sofic.graph import KIND_CALL, KIND_INTERNAL, KIND_RETURN
+
+    alphabet = _motzkin_alphabet()
+    assert alphabet.symbol_alphabet == frozenset({"(", ")", "x"})
+    assert [alphabet.classify(s) for s in "()x"] == [KIND_CALL, KIND_RETURN, KIND_INTERNAL]
+    with pytest.raises(ValueError, match="not in Dyck alphabet"):
+        alphabet.classify("y")
+    with pytest.raises(ValueError, match="disjoint"):
+        DyckAlphabet(frozenset("a"), frozenset("a"), frozenset())
+
+
+def test_papni_encoding_rejects_unmatched_and_foreign_words():
+    from sofic.automata.learning.papni import _decode_symbol, encode_dyck_samples
+
+    alphabet = _motzkin_alphabet()
+    assert not is_well_matched(("(", "y", ")"), alphabet)
+    assert not is_well_matched(("(",), alphabet)
+    with pytest.raises(ValueError, match="not well-matched"):
+        encode_dyck_word(("(",), alphabet)
+    samples = [("(", "x", ")"), (")",)]
+    assert encode_dyck_samples(samples, alphabet) == [("(", "x", (")", "("))]
+    with pytest.raises(ValueError, match="not well-matched"):
+        encode_dyck_samples(samples, alphabet, drop_non_well_matched=False)
+    with pytest.raises(ValueError, match="unknown stack-aware symbol"):
+        _decode_symbol((")", "x"), alphabet)
+
+
+def test_papni_with_negatives_and_without_positives():
+    alphabet = _motzkin_alphabet()
+    positive = [("(", ")"), ("x",), ("(", "x", ")"), ("(", "(", ")", ")")]
+    negative = [("(", "x", "x", ")"), (")", "(")]
+    learned = learn_sofic_dyck_shift_papni(positive, negative, alphabet=alphabet)
+    assert learned.is_admissible_word(("(", "x", ")"))
+    with pytest.raises(ValueError, match="no well-matched positive"):
+        learn_sofic_dyck_shift_papni([(")",)], alphabet=alphabet)
+
+
+def test_papni_dfa_conversion_with_and_without_traces():
+    from sofic.automata.learning.papni import encode_dyck_samples, sofic_dyck_shift_from_papni_dfa
+
+    alphabet = _motzkin_alphabet()
+    positive = [("(", ")"), ("x",), ("(", "x", ")")]
+    dfa = learn_dfa_rpni(encode_dyck_samples(positive, alphabet), [])
+    by_symbol = sofic_dyck_shift_from_papni_dfa(dfa, alphabet)
+    assert by_symbol.matched_edges
+    # Traces the DFA cannot follow, or that are not well matched, add no matched pairs.
+    traced = sofic_dyck_shift_from_papni_dfa(dfa, alphabet, positive_traces=[(")", "("), ("(", "(", "x", ")", ")")])
+    assert len(traced.matched_edges) <= len(by_symbol.matched_edges)
+    from sofic.automata.dfa import DFA
+
+    no_initial = DFA(input_alphabet=frozenset())
+    with pytest.raises(ValueError, match="initial state"):
+        sofic_dyck_shift_from_papni_dfa(no_initial, alphabet)

@@ -77,3 +77,53 @@ def test_large_chain_uses_the_sparse_solve(monkeypatch: pytest.MonkeyPatch) -> N
     pi = stationary.stationary_distribution_hmm(_chain(n, edges))
     expected = 0.25 * 0.75 ** np.arange(n) / (1 - 0.75**n)
     assert np.allclose(pi, expected, atol=1e-12)
+
+
+def test_empty_chain_has_empty_stationary_distribution() -> None:
+    assert stationary.stationary_distribution_hmm(MealyHMM(observation_alphabet=frozenset({0}))).size == 0
+    assert stationary_distribution_from_transition(np.zeros((0, 0))).size == 0
+
+
+def test_non_square_transition_matrices_are_rejected() -> None:
+    with pytest.raises(ValueError, match="square"):
+        stationary_distribution_from_transition(np.ones((2, 3)) / 3)
+
+
+def test_sparse_stationary_skips_outside_states_and_declines_symbolic_or_non_invariant() -> None:
+    sp = pytest.importorskip("sympy")
+    hmm = _chain(3, [(0, 1, 1.0), (1, 0, 1.0), (1, 2, 0.0), (2, 2, 1.0)])
+    assert np.allclose(stationary._stationary_distribution_sparse(hmm, [0, 1]), [0.5, 0.5])
+    symbolic = _chain(2, [(0, 1, 1.0), (1, 0, sp.Integer(1))])
+    assert stationary._stationary_distribution_sparse(symbolic, [0, 1]) is None
+    substochastic = _chain(2, [(0, 1, 0.5), (1, 0, 1.0)])
+    assert stationary._stationary_distribution_sparse(substochastic, [0, 1]) is None
+
+
+def test_matrices_without_a_stationary_distribution_raise() -> None:
+    from sofic.exceptions import StochasticValidationError
+
+    # No eigenvalue one, so every eigenvector is skipped and the least-squares fallback is not invariant.
+    with pytest.raises(StochasticValidationError, match="invariant"):
+        stationary_distribution_from_transition(np.array([[0.5, 0.5], [0.5, 0.4]]))
+    # Eigenvalue one with a sign-changing eigenvector.
+    with pytest.raises(StochasticValidationError):
+        stationary_distribution_from_transition(np.array([[0.0, -1.0], [-1.0, 0.0]]))
+
+
+def test_symbolic_stationary_distribution() -> None:
+    sp = pytest.importorskip("sympy")
+    p, q = sp.symbols("p q", positive=True)
+    transition = np.array([[1 - p, p], [q, 1 - q]], dtype=object)
+    pi = stationary_distribution_from_transition(transition)
+    assert sp.simplify(pi[0] - q / (p + q)) == 0
+    assert sp.simplify(pi[1] - p / (p + q)) == 0
+    assert stationary_distribution_from_transition(np.zeros((0, 0), dtype=object)).size == 0
+    with pytest.raises(ValueError, match="square"):
+        stationary_distribution_from_transition(np.array([[p, 1 - p, 0]], dtype=object))
+
+
+def test_symbolic_stationary_distribution_of_a_periodic_chain() -> None:
+    sp = pytest.importorskip("sympy")
+    one = sp.Integer(1)
+    pi = stationary_distribution_from_transition(np.array([[0, one], [one, 0]], dtype=object))
+    assert list(pi) == [sp.Rational(1, 2), sp.Rational(1, 2)]

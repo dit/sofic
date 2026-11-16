@@ -327,3 +327,74 @@ def test_colliding_states_render_as_distinct_nodes():
     tikz = model_to_tikz(shift)
     assert tikz.count(r"\node [state") == 2
     assert len({line.split("(")[1].split(")")[0] for line in tikz.splitlines() if r"\node [state" in line}) == 2
+
+
+def _spec_parts(model, **data):
+    from sofic.viz._edge import edge_spec
+
+    model.graph.add_state(0)
+    key = model.graph.add_transition(0, 0, **data)
+    transition = next(t for t in model.transitions() if t.key == key)
+    spec = edge_spec(model, transition)
+    return spec.style, [(part.kind, part.value) for part in spec.parts]
+
+
+def test_edge_specs_for_each_model_family():
+    from sofic.automata.transducers import MooreMachine
+    from sofic.base import StateMachine
+    from sofic.generators.base import QuasiStochasticModel
+    from sofic.generators.mealy import MealyHMM
+    from sofic.generators.moore import MooreHMM
+    from sofic.generators.nmachine import NMachine
+    from sofic.graph import ATTR_EMISSION, ATTR_QUASIPROB, ATTR_SYMBOL
+
+    class Bare(StateMachine):
+        def validate(self) -> None:
+            pass
+
+    assert _spec_parts(MooreMachine(), **{ATTR_SYMBOL: "a"}) == ("symbol_only", [("symbol", "a")])
+    assert _spec_parts(MooreMachine()) == ("symbol_only", [])
+    assert _spec_parts(NMachine(), **{ATTR_EMISSION: "x", ATTR_QUASIPROB: -0.5}) == (
+        "edge",
+        [("emission", "x"), ("quasiprob", -0.5)],
+    )
+    assert _spec_parts(MooreHMM(), **{ATTR_PROB: 0.25}) == ("prob_only", [("prob", 0.25)])
+    assert _spec_parts(MooreHMM()) == ("prob_only", [])
+    assert _spec_parts(MealyHMM(), **{ATTR_SYMBOL: "s", ATTR_PROB: 1.0}) == ("edge", [("symbol", "s"), ("prob", 1.0)])
+    assert _spec_parts(MealyHMM()) == ("edge", [])
+    assert _spec_parts(QuasiStochasticModel(), **{ATTR_EMISSION: "x", ATTR_QUASIPROB: 2.0}) == (
+        "edge",
+        [("emission", "x"), ("quasiprob", 2.0)],
+    )
+    assert _spec_parts(QuasiStochasticModel()) == ("edge", [])
+    full = {ATTR_SYMBOL: "a", ATTR_EMISSION: "x", ATTR_PROB: 0.5, ATTR_QUASIPROB: 0.5}
+    assert _spec_parts(Bare(), **full) == (
+        "fallback",
+        [("symbol", "a"), ("emission", "x"), ("prob", 0.5), ("quasiprob", 0.5)],
+    )
+    assert _spec_parts(Bare()) == ("fallback", [])
+
+
+def test_prob_part_prefers_probability_then_quasiprobability():
+    from sofic.viz._edge import _primary_symbol_part, _prob_part
+
+    assert _prob_part(0.5, 0.1).kind == "prob"
+    assert _prob_part(None, 0.1).kind == "quasiprob"
+    assert _prob_part(None, None) is None
+    assert _primary_symbol_part(None, "a", symbol_fallback=False) is None
+
+
+def test_idiagram_legend_layout_helpers():
+    from sofic.viz import idiagram as idg
+
+    assert idg._legend_ncols(5.0, 0) == 1
+    assert idg._legend_ncols(100.0, 3) == 3
+    assert idg._legend_ncols(1.0, 3) == 1
+    handles = {group: group for group in idg.GROUP_ORDER}
+    packed, ncol = idg._pack_legend_handles(handles, 4, empty_patch=None)
+    assert ncol == 4
+    height = len(packed) // ncol
+    assert packed[:height] == ["r_mu"] + [None] * (height - 1)
+    assert set(idg.GROUP_ORDER) <= set(packed)
+    assert idg._pack_legend_handles({"structure": "s"}, 4, empty_patch=None) == (["s"], 1)
+    assert idg._pack_legend_handles({}, 4, empty_patch=None) == ([], 1)

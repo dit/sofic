@@ -58,7 +58,7 @@ def test_one_state_channel_matches_bsc_under_feedback():
 def test_horstein_exact_matches_montecarlo_on_trapdoor():
     code = horstein(2, n=6)
     exact = code.probability_of_error(trapdoor(), method="exact")
-    sampled = code.probability_of_error(trapdoor(), method="montecarlo", samples=6000, prng=np.random.default_rng(0))
+    sampled = code.probability_of_error(trapdoor(), method="montecarlo", samples=6000, rng=np.random.default_rng(0))
     assert sampled == pytest.approx(exact, abs=0.015)
 
 
@@ -70,11 +70,11 @@ def test_feedback_capacity_brackets_log2_phi():
 def test_horstein_beats_the_no_feedback_capacity_of_the_trapdoor():
     """Feedback lifts the trapdoor's rate above every no-feedback code, but not above log2(phi)."""
     code = horstein(8, delta=1e-3)
-    pe, uses = code.performance(trapdoor(), method="montecarlo", samples=400, prng=np.random.default_rng(1))
+    pe, uses = code.performance(trapdoor(), method="montecarlo", samples=400, rng=np.random.default_rng(1))
     rate = 8 / uses
     assert pe <= 0.01
     assert NO_FEEDBACK_UPPER < rate < LOG2_PHI
-    lower, upper = code.capacity_gap(trapdoor(), method="montecarlo", samples=100, prng=np.random.default_rng(2))
+    lower, upper = code.capacity_gap(trapdoor(), method="montecarlo", samples=100, rng=np.random.default_rng(2))
     assert 0 < lower <= upper
 
 
@@ -108,10 +108,36 @@ def test_trapdoor_code_is_zero_error(k):
     assert uses == pytest.approx(code.length + 3.5, abs=1e-6)
 
 
+def test_rll_encode_rejects_out_of_range_indices():
+    with pytest.raises(ValueError, match="index"):
+        rll_encode(3, 2)
+    with pytest.raises(ValueError, match="index"):
+        rll_encode(-1, 2)
+
+
+def test_trapdoor_code_rejects_non_binary_channels():
+    from types import SimpleNamespace
+
+    from dit.exceptions import ditException
+
+    code = trapdoor_code(2)
+    assert repr(code) == "TrapdoorCode(k=2, N=4)"
+    with pytest.raises(ditException, match="inputs and outputs"):
+        code.start(SimpleNamespace(inputs=(0, 1, 2), outputs=(0, 1)))
+
+
+def test_trapdoor_decode_of_unused_word_and_short_state_is_all_zeros():
+    code = trapdoor_code(2)
+    # After one flushing use, outputs 0101 decode to actions 1010, i.e. RLL word 101 of index 4 >= 2**2.
+    assert code.decode((1, 0, 1, 0, 1)) == (0, 0)
+    assert code.decode(()) == (0, 0)
+    assert code.decode((1, 0)) == (0, 0)
+
+
 def test_trapdoor_code_approaches_the_feedback_capacity():
     code = trapdoor_code(32)
     pe, uses = code.performance(
-        trapdoor(), method="montecarlo", samples=200, prng=np.random.default_rng(3), max_uses=300
+        trapdoor(), method="montecarlo", samples=200, rng=np.random.default_rng(3), max_uses=300
     )
     assert pe == 0.0
     assert NO_FEEDBACK_UPPER < 32 / uses < LOG2_PHI

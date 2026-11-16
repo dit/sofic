@@ -5,11 +5,13 @@ from __future__ import annotations
 import time
 
 import pytest
+from hypothesis import given, settings
 
 from sofic.examples import golden_mean, sns
 from sofic.exceptions import MixedStateExplosionError
 from sofic.generators.epsilon_machine import EpsilonMachine
 from sofic.generators.mixed_state_construction import build_mixed_state_presentation
+from sofic.testing.strategies import mealy_hmms
 
 
 def test_infinite_belief_set_hits_max_states_promptly():
@@ -52,3 +54,26 @@ def test_infinite_reverse_presentation_reaches_its_cap_quickly() -> None:
     with pytest.raises(MixedStateExplosionError):
         infer_reverse_epsilon_machine(forward, max_states=5_000)
     assert time.monotonic() - start < 60
+
+
+@settings(max_examples=40, deadline=None)
+@given(mealy_hmms(max_states=3))
+def test_mixed_states_are_distinct_and_closed_under_bayes_updates(hmm) -> None:
+    import itertools
+
+    import numpy as np
+
+    from sofic.generators.prob import probs_equal
+
+    try:
+        msp = build_mixed_state_presentation(hmm, max_states=60)
+    except MixedStateExplosionError:
+        return
+    states = list(msp.states())
+    for left, right in itertools.combinations(states, 2):
+        assert not all(probs_equal(a, b) for a, b in zip(left.belief, right.belief, strict=True))
+    registered = set(states)
+    for transition in msp.transitions():
+        assert transition.target in registered
+    vectors = np.array([np.asarray(state.belief, dtype=float) for state in states])
+    np.testing.assert_allclose(vectors.sum(axis=1), 1.0)

@@ -47,6 +47,9 @@ __all__ = ["pressure", "rate_function", "renyi_entropy_rate"]
 
 _TOL = 1e-12
 _BETA_MAX = 64.0
+# Within this distance of alpha = 1, pressure(alpha) / (1 - alpha) loses more to rounding than h_mu
+# loses to the O(|1 - alpha|) truncation, so the Shannon rate is returned instead.
+_SHANNON_WINDOW = 1e-7
 
 
 def _unifilar_mealy(model: HiddenMarkovModel, max_states: int) -> MealyHMM:
@@ -161,7 +164,7 @@ def renyi_entropy_rate(model: HiddenMarkovModel, alpha: float, *, max_states: in
     spectrum = _Spectrum(model, max_states=max_states)
     if np.isinf(alpha):
         return -spectrum.mu
-    if alpha == 1.0:
+    if abs(alpha - 1.0) < _SHANNON_WINDOW:
         return float(spectrum.mealy.entropy_rate())
     return spectrum.pressure(alpha) / (1.0 - alpha)
 

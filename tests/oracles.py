@@ -394,3 +394,185 @@ def compose_relations(
     """Relational composition ``{x: {z : y in first[x], z in second(y)}}``."""
     apply = second if callable(second) else (lambda y: second.get(y, set()))
     return {x: {z for y in ys for z in apply(y)} for x, ys in first.items()}
+
+
+# --------------------------------------------------------------------------- lifted common information
+
+
+def _cmi_bits(joint: np.ndarray) -> float:
+    """``I[a : b | c]`` in bits for a joint indexed ``[a, b, c]``, from the four entropies."""
+
+    def h(p: np.ndarray) -> float:
+        p = p[p > 0.0]
+        return float(-(p * np.log2(p)).sum())
+
+    return max(0.0, h(joint.sum(axis=1)) + h(joint.sum(axis=0)) - h(joint) - h(joint.sum(axis=(0, 1))))
+
+
+def _cmi_gradient_bits(joint: np.ndarray) -> np.ndarray:
+    def log(x: np.ndarray) -> np.ndarray:
+        return np.log2(np.maximum(x, 1e-300))
+
+    return (
+        log(joint)
+        + log(joint.sum(axis=(0, 1)))[None, None, :]
+        - log(joint.sum(axis=1))[:, None, :]
+        - log(joint.sum(axis=0))[None, :, :]
+    )
+
+
+def lifted_tensors(problem: Any, c: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``p(s+, s-, g)``, ``p(g_0, x_0, s-_1, g_1)`` and ``p(s+_0, g_0, x_0, g_1)`` by direct ``einsum``."""
+    plus, minus, edges = problem.plus, problem.minus, problem.edges
+    screen = np.einsum("pa,pb,pg->abg", plus, minus, problem.p[:, None] * c)
+    future = np.einsum("pg,pxq,qs,qv->gxsv", c, edges, minus, c)
+    past = np.einsum("pa,pg,pxq,qv->agxv", plus, c, edges, c)
+    return screen, future, past
+
+
+def lifted_constraint_informations(problem: Any, c: np.ndarray) -> np.ndarray:
+    screen, future, past = lifted_tensors(problem, c)
+    return np.array(
+        [
+            _cmi_bits(screen),
+            _cmi_bits(future.reshape(-1, *future.shape[2:])),
+            _cmi_bits(np.moveaxis(past, 1, -1).reshape(past.shape[0], -1, past.shape[1])),
+        ]
+    )
+
+
+def lifted_constraint_jacobian(problem: Any, c: np.ndarray) -> np.ndarray:
+    plus, minus, edges = problem.plus, problem.minus, problem.edges
+    screen, future, past = lifted_tensors(problem, c)
+    g_screen = _cmi_gradient_bits(screen)
+    g_future = _cmi_gradient_bits(future.reshape(-1, *future.shape[2:])).reshape(future.shape)
+    moved = np.moveaxis(past, 1, -1)
+    g_past = np.moveaxis(
+        _cmi_gradient_bits(moved.reshape(past.shape[0], -1, past.shape[1])).reshape(moved.shape), -1, 1
+    )
+    jac = np.empty((3, *c.shape))
+    jac[0] = problem.p[:, None] * np.einsum("pa,pb,abg->pg", plus, minus, g_screen)
+    jac[1] = np.einsum("gxsv,pxq,qs,qv->pg", g_future, edges, minus, c) + np.einsum(
+        "gxsv,pg,pxq,qs->qv", g_future, c, edges, minus
+    )
+    jac[2] = np.einsum("agxv,pa,pxq,qv->pg", g_past, plus, edges, c) + np.einsum(
+        "agxv,pa,pg,pxq->qv", g_past, plus, c, edges
+    )
+    return jac
+
+
+# --------------------------------------------------------------------------- simplex boxes
+
+
+def _outward(value: Any, down: bool) -> float:
+    """``value`` (a :class:`~fractions.Fraction`) rounded to a float in the given direction."""
+    from fractions import Fraction
+
+    f = float(value)
+    if down and Fraction(f) > value:
+        return math.nextafter(f, -math.inf)
+    if not down and Fraction(f) < value:
+        return math.nextafter(f, math.inf)
+    return f
+
+
+def tighten_exact(lo: np.ndarray, hi: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
+    """A box shrunk to its intersection with the probability simplex in exact rational arithmetic."""
+    from fractions import Fraction
+
+    for _ in range(3):
+        exact_lo = [Fraction(float(v)) for v in lo]
+        sum_lo = sum(exact_lo, Fraction(0))
+        hi = np.minimum(hi, [_outward(1 - (sum_lo - v), down=False) for v in exact_lo])
+        exact_hi = [Fraction(float(v)) for v in hi]
+        sum_hi = sum(exact_hi, Fraction(0))
+        lo = np.maximum(lo, [_outward(1 - (sum_hi - v), down=True) for v in exact_hi])
+    return (lo, hi) if np.all(lo <= hi) else None
+
+
+# --------------------------------------------------------------------------- rank-1 coverage (mu_1)
+
+
+def _tree_potentials(tree: frozenset, L: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    na, nb = L.shape
+    adj: list[list[int]] = [[] for _ in range(na + nb)]
+    for a, b in tree:
+        adj[a].append(na + b)
+        adj[na + b].append(a)
+    pot = np.full(na + nb, np.nan)
+    pot[0] = 0.0
+    stack = [0]
+    while stack:
+        x = stack.pop()
+        for y in adj[x]:
+            if np.isnan(pot[y]):
+                a, b = (x, y - na) if x < na else (y, x - na)
+                pot[y] = L[a, b] - pot[x]
+                stack.append(y)
+    return pot[:na], pot[na:]
+
+
+def mu1_vertex_reference(M: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
+    """``mu_1`` by vertex enumeration, splitting each tree with a fresh union-find per removed edge."""
+    from sofic.generators.coverage_bound import (
+        _LOG_FLOOR,
+        _VERTEX_PERTURBATION,
+        _components,
+        _initial_tree,
+        _logsumexp,
+    )
+
+    M = np.asarray(M, dtype=float)
+    na, nb = M.shape
+    L = np.maximum(np.log(np.maximum(M, 1e-300)), _LOG_FLOOR)
+    L = L + _VERTEX_PERTURBATION * np.random.default_rng(0).random((na, nb))
+    start = _initial_tree(L)
+    seen = {start}
+    queue = [start]
+    best, best_pq = -np.inf, None
+    while queue:
+        tree = queue.pop()
+        p, q = _tree_potentials(tree, L)
+        value = _logsumexp(p) + _logsumexp(q)
+        if value > best:
+            best, best_pq = value, (p, q)
+        slack = L - p[:, None] - q[None, :]
+        for edge in tree:
+            comp = _components(na, nb, tree - {edge})
+            side = comp[edge[0]]
+            rows_out = np.array([comp[a] != side for a in range(na)])
+            cols_in = np.array([comp[na + b] == side for b in range(nb)])
+            if not rows_out.any() or not cols_in.any():
+                continue
+            sub = slack[np.ix_(rows_out, cols_in)]
+            i, j = np.unravel_index(int(np.argmin(sub)), sub.shape)
+            entering = (int(np.flatnonzero(rows_out)[i]), int(np.flatnonzero(cols_in)[j]))
+            nxt = (tree - {edge}) | {entering}
+            if nxt not in seen:
+                seen.add(nxt)
+                queue.append(nxt)
+    p, q = best_pq
+    value = min(float(M.sum()), float(np.exp(best)))
+    return value, np.exp(p - _logsumexp(p)), np.exp(q - _logsumexp(q))
+
+
+def column_box_lp_reference(U: np.ndarray, A: np.ndarray, C: np.ndarray) -> np.ndarray:
+    """``max 1.x`` over ``0 <= x <= U[b]``, ``A[p].x <= 0``, ``C[p].x >= 0`` by LAPACK vertex enumeration."""
+    from itertools import combinations
+
+    nb, m = U.shape
+    npairs = A.shape[0]
+    G = np.zeros((nb, npairs, 2 * m + 2, m))
+    h = np.zeros((nb, npairs, 2 * m + 2))
+    G[:, :, :m] = -np.eye(m)
+    G[:, :, m : 2 * m] = np.eye(m)
+    h[:, :, m : 2 * m] = U[:, None, :]
+    G[:, :, 2 * m] = A[None]
+    G[:, :, 2 * m + 1] = -C[None]
+    combos = np.array(list(combinations(range(2 * m + 2), m)))
+    Gs, hs = G[:, :, combos], h[:, :, combos]
+    regular = np.abs(np.linalg.det(Gs)) > 1e-14
+    x = np.linalg.solve(np.where(regular[..., None, None], Gs, np.eye(m)), hs[..., None])[..., 0]
+    slack = np.einsum("bpkm,bpcm->bpck", G, x) - h[:, :, None, :]
+    feasible = regular & (slack.max(axis=-1) <= 1e-12 * (1.0 + float(U.max())))
+    return np.where(feasible, x.sum(axis=-1), -np.inf).max(axis=-1)

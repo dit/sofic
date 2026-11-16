@@ -75,6 +75,12 @@ def test_sat_upper_bound_too_small_raises():
         learn_dfa_sat(positive, negative, upper_bound=1)
 
 
+def test_sat_upper_bound_below_lower_bound_is_raised_to_it():
+    positive, negative = _labeled(_even_a)
+    dfa = learn_dfa_sat(positive, negative, lower_bound=2, upper_bound=1)
+    assert len(list(dfa.states())) == 2
+
+
 def test_sat_requires_samples():
     with pytest.raises(ValueError):
         learn_dfa_sat([], [])

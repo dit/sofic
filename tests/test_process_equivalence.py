@@ -1,6 +1,9 @@
+import pytest
+
+
 def test_is_equal_process_accepts_sympy_probabilities():
     """Regression: object-dtype symbol matrices broke ``matrix_rank``."""
-    import sympy as sp
+    sp = pytest.importorskip("sympy")
 
     from sofic.examples import golden_mean
 
