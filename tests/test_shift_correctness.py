@@ -123,3 +123,24 @@ def test_copy_preserves_epsilon_sentinel():
     shift.graph.add_transition("p", "q", **{ATTR_SYMBOL: EPSILON})
     clone = shift.copy()
     assert next(iter(clone.transitions())).data[ATTR_SYMBOL] is EPSILON
+
+
+def test_topological_entropy_is_exact_for_chained_cycles():
+    """Three unit-radius cycles joined by transient edges make eigenvalue one defective over the whole matrix."""
+    from sofic.shifts.algorithms import topological_entropy_from_matrix
+
+    chained = np.array(
+        [
+            [0, 0, 0, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0],
+            [1, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0],
+            [0, 0, 1, 0, 0, 1],
+        ],
+        dtype=float,
+    )
+    assert topological_entropy_from_matrix(chained) == pytest.approx(0.0, abs=1e-12)
+    golden = np.array([[1, 1, 0], [1, 0, 0], [1, 0, 0]], dtype=float)
+    assert topological_entropy_from_matrix(golden) == pytest.approx(np.log2((1 + np.sqrt(5)) / 2), abs=1e-12)
+    assert topological_entropy_from_matrix(np.zeros((3, 3))) == 0.0

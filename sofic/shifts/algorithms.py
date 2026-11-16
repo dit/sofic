@@ -80,11 +80,23 @@ def adjacency_matrix(model: SymbolicModel, *, multiplicity: bool = True) -> tupl
 
 
 def topological_entropy_from_matrix(matrix: np.ndarray) -> float:
-    """Return ``log2`` of the spectral radius of ``matrix`` (bits per symbol)."""
+    """Return ``log2`` of the spectral radius of the nonnegative ``matrix`` (bits per symbol).
+
+    The spectral radius is the largest over the strongly connected components, whose Perron roots are
+    simple eigenvalues. Over the whole matrix, components joined by transient edges can make the leading
+    eigenvalue defective, and ``eigvals`` then resolves it only to about ``eps ** (1 / multiplicity)``.
+    """
     if matrix.size == 0:
         return 0.0
-    eigenvalues = np.linalg.eigvals(matrix)
-    spectral_radius = float(np.max(np.abs(eigenvalues)))
+    from scipy.sparse.csgraph import connected_components
+
+    n_components, labels = connected_components(np.asarray(matrix != 0, dtype=int), connection="strong")
+    spectral_radius = 0.0
+    for component in range(n_components):
+        members = np.flatnonzero(labels == component)
+        block = np.asarray(matrix[np.ix_(members, members)], dtype=float)
+        if block.any():
+            spectral_radius = max(spectral_radius, float(np.max(np.abs(np.linalg.eigvals(block)))))
     if spectral_radius <= 0.0:
         return 0.0
     return float(np.log2(spectral_radius))
