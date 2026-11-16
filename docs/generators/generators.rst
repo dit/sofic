@@ -48,6 +48,7 @@ Computational mechanics
    predictive_rate_distortion
    symbolic_hmm
    generative_models
+   canonical_generators
    directional_flow
    alternative_complexity
    wheeler_epsilon

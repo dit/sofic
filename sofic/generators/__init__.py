@@ -4,6 +4,7 @@ from sofic.generators.base import HiddenMarkovModel, QuasiStochasticModel, Stoch
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.block_convergence import BlockConvergenceDiagram, BlockConvergenceEstimates
 from sofic.generators.block_entropy import BlockEntropyDiagram, BlockEntropyEstimates
+from sofic.generators.canonical_generators import atomaton_hmm, canonical_rfsa_hmm, maximized_prime_atomaton_hmm
 from sofic.generators.channel_coding import FiniteStateChannel
 from sofic.generators.channel_measures import (
     channel_statistical_complexity,
@@ -103,6 +104,9 @@ __all__ = [
     "generative_model",
     "generative_model_from_bidirectional",
     "minimal_functional_generator",
+    "atomaton_hmm",
+    "canonical_rfsa_hmm",
+    "maximized_prime_atomaton_hmm",
     "minimal_wyner_model",
     "ultimate_generative_model",
     "mu1_brute_2x2",

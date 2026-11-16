@@ -24,4 +24,5 @@ type, Sofic shifts, Dyck shifts, topological Markov chains, and covers
    textile
    dyck_enumeration
    covers
+   canonical_presentations
    wheeler

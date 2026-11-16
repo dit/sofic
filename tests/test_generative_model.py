@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from sofic.examples import golden_mean, golden_mean_bidirectional
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
@@ -32,6 +33,15 @@ def test_generative_model_from_forward_epsilon_machine_certifies_golden_mean() -
     assert result.structure["n_states"] == 2
     assert result.structure["functional"] and result.structure["lifted"]
     assert result.stages[-1]["structure"] == result.structure
+    dec = result.decomposition
+    assert dec is not None and len(dec["states"]) == 2
+    assert np.allclose(np.sum(dec["pi"]), 1.0)
+    assert np.allclose(np.sum(dec["K"], axis=(1, 2)), 1.0)
+    # weights, beliefs and the model agree: pi Q is the forward causal-state distribution
+    assert np.allclose(np.array(dec["pi"]) @ np.array(dec["Q"]), [2 / 3, 1 / 3]) or np.allclose(
+        np.array(dec["pi"]) @ np.array(dec["Q"]), [1 / 3, 2 / 3]
+    )
+    assert sorted(dec["pi"]) == pytest.approx(sorted(result.structure["weights"]))
 
 
 def test_certified_requires_the_model_to_reproduce_the_source() -> None:
@@ -82,7 +92,14 @@ def test_zero_time_budget_returns_a_valid_bracket_from_the_machines() -> None:
 
     result = generative_model_from_bidirectional(_survey_machine(), time_budget=0.0, rng=np.random.default_rng(0))
     assert result.budget_exhausted
-    assert result.upper_source == "epsilon machine" or result.upper_source.endswith("epsilon machine")
+    machines = {
+        "epsilon machine",
+        "reverse epsilon machine",
+        "bidirectional machine",
+        "canonical RFSA generator",
+        "maximized prime átomaton generator",
+    }
+    assert result.upper_source in machines
     assert result.lower <= result.upper + 1e-9
     skipped = {s["stage"] for s in result.stages if s.get("skipped") == "time budget exhausted"}
     assert {"generator coverage bound", "exact common information", "coupled search"} <= skipped

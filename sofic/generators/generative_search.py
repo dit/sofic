@@ -112,6 +112,9 @@ class GenerativeModelResult:
     tolerance. ``structure`` describes the generator: its state count and weights, whether its state is a
     function of :math:`(S^+, S^-)` (``functional``), and the largest violation of the lifting conditions
     (``lifting_residual``, bits; ``lifted`` when it vanishes, so the lift of its channel generates too).
+    ``decomposition`` holds the generator itself as plain lists, for saving and later study: state names (as in
+    ``model``), forward and reverse causal-state labels, symbols, weights ``pi``, beliefs ``Q`` (over
+    :math:`S^+`) and ``R`` (over :math:`S^-`), and the kernel ``K[w][x][w']``.
     """
 
     model: CoupledGenerativeModel
@@ -131,6 +134,7 @@ class GenerativeModelResult:
     budget_exhausted: bool = False
     reproduction_error: float | None = None
     structure: dict[str, Any] | None = None
+    decomposition: dict[str, Any] | None = None
 
     @property
     def certified(self) -> bool:
@@ -185,6 +189,28 @@ def _generator_structure(problem: _GeneratorProblem, seed: tuple[np.ndarray, ...
         "functional": bool(((channel > cutoff).sum(axis=1) == 1).all()),
         "lifting_residual": residual,
         "lifted": residual <= _LIFTED_ATOL,
+    }
+
+
+def _generator_decomposition(problem: _GeneratorProblem, seed: tuple[np.ndarray, ...], cutoff: float) -> dict[str, Any]:
+    """``(pi, Q, R, K)`` of the states kept in the model, with labels, as JSON-ready lists."""
+    pi, Q, R, K = (np.asarray(part, dtype=float) for part in seed[:4])
+    active = [w for w in range(len(pi)) if pi[w] > cutoff]
+    pairs = problem.lifted.pairs
+    kernel = []
+    for w in active:  # as in the model: entries below the cutoff dropped, rows renormalized
+        row = K[w][:, active]
+        row = np.where(row > cutoff, row, 0.0)
+        kernel.append((row / row.sum()).tolist())
+    return {
+        "states": [f"G{i}" for i in range(len(active))],
+        "forward_states": [repr(s) for s in sorted({pair[0] for pair in pairs}, key=repr)],
+        "reverse_states": [repr(s) for s in sorted({pair[1] for pair in pairs}, key=repr)],
+        "symbols": [repr(x) for x in problem.symbols],
+        "pi": (pi[active] / pi[active].sum()).tolist(),
+        "Q": Q[active].tolist(),
+        "R": R[active].tolist(),
+        "K": kernel,
     }
 
 
@@ -350,6 +376,7 @@ def _try_best_candidate(
             objective=objective,
             reproduction_error=error,
             structure=_generator_structure(problem, seed, 1e-9),
+            decomposition=_generator_decomposition(problem, seed, 1e-9),
         )
     return None
 
@@ -539,6 +566,8 @@ def _bracket_search(
         offer("epsilon machine", problem.epsilon_seed())
         offer("reverse epsilon machine", problem.reverse_seed())
         offer("bidirectional machine", problem.pair_seed())
+        offer("canonical RFSA generator", problem.residual_seed()[0])
+        offer("maximized prime átomaton generator", problem.prime_atomaton_seed()[0])
         early = maybe_return_early()
         if early is not None and early.certified:
             return _finalize_result(early)
