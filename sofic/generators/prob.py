@@ -96,12 +96,17 @@ def is_positive_mass(value: Prob, *, atol: float = 1e-15) -> bool:
     return float(value) > atol
 
 
+#: Default tolerances of :func:`probs_equal` for numeric probabilities.
+PROBS_EQUAL_RTOL = 1e-9
+PROBS_EQUAL_ATOL = 1e-12
+
+
 def probs_equal(
     left: Prob,
     right: Prob,
     *,
-    rtol: float = 1e-9,
-    atol: float = 1e-12,
+    rtol: float = PROBS_EQUAL_RTOL,
+    atol: float = PROBS_EQUAL_ATOL,
     constraints: SymbolConstraints | None = None,
 ) -> bool:
     """Equality for probability scalars (exact sympy simplify, else numeric close).

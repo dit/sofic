@@ -19,6 +19,8 @@ from sofic.generators.mixed_state import (
     is_pure_mixed_state,
 )
 from sofic.generators.prob import (
+    PROBS_EQUAL_ATOL,
+    PROBS_EQUAL_RTOL,
     as_prob,
     is_positive_mass,
     is_symbolic,
@@ -29,7 +31,7 @@ from sofic.generators.prob import (
 from sofic.graph import ATTR_EMISSION, ATTR_PROB, TransitionGraph
 
 # Covers the numeric tolerance of :func:`~sofic.generators.prob.probs_equal`
-# (``atol=1e-12``, ``rtol=1e-9``) on the leading belief coordinate.
+# (``PROBS_EQUAL_ATOL``, ``PROBS_EQUAL_RTOL``) on the projected belief key.
 _NUMERIC_WINDOW = 1e-9
 
 
@@ -95,49 +97,68 @@ def build_mixed_state_presentation(
     discovered: dict[MixedState, MixedState] = {}
     unique: list[MixedState] = []
     symbolic_unique: list[MixedState] = []
+    # Numeric beliefs sorted by key, with their rows in numeric_beliefs (in discovery order).
     numeric_keys: list[float] = []
     numeric_unique: list[MixedState] = []
+    numeric_rows: list[int] = []
+    numeric_beliefs = np.empty((16, len(basis)))
     # Index numeric beliefs by a projection onto fixed positive weights summing to one. Beliefs equal
     # coordinatewise to within _NUMERIC_WINDOW project to within it too, and unlike a single
     # coordinate the projection rarely ties, so a lookup scans few candidates.
     weights = np.array([0.5 + (index * 0.6180339887498949) % 1.0 for index in range(len(basis))])
     weights = weights / weights.sum()
 
-    def key(state: MixedState) -> float:
-        return float(np.dot(weights, np.asarray(state.belief, dtype=float)))
-
     queue: deque[MixedState] = deque()
 
-    def candidates(state: MixedState) -> Sequence[MixedState]:
-        if any(is_symbolic(b) for b in state.belief):
-            return unique
-        lead = key(state)
+    def find_numeric(vector: np.ndarray, lead: float) -> MixedState | None:
+        """The first known numeric belief in key order equal to ``vector`` under :func:`probs_equal`."""
         window = _NUMERIC_WINDOW * (1.0 + abs(lead))
         low = bisect.bisect_left(numeric_keys, lead - window)
         high = bisect.bisect_right(numeric_keys, lead + window)
-        return [*numeric_unique[low:high], *symbolic_unique]
+        if low == high:
+            return None
+        rows = numeric_beliefs[numeric_rows[low:high]]
+        close = np.abs(rows - vector) <= PROBS_EQUAL_ATOL + PROBS_EQUAL_RTOL * np.abs(vector)
+        hits = np.flatnonzero(close.all(axis=1))
+        return numeric_unique[low + int(hits[0])] if hits.size else None
 
     def register(state: MixedState) -> MixedState:
+        nonlocal numeric_beliefs
         existing = discovered.get(state)
         if existing is not None:
             return existing
-        for known in candidates(state):
-            if _beliefs_equal(known, state, constraints=constraints):
-                discovered[state] = known
-                return known
+        symbolic = any(is_symbolic(b) for b in state.belief)
+        if symbolic:
+            match = next((known for known in unique if _beliefs_equal(known, state, constraints=constraints)), None)
+        else:
+            vector = np.asarray(state.belief, dtype=float)
+            lead = float(weights @ vector)
+            match = find_numeric(vector, lead)
+            if match is None:
+                match = next(
+                    (known for known in symbolic_unique if _beliefs_equal(known, state, constraints=constraints)),
+                    None,
+                )
+        if match is not None:
+            discovered[state] = match
+            return match
         if len(unique) >= max_states:
             raise MixedStateExplosionError(
                 f"mixed-state presentation exceeded max_states={max_states}; the reachable belief set may be infinite"
             )
         discovered[state] = state
         unique.append(state)
-        if any(is_symbolic(b) for b in state.belief):
+        if symbolic:
             symbolic_unique.append(state)
         else:
-            lead = key(state)
+            row = len(numeric_unique)
+            if row == len(numeric_beliefs):
+                numeric_beliefs = np.concatenate([numeric_beliefs, np.empty_like(numeric_beliefs)])
+            numeric_beliefs[row] = vector
             position = bisect.bisect_right(numeric_keys, lead)
             numeric_keys.insert(position, lead)
             numeric_unique.insert(position, state)
+            numeric_rows.insert(position, row)
         graph.add_state(state)
         queue.append(state)
         return state
