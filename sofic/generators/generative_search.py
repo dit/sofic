@@ -21,6 +21,10 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    (:func:`~sofic.generators.coupled_generators.line_split_seeds`), memory lifts, the exact minimal functional generator
    (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
    (small joints), coupled search.
+5. *Final lower bound.* While the bracket is open, the generator heaviest-term bound
+   (:func:`~sofic.generators.exact_ci_bounds.generator_heaviest_term_bound`, ``generator_heaviest_term``)
+   aims at the verified upper bound with the rest of the budget, on joints with at most 14 causal states
+   (7 without a budget, where it is capped at 2,000 boxes).
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
@@ -83,6 +87,11 @@ _DIT_MAX_PAIRS = 30
 # The heaviest-term bound branches over |S+| + |S-| - 1 coordinates; run it only up to this many causal
 # states (|S+| + |S-|), where it converges within a stage budget.
 _HEAVIEST_TERM_MAX_DIMS = 7
+# Node cap for the final generator heaviest-term stage when there is no time budget (about 10 s on
+# 2 x 2 and 3 x 3 joints); with a budget the deadline governs, and joints up to this many causal states
+# are worth it (900 s raised the bound on 3 x 5 to 3 x 11 joints of the binary 3-state dataset too).
+_GENERATOR_HEAVIEST_TERM_NODES = 2_000
+_GENERATOR_HEAVIEST_TERM_MAX_DIMS = 14
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -398,7 +407,7 @@ def _bracket_search(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
-    generator_heaviest_term: bool = False,
+    generator_heaviest_term: bool = True,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -684,26 +693,6 @@ def _bracket_search(
             )
             if htb.value > lower + 1e-9:
                 lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
-        best_upper = min((c[0] for c in candidates), default=np.inf)
-        if (
-            generator_heaviest_term
-            and not wyner
-            and lower < best_upper - _CERT_TOL
-            and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
-            and not out_of_time("generator heaviest-term bound")
-        ):
-            gtb = generator_heaviest_term_bound(problem, target=best_upper - 0.5 * _CERT_TOL, deadline=share(0.3))
-            log.append(
-                {
-                    "stage": "generator heaviest-term bound (certified)",
-                    "value": gtb.value,
-                    "nodes": gtb.nodes,
-                    "reached": gtb.reached,
-                }
-            )
-            if gtb.value > lower + 1e-9:
-                lower, lower_source = gtb.value, "generator heaviest-term bound (certified)"
-                lower_certified = True
         if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
             for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})
@@ -902,6 +891,34 @@ def _bracket_search(
     )
     if result is None:
         raise StochasticValidationError(f"{objective} generator search: no candidate reproduced the source process")
+    # last, so it aims at the verified upper bound and gets the whole remaining budget
+    max_dims = _HEAVIEST_TERM_MAX_DIMS if deadline is None else _GENERATOR_HEAVIEST_TERM_MAX_DIMS
+    if (
+        generator_heaviest_term
+        and not wyner
+        and result.lower < result.upper - _CERT_TOL
+        and problem.n_plus + problem.n_minus <= max_dims
+        and not out_of_time("generator heaviest-term bound")
+    ):
+        stage_deadline = share(1.0)
+        gtb = generator_heaviest_term_bound(
+            problem,
+            target=result.upper - 0.5 * _CERT_TOL,
+            max_nodes=_GENERATOR_HEAVIEST_TERM_NODES if stage_deadline is None else 200_000,
+            deadline=stage_deadline,
+        )
+        log.append(
+            {
+                "stage": "generator heaviest-term bound (certified)",
+                "value": gtb.value,
+                "nodes": gtb.nodes,
+                "reached": gtb.reached,
+            }
+        )
+        if gtb.value > result.lower + 1e-9:
+            result.lower = float(min(gtb.value, result.upper))
+            result.lower_source = "generator heaviest-term bound (certified)"
+            result.lower_certified = True
     result.budget_exhausted = bool(skipped)
     return _finalize_result(result)
 
@@ -922,7 +939,7 @@ def generative_model_from_bidirectional(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
-    generator_heaviest_term: bool = False,
+    generator_heaviest_term: bool = True,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -1048,7 +1065,7 @@ def generative_model(
     coverage_mu_starts: int = 25,
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
-    generator_heaviest_term: bool = False,
+    generator_heaviest_term: bool = True,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -111,6 +112,40 @@ def test_generator_heaviest_term_bound_is_below_a_known_generator() -> None:
 
     result = generator_heaviest_term_bound(_survey_case_a(), max_nodes=300)
     assert 0.85 < result.value <= 0.9697134 + 1e-9  # entropy of a word-verified generator
+
+
+def test_generator_heaviest_term_bound_stops_at_its_deadline() -> None:
+    import time
+
+    from sofic.generators.exact_ci_bounds import generator_heaviest_term_bound
+
+    start = time.monotonic()
+    generator_heaviest_term_bound(_survey_case_a(), deadline=start + 2.0)
+    assert time.monotonic() - start < 10.0
+
+
+def _dataset_case_t006():
+    """Dataset process ``n2-t006-d0`` (code ((0,1),(0,0))): C_g = 0.8551484, coverage bound 0.8379."""
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+    from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
+    from sofic.generators.coupled_generators import _GeneratorProblem
+    from sofic.generators.epsilon_machine import EpsilonMachine
+
+    a, b = 0.6115387860108349, 0.2662431875066565
+    mats = {0: np.array([[a, 0], [b, 0]]), 1: np.array([[0, 1 - a], [1 - b, 0]])}
+    machine = from_symbol_matrices((0, 1), (0, 1), mats)
+    forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
+    return _GeneratorProblem(BidirectionalEpsilonMachine.from_forward(forward))
+
+
+@pytest.mark.slow
+def test_generator_heaviest_term_bound_closes_a_two_state_bracket() -> None:
+    from sofic.generators.exact_ci_bounds import generator_heaviest_term_bound
+
+    upper = 0.8551483886521953  # entropy of a word-verified generator
+    result = generator_heaviest_term_bound(_dataset_case_t006(), target=upper - 5e-5)
+    assert result.reached
+    assert result.value <= upper + 1e-9
 
 
 def _dataset_case_t055():

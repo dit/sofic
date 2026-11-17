@@ -200,13 +200,12 @@ def generator_heaviest_term_bound(
 
     relaxation = _HeaviestStatesRelaxation(problem, 1)
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
-    return heaviest_term_bound(
-        P,
-        target=target,
-        max_nodes=max_nodes,
-        deadline=deadline,
-        weight_cap=lambda box: relaxation.bound((box[:4],)),
-    )
+
+    def weight_cap(box: Box) -> float | None:
+        left = None if deadline is None else deadline - time.monotonic()
+        return relaxation.bound((box[:4],), left)
+
+    return heaviest_term_bound(P, target=target, max_nodes=max_nodes, deadline=deadline, weight_cap=weight_cap)
 
 
 class _LiftedTermTest:

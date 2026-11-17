@@ -314,8 +314,16 @@ weight is also capped by the one-explicit-state generator-cap LP over the box of
 :math:`\op{G}{}`-optimal heavy term the bound exceeds :math:`\op{G}{S^+ : S^-}`: on
 ``((0,1),(0,2),(0,1))`` it certifies :math:`C_g \ge 0.928 > \op{G}{} = 0.924`, but only after about
 220,000 boxes (half an hour), because the LP excludes that term only in boxes of radius about
-:math:`10^{-4}`. The pipeline therefore runs it only on request (``generator_heaviest_term=True``).
-This combination is not from the literature.
+:math:`10^{-4}`. Elsewhere it converges much faster. On the 106 open :math:`C_g` brackets of a
+dataset of binary 2- and 3-state ε-machines (joints from :math:`2 \times 2` to :math:`3 \times 11`),
+900 s per process raised the lower bound on 48 of 105 and closed 9, taking the median bracket width
+from 0.066 to 0.039 bits. The closed ones include processes where some generator's heaviest state
+outweighs the minimal generator's, which caps on the heaviest weights alone cannot certify. The
+pipeline therefore runs it last, once the upper bound is verified, aiming at that bound with the
+remaining budget (``generator_heaviest_term=True``, the default), on joints with up to 14 causal
+states; without a budget it stays at 7 causal states and 2,000 boxes. Each generator-cap LP inside it
+is limited to the time left, because a single degenerate LP otherwise ran past the deadline by more
+than half an hour. This combination is not from the literature.
 
 Lifted generators get their own bound.
 :func:`~sofic.generators.exact_ci_bounds.lifted_heaviest_term_bound` uses that a lifted generator draws
