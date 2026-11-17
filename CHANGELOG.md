@@ -5,6 +5,19 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Generator heaviest-term bound by default
+
+- `generative_model` now runs `generator_heaviest_term_bound` last, once the best generator is
+  verified, aiming at its entropy with the remaining budget (`generator_heaviest_term=True` is the new
+  default). With a time budget it runs on joints with up to 14 causal states; without one it stays at
+  `|S+| + |S-| <= 7` and 2,000 boxes. On the 106 open `C_g` brackets of a dataset of binary 2- and
+  3-state ε-machines, 900 s per process raised the lower bound on 48 of 105 and closed 9 (median
+  bracket width 0.066 → 0.039 bits). Some of the closed ones cannot be certified by caps on the
+  heaviest weights at all, since another generator has a heavier state.
+- `generator_heaviest_term_bound` limits each generator-cap LP to the time left before its
+  `deadline`. A single degenerate HiGHS solve previously ran more than half an hour past a 900 s
+  deadline (`n3-t045-d3`); it now returns on time.
+
 ### Finite-state rounded HMM filters
 
 - `quantized_filter` builds the reachable log-odds-grid observer of Feng & Meng

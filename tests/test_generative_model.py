@@ -107,6 +107,20 @@ def test_zero_time_budget_returns_a_valid_bracket_from_the_machines() -> None:
     assert result.stages[-1]["budget_exhausted"] is True
 
 
+def test_generator_heaviest_term_stage_runs_last_on_open_small_brackets() -> None:
+    from tests.test_exact_ci_bounds import _dataset_case_t006
+
+    bidir = _dataset_case_t006().bidir
+    result = generative_model_from_bidirectional(bidir, time_budget=0.0, rng=np.random.default_rng(0))
+    names = [s["stage"] for s in result.stages]
+    assert names[-2] == "generator heaviest-term bound"
+    assert result.stages[-2]["skipped"] == "time budget exhausted"
+    off = generative_model_from_bidirectional(
+        bidir, time_budget=0.0, generator_heaviest_term=False, rng=np.random.default_rng(0)
+    )
+    assert "generator heaviest-term bound" not in {s["stage"] for s in off.stages}
+
+
 def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
     result = generative_model(golden_mean(0.5), rng=np.random.default_rng(0))
     assert not result.budget_exhausted
