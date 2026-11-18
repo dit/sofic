@@ -20,7 +20,9 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
 4. *Upper bounds:* ε-machines, line-split seeds from the exact optima
    (:func:`~sofic.generators.coupled_generators.line_split_seeds`), memory lifts, the exact minimal functional generator
    (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
-   (small joints), coupled search.
+   (small joints), coupled search, and a belief-free search over HMM symbol matrices
+   (:func:`~sofic.generators.hmm_search.hmm_generator_search`, ``hmm_search``), which reaches generators the
+   belief-parameterized searches miss.
 5. *Final lower bound.* While the bracket is open, the generator heaviest-term bound
    (:func:`~sofic.generators.exact_ci_bounds.generator_heaviest_term_bound`, ``generator_heaviest_term``)
    aims at the verified upper bound with the rest of the budget, on joints with at most 14 causal states
@@ -71,6 +73,7 @@ from sofic.generators.generator_bounds import (
     support_exact_cover_bound,
     support_type_bound,
 )
+from sofic.generators.hmm_search import coupled_seed_from_hmm, hmm_generator_search
 
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
@@ -399,7 +402,7 @@ def _bracket_search(
     memory_starts: int = 10,
     residual_atol: float = 1e-7,
     reproduction_atol: float = 1e-5,
-    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled"),
+    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
@@ -408,6 +411,8 @@ def _bracket_search(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_heaviest_term: bool = True,
+    hmm_search: bool = True,
+    hmm_search_starts: int = 8,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -865,6 +870,21 @@ def _bracket_search(
                 )[: None if wyner else 2]:
                     offer(f"coupled k={k} ({res.start})", (res.pi, res.Q, res.R, res.K))
 
+    if hmm_search and "hmm" in stages and not wyner and not out_of_time("belief-free HMM search"):
+        stage_deadline = share(0.5)
+        ks = range(problem.n_plus, problem.n_plus + (3 if stage_deadline is not None else 2))
+        n_starts = hmm_search_starts if stage_deadline is not None else 2
+        found = 0
+        for k in ks:
+            if out_of_time("belief-free HMM search") or (
+                stage_deadline is not None and time.monotonic() >= stage_deadline
+            ):
+                break
+            for res in hmm_generator_search(reference, k, starts=n_starts, rng=rng, deadline=stage_deadline)[:2]:
+                offer(f"belief-free HMM k={k} (start {res.start})", coupled_seed_from_hmm(problem, res.matrices))
+                found += 1
+        log.append({"stage": "belief-free HMM search", "k": list(ks), "starts": n_starts, "generators": found})
+
     best_value = min((c[0] for c in candidates), default=np.inf)
     if targeted and optima and best_value - lower > _TARGETED_GAP and not out_of_time("targeted line-split search"):
         seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, deadline=share(0.8), rng=rng)
@@ -931,7 +951,7 @@ def generative_model_from_bidirectional(
     memory_starts: int = 10,
     residual_atol: float = 1e-7,
     reproduction_atol: float = 1e-5,
-    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled"),
+    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
@@ -940,6 +960,8 @@ def generative_model_from_bidirectional(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_heaviest_term: bool = True,
+    hmm_search: bool = True,
+    hmm_search_starts: int = 8,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -970,6 +992,8 @@ def generative_model_from_bidirectional(
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
         generator_heaviest_term=generator_heaviest_term,
+        hmm_search=hmm_search,
+        hmm_search_starts=hmm_search_starts,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
@@ -1066,6 +1090,8 @@ def generative_model(
     coverage_k_max: int = 8,
     coverage_certified_only: bool = False,
     generator_heaviest_term: bool = True,
+    hmm_search: bool = True,
+    hmm_search_starts: int = 8,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -1106,7 +1132,7 @@ def generative_model(
         memory_starts=memory_starts,
         residual_atol=residual_atol,
         reproduction_atol=reproduction_atol,
-        stages=("machines", "exact", "memory", "functional", "lifted", "coupled"),
+        stages=("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
         large=large,
         exact_starts=exact_starts,
         dit_fallback=dit_fallback,
@@ -1115,6 +1141,8 @@ def generative_model(
         coverage_k_max=coverage_k_max,
         coverage_certified_only=coverage_certified_only,
         generator_heaviest_term=generator_heaviest_term,
+        hmm_search=hmm_search,
+        hmm_search_starts=hmm_search_starts,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
