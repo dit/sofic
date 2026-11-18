@@ -358,6 +358,7 @@ def _try_best_candidate(
     reproduction_atol: float,
     objective: str = "entropy",
 ) -> GenerativeModelResult | None:
+    from sofic.generators.matrices import emission_tensors
     from sofic.generators.minimal_generative_model import _reproduction_error
 
     g_generates = n_generating > 0
@@ -370,7 +371,17 @@ def _try_best_candidate(
         error = float(_reproduction_error(model, reference, max_length=length))
         if error > reproduction_atol:
             continue
-        upper = float(value) if objective == "wyner" else float(model.state_entropy())
+        # The reproduction check runs from the model's start vector; a reducible model (e.g. a near-zero-weight
+        # absorbing state kept by the cutoff) can have other stationary vectors, so the upper bound must be the
+        # entropy of that start vector, and the start vector must be stationary.
+        start, mats = emission_tensors(model)
+        start = np.asarray(start, dtype=float)
+        if (
+            float(np.abs(start @ sum(np.asarray(M, dtype=float) for M in mats.values()) - start).max())
+            > reproduction_atol
+        ):
+            continue
+        upper = float(value) if objective == "wyner" else _entropy(start)
         return GenerativeModelResult(
             model=model,
             upper=upper,

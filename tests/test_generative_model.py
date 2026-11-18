@@ -64,6 +64,46 @@ def test_certified_requires_the_model_to_reproduce_the_source() -> None:
     assert not result(1e-4).certified
 
 
+def test_upper_is_the_entropy_of_the_verified_start_vector() -> None:
+    """A near-zero-weight absorbing state makes the model reducible; its other stationary vector must not set the upper."""
+    from sofic.generators.coupled_generators import _GeneratorProblem
+    from sofic.generators.generative_search import _try_best_candidate
+    from sofic.generators.hmm_search import coupled_seed_from_hmm
+    from sofic.generators.matrices import symbol_matrices
+
+    bidir = golden_mean_bidirectional(0.5)
+    problem = _GeneratorProblem(bidir)
+    mats = symbol_matrices(bidir.forward_machine)
+    pi, Q, R, K = coupled_seed_from_hmm(problem, tuple(np.asarray(mats[x], float) for x in problem.symbols))
+    eps, k = 1e-7, len(pi)
+    pi2 = np.append((1 - eps) * pi, eps)
+    K2 = np.zeros((k + 1, K.shape[1], k + 1))
+    K2[:k, :, :k] = K
+    loop = next(i for i, x in enumerate(problem.symbols) if np.trace(np.asarray(mats[x], float)) > 0)
+    K2[k, loop, k] = 1.0  # absorbing, repeats a symbol the golden mean can repeat forever
+    seed = (pi2, np.vstack([Q, Q[0]]), np.vstack([R, R[0]]), K2)
+    result = _try_best_candidate(
+        problem,
+        bidir.forward_machine,
+        6,
+        [(0.0, "test", seed)],
+        lower=0.0,
+        lower_source="test",
+        lower_certified=False,
+        g_estimate=None,
+        theorem=False,
+        n_g_optima=0,
+        n_generating=0,
+        cg_exceeds_g=None,
+        log=[],
+        reproduction_atol=1e-5,
+    )
+    assert result is not None
+    target = float(-(pi2 * np.log2(pi2)).sum())
+    assert result.upper == pytest.approx(target, abs=1e-9)
+    assert result.upper >= result.lower
+
+
 def test_generative_model_accepts_bidirectional_input() -> None:
     bidir = golden_mean_bidirectional(0.5)
     assert isinstance(bidir, BidirectionalEpsilonMachine)
