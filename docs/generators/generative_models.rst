@@ -238,6 +238,19 @@ source to the same tolerance (for example the golden mean, where the support bou
 drawing its states independently at both ends of each bidirectional edge also generates the process;
 coupled generators such as the interleaved product flag do not.
 
+The coupled searches parameterize states by their causal-state beliefs :math:`(Q_w, R_w)`, which favours
+generators whose states' pasts and futures are belief-mixtures of the causal states'. Some processes have
+lower-entropy generators that are not. :func:`~sofic.generators.hmm_search.hmm_generator_search` optimizes the
+symbol matrices of a :math:`k`-state HMM directly, minimizing :math:`H[\pi]` subject to exact word
+probabilities up to length :math:`k + |S^+|`, which implies equality on all words :cite:`Tzeng1992`. It uses an
+augmented Lagrangian with analytic gradients: first feasibility from a random start, then entropy descent. Direct
+parameter search for minimal generators of binary Markov processes is the approach of :cite:`Ruebeck2018`. The
+pipeline runs it after the coupled search (``hmm_search=True``) for :math:`k = |S^+|, \ldots, |S^+| + 2` with
+half the remaining budget, or for two values of :math:`k` and two starts without a budget, and offers the
+results through :func:`~sofic.generators.hmm_search.coupled_seed_from_hmm`. On the binary 3-state dataset it
+lowered seven open upper bounds, for example from :math:`C_\mu = 0.9037` to :math:`0.7956` with a 4-state
+generator that the belief-parameterized searches never reached.
+
 Wyner and functional generators
 -------------------------------
 
@@ -382,6 +395,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.functional_generators.functional_cover_search
 .. autofunction:: sofic.generators.functional_generators.product_rectangles
 .. autofunction:: sofic.generators.generative_search.resolve_bidirectional
+.. autofunction:: sofic.generators.hmm_search.hmm_generator_search
+.. autofunction:: sofic.generators.hmm_search.coupled_seed_from_hmm
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower

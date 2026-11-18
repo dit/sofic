@@ -5,6 +5,21 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Belief-free generator search
+
+- New `sofic.generators.hmm_search`: `hmm_generator_search(machine, k)` optimizes the symbol matrices of a
+  `k`-state HMM directly (softmax rows), minimizing the state entropy subject to exact word probabilities up
+  to length `k + |S+|`, which implies equality on all words (Tzeng 1992). It uses an augmented Lagrangian with
+  analytic gradients (forward recursion over the word tree, stationary law differentiated through the
+  fundamental matrix): feasibility first, then entropy descent. `coupled_seed_from_hmm` recovers the coupled
+  form `(pi, Q, R, K)` from the product chains with the causal states.
+- `generative_model` runs it after the coupled search (`hmm_search=True`, `hmm_search_starts=8`) for
+  `k = |S+| .. |S+| + 2` with half the remaining budget, or two values of `k` and two starts without a budget.
+  The coupled searches parameterize states by their beliefs and miss generators whose states' pasts or futures
+  are not belief-mixtures of the causal states'. On the 96 open brackets of the binary 3-state dataset this
+  search lowered seven upper bounds, e.g. `n3-t122-d2` from `C_mu = 0.9037` to `0.7956` and `n3-t140-d3`
+  from `1.5142` to `1.4010`.
+
 ### Generator heaviest-term bound by default
 
 - `generative_model` now runs `generator_heaviest_term_bound` last, once the best generator is
