@@ -12,7 +12,8 @@ from hypothesis import strategies as st
 from sofic.examples.epsilon_machines import from_symbol_matrices
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.epsilon_machine import EpsilonMachine
-from sofic.generators.generative_search import generative_model_from_bidirectional
+from sofic.generators.generative_search import generative_model, generative_model_from_bidirectional
+from sofic.generators.hmm_search import hmm_generator_search
 
 _TOL = 1e-7
 
@@ -66,6 +67,35 @@ def test_generator_search_bracket_is_consistent(forward):
     assert float(result.model.state_entropy()) == pytest.approx(result.upper, abs=_TOL)
     assert result.structure["n_states"] == len(list(result.model.states()))
     assert sum(result.structure["weights"]) == pytest.approx(1.0)
+
+
+def _ternary_golden_mean():
+    """Golden mean at 1/2 with its 1 split into two symbols: A -0-> A (1/2), A -1-> B, A -2-> B (1/4 each), B -0-> A.
+
+    The joint of S+ (last symbol 0 or not) and S- (next symbol 0 or not) is the binary golden mean's, and the
+    persistent crypticities vanish, so C_g = G[S+ : S-] = H(1/3, 2/3)."""
+    return from_symbol_matrices(
+        ("A", "B"),
+        (0, 1, 2),
+        {
+            0: np.array([[0.5, 0.0], [1.0, 0.0]]),
+            1: np.array([[0.0, 0.25], [0.0, 0.0]]),
+            2: np.array([[0.0, 0.25], [0.0, 0.0]]),
+        },
+    )
+
+
+@pytest.mark.slow
+def test_ternary_golden_mean_generative_complexity():
+    target = float(-(1 / 3) * np.log2(1 / 3) - (2 / 3) * np.log2(2 / 3))
+    machine = _ternary_golden_mean()
+    result = generative_model(machine, time_budget=60, rng=np.random.default_rng(0))
+    assert result.certified
+    assert result.lower == pytest.approx(target, abs=1e-6)
+    assert result.upper == pytest.approx(target, abs=1e-6)
+    found = hmm_generator_search(machine, 2, starts=4, rng=np.random.default_rng(0))
+    assert found and len(found[0].matrices) == 3
+    assert found[0].entropy == pytest.approx(target, abs=1e-6)
 
 
 @pytest.mark.slow
