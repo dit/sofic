@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import itertools
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +26,9 @@ import numpy as np
 from scipy.optimize import minimize
 
 __all__ = ["HMMSearchResult", "coupled_seed_from_hmm", "hmm_generator_search"]
+
+# Zero entries of a given start are raised to this before taking logits (log 0 is not a logit).
+_INITIAL_FLOOR = 1e-8
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,16 @@ def _target_words(machine: Any, tree: _WordTree) -> np.ndarray:
     return tree.forward(T, pi).sum(axis=1)
 
 
+def _logits(matrices: Sequence[np.ndarray], k: int, ns: int, floor: float) -> np.ndarray:
+    """Softmax logits (the inverse of :func:`_unpack`) of ``k``-state symbol matrices, entries floored first."""
+    T = [np.asarray(M, float) for M in matrices]
+    if len(T) != ns or any(M.shape != (k, k) for M in T):
+        raise ValueError(f"initial generator must have {ns} symbol matrices of shape ({k}, {k})")
+    E = np.concatenate([np.maximum(M, floor) for M in T], axis=1)
+    E /= E.sum(axis=1, keepdims=True)
+    return np.log(E).ravel()
+
+
 def _unpack(theta: np.ndarray, k: int, ns: int) -> tuple[list[np.ndarray], np.ndarray]:
     L = theta.reshape(k, ns * k)
     E = np.exp(L - L.max(axis=1, keepdims=True))
@@ -133,6 +147,7 @@ def hmm_generator_search(
     k: int,
     *,
     starts: int = 8,
+    initial: Sequence[Sequence[np.ndarray]] = (),
     rng: np.random.Generator | None = None,
     deadline: float | None = None,
     rounds: int = 12,
@@ -141,7 +156,12 @@ def hmm_generator_search(
     """Low-entropy ``k``-state generators of the process of ``machine`` (its forward ε-machine), best first.
 
     Each of ``starts`` random starts reaches a generator with no entropy term, then descends in :math:`H[\\pi]`
-    under the augmented Lagrangian (``rounds`` outer updates). Only end points whose largest word residual is at
+    under the augmented Lagrangian (``rounds`` outer updates). ``initial`` adds starts from given ``k``-state HMMs
+    (each a sequence of symbol matrices in symbol order), run before the random ones. Such a start is an
+    approximate generator to be polished, for instance the solution of
+    :func:`~sofic.generators.global_bound.generator_global_bound`: its rounds keep the entropy term off, so it
+    moves to a nearby generator instead of descending (from a near-generator, the descent stalls at an infeasible
+    point). A result's ``start`` counts the initial starts first. Only end points whose largest word residual is at
     most ``feasibility_tol`` are returned; callers should still verify them exactly (the pipeline does).
     ``deadline`` is a :func:`time.monotonic` value checked between starts and rounds.
     """
@@ -150,14 +170,16 @@ def hmm_generator_search(
     rng = rng if rng is not None else np.random.default_rng()
     mats = symbol_matrices(machine.to_mealy() if hasattr(machine, "to_mealy") else machine)
     ns, n = len(mats), next(iter(mats.values())).shape[0]
+    given = [_logits(T, k, ns, _INITIAL_FLOOR) for T in initial]
     tree = _WordTree(ns, k + n)
     target = _target_words(machine, tree)
     opts = {"maxiter": 3000, "ftol": 1e-16, "gtol": 1e-12}
     out = []
-    for start in range(starts):
+    for start in range(len(given) + starts):
         if deadline is not None and time.monotonic() >= deadline:
             break
-        theta = rng.normal(size=k * ns * k)
+        theta = given[start] if start < len(given) else rng.normal(size=k * ns * k)
+        weight = 0.0 if start < len(given) else 1.0
         lam = np.zeros(len(target))
         args = (k, ns, tree, target)
         theta = minimize(_objective, theta, args=(*args, lam, 10.0, 0.0), jac=True, method="L-BFGS-B", options=opts).x
@@ -165,7 +187,9 @@ def hmm_generator_search(
         for _ in range(rounds):
             if deadline is not None and time.monotonic() >= deadline:
                 break
-            theta = minimize(_objective, theta, args=(*args, lam, mu, 1.0), jac=True, method="L-BFGS-B", options=opts).x
+            theta = minimize(
+                _objective, theta, args=(*args, lam, mu, weight), jac=True, method="L-BFGS-B", options=opts
+            ).x
             T, _ = _unpack(theta, k, ns)
             pi = _stationary(sum(T))
             lam = lam + mu * (tree.forward(T, pi).sum(axis=1) - target)

@@ -66,7 +66,7 @@ jobs:
         run: sudo dot -c
 
       - name: Install package and dependencies
-        run: uv sync --extra test --extra symbolic
+        run: uv sync --extra test --extra symbolic --extra global
 
       - name: Run tests
         env:

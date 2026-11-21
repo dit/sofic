@@ -27,6 +27,11 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    (:func:`~sofic.generators.exact_ci_bounds.generator_heaviest_term_bound`, ``generator_heaviest_term``)
    aims at the verified upper bound with the rest of the budget, on joints with at most 14 causal states
    (7 without a budget, where it is capped at 2,000 boxes).
+6. *Restricted global bound* (opt-in, ``global_bound``; runs after the belief-free search). SCIP's lower bound
+   on the state entropy of generators with at most ``global_bound_states`` states
+   (:func:`~sofic.generators.global_bound.generator_global_bound`) is reported as ``restricted_lower``. It does
+   not enter ``lower``: no bound on the number of states of a minimal generator is known. SCIP's solution,
+   polished by the belief-free search, is offered as a candidate.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
@@ -95,6 +100,12 @@ _HEAVIEST_TERM_MAX_DIMS = 7
 # are worth it (900 s raised the bound on 3 x 5 to 3 x 11 joints of the binary 3-state dataset too).
 _GENERATOR_HEAVIEST_TERM_NODES = 2_000
 _GENERATOR_HEAVIEST_TERM_MAX_DIMS = 14
+# The restricted global bound runs only on SCIP models up to this many variables (two-step flows included;
+# 3-state binary processes at 4 states have about 1,200), and for this many seconds when there is no budget.
+_GLOBAL_BOUND_MAX_VARS = 2_000
+_GLOBAL_BOUND_SECONDS = 120.0
+# SCIP solution states lighter than this are dropped before the belief-free polish.
+_GLOBAL_BOUND_MIN_WEIGHT = 1e-6
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -127,6 +138,10 @@ class GenerativeModelResult:
     ``decomposition`` holds the generator itself as plain lists, for saving and later study: state names (as in
     ``model``), forward and reverse causal-state labels, symbols, weights ``pi``, beliefs ``Q`` (over
     :math:`S^+`) and ``R`` (over :math:`S^-`), and the kernel ``K[w][x][w']``.
+
+    ``restricted_lower`` (set by the opt-in ``global_bound`` stage) bounds the state entropy of generators with at
+    most ``restricted_states`` states only (:func:`~sofic.generators.global_bound.generator_global_bound`). It is
+    numerical, and it is not part of ``lower`` or ``certified``: a minimal generator might have more states.
     """
 
     model: CoupledGenerativeModel
@@ -147,6 +162,8 @@ class GenerativeModelResult:
     reproduction_error: float | None = None
     structure: dict[str, Any] | None = None
     decomposition: dict[str, Any] | None = None
+    restricted_lower: float | None = None
+    restricted_states: int | None = None
 
     @property
     def certified(self) -> bool:
@@ -183,6 +200,8 @@ def _reliability_summary(result: GenerativeModelResult) -> dict[str, Any]:
         "budget_exhausted": result.budget_exhausted,
         "reproduction_error": result.reproduction_error,
         "structure": result.structure,
+        "restricted_lower": result.restricted_lower,
+        "restricted_states": result.restricted_states,
     }
 
 
@@ -424,6 +443,8 @@ def _bracket_search(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    global_bound: bool = False,
+    global_bound_states: int | None = None,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -896,6 +917,49 @@ def _bracket_search(
                 found += 1
         log.append({"stage": "belief-free HMM search", "k": list(ks), "starts": n_starts, "generators": found})
 
+    restricted_lower: float | None = None
+    restricted_states: int | None = None
+    if global_bound and not wyner and not out_of_time("restricted global bound"):
+        from sofic.generators.global_bound import _model_size, generator_global_bound
+
+        k = global_bound_states if global_bound_states is not None else min(problem.n_plus, problem.n_minus) + 1
+        size = _model_size(problem, k)
+        stage_deadline = share(0.5)
+        limit = min((c[0] for c in candidates), default=None)
+        if size > _GLOBAL_BOUND_MAX_VARS:
+            log.append({"stage": "restricted global bound", "k": k, "skipped": f"{size} SCIP variables"})
+        else:
+            seconds = _GLOBAL_BOUND_SECONDS if stage_deadline is None else stage_deadline - time.monotonic()
+            try:
+                gb = generator_global_bound(problem, k, objective_limit=limit, time_limit=seconds)
+            except ImportError as exc:
+                log.append({"stage": "restricted global bound", "k": k, "skipped": str(exc)})
+            else:
+                restricted_lower, restricted_states = gb.lower, k
+                log.append(
+                    {
+                        "stage": "restricted global bound",
+                        "k": k,
+                        "value": gb.lower,
+                        "status": gb.status,
+                        "objective limit": limit,
+                        "two-step": gb.two_step,
+                        "nodes": gb.nodes,
+                        "seconds": gb.seconds,
+                    }
+                )
+                if gb.seed is not None:
+                    pi, _, _, K = gb.seed
+                    keep = np.flatnonzero(pi > _GLOBAL_BOUND_MIN_WEIGHT)
+                    T = [K[:, x, :][np.ix_(keep, keep)] for x in range(K.shape[1])]
+                    rows = sum(T).sum(axis=1, keepdims=True)
+                    polished = hmm_generator_search(
+                        reference, len(keep), starts=0, initial=[[M / rows for M in T]], deadline=deadline
+                    )
+                    name = f"polished global-bound solution k={len(keep)}"
+                    for res in polished:
+                        offer(name, coupled_seed_from_hmm(problem, res.matrices))
+
     best_value = min((c[0] for c in candidates), default=np.inf)
     if targeted and optima and best_value - lower > _TARGETED_GAP and not out_of_time("targeted line-split search"):
         seeds = targeted_line_split_seeds(problem, optima, residual_atol=residual_atol, deadline=share(0.8), rng=rng)
@@ -922,6 +986,7 @@ def _bracket_search(
     )
     if result is None:
         raise StochasticValidationError(f"{objective} generator search: no candidate reproduced the source process")
+    result.restricted_lower, result.restricted_states = restricted_lower, restricted_states
     # last, so it aims at the verified upper bound and gets the whole remaining budget
     max_dims = _HEAVIEST_TERM_MAX_DIMS if deadline is None else _GENERATOR_HEAVIEST_TERM_MAX_DIMS
     if (
@@ -973,6 +1038,8 @@ def generative_model_from_bidirectional(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    global_bound: bool = False,
+    global_bound_states: int | None = None,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -985,7 +1052,12 @@ def generative_model_from_bidirectional(
     time_budget: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> GenerativeModelResult:
-    """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring."""
+    """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring.
+
+    ``global_bound`` (needs PySCIPOpt, ``pip install sofic[global]``) adds the restricted global bound for
+    generators with at most ``global_bound_states`` states (default :math:`\\min(|S^+|, |S^-|) + 1`), reported as
+    ``restricted_lower``; see :class:`GenerativeModelResult`.
+    """
     return _bracket_search(
         bidir,
         objective="entropy",
@@ -1005,6 +1077,8 @@ def generative_model_from_bidirectional(
         generator_heaviest_term=generator_heaviest_term,
         hmm_search=hmm_search,
         hmm_search_starts=hmm_search_starts,
+        global_bound=global_bound,
+        global_bound_states=global_bound_states,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
@@ -1103,6 +1177,8 @@ def generative_model(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    global_bound: bool = False,
+    global_bound_states: int | None = None,
     generator_caps: int = 2,
     targeted: bool = True,
     entropy_sweep_starts: int = 80,
@@ -1129,6 +1205,7 @@ def generative_model(
     The check runs between stages (and between line-split seeds and coupled-search sizes), so a single
     long stage can overrun it. The bidirectional build's retry ladder counts against the budget
     (see :func:`~sofic.generators.bidirectional_build.build_bidirectional_with_ladder`).
+    ``global_bound`` and ``global_bound_states`` are as in :func:`generative_model_from_bidirectional`.
     """
     start = time.monotonic()
     bidir, build_meta = resolve_bidirectional(
@@ -1154,6 +1231,8 @@ def generative_model(
         generator_heaviest_term=generator_heaviest_term,
         hmm_search=hmm_search,
         hmm_search_starts=hmm_search_starts,
+        global_bound=global_bound,
+        global_bound_states=global_bound_states,
         generator_caps=generator_caps,
         targeted=targeted,
         entropy_sweep_starts=entropy_sweep_starts,
