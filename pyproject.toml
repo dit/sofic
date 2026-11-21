@@ -59,7 +59,7 @@ docs = [
     "sofic[symbolic]",
 ]
 dev = [
-    "sofic[test,viz,capacity]",
+    "sofic[test,viz,capacity,global]",
     "sofic[docs]",
     "ruff",
     "ty",
@@ -77,6 +77,9 @@ sat = [
 ]
 capacity = [
     "cvxpy>=1.4",
+]
+global = [
+    "pyscipopt>=5",
 ]
 symbolic = [
     "sympy>=1.12",
@@ -208,6 +211,8 @@ allowed-unresolved-imports = [
     "sympy.**",
     "pysat",
     "pysat.**",
+    "pyscipopt",
+    "pyscipopt.**",
 ]
 
 [tool.ty.rules]

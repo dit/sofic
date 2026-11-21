@@ -374,6 +374,36 @@ feeds them to :func:`~sofic.generators.generator_caps.generator_coverage_bound` 
 on :math:`C_g` from the forward ε-machine alone. On the :math:`(2, \infty)` process a
 two-symbol window already gives :math:`C_g \ge 3/2`.
 
+Restricted global bound
+-----------------------
+
+:func:`~sofic.generators.global_bound.generator_global_bound` (optional dependency PySCIPOpt,
+``pip install sofic[global]``) minimizes :math:`\H{\pi}` over the coupled generator equations for
+``k`` states, written in the flows :math:`F(w, x, v) = \pi_w K(x, v \mid w)` and solved by SCIP's
+spatial branch and bound :cite:`Achterberg2009,Vigerske2018` through PySCIPOpt :cite:`Maher2016`.
+With the bidirectional edge chain it adds two-step path flows and the two-step edge law. The
+weights are sorted, so caps on the heaviest states enter as linear cuts, and an objective limit
+(the entropy of a verified generator) lets SCIP prune. The result bounds the state entropy of every
+generator with at most ``k`` states and says nothing about larger ones. It is therefore a lower
+bound on :math:`C_g` only once the number of states of a minimal generator is bounded, which is open
+(every certified case so far needs at most :math:`|S^+| + 1` states). It is also numerical, not a
+certificate: the equations with data on the right-hand side are relaxed by ``data_tol``, and SCIP
+works to its own tolerances. SCIP's solution satisfies necessary conditions only;
+:func:`~sofic.generators.hmm_search.hmm_generator_search` with ``initial`` polishes it into a
+generator. On the binary process with symbol matrices
+:math:`T^{(0)} = \begin{pmatrix} p & 0 \\ q & 0 \end{pmatrix}` and
+:math:`T^{(1)} = \begin{pmatrix} 0 & 1 - p \\ 1 - q & 0 \end{pmatrix}` at
+:math:`(p, q) = (0.836, 0.788)`, where :math:`C_\mu = 0.5866`, the bound at ``k = 3`` is
+:math:`0.15563` (11 s), and the polished solution is a generator of entropy :math:`0.15571`: no
+generator with at most 3 states does :math:`10^{-4}` bits better.
+
+The pipeline runs it with ``global_bound=True``, after the belief-free search, for
+``global_bound_states`` states (default :math:`\min(|S^+|, |S^-|) + 1`). It gets half the remaining
+budget (120 s without a budget) and the best candidate's entropy as its objective limit, and it is
+skipped above 2,000 SCIP variables. The value goes to ``restricted_lower`` and ``restricted_states``,
+not to ``lower``, so ``certified`` is unchanged; the polished solution is offered as a candidate. The
+two-step flows and this restricted use are not from the literature.
+
 API
 ===
 
@@ -397,6 +427,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.generative_search.resolve_bidirectional
 .. autofunction:: sofic.generators.hmm_search.hmm_generator_search
 .. autofunction:: sofic.generators.hmm_search.coupled_seed_from_hmm
+.. autofunction:: sofic.generators.global_bound.generator_global_bound
+.. autoclass:: sofic.generators.global_bound.GlobalBoundResult
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower

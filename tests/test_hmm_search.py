@@ -82,6 +82,22 @@ def test_search_returns_exact_generators() -> None:
         assert res.entropy >= excess - 1e-9  # every generator carries at least the excess entropy
 
 
+def test_initial_start_recovers_a_perturbed_generator() -> None:
+    from sofic.generators.matrices import symbol_matrices
+
+    forward = _two_state()
+    mats = symbol_matrices(forward.to_mealy())
+    T = [np.asarray(mats[x], float) for x in sorted(mats)]
+    rng = np.random.default_rng(0)
+    noisy = [M * np.exp(rng.normal(scale=0.05, size=M.shape)) for M in T]
+    rows = sum(noisy).sum(axis=1, keepdims=True)
+    results = hs.hmm_generator_search(forward, 2, starts=0, initial=[[M / rows for M in noisy]])
+    assert [res.start for res in results] == [0]
+    assert max(np.abs(A - B).max() for A, B in zip(results[0].matrices, T, strict=True)) < 1e-6
+    with pytest.raises(ValueError, match="symbol matrices of shape"):
+        hs.hmm_generator_search(forward, 3, starts=0, initial=[T])
+
+
 @pytest.mark.slow
 def test_search_beats_the_epsilon_machine_on_n3_t122_d2() -> None:
     forward = _dataset_n3_t122_d2()

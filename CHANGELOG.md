@@ -5,6 +5,26 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Restricted global bound (SCIP)
+
+- New `sofic.generators.global_bound`: `generator_global_bound(bidir, k)` minimizes the state entropy over the
+  coupled generator equations for `k` states with SCIP's spatial branch and bound (optional dependency,
+  `pip install sofic[global]`), with two-step path flows and the two-step edge law when the bidirectional edge
+  chain is known, sorted weights, optional caps and an objective limit. `lower` bounds the state entropy of
+  every generator with at most `k` states, and only those: it is a lower bound on `C_g` only once the number
+  of states of a minimal generator is bounded (open). It is numerical, not a certificate. Each entropy term is
+  evaluated at `max(pi_w, pi_min)`, and the overestimate (`k pi_min log2(1 / pi_min)`) is subtracted, so
+  states of tiny weight cannot slip under the bound.
+- `hmm_generator_search(..., initial=[T])` polishes given `k`-state HMMs: their rounds keep the entropy term
+  off and move them to a nearby generator (from a near-generator, the entropy descent stalls at an infeasible
+  point). This turns a SCIP solution, which satisfies necessary conditions only, into a verified generator.
+- `generative_model(..., global_bound=True, global_bound_states=k)` runs the bound after the belief-free
+  search (default `k = min(|S+|, |S-|) + 1`, half the remaining budget, the best candidate's entropy as
+  objective limit, models up to 2,000 variables), records `restricted_lower` and `restricted_states`, and
+  offers the polished solution as a candidate. `lower` and `certified` are unchanged. At
+  `(p, q) = (0.836, 0.788)` in the binary two-state family the bound at `k = 3` is 0.15563 (11 s), and the
+  polished solution is a generator of entropy 0.15571, 0.43 bits below `C_mu`.
+
 ### Belief-free generator search
 
 - New `sofic.generators.hmm_search`: `hmm_generator_search(machine, k)` optimizes the symbol matrices of a
