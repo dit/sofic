@@ -517,10 +517,11 @@ def _entropy_rate_estimates(entropies: np.ndarray) -> np.ndarray:
 
 
 def _predictability_gain(block_entropy: np.ndarray, h_mu: float) -> np.ndarray:
-    """PG(L) = h_mu(L) - h_mu with h_mu(L) = H(L) - H(L-1) (Bialek et al., 2001).
+    """PG(L) = h_mu(L) - h_mu with h_mu(L) = H(L) - H(L-1).
 
-    The predictability gain is the excess of the length-``L`` entropy-rate estimate
-    over the asymptotic entropy rate, not the second difference of the block entropy.
+    Bialek et al.'s learning curve and Crutchfield & Feldman's per-symbol redundancy r(L); their
+    "predictability gain" is the second difference of the block entropy, h_mu(L) - h_mu(L-1). See
+    :meth:`~sofic.generators.epsilon_machine.EpsilonMachine.predictability_gain`.
     """
     gain = np.full(len(block_entropy), math.nan, dtype=float)
     if len(block_entropy) > 1:

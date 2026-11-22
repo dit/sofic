@@ -18,14 +18,14 @@ if TYPE_CHECKING:
 def structural_information(machine: EpsilonMachine) -> float:
     """Structural information, i.e. the excess entropy ``E``.
 
-    Feldman & Crutchfield :cite:`Feldman1998b` take the excess entropy
+    Feldman & Crutchfield :cite:`Feldman2003` take the excess entropy
     :math:`E = I[X_{-\\infty:0} : X_{0:\\infty}] = \\lim_{L\\to\\infty}
     (H[X_{0:L}] - h_\\mu L)` as the measure of structural information. For an
     epsilon-machine it equals the forward/reverse causal-state mutual
     information :math:`E = I[S^+ : S^-]` :cite:`Ellison2009`, which is what is
     returned. (By contrast the state uncertainty :math:`H[S_L \\mid X_{0:L}]`
     vanishes as :math:`L \\to \\infty` for every finite-state epsilon-machine
-    :cite:`Travers2010`; it does not converge to ``E``.)
+    :cite:`Travers2011`; it does not converge to ``E``.)
     """
     return machine.excess_entropy()
 

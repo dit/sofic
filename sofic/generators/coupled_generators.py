@@ -608,17 +608,18 @@ def separating_optima(
     """Distinct optima of the exact common information ``G[S+ : S-]`` found by multistart exact decomposition.
 
     Runs :func:`_decompose` (SLSQP with exact constraints) from ``starts`` random points for each number of terms in
-    ``sizes`` (default ``2 .. min(|S+| |S-|, 8)``, within the Kumar-Li-El Gamal bound :cite:`Kumar2014`), keeps the
-    solutions within ``atol`` of the best value, removes duplicates (equal sets of terms up to relabeling) and
-    returns ``(best value, channels)``. The optimum need not be unique, and only some optima may be generator
-    states; :func:`generator_kernel` decides which. No new start begins after ``deadline`` (a
-    :func:`time.monotonic` value) once some decomposition has been found.
+    ``sizes`` (default ``2 .. min(m, 8)``, where ``m`` is the number of cells in the support of the joint: some
+    optimum has at most ``m`` terms, by Kumar, Li & El Gamal's argument for their bound of ``|S+| |S-|``
+    :cite:`Kumar2014` restricted to the support), keeps the solutions within ``atol`` of the best value, removes
+    duplicates (equal sets of terms up to relabeling) and returns ``(best value, channels)``. The optimum need not
+    be unique, and only some optima may be generator states; :func:`generator_kernel` decides which. No new start
+    begins after ``deadline`` (a :func:`time.monotonic` value) once some decomposition has been found.
     """
     problem = _as_problem(bidir)
     rng = rng or np.random.default_rng()
     P = _pair_joint(problem)
     na, nb = P.shape
-    sizes = sizes or range(2, min(na * nb, 8) + 1)
+    sizes = sizes or range(2, min(int(np.count_nonzero(P > 1e-12)), 8) + 1)
     found = []
     for k in sizes:
         for _ in range(starts):

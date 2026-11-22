@@ -449,14 +449,20 @@ class EpsilonMachine(MealyHMM):
         return float(estimates.gauge_information_estimate[max_length])
 
     def predictability_gain(self, max_length: int) -> float:
-        """Finite-block predictability gain ``PG(L) = h_mu(L) - h_mu`` (Bialek et al., 2001)."""
+        """Excess ``PG(L) = h_mu(L) - h_mu`` of the length-``L`` entropy-rate estimate over the entropy rate.
+
+        This is the discrete learning curve :math:`\\Lambda(N)` of Bialek, Nemenman & Tishby
+        :cite:`bialek2001predictability` and the per-symbol redundancy :math:`r(L)` of Crutchfield & Feldman
+        :cite:`CrutchfieldFeldman2003` (their eq. 35). Crutchfield & Feldman reserve "predictability gain" for the
+        first difference :math:`\\Delta^2 H(L) = h_\\mu(L) - h_\\mu(L - 1)` (their eq. 36); the method keeps its name.
+        """
         if max_length < 1:
             raise ValueError("max_length must be at least 1 for predictability gain")
         estimates = self.block_entropy_estimates(max_length)
         return float(estimates.predictability_gain_estimate[max_length])
 
     def structural_information(self) -> float:
-        """Asymptotic structural information (Feldman & Crutchfield, 1998)."""
+        """Asymptotic structural information (Feldman & Crutchfield, 2003)."""
         from sofic.generators.alternative_complexity import structural_information
 
         return structural_information(self)

@@ -19,9 +19,13 @@ All of these are necessary for a generator, not sufficient. :func:`generator_glo
 :math:`\H{\pi}` over them with SCIP's spatial branch and bound :cite:`Achterberg2009,Vigerske2018` through
 PySCIPOpt :cite:`Maher2016`. Its dual bound therefore bounds the state entropy of every generator with at most
 ``k`` states from below; it says nothing about larger generators, so it is a lower bound on the generative
-complexity :math:`C_g` only once a bound on the number of states of a minimal generator is known (open; every
-certified case so far needs at most :math:`|S^+| + 1`). The two-step flows and this restricted use are not from
-the literature.
+complexity :math:`C_g` only once a bound on the number of states of a minimal generator is known. No general bound
+is known, and :math:`\min(|S^+|, |S^-|) + 1` is not one: a Markov chain on six symbols with
+:math:`|S^+| = |S^-| = 6` needs 8 states (see
+:func:`~sofic.generators.generator_bounds.one_wide_exact_common_information`). When both persistent crypticities
+vanish, every separating variable is a generator state, and some optimal one has at most as many values as the
+causal-state joint has support cells (the argument of :cite:`Kumar2014`, restricted to the support), so ``k`` equal
+to that number suffices. The two-step flows and this restricted use are not from the literature.
 
 The bound is numerical, not a certificate: the data are floats, the equations with data on the right-hand side
 are relaxed to ``|lhs - rhs| <= data_tol`` (which only enlarges the feasible set), and SCIP works to its own

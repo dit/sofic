@@ -374,6 +374,35 @@ feeds them to :func:`~sofic.generators.generator_caps.generator_coverage_bound` 
 on :math:`C_g` from the forward ε-machine alone. On the :math:`(2, \infty)` process a
 two-symbol window already gives :math:`C_g \ge 3/2`.
 
+Supports without 2 × 2 rectangles
+---------------------------------
+
+When no two forward causal states share two reverse causal states, every rectangle in the support
+of the causal-state joint lies in one row or one column, and
+:func:`~sofic.generators.generator_bounds.one_wide_exact_common_information` computes
+:math:`\op{G}{S^+ : S^-}` exactly. Every distribution on such a block is a product, so with the
+blocks fixed the decompositions form a product of simplices (each cell's mass split among the
+blocks covering it), on which the concave entropy is minimized at a vertex: a partition of the
+support. Merging two blocks of one row or one column lowers the entropy, so some optimal partition
+sends each cell to its row's block or to its column's block; the function enumerates these
+assignments on each connected component of the support and also reports the least entropy with at
+most ``k`` blocks. Kumar, Li & El Gamal :cite:`Kumar2014` show that some optimal separating
+variable has at most :math:`|S^+||S^-|` values (and at most :math:`2^{\min(|S^+|, |S^-|)} - 1`);
+their argument restricted to the support gives at most the number of support cells, which caps the
+number of terms :func:`~sofic.generators.coupled_generators.separating_optima` tries. The partition
+solver is not from the literature.
+
+The skip-one chain shows that a minimal generator can need more than
+:math:`\min(|S^+|, |S^-|) + 1` states. It is the first-order Markov chain on :math:`\mathbb{Z}_6`
+that moves from :math:`i` to :math:`i + 1` or :math:`i + 2`, with the twelve cells
+:math:`(i, i + 1), (i, i + 2)` of the joint of consecutive symbols, in cycle order, weighing heavy,
+heavy, light (light cells :math:`10^{-3}`, heavy ones :math:`0.1245`). Its causal states are the
+previous and the next symbol, so :math:`|S^+| = |S^-| = 6`. Both persistent crypticities vanish, so
+:math:`C_g = \op{G}{S^+ : S^-}`, and the support, a 12-cycle, has no :math:`2 \times 2` rectangle.
+The optimum pairs adjacent heavy cells and keeps the light ones apart: 8 blocks and
+:math:`C_g = 2.037622`, while 7 blocks give at least :math:`2.269805`. This family has no published
+source.
+
 Restricted global bound
 -----------------------
 
@@ -385,9 +414,11 @@ With the bidirectional edge chain it adds two-step path flows and the two-step e
 weights are sorted, so caps on the heaviest states enter as linear cuts, and an objective limit
 (the entropy of a verified generator) lets SCIP prune. The result bounds the state entropy of every
 generator with at most ``k`` states and says nothing about larger ones. It is therefore a lower
-bound on :math:`C_g` only once the number of states of a minimal generator is bounded, which is open
-(every certified case so far needs at most :math:`|S^+| + 1` states). It is also numerical, not a
-certificate: the equations with data on the right-hand side are relaxed by ``data_tol``, and SCIP
+bound on :math:`C_g` only once the number of states of a minimal generator is bounded. No general
+bound is known, and :math:`\min(|S^+|, |S^-|) + 1` is not one: the skip-one chain (under
+`Supports without 2 × 2 rectangles`_) needs :math:`|S^+| + 2` states. When both persistent
+crypticities vanish, ``k`` equal to the number of cells in the support of the causal-state joint
+suffices. It is also numerical, not a certificate: the equations with data on the right-hand side are relaxed by ``data_tol``, and SCIP
 works to its own tolerances. SCIP's solution satisfies necessary conditions only;
 :func:`~sofic.generators.hmm_search.hmm_generator_search` with ``initial`` polishes it into a
 generator. On the binary process with symbol matrices
@@ -398,7 +429,8 @@ generator. On the binary process with symbol matrices
 generator with at most 3 states does :math:`10^{-4}` bits better.
 
 The pipeline runs it with ``global_bound=True``, after the belief-free search, for
-``global_bound_states`` states (default :math:`\min(|S^+|, |S^-|) + 1`). It gets half the remaining
+``global_bound_states`` states (default :math:`\min(|S^+|, |S^-|) + 1`, a convention, not a bound).
+It gets half the remaining
 budget (120 s without a budget) and the best candidate's entropy as its objective limit, and it is
 skipped above 2,000 SCIP variables. The value goes to ``restricted_lower`` and ``restricted_states``,
 not to ``lower``, so ``certified`` is unchanged; the polished solution is offered as a candidate. The
@@ -464,6 +496,9 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.coupled_generators.line_split_seeds
 .. autofunction:: sofic.generators.coupled_generators.targeted_line_split_seeds
 .. autofunction:: sofic.generators.generator_bounds.support_type_bound
+.. autofunction:: sofic.generators.generator_bounds.one_wide_exact_common_information
+.. autoclass:: sofic.generators.generator_bounds.OneWidePartitionResult
+   :members:
 .. autofunction:: sofic.generators.generator_bounds.flow_bound
 .. autofunction:: sofic.generators.generator_bounds.flow_bound_result
 .. autofunction:: sofic.generators.generator_bounds.rll_flow_bound_certified

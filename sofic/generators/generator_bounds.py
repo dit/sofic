@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
+import networkx as nx
 import numpy as np
 
 if TYPE_CHECKING:
@@ -308,6 +309,105 @@ def support_type_bound(
     return res.value, res.types, res.masses or ()
 
 
+@dataclass(frozen=True)
+class OneWidePartitionResult:
+    """Exact common information of a joint whose support has no 2 x 2 rectangle.
+
+    ``value`` is :math:`\\op{G}{X : Y}`; ``blocks`` is an optimal partition of the support with the fewest blocks
+    (each a tuple of cells ``(x, y)`` in one row or one column, heaviest first); ``by_terms[k]`` is the least
+    :math:`\\H{W}` over separating variables with at most ``k`` values, from the fewest feasible ``k`` up to
+    ``len(blocks)``.
+    """
+
+    value: float
+    blocks: tuple[tuple[tuple[int, int], ...], ...]
+    by_terms: dict[int, float]
+
+
+def _one_wide_component(
+    P: np.ndarray, cells: list[tuple[int, int]], max_cells: int
+) -> dict[int, tuple[float, tuple[tuple[tuple[int, int], ...], ...]]]:
+    """Least entropy with exactly ``k`` blocks over the row-or-column assignments of one component's cells."""
+    m = len(cells)
+    if m > max_cells:
+        raise ValueError(f"a component of the support has {m} cells (max_cells={max_cells})")
+    rows = sorted({a for a, _ in cells})
+    cols = sorted({b for _, b in cells})
+    to_rows = np.zeros((m, len(rows)))
+    to_cols = np.zeros((m, len(cols)))
+    for j, (a, b) in enumerate(cells):
+        to_rows[j, rows.index(a)] = to_cols[j, cols.index(b)] = P[a, b]
+    best: dict[int, tuple[float, int]] = {}
+    bits = np.arange(m)
+    chunk = 1 << 16
+    for start in range(0, 1 << m, chunk):
+        codes = np.arange(start, min(start + chunk, 1 << m))
+        in_row = (codes[:, None] >> bits) & 1
+        loads = np.hstack([in_row @ to_rows, (1 - in_row) @ to_cols])
+        entropy = -(loads * np.log2(np.where(loads > 0, loads, 1.0))).sum(axis=1)
+        count = (loads > 0).sum(axis=1)
+        for k in np.unique(count):
+            sel = np.flatnonzero(count == k)
+            i = sel[np.argmin(entropy[sel])]
+            if entropy[i] < best.get(int(k), (np.inf, 0))[0]:
+                best[int(k)] = (float(entropy[i]), int(codes[i]))
+    out = {}
+    for k, (value, code) in best.items():
+        groups: dict[tuple[str, int], list[tuple[int, int]]] = {}
+        for j, (a, b) in enumerate(cells):
+            groups.setdefault(("x", a) if code >> j & 1 else ("y", b), []).append((a, b))
+        out[k] = (value, tuple(tuple(g) for g in groups.values()))
+    return out
+
+
+def one_wide_exact_common_information(
+    P: np.ndarray, *, atol: float = 1e-12, max_cells: int = 24
+) -> OneWidePartitionResult:
+    r"""Exact :math:`\op{G}{X : Y}` when every rectangle in the support of ``P`` lies in one row or one column.
+
+    Every value of a separating variable has a rectangular support, here part of one row or one column, and every
+    distribution on such a block is a product. With the blocks fixed, the decompositions are a product of
+    simplices (each cell's mass split among the blocks covering it), on which the concave :math:`\H{W}` is
+    minimized at a vertex: a partition of the support into blocks. Merging two blocks of one row (or one column)
+    lowers the entropy, so some optimal partition sends each cell to its row's block or to its column's block. The
+    solver enumerates these :math:`2^m` assignments on each connected component of the support (``m`` cells) and
+    combines the components; the same argument with at most ``k`` blocks gives ``by_terms``.
+
+    Kumar, Li & El Gamal :cite:`Kumar2014` show that some optimal separating variable has at most :math:`|X||Y|`
+    values; their argument, restricted to the support, gives at most the number of support cells. The partition
+    solver is not from the literature. Cells with ``P <= atol`` are dropped. Raises ``ValueError`` when the
+    support contains a 2 x 2 rectangle or a component has more than ``max_cells`` cells.
+    """
+    P = np.asarray(P, dtype=float)
+    P = P / P.sum()
+    support = np.asarray(atol < P, dtype=int)
+    overlap = support @ support.T
+    np.fill_diagonal(overlap, 0)
+    if (overlap >= 2).any():
+        raise ValueError("the support contains a 2 x 2 rectangle")
+    graph = nx.Graph()
+    graph.add_edges_from((("x", int(a)), ("y", int(b)), {"cell": (int(a), int(b))}) for a, b in np.argwhere(support))
+    totals: dict[int, tuple[float, tuple[tuple[tuple[int, int], ...], ...]]] = {0: (0.0, ())}
+    for nodes in nx.connected_components(graph):
+        cells = [cell for _, _, cell in graph.subgraph(nodes).edges(data="cell")]
+        component = _one_wide_component(P, cells, max_cells)
+        merged: dict[int, tuple[float, tuple[tuple[tuple[int, int], ...], ...]]] = {}
+        for k1, (v1, b1) in totals.items():
+            for k2, (v2, b2) in component.items():
+                if v1 + v2 < merged.get(k1 + k2, (np.inf, ()))[0]:
+                    merged[k1 + k2] = (v1 + v2, b1 + b2)
+        totals = merged
+    value = min(v for v, _ in totals.values())
+    k_opt = min(k for k, (v, _) in totals.items() if v <= value + 1e-12)
+    by_terms: dict[int, float] = {}
+    running = np.inf
+    for k in range(min(totals), k_opt + 1):
+        running = min(running, totals.get(k, (np.inf, ()))[0])
+        by_terms[k] = float(running)
+    blocks = tuple(sorted(totals[k_opt][1], key=lambda b: -sum(P[c] for c in b)))
+    return OneWidePartitionResult(float(value), blocks, by_terms)
+
+
 def _concave_entropy_min(
     A_ub: np.ndarray, b_ub: np.ndarray, A_eq: np.ndarray, b_eq: np.ndarray, *, tol: float = 1e-7, max_nodes: int = 20000
 ) -> float:
@@ -477,12 +577,14 @@ def generator_support_bound(bidir: BidirectionalEpsilonMachine) -> float:
 
 __all__ = [
     "FlowBoundResult",
+    "OneWidePartitionResult",
     "SupportTypeBoundResult",
     "flow_bound",
     "flow_bound_result",
     "generator_support_bound",
     "is_rll_three_state_machine",
     "maximal_rectangles",
+    "one_wide_exact_common_information",
     "rll_flow_bound_certified",
     "support_exact_cover_bound",
     "support_type_bound",

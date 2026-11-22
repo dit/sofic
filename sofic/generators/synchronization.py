@@ -396,7 +396,7 @@ def is_asymptotically_synchronizable_from_graph(graph: TopologicalUnifilarGraph)
     An epsilon-machine is asymptotically synchronizable iff the observer's
     state uncertainty vanishes as ``L -> infinity`` for almost every generated
     sequence (``Pr(WSYN(M)) = 1``) :cite:`Travers2010`. Every finite-state
-    epsilon-machine has this property, so this returns ``True`` for any
+    epsilon-machine has this property :cite:`Travers2011`, so this returns ``True`` for any
     non-empty presentation -- it is theorem-backed rather than computed.
     """
     return bool(graph.states)

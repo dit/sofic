@@ -1055,8 +1055,9 @@ def generative_model_from_bidirectional(
     """Run the generator-search pipeline on an existing bidirectional machine; see the module docstring.
 
     ``global_bound`` (needs PySCIPOpt, ``pip install sofic[global]``) adds the restricted global bound for
-    generators with at most ``global_bound_states`` states (default :math:`\\min(|S^+|, |S^-|) + 1`), reported as
-    ``restricted_lower``; see :class:`GenerativeModelResult`.
+    generators with at most ``global_bound_states`` states, reported as ``restricted_lower``; see
+    :class:`GenerativeModelResult`. The default, :math:`\\min(|S^+|, |S^-|) + 1`, is a convention, not a bound:
+    minimal generators can need more states.
     """
     return _bracket_search(
         bidir,
