@@ -5,6 +5,24 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Generator cardinality
+
+- Minimal generators can need more than `min(|S+|, |S-|) + 1` states. The skip-one chain (the first-order Markov
+  chain on `Z_6` moving `i -> i + 1` or `i + 2`, with light cells `1e-3`) has `|S+| = |S-| = 6`, vanishing
+  persistent crypticities, and `C_g = G[S+ : S-] = 2.037622` with 8 states; 7 states give at least 2.269805. The
+  remarks in `global_bound` and the docs that every certified case needs at most `|S+| + 1` states are replaced,
+  and `global_bound_states` (default `min(|S+|, |S-|) + 1`) is documented as a convention, not a bound.
+- New `generator_bounds.one_wide_exact_common_information(P)`: exact `G[X : Y]` when every rectangle in the support
+  lies in one row or one column, by enumerating row-or-column assignments of the cells on each connected component;
+  `by_terms[k]` gives the optimum with at most `k` values. The skip-one chain is its regression test.
+- `separating_optima` tries at most `min(m, 8)` terms, `m` the number of support cells: Kumar, Li & El Gamal's
+  argument restricted to the support bounds the terms of some optimum by `m` (was `|S+| |S-|`).
+- Citations: `Feldman1998b` now points to Feldman & Crutchfield's "Discovering Noncritical Organization" (Entropy
+  2022, SFI working paper 1998); `Travers2010` to J. Stat. Phys. 145 (2011). `structural_information` cites
+  Feldman & Crutchfield (2003) and Travers & Crutchfield's asymptotic synchronization paper (2011);
+  `predictability_gain` notes that `h_mu(L) - h_mu` is Bialek et al.'s learning curve and Crutchfield & Feldman's
+  `r(L)`, whose "predictability gain" is the first difference `h_mu(L) - h_mu(L - 1)`.
+
 ### Restricted global bound (SCIP)
 
 - New `sofic.generators.global_bound`: `generator_global_bound(bidir, k)` minimizes the state entropy over the
