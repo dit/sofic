@@ -142,6 +142,16 @@ def _objective(theta, k, ns, tree, target, lam, mu, weight):
     return value, grad.ravel()
 
 
+def _stop_at(deadline: float):
+    """An optimizer callback that ends the run (``StopIteration``) once :func:`time.monotonic` passes ``deadline``."""
+
+    def callback(intermediate_result: Any) -> None:
+        if time.monotonic() >= deadline:
+            raise StopIteration
+
+    return callback
+
+
 def hmm_generator_search(
     machine: Any,
     k: int,
@@ -163,7 +173,8 @@ def hmm_generator_search(
     moves to a nearby generator instead of descending (from a near-generator, the descent stalls at an infeasible
     point). A result's ``start`` counts the initial starts first. Only end points whose largest word residual is at
     most ``feasibility_tol`` are returned; callers should still verify them exactly (the pipeline does).
-    ``deadline`` is a :func:`time.monotonic` value checked between starts and rounds.
+    ``deadline`` is a :func:`time.monotonic` value checked between starts and rounds and after every L-BFGS-B
+    iteration, so a run stops within one iteration of it; an end point cut short is kept if it is feasible.
     """
     from sofic.generators.matrices import symbol_matrices
 
@@ -174,6 +185,7 @@ def hmm_generator_search(
     tree = _WordTree(ns, k + n)
     target = _target_words(machine, tree)
     opts = {"maxiter": 3000, "ftol": 1e-16, "gtol": 1e-12}
+    stop = None if deadline is None else _stop_at(deadline)
     out = []
     for start in range(len(given) + starts):
         if deadline is not None and time.monotonic() >= deadline:
@@ -182,13 +194,21 @@ def hmm_generator_search(
         weight = 0.0 if start < len(given) else 1.0
         lam = np.zeros(len(target))
         args = (k, ns, tree, target)
-        theta = minimize(_objective, theta, args=(*args, lam, 10.0, 0.0), jac=True, method="L-BFGS-B", options=opts).x
+        theta = minimize(
+            _objective, theta, args=(*args, lam, 10.0, 0.0), jac=True, method="L-BFGS-B", options=opts, callback=stop
+        ).x
         mu = 1e3
         for _ in range(rounds):
             if deadline is not None and time.monotonic() >= deadline:
                 break
             theta = minimize(
-                _objective, theta, args=(*args, lam, mu, weight), jac=True, method="L-BFGS-B", options=opts
+                _objective,
+                theta,
+                args=(*args, lam, mu, weight),
+                jac=True,
+                method="L-BFGS-B",
+                options=opts,
+                callback=stop,
             ).x
             T, _ = _unpack(theta, k, ns)
             pi = _stationary(sum(T))

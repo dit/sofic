@@ -1,6 +1,8 @@
 """Tests for finite-word distributions."""
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from sofic.examples import bernoulli, golden_mean
 from sofic.generators.markov import MarkovChain
@@ -85,6 +87,47 @@ def test_hmm_word_probability_helpers():
         ("0",): pytest.approx(0.25),
         ("1",): pytest.approx(0.75),
     }
+
+
+@settings(max_examples=25, deadline=None)
+@given(st.integers(0, 2**31 - 1), st.integers(0, 4), st.booleans())
+def test_word_probabilities_agree_with_word_probability(seed, length, from_state):
+    import numpy as np
+
+    from sofic.generators.mealy import MealyHMM
+
+    rng = np.random.default_rng(seed)
+    k, symbols = 3, ("a", "b", "c")
+    hmm = MealyHMM(
+        initial_distribution=dict(enumerate(rng.dirichlet(np.ones(k)))), observation_alphabet=frozenset(symbols)
+    )
+    for w in range(k):
+        hmm.graph.add_state(w)
+    for w in range(k):
+        mask = rng.random((len(symbols), k)) < 0.4
+        mask[rng.integers(len(symbols)), rng.integers(k)] = True
+        weights = np.where(mask, rng.random(mask.shape), 0.0)
+        weights /= weights.sum()
+        for (xi, v), p in np.ndenumerate(weights):
+            if p > 0:
+                hmm.graph.add_transition(w, v, **{ATTR_PROB: float(p), ATTR_EMISSION: symbols[xi]})
+    start = 0 if from_state else None
+    dense = hmm.word_probabilities(length, start=start, sparse=False)
+    assert len(dense) == len(symbols) ** length
+    for word, p in dense.items():
+        assert p == pytest.approx(hmm.word_probability(word, start=start), abs=1e-15)
+    assert hmm.word_probabilities(length, start=start) == {w: p for w, p in dense.items() if abs(p) > 1e-15}
+
+
+def test_sparse_word_probabilities_prune_forbidden_prefixes():
+    import time
+
+    from sofic.examples.epsilon_machines import butterfly_process
+
+    start = time.monotonic()
+    words = butterfly_process().word_probabilities(8)
+    assert time.monotonic() - start < 10.0  # 8**8 words over the alphabet, 1088 of them allowed
+    assert len(words) == 1088 and sum(words.values()) == pytest.approx(1.0)
 
 
 def test_hmm_word_probability_rejects_zero_condition():
