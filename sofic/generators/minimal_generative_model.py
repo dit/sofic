@@ -898,8 +898,8 @@ def _reproduction_error(model: Any, reference: Any, *, max_length: int) -> float
     """
     error = 0.0
     for length in range(max_length + 1):
-        model_words = model.word_probabilities(length, sparse=False)
-        reference_words = reference.word_probabilities(length, sparse=False)
+        model_words = model.word_probabilities(length)
+        reference_words = reference.word_probabilities(length)
         for word in set(model_words) | set(reference_words):
             error = max(error, abs(model_words.get(word, 0.0) - reference_words.get(word, 0.0)))
     return max(error, _equivalence_error(model, reference))

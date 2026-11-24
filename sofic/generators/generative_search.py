@@ -10,7 +10,9 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    the certified coverage bound (:mod:`~sofic.generators.coverage_bound`), the informative one on
    full supports, where the support-type bound vanishes; and coverage with caps on the heaviest
    generator states from the generator equations (:mod:`~sofic.generators.generator_caps`,
-   ``generator_caps`` explicit states), which can exceed :math:`\op{G}{S^+ : S^-}`.
+   ``generator_caps`` explicit states), which can exceed :math:`\op{G}{S^+ : S^-}`. Both coverage stages are
+   skipped once the cheaper bounds meet the smaller ε-machine entropy, and at cryptic order at most 1 the
+   generator coverage bound waits for the exact path and runs only if that leaves the bracket open.
 2. *Persistent crypticity.* Logs the cryptic orders :math:`\kappa^\pm` and the persistent crypticities of the
    block processes, :math:`\H{S^+_L \mid X_{0:}}` and :math:`\H{S^-_0 \mid X_{:L}}`, which vanish exactly from
    :math:`L = \kappa`. When both :math:`p.\chi^\pm` vanish on the bidirectional edge (cryptic order at most 1),
@@ -565,7 +567,27 @@ def _bracket_search(
                 lower, lower_source = fb.value, f"flow bound {thresholds}"
                 lower_certified = fb.certified
 
-    if not wyner and coverage in ("heuristic", "certified") and not out_of_time("coverage bound"):
+    # Both ε-machines generate the process, so once the lower bound meets the smaller of their entropies the
+    # machines stage certifies and the coverage stages cannot help.
+    settled = not wyner and lower >= min(_entropy(problem.p_plus), _entropy(problem.p_minus)) - _CERT_TOL
+    if settled:
+        log.append({"stage": "coverage bounds", "skipped": "the lower bound meets an ε-machine's entropy"})
+    f_crit, r_crit = _persistent_criteria(problem)
+    theorem = f_crit < 1e-10 and r_crit < 1e-10
+
+    def generator_coverage() -> None:
+        nonlocal lower, lower_source, lower_certified
+        from sofic.generators.generator_caps import generator_coverage_bound
+
+        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps, deadline=share(0.3))
+        log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
+        if gen.value > lower + 1e-9:
+            lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
+
+    # With p.chi+- = 0 the exact path below usually certifies C_g = G, so the generator coverage bound runs after it.
+    want_generator_coverage = not wyner and coverage == "certified" and generator_caps > 0 and not settled
+
+    if not settled and not wyner and coverage in ("heuristic", "certified") and not out_of_time("coverage bound"):
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -589,16 +611,9 @@ def _bracket_search(
         except Exception as exc:  # pragma: no cover - defensive
             log.append({"stage": "coverage bound", "error": str(exc)})
 
-    if not wyner and coverage == "certified" and generator_caps > 0 and not out_of_time("generator coverage bound"):
-        from sofic.generators.generator_caps import generator_coverage_bound
+    if want_generator_coverage and not theorem and not out_of_time("generator coverage bound"):
+        generator_coverage()
 
-        gen = generator_coverage_bound(problem, k_max=coverage_k_max, explicit=generator_caps, deadline=share(0.3))
-        log.append({"stage": "generator coverage bound (certified)", "value": gen.value, "caps": gen.caps})
-        if gen.value > lower + 1e-9:
-            lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
-
-    f_crit, r_crit = _persistent_criteria(problem)
-    theorem = f_crit < 1e-10 and r_crit < 1e-10
     kappa = _cryptic_orders(bidir)
     log.append(
         {
@@ -693,6 +708,12 @@ def _bracket_search(
             early = maybe_return_early()
             if early is not None and early.certified:
                 return _finalize_result(early)
+
+    if want_generator_coverage and theorem and not out_of_time("generator coverage bound"):
+        generator_coverage()
+        early = maybe_return_early()
+        if early is not None and early.certified:
+            return _finalize_result(early)
 
     kappa_plus = kappa[0] if kappa is not None else math.inf
     if (

@@ -151,15 +151,12 @@ def _hmm_word_probabilities(
 
     mealy = hmm.to_mealy()
     alphabet = sorted(mealy.observation_alphabet, key=repr)
+    mass = np.asarray(start_vector(mealy, start), dtype=float)
+    step = _matrix_step(symbol_matrices(mealy), len(mass), prune=sparse)
     distribution: dict[tuple[Any, ...], float] = {}
     for length in requested:
-        if length == 0:
-            probability = _hmm_word_probability(mealy, (), start=start)
-            if not sparse or abs(probability) > _TOL:
-                distribution[()] = probability
-            continue
-        for word, _ in _enumerate_words(alphabet, length):
-            probability = _hmm_word_probability(mealy, word, start=start)
+        for word, prefix_mass in _enumerate_words(alphabet, length, mass, step):
+            probability = float(prefix_mass.sum())
             if not sparse or abs(probability) > _TOL:
                 distribution[word] = probability
     return distribution

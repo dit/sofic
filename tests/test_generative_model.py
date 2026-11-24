@@ -166,6 +166,34 @@ def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
     assert not result.budget_exhausted
 
 
+def test_settled_bracket_skips_the_coverage_stages() -> None:
+    import time
+
+    from sofic.examples.epsilon_machines import butterfly_process
+
+    start = time.monotonic()
+    result = generative_model(butterfly_process(), time_budget=60.0, rng=np.random.default_rng(0))
+    assert time.monotonic() - start < 60.0  # took about 1900 s when words were enumerated over all 8**8
+    stages = {s["stage"]: s for s in result.stages}
+    assert result.certified and result.upper == pytest.approx(np.log2(5), abs=1e-9)
+    assert stages["coverage bounds"]["skipped"] == "the lower bound meets an ε-machine's entropy"
+    assert "generator coverage bound (certified)" not in stages
+
+
+def test_generator_coverage_waits_for_the_exact_path_in_the_theorem_class() -> None:
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+    from sofic.generators.epsilon_machine import EpsilonMachine
+    from tests.test_separating_generators import SCIP_KAPPA_1, SCIP_KAPPA_1_G
+
+    m = from_symbol_matrices((0, 1), (0, 1), {x: np.array(M) for x, M in SCIP_KAPPA_1.items()})
+    machine = m if isinstance(m, EpsilonMachine) else EpsilonMachine.from_hmm(m)
+    result = generative_model(machine, time_budget=60.0, rng=np.random.default_rng(0))
+    names = [s["stage"] for s in result.stages]
+    assert result.persistent_crypticity_theorem_applies and result.certified
+    assert result.upper == pytest.approx(SCIP_KAPPA_1_G, abs=1e-7)
+    assert "exact path" in names and "generator coverage bound (certified)" not in names
+
+
 def test_dit_fallbacks_are_skipped_on_large_joints(monkeypatch) -> None:
     import sofic.generators.generative_search as gs
     import sofic.generators.lifted_common_information as lci

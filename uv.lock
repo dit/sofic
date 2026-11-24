@@ -2638,7 +2638,7 @@ requires-dist = [
     { name = "python-sat", marker = "extra == 'sat'", specifier = ">=1.8" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scipy", specifier = ">=1.7" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "sphinx", marker = "extra == 'dev'" },
     { name = "sphinx", marker = "extra == 'docs'" },
     { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },

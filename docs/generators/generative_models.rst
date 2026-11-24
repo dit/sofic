@@ -245,7 +245,8 @@ generators whose states' pasts and futures are belief-mixtures of the causal sta
 lower-entropy generators that are not. :func:`~sofic.generators.hmm_search.hmm_generator_search` optimizes the
 symbol matrices of a :math:`k`-state HMM directly, minimizing :math:`H[\pi]` subject to exact word
 probabilities up to length :math:`k + |S^+|`, which implies equality on all words :cite:`Tzeng1992`. It uses an
-augmented Lagrangian with analytic gradients: first feasibility from a random start, then entropy descent. Direct
+augmented Lagrangian with analytic gradients: first feasibility from a random start, then entropy descent. Its
+``deadline`` is checked after every L-BFGS-B iteration, so a run stops within one iteration of it. Direct
 parameter search for minimal generators of binary Markov processes is the approach of :cite:`Ruebeck2018`. The
 pipeline runs it after the coupled search (``hmm_search=True``) for :math:`k = |S^+|, \ldots, |S^+| + 2` with
 half the remaining budget, or for two values of :math:`k` and two starts without a budget, and offers the
@@ -308,7 +309,11 @@ consistency for the group moments, and branching over boxes of the explicit stat
 beliefs with McCormick envelopes :cite:`mccormick1976computability`. Coverage with these
 caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
 ``generator_caps`` stage of the pipeline) exceeds :math:`\op{G}{S^+ : S^-}` on most
-survey processes with positive persistent crypticity.
+survey processes with positive persistent crypticity. The pipeline skips both coverage stages once the
+cheaper bounds meet the entropy of an ε-machine, which then certifies. At cryptic order at most 1, where
+:math:`C_g = \op{G}{S^+ : S^-}` and the exact path usually closes the bracket, the generator coverage bound
+runs only if the exact path leaves it open; on the 510 dataset processes of that class it had taken about
+17 s each and never supplied the lower bound.
 
 Coverage only sees the top weights. :func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`
 uses the whole decomposition: with heaviest term :math:`T = t\, q r^\top`, any exact decomposition has

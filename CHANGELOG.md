@@ -236,6 +236,20 @@ brute-force reference or a closed-form value and has a regression test.
 - The line-split seeds' ALM polish (`_optimize`, `_optimize_coupled`) stops at the pipeline deadline
   and returns its last finished step; one polish had run more than 10 minutes past the budget on a
   144-pair joint.
+- `hmm_generator_search` checks its `deadline` after every L-BFGS-B iteration, not only between starts and
+  rounds, so a run stops within one iteration of it (an end point cut short is kept if it is feasible). One
+  uninterrupted start at `k = 6` on a 3-state binary process ran 19 s past a 0.5 s deadline. The stop is a
+  `StopIteration` raised in the optimizer callback, which needs SciPy 1.11, now the minimum.
+- Sparse word distributions (`word_probabilities`, the default) extend only prefixes of positive probability,
+  so their cost follows the number of allowed words instead of `|X|^L`, and `generative_model`'s reproduction
+  check uses them. On the butterfly process (8 symbols, 1088 allowed words of length 8) the check ran about
+  1900 s of a 60 s budget; `generative_model(butterfly_process(), time_budget=60)` now certifies
+  `C_g = log2 5` in about 4 s.
+- `generative_model` skips both coverage stages once the cheaper lower bounds meet the entropy of an
+  ε-machine, which then certifies, and at cryptic order at most 1 runs the generator coverage bound only when
+  the exact path leaves the bracket open. On the 510 dataset processes of cryptic order at most 1 the
+  generator coverage bound took about 17 s each, 96% of the pipeline's time, and never supplied the lower
+  bound; with these changes the 510 runs take 2.6 minutes instead of 2.5 hours, with the same brackets.
 
 ### Support-type bound speed
 

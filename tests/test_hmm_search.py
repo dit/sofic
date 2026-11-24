@@ -98,6 +98,15 @@ def test_initial_start_recovers_a_perturbed_generator() -> None:
         hs.hmm_generator_search(forward, 3, starts=0, initial=[T])
 
 
+def test_deadline_stops_inside_an_optimizer_run() -> None:
+    import time
+
+    forward = _dataset_n3_t122_d2()
+    start = time.monotonic()
+    hs.hmm_generator_search(forward, 6, starts=1, rng=np.random.default_rng(0), deadline=start + 0.5)
+    assert time.monotonic() - start < 5.0  # one uninterrupted L-BFGS-B run at k = 6 takes far longer
+
+
 @pytest.mark.slow
 def test_search_beats_the_epsilon_machine_on_n3_t122_d2() -> None:
     forward = _dataset_n3_t122_d2()
