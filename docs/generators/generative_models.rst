@@ -312,8 +312,8 @@ caps (:func:`~sofic.generators.generator_caps.generator_coverage_bound`, the
 survey processes with positive persistent crypticity. The pipeline skips both coverage stages once the
 cheaper bounds meet the entropy of an ε-machine, which then certifies. At cryptic order at most 1, where
 :math:`C_g = \op{G}{S^+ : S^-}` and the exact path usually closes the bracket, the generator coverage bound
-runs only if the exact path leaves it open; on 233 dataset processes of that class it had taken about 17 s
-each and never supplied the lower bound.
+runs only if the exact path leaves it open; on the 510 dataset processes of that class it had taken about
+17 s each and never supplied the lower bound.
 
 Coverage only sees the top weights. :func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`
 uses the whole decomposition: with heaviest term :math:`T = t\, q r^\top`, any exact decomposition has

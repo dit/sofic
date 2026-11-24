@@ -247,8 +247,9 @@ brute-force reference or a closed-form value and has a regression test.
   `C_g = log2 5` in about 4 s.
 - `generative_model` skips both coverage stages once the cheaper lower bounds meet the entropy of an
   ε-machine, which then certifies, and at cryptic order at most 1 runs the generator coverage bound only when
-  the exact path leaves the bracket open. On 233 dataset processes of cryptic order at most 1 the generator
-  coverage bound took about 17 s each, 96% of the pipeline's time, and never supplied the lower bound.
+  the exact path leaves the bracket open. On the 510 dataset processes of cryptic order at most 1 the
+  generator coverage bound took about 17 s each, 96% of the pipeline's time, and never supplied the lower
+  bound; with these changes the 510 runs take 2.6 minutes instead of 2.5 hours, with the same brackets.
 
 ### Support-type bound speed
 
