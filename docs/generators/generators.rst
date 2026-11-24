@@ -48,6 +48,7 @@ Computational mechanics
    predictive_rate_distortion
    symbolic_hmm
    generative_models
+   separating_generators
    canonical_generators
    directional_flow
    alternative_complexity

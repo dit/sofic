@@ -11,8 +11,16 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    full supports, where the support-type bound vanishes; and coverage with caps on the heaviest
    generator states from the generator equations (:mod:`~sofic.generators.generator_caps`,
    ``generator_caps`` explicit states), which can exceed :math:`\op{G}{S^+ : S^-}`.
-2. *Persistent crypticity.* When both :math:`p.\chi^\pm` vanish on the bidirectional edge,
-   :math:`C_g = \op{G}{S^+ : S^-}`.
+2. *Persistent crypticity.* Logs the cryptic orders :math:`\kappa^\pm` and the persistent crypticities of the
+   block processes, :math:`\H{S^+_L \mid X_{0:}}` and :math:`\H{S^-_0 \mid X_{:L}}`, which vanish exactly from
+   :math:`L = \kappa`. When both :math:`p.\chi^\pm` vanish on the bidirectional edge (cryptic order at most 1),
+   :math:`C_g = \op{G}{S^+ : S^-}` and the *exact path* runs
+   (:mod:`~sofic.generators.separating_generators`): a least-entropy separating decomposition with at most
+   :math:`K(P)` terms, exact on rectangle-free components and from SCIP otherwise, whose generator is written
+   down directly; SCIP's dual bound enters ``lower`` as a numerical bound (``lower_certified`` False). Without
+   PySCIPOpt, components with rectangles fall back to multistart descents and the lower bounds below. For
+   cryptic order 2 or 3 the lookahead generator
+   (:func:`~sofic.generators.separating_generators.lookahead_generator`) is offered as a candidate.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
    :func:`~sofic.generators.coupled_generators.bilevel_search` when none generate; then an
    **entropy-ordered sweep** over all multistart separating decompositions (not only
@@ -29,9 +37,11 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    (7 without a budget, where it is capped at 2,000 boxes).
 6. *Restricted global bound* (opt-in, ``global_bound``; runs after the belief-free search). SCIP's lower bound
    on the state entropy of generators with at most ``global_bound_states`` states
-   (:func:`~sofic.generators.global_bound.generator_global_bound`) is reported as ``restricted_lower``. It does
-   not enter ``lower``: no bound on the number of states of a minimal generator is known. SCIP's solution,
-   polished by the belief-free search, is offered as a candidate.
+   (:func:`~sofic.generators.global_bound.generator_global_bound`; default :math:`K(P)`, lowered to fit the
+   variable cap) is reported as ``restricted_lower``. When the cryptic order is at most 1 and the bound runs at
+   :math:`K(P)` states, a minimal generator has that many states, so it enters ``lower`` as well (numerical).
+   Otherwise it does not: no bound on the number of states of a minimal generator is known when :math:`p.\chi`
+   is positive. SCIP's solution, polished by the belief-free search, is offered as a candidate.
 
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
@@ -40,6 +50,7 @@ variant lives in :mod:`~sofic.generators.functional_generators`.
 
 from __future__ import annotations
 
+import math
 import time
 import warnings
 from collections.abc import Sequence
@@ -79,6 +90,14 @@ from sofic.generators.generator_bounds import (
     support_type_bound,
 )
 from sofic.generators.hmm_search import coupled_seed_from_hmm, hmm_generator_search
+from sofic.generators.separating_generators import (
+    _block_persistent_crypticities,
+    lookahead_generator,
+    reduce_decomposition,
+    separating_decomposition,
+    support_bound_states,
+    theorem_generator,
+)
 
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
@@ -106,6 +125,12 @@ _GLOBAL_BOUND_MAX_VARS = 2_000
 _GLOBAL_BOUND_SECONDS = 120.0
 # SCIP solution states lighter than this are dropped before the belief-free polish.
 _GLOBAL_BOUND_MIN_WEIGHT = 1e-6
+# Seconds per SCIP run of the exact path (two settings per component with rectangles) when there is no budget.
+_EXACT_PATH_SECONDS = 60.0
+# The lookahead generator runs for cryptic orders 2 .. this, on block machines with at most this many states
+# (|S+| |A|^(kappa - 1) bounds them); it took at most 1.3 s on the 3-state archive.
+_LOOKAHEAD_MAX_KAPPA = 3
+_LOOKAHEAD_MAX_STATES = 64
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -141,7 +166,8 @@ class GenerativeModelResult:
 
     ``restricted_lower`` (set by the opt-in ``global_bound`` stage) bounds the state entropy of generators with at
     most ``restricted_states`` states only (:func:`~sofic.generators.global_bound.generator_global_bound`). It is
-    numerical, and it is not part of ``lower`` or ``certified``: a minimal generator might have more states.
+    numerical, and it is not part of ``lower`` or ``certified``, since a minimal generator might have more
+    states, except when the cryptic order is at most 1 and ``restricted_states`` is at least :math:`K(P)`.
     """
 
     model: CoupledGenerativeModel
@@ -278,6 +304,14 @@ def _wyner_information(problem: _GeneratorProblem, seed: tuple[np.ndarray, ...])
     pi, Q, R = seed[0], seed[1], seed[2]
     h_given_w = sum(float(pi[w]) * (_entropy(Q[w]) + _entropy(R[w])) for w in range(len(pi)))
     return max(0.0, _entropy(problem.p_pair) - h_given_w)
+
+
+def _cryptic_orders(bidir: BidirectionalEpsilonMachine) -> tuple[int | float, int | float] | None:
+    """``(kappa+, kappa-)`` from the forward and reverse ε-machines, or ``None`` if either fails."""
+    try:
+        return bidir.forward_machine.cryptic_order(), bidir.reverse_machine.cryptic_order()
+    except Exception:  # noqa: BLE001 - only logged
+        return None
 
 
 def _theorem_applies(problem: _GeneratorProblem, *, atol: float = 1e-10) -> bool:
@@ -565,7 +599,18 @@ def _bracket_search(
 
     f_crit, r_crit = _persistent_criteria(problem)
     theorem = f_crit < 1e-10 and r_crit < 1e-10
-    log.append({"stage": "persistent criteria", "value": (f_crit, r_crit), "theorem applies": theorem})
+    kappa = _cryptic_orders(bidir)
+    log.append(
+        {
+            "stage": "persistent criteria",
+            "value": (f_crit, r_crit),
+            "theorem applies": theorem,
+            "cryptic orders": kappa,
+            "block persistent crypticities": _block_persistent_crypticities(problem),
+        }
+    )
+    P_joint = np.einsum("p,pa,pb->ab", lifted.p, lifted.plus, lifted.minus)
+    K_P = support_bound_states(P_joint, tol=1e-12)
 
     # ---- upper search -------------------------------------------------------------------------------
     candidates: list[tuple[float, str, tuple[np.ndarray, ...]]] = []
@@ -617,6 +662,66 @@ def _bracket_search(
         early = maybe_return_early()
         if early is not None and early.certified:
             return _finalize_result(early)
+
+    if theorem and not wyner and "exact" in stages and not out_of_time("exact path"):
+        stage_deadline = share(0.3)
+        seconds = _EXACT_PATH_SECONDS if stage_deadline is None else 0.5 * (stage_deadline - time.monotonic())
+        try:
+            dec = separating_decomposition(P_joint, time_limit=max(seconds, 1.0), rng=rng)
+        except RuntimeError as exc:
+            log.append({"stage": "exact path", "error": str(exc)})
+        else:
+            A, R, _ = reduce_decomposition(P_joint, dec.pi[:, None] * dec.Q, dec.R)
+            pi = A.sum(axis=1)
+            seed = theorem_generator(problem, pi, A / pi[:, None], R)
+            log.append(
+                {
+                    "stage": "exact path",
+                    "value": dec.value,
+                    "lower": dec.lower,
+                    "exact": dec.exact,
+                    "states": len(pi),
+                    "support bound states": K_P,
+                    "components": [part["method"] for part in dec.components],
+                }
+            )
+            offer("theorem generator (cryptic order at most 1)", seed)
+            if dec.lower > lower + 1e-9:
+                lower = dec.lower
+                lower_source = "exact separating decomposition" if dec.exact else "separating global bound (numerical)"
+                lower_certified = dec.exact
+            early = maybe_return_early()
+            if early is not None and early.certified:
+                return _finalize_result(early)
+
+    kappa_plus = kappa[0] if kappa is not None else math.inf
+    if (
+        not wyner
+        and "exact" in stages
+        and 2 <= kappa_plus <= _LOOKAHEAD_MAX_KAPPA
+        and problem.n_plus * problem.n_sym ** (int(kappa_plus) - 1) <= _LOOKAHEAD_MAX_STATES
+        and not out_of_time("lookahead generator")
+    ):
+        stage_deadline = share(0.2)
+        seconds = _EXACT_PATH_SECONDS if stage_deadline is None else 0.5 * (stage_deadline - time.monotonic())
+        try:
+            look = lookahead_generator(reference, int(kappa_plus), time_limit=max(seconds, 1.0), rng=rng)
+        except (StochasticValidationError, ValueError, RuntimeError) as exc:
+            log.append({"stage": "lookahead generator", "error": str(exc)})
+        else:
+            log.append(
+                {
+                    "stage": "lookahead generator",
+                    "L": look.L,
+                    "value": look.value,
+                    "states": look.states,
+                    "word error": look.word_error,
+                }
+            )
+            index = {x: i for i, x in enumerate(look.symbols)}
+            k = look.kernel.shape[0]
+            mats = [look.kernel[:, index[x], :] if x in index else np.zeros((k, k)) for x in problem.symbols]
+            offer(f"lookahead generator L={look.L}", coupled_seed_from_hmm(problem, mats))
 
     if "exact" in stages and not out_of_time("exact common information"):
         best, optima = separating_optima(problem, starts=exact_starts, deadline=share(0.25), rng=rng)
@@ -922,7 +1027,10 @@ def _bracket_search(
     if global_bound and not wyner and not out_of_time("restricted global bound"):
         from sofic.generators.global_bound import _model_size, generator_global_bound
 
-        k = global_bound_states if global_bound_states is not None else min(problem.n_plus, problem.n_minus) + 1
+        k = global_bound_states if global_bound_states is not None else K_P
+        if global_bound_states is None:
+            while k > 2 and _model_size(problem, k) > _GLOBAL_BOUND_MAX_VARS:
+                k -= 1
         size = _model_size(problem, k)
         stage_deadline = share(0.5)
         limit = min((c[0] for c in candidates), default=None)
@@ -948,6 +1056,12 @@ def _bracket_search(
                         "seconds": gb.seconds,
                     }
                 )
+                if theorem and k >= K_P and gb.lower > lower + 1e-9:
+                    lower, lower_source, lower_certified = (
+                        gb.lower,
+                        "restricted global bound at K(P) (numerical)",
+                        False,
+                    )
                 if gb.seed is not None:
                     pi, _, _, K = gb.seed
                     keep = np.flatnonzero(pi > _GLOBAL_BOUND_MIN_WEIGHT)
@@ -1194,8 +1308,10 @@ def generative_model(
 
     1. Build a bidirectional ε-machine (preflight / optional retry ladder).
     2. Certified lower bounds and persistent-crypticity test on the edge.
-    3. When :math:`p.\\chi^+ \\approx p.\\chi^- \\approx 0` and some :math:`\\op{G}{S^+ : S^-}` optimum
-       passes the generator kernel, return that lifted / exact-CI generator (theorem path).
+    3. When :math:`p.\\chi^+ \\approx p.\\chi^- \\approx 0` (cryptic order at most 1), the exact path writes down
+       the generator of a least-entropy separating decomposition with at most :math:`K(P)` terms
+       (:mod:`~sofic.generators.separating_generators`), and the search returns once some
+       :math:`\\op{G}{S^+ : S^-}` optimum generates (theorem path).
     4. Otherwise memory lifts, lifted channels on small joints, then
        :func:`~sofic.generators.universal_optimizer.universal_generative_optimizer`
        (full coupled equations).
