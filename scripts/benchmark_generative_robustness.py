@@ -17,12 +17,30 @@ import numpy as np
 
 from sofic.examples import golden_mean, golden_mean_bidirectional
 from sofic.examples.epsilon_machines import from_symbol_matrices
+from sofic.examples.processes import rip, stretched_gm
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.generative_search import generative_model, generative_model_from_bidirectional
 
 
 def _h(p: float) -> float:
     return float(-(p * np.log2(p) + (1 - p) * np.log2(1 - p)))
+
+
+def _entropy(p: list[float]) -> float:
+    p = np.asarray(p, dtype=float)
+    return float(-(p * np.log2(p)).sum())
+
+
+def _kappa1_scip() -> object:
+    """Cryptic order 1 with a full-support 2 x 2 causal-state joint: the exact path solves it with SCIP."""
+    return from_symbol_matrices(
+        (0, 1),
+        (0, 1),
+        {
+            0: np.array([[0.8620162340426342, 0.0], [0.26088622236842307, 0.0]]),
+            1: np.array([[0.0, 0.1379837659573659], [0.0, 0.7391137776315769]]),
+        },
+    )
 
 
 def _rll() -> BidirectionalEpsilonMachine:
@@ -107,8 +125,13 @@ def main() -> None:
     cases = [
         Case("golden_mean_forward", golden_mean(0.5), gm_target, True),
         Case("golden_mean_bidir", golden_mean_bidirectional(0.5), gm_target, True),
-        Case("rll", _rll(), 1.5, False),
+        Case("rll", _rll(), 1.5, True),
         Case("interleaved_0.1", _interleaved(0.1), 2 * _h(4 / 9), None),
+        # cryptic order at most 1: certified by the exact path (separating_generators)
+        Case("rip", rip(), _entropy([0.4, 0.2, 0.4]), True),
+        Case("stretched_gm_2", stretched_gm(2), 1.5, True),
+        Case("stretched_gm_3", stretched_gm(3), _entropy([0.4, 0.2, 0.2, 0.2]), True),
+        Case("kappa1_scip", _kappa1_scip(), 0.7970965391094695, True),
     ]
 
     print(f"{'case':<22} {'time':>6} {'upper':>8} {'lower':>8} {'gap':>8} {'cert':>5} {'source':<40}")

@@ -207,8 +207,10 @@ runs the same search when the bidirectional machine is already known.
   :func:`~sofic.generators.coverage_bound.mu_hyperplane_cap` (branch and bound over the plane
   containing the columns of a rank-2 matrix; exact since nonnegative rank two equals rank two
   :cite:`cohen1993nonnegative`);
-* the persistent-crypticity criteria; when both vanish every separating variable
-  is a generator state and :math:`C_g = \op{G}{S^+ : S^-}`;
+* the persistent-crypticity criteria, with the cryptic orders and the block persistent crypticities; when both
+  criteria vanish (cryptic order at most 1) every separating variable is a generator state,
+  :math:`C_g = \op{G}{S^+ : S^-}`, and the exact path computes it with at most :math:`K(P)` states
+  (:doc:`separating_generators`); at cryptic orders 2 and 3 the lookahead generator is a candidate;
 * the exact-common-information optima (dit, several starts, since the optimum
   need not be unique and only some optima generate), each polished to exact
   separation with :func:`~sofic.generators.coupled_generators.polish_separating_channel`
@@ -389,8 +391,9 @@ assignments on each connected component of the support and also reports the leas
 most ``k`` blocks. Kumar, Li & El Gamal :cite:`Kumar2014` show that some optimal separating
 variable has at most :math:`|S^+||S^-|` values (and at most :math:`2^{\min(|S^+|, |S^-|)} - 1`);
 their argument restricted to the support gives at most the number of support cells, which caps the
-number of terms :func:`~sofic.generators.coupled_generators.separating_optima` tries. The partition
-solver is not from the literature.
+number of terms :func:`~sofic.generators.coupled_generators.separating_optima` tries, and merges and
+null moves bring any decomposition down to :math:`K(P) = \lfloor (|\mathrm{supp}\, P| + \min(|S^+|, |S^-|)) / 2
+\rfloor` terms (:doc:`separating_generators`). The partition solver is not from the literature.
 
 The skip-one chain shows that a minimal generator can need more than
 :math:`\min(|S^+|, |S^-|) + 1` states. It is the first-order Markov chain on :math:`\mathbb{Z}_6`
@@ -417,9 +420,12 @@ generator with at most ``k`` states and says nothing about larger ones. It is th
 bound on :math:`C_g` only once the number of states of a minimal generator is bounded. No general
 bound is known, and :math:`\min(|S^+|, |S^-|) + 1` is not one: the skip-one chain (under
 `Supports without 2 × 2 rectangles`_) needs :math:`|S^+| + 2` states. When both persistent
-crypticities vanish, ``k`` equal to the number of cells in the support of the causal-state joint
-suffices. It is also numerical, not a certificate: the equations with data on the right-hand side are relaxed by ``data_tol``, and SCIP
-works to its own tolerances. SCIP's solution satisfies necessary conditions only;
+crypticities vanish (cryptic order at most 1), ``k`` equal to :math:`K(P)` suffices
+(:doc:`separating_generators`). It is also numerical, not a certificate: the equations with data on the right-hand side are relaxed by ``data_tol``, and SCIP
+works to its own tolerances, and its presolve and optimization-based bound tightening can go wrong
+(``presolve=False, obbt=False`` gives a second opinion; see :doc:`separating_generators`).
+:func:`~sofic.generators.global_bound.separating_global_bound` is the static version, over separating
+decompositions with ``k`` terms. SCIP's solution satisfies necessary conditions only;
 :func:`~sofic.generators.hmm_search.hmm_generator_search` with ``initial`` polishes it into a
 generator. On the binary process with symbol matrices
 :math:`T^{(0)} = \begin{pmatrix} p & 0 \\ q & 0 \end{pmatrix}` and
@@ -429,11 +435,13 @@ generator. On the binary process with symbol matrices
 generator with at most 3 states does :math:`10^{-4}` bits better.
 
 The pipeline runs it with ``global_bound=True``, after the belief-free search, for
-``global_bound_states`` states (default :math:`\min(|S^+|, |S^-|) + 1`, a convention, not a bound).
+``global_bound_states`` states (default :math:`K(P)`, lowered until the model has at most 2,000 SCIP
+variables; a bound on the states of a minimal generator only at cryptic order at most 1).
 It gets half the remaining
 budget (120 s without a budget) and the best candidate's entropy as its objective limit, and it is
-skipped above 2,000 SCIP variables. The value goes to ``restricted_lower`` and ``restricted_states``,
-not to ``lower``, so ``certified`` is unchanged; the polished solution is offered as a candidate. The
+skipped above 2,000 SCIP variables. The value goes to ``restricted_lower`` and ``restricted_states``.
+It enters ``lower`` (as a numerical bound) only at cryptic order at most 1 with :math:`K(P)` states;
+otherwise ``certified`` is unchanged. The polished solution is offered as a candidate. The
 two-step flows and this restricted use are not from the literature.
 
 API
@@ -461,6 +469,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.hmm_search.coupled_seed_from_hmm
 .. autofunction:: sofic.generators.global_bound.generator_global_bound
 .. autoclass:: sofic.generators.global_bound.GlobalBoundResult
+.. autofunction:: sofic.generators.global_bound.separating_global_bound
+.. autoclass:: sofic.generators.global_bound.SeparatingBoundResult
 .. autoclass:: sofic.generators.generative_search.GenerativeModelResult
    :members: certified, gap, g_optima_generate
 .. autofunction:: sofic.generators.coverage_bound.coverage_entropy_lower
