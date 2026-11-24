@@ -51,6 +51,15 @@ def test_golden_mean_bound_is_the_statistical_complexity(scip) -> None:
     assert two.lower == pytest.approx(two.dual_bound - two.slack)
 
 
+@pytest.mark.parametrize("presolve", [True, False])
+def test_presolve_off_also_turns_off_symmetry(scip, presolve) -> None:
+    m = scip.Model()
+    default = m.getParam("misc/usesymmetry")
+    gb._configure(m, scip, presolve=presolve, obbt=True, params=None)
+    assert m.getParam("misc/usesymmetry") == (default if presolve else 0)
+    assert m.getParam("propagating/obbt/freq") != -1
+
+
 def test_objective_limit_semantics(scip) -> None:
     bidir = _bidir(_two_state(*GOLDEN_MEAN))
     below = gb.generator_global_bound(bidir, 2, objective_limit=C_MU_GOLDEN - 0.01)

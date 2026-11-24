@@ -42,7 +42,9 @@ point ties the sorted weights (Kumar, Li and El Gamal's Example 2 :cite:`Kumar20
 decomposition is :math:`W = X` at weights :math:`(1/2, 1/2)`), and its optimization-based bound tightening can cut
 off the optimum (a 3 x 3 joint with 5 support cells, where ``k = 3`` returns "optimal" 1.447803 while a feasible
 3-block partition has 1.343763; see ``tests/test_separating_generators.py``). ``presolve=False, obbt=False`` is the
-second opinion for a decisive "infeasible" or "optimal".
+second opinion for a decisive "infeasible" or "optimal". ``presolve=False`` also turns off symmetry handling: SCIP
+still computes the symmetry group when presolving ends, and on the unreduced model of the (3, inf) run-length-limited
+process at ``k = 7`` that computation ran for over two hours without checking the time limit.
 """
 
 from __future__ import annotations
@@ -122,6 +124,7 @@ def _pyscipopt() -> Any:
 def _configure(m: Any, scip: Any, presolve: bool, obbt: bool, params: Mapping[str, Any] | None) -> None:
     if not presolve:
         m.setPresolve(scip.SCIP_PARAMSETTING.OFF)
+        m.setParam("misc/usesymmetry", 0)
     if not obbt:
         m.setParam("propagating/obbt/freq", -1)
     for key, value in (params or {}).items():
