@@ -29,7 +29,7 @@ from fractions import Fraction
 
 import numpy as np
 import scipy.sparse as sp
-from scipy.optimize import linprog
+from scipy.optimize import OptimizeResult, linprog
 
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.certificates import CertifiedLPResult, certified_lp_minimum, dual_bound
@@ -177,23 +177,32 @@ class _HeaviestStatesRelaxation:
     def bound(self, boxes: tuple[tuple[np.ndarray, ...], ...], time_limit: float | None = None) -> float | None:
         """Max total weight of the explicit states with beliefs in ``boxes``; ``None`` if the box is infeasible.
 
-        An LP stopped by ``time_limit`` (seconds) returns the trivial bound 1.
+        HiGHS's presolve can call a feasible box LP infeasible, so an infeasible verdict is re-solved without
+        presolve, and ``None`` needs an exact Farkas certificate (:meth:`certified_bound`); an infeasible
+        verdict without one returns the trivial bound 1, as does an LP stopped by ``time_limit`` (seconds).
         """
-        res = linprog(
+        A_ub = self.inequalities(boxes)
+        options = {} if time_limit is None else {"time_limit": max(time_limit, 1e-3)}
+        res = self._solve(A_ub, options)
+        if res.status == _HIGHS_INFEASIBLE:
+            res = self._solve(A_ub, {**options, "presolve": False})
+            if res.status == _HIGHS_INFEASIBLE:
+                return None if self.certified_bound(boxes).status == "infeasible" else 1.0
+        if not res.success:
+            return 1.0
+        return float(-res.fun)
+
+    def _solve(self, A_ub: sp.csr_matrix, options: dict) -> OptimizeResult:
+        return linprog(
             self.c,
-            A_ub=self.inequalities(boxes),
+            A_ub=A_ub,
             b_ub=np.zeros(self.n_ub),
             A_eq=self.A_eq,
             b_eq=self.b_eq,
             bounds=(0, 1),
             method="highs",
-            options=None if time_limit is None else {"time_limit": max(time_limit, 1e-3)},
+            options=options or None,
         )
-        if res.status == _HIGHS_INFEASIBLE:
-            return None
-        if not res.success:
-            return 1.0
-        return float(-res.fun)
 
     def certified_bound(self, boxes: tuple[tuple[np.ndarray, ...], ...]) -> CertifiedLPResult:
         """:meth:`bound` with an exact dual certificate (the LP minimizes minus the weight)."""
@@ -327,7 +336,9 @@ def generator_weight_cap(
 
     Branches on the widest belief coordinate of any explicit state; the result is valid at any
     ``max_nodes`` and decreases as it grows. Branching also stops at ``deadline`` (a
-    :func:`time.monotonic` value), which leaves a valid but looser cap. It is valid up to the LP tolerance (``1e-7`` is added);
+    :func:`time.monotonic` value), which leaves a valid but looser cap. A box is dropped only when HiGHS calls
+    its LP infeasible with and without presolve and an exact Farkas certificate verifies; the open boxes' LP
+    optima are floating point, so the cap is valid up to the LP tolerance (``1e-7`` is added), and
     :func:`certified_generator_weight_cap` removes that caveat.
     """
     problem = bidir if isinstance(bidir, _GeneratorProblem) else _GeneratorProblem(bidir)
