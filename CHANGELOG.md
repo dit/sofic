@@ -5,6 +5,19 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Simplex-chain generator search
+
+- New `sofic.generators.simplex_chains`: `simplex_chain_search(bidir)` constructs exact one-sided generators. A
+  reverse-sufficient generator is a finite law on the simplex of beliefs on the reverse causal states that
+  dominates its image under the belief updates in convex order (Strassen 1965). Writing each updated belief as a
+  convex combination of a pool of atoms gives a chain whose closed classes are exact generators; the search
+  alternates linear programs over those representations with gradient steps on the atoms, on both sides, starting
+  from the ε-machines. Every iterate passes a Tzeng word check, and at cryptic orders up to 4 the atoms stay on the
+  faces of the synchronizing complex. Results are `SimplexChainResult`s (`pi`, `K`, `atoms`, `word_error`).
+- `generative_model` runs it right after the exact path (`simplex_chains=True`, stage `"chains"`) with a quarter of
+  the remaining budget, or 2 s per side without one, and stops once a generator meets the lower bound. On 306
+  archive processes it went below the best known upper bound on 42, by up to 0.295 bits (`n3-t138-d4`).
+
 ### Generator cardinality
 
 - Minimal generators can need more than `min(|S+|, |S-|) + 1` states. The skip-one chain (the first-order Markov

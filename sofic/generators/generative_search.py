@@ -28,7 +28,10 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    **entropy-ordered sweep** over all multistart separating decompositions (not only
    :math:`\op{G}` optima) up to the current best upper bound.
 4. *Upper bounds:* ε-machines, line-split seeds from the exact optima
-   (:func:`~sofic.generators.coupled_generators.line_split_seeds`), memory lifts, the exact minimal functional generator
+   (:func:`~sofic.generators.coupled_generators.line_split_seeds`), exact one-sided generators from the simplex-chain
+   search (:func:`~sofic.generators.simplex_chains.simplex_chain_search`, ``simplex_chains``; a quarter of the
+   remaining budget, or 2 s per side without one, stopping once a generator meets the lower bound), memory lifts,
+   the exact minimal functional generator
    (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels
    (small joints), coupled search, and a belief-free search over HMM symbol matrices
    (:func:`~sofic.generators.hmm_search.hmm_generator_search`, ``hmm_search``), which reaches generators the
@@ -100,6 +103,7 @@ from sofic.generators.separating_generators import (
     support_bound_states,
     theorem_generator,
 )
+from sofic.generators.simplex_chains import simplex_chain_search
 
 _MAX_RECTANGLES = 7
 _FLOW_THRESHOLDS = ((0.6,), (0.55, 0.65))
@@ -133,6 +137,9 @@ _EXACT_PATH_SECONDS = 60.0
 # (|S+| |A|^(kappa - 1) bounds them); it took at most 1.3 s on the 3-state archive.
 _LOOKAHEAD_MAX_KAPPA = 3
 _LOOKAHEAD_MAX_STATES = 64
+# Seconds per side of the simplex-chain search when there is no budget (on the 3-state archive half the final
+# generators came within 0.6 s and 90% within 8 s); with one, the search gets a quarter of what is left.
+_SIMPLEX_CHAIN_SECONDS = 2.0
 
 
 def _entropy(p: np.ndarray) -> float:
@@ -468,7 +475,7 @@ def _bracket_search(
     memory_starts: int = 10,
     residual_atol: float = 1e-7,
     reproduction_atol: float = 1e-5,
-    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
+    stages: Sequence[str] = ("machines", "exact", "chains", "memory", "functional", "lifted", "coupled", "hmm"),
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
@@ -479,6 +486,7 @@ def _bracket_search(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    simplex_chains: bool = True,
     global_bound: bool = False,
     global_bound_states: int | None = None,
     generator_caps: int = 2,
@@ -940,6 +948,23 @@ def _bracket_search(
                 theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol, deadline=deadline)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
+    if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
+        stage_deadline = share(0.25)
+        chains = simplex_chain_search(
+            problem,
+            seconds=_SIMPLEX_CHAIN_SECONDS if stage_deadline is None else math.inf,
+            deadline=stage_deadline,
+            kappa=math.inf if kappa is None else float(max(kappa)),
+            target=lower + _CERT_TOL,
+            rng=rng,
+        )
+        log.append({"stage": "simplex-chain search", "values": {res.side: res.entropy for res in chains}})
+        for res in chains:
+            offer(f"simplex chain ({res.side}, k={len(res.pi)})", coupled_seed_from_hmm(problem, res.matrices))
+        early = maybe_return_early()
+        if early is not None and early.certified:
+            return _finalize_result(early)
+
     if "memory" in stages and not out_of_time("memory lifts"):
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, deadline=share(0.2), rng=rng)[
             :3
@@ -1162,7 +1187,7 @@ def generative_model_from_bidirectional(
     memory_starts: int = 10,
     residual_atol: float = 1e-7,
     reproduction_atol: float = 1e-5,
-    stages: Sequence[str] = ("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
+    stages: Sequence[str] = ("machines", "exact", "chains", "memory", "functional", "lifted", "coupled", "hmm"),
     large: int = 9,
     exact_starts: int = 30,
     dit_fallback: bool = True,
@@ -1173,6 +1198,7 @@ def generative_model_from_bidirectional(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    simplex_chains: bool = True,
     global_bound: bool = False,
     global_bound_states: int | None = None,
     generator_caps: int = 2,
@@ -1213,6 +1239,7 @@ def generative_model_from_bidirectional(
         generator_heaviest_term=generator_heaviest_term,
         hmm_search=hmm_search,
         hmm_search_starts=hmm_search_starts,
+        simplex_chains=simplex_chains,
         global_bound=global_bound,
         global_bound_states=global_bound_states,
         generator_caps=generator_caps,
@@ -1313,6 +1340,7 @@ def generative_model(
     generator_heaviest_term: bool = True,
     hmm_search: bool = True,
     hmm_search_starts: int = 8,
+    simplex_chains: bool = True,
     global_bound: bool = False,
     global_bound_states: int | None = None,
     generator_caps: int = 2,
@@ -1333,7 +1361,8 @@ def generative_model(
        the generator of a least-entropy separating decomposition with at most :math:`K(P)` terms
        (:mod:`~sofic.generators.separating_generators`), and the search returns once some
        :math:`\\op{G}{S^+ : S^-}` optimum generates (theorem path).
-    4. Otherwise memory lifts, lifted channels on small joints, then
+    4. Otherwise the simplex-chain search for exact one-sided generators, memory lifts, lifted channels on small
+       joints, then
        :func:`~sofic.generators.universal_optimizer.universal_generative_optimizer`
        (full coupled equations).
 
@@ -1358,7 +1387,7 @@ def generative_model(
         memory_starts=memory_starts,
         residual_atol=residual_atol,
         reproduction_atol=reproduction_atol,
-        stages=("machines", "exact", "memory", "functional", "lifted", "coupled", "hmm"),
+        stages=("machines", "exact", "chains", "memory", "functional", "lifted", "coupled", "hmm"),
         large=large,
         exact_starts=exact_starts,
         dit_fallback=dit_fallback,
@@ -1369,6 +1398,7 @@ def generative_model(
         generator_heaviest_term=generator_heaviest_term,
         hmm_search=hmm_search,
         hmm_search_starts=hmm_search_starts,
+        simplex_chains=simplex_chains,
         global_bound=global_bound,
         global_bound_states=global_bound_states,
         generator_caps=generator_caps,
