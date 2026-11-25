@@ -211,6 +211,13 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Generator caps
 
+- `generator_weight_cap`, and the coverage and heaviest-term bounds built on it, dropped every box LP that HiGHS
+  called infeasible, and HiGHS's presolve calls feasible box LPs infeasible: on `((1,0),(2,2),(1,0))` it dropped the
+  box holding a 3-state generator's heaviest state, and the coverage bound came out at 1.0459, above that
+  generator's entropy 1.0420. An infeasible verdict is now solved again without presolve, and a box is dropped only
+  with an exact Farkas certificate; the bound meets the generator's entropy to `3e-10`. `certified_lp_minimum`
+  also retries without presolve when its Farkas test fails.
+
 - With a deadline, each branch-and-bound child LP of `generator_weight_cap` gets the time left as a
   HiGHS `time_limit`; a cut-off LP keeps its parent's bound, so the cap stays valid. On a 4-state
   survey process (4 × 36 causal states) one degenerate node LP had run more than 8 minutes past a
