@@ -5,6 +5,23 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Coverage bound: least entropy under the caps
+
+- `coverage_entropy_lower(caps)`, the last step of `coverage_bound`, `generator_coverage_bound` and the pipeline's
+  coverage stages, returns the least entropy of a distribution whose `j` heaviest weights sum to at most
+  `caps[j - 1]` (was: the entropy of the increments `(c_1, c_2 - c_1, ..., 1 - c_k)`, the same value when the
+  increments do not increase, and otherwise lower and not monotone in the caps). Given the `k` heaviest weights the
+  rest is copies of the `k`-th and a remainder; for each number of copies the entropy is concave, so the minimum is
+  at a vertex of the polytope of the heaviest weights or where an edge leaves no remainder. With more than `Q`
+  copies every weight from the `k`-th on is at most `r / (Q + 1)`, where `r` is the mass outside the heaviest
+  `k - 1`, which bounds the entropy of all larger counts from below; `Q` doubles until that bound passes the least
+  entropy found. On 400 random vectors of up to 3 caps it matched vertex enumeration over distributions on up to
+  32 atoms, 54 of them with optima on more than 8 atoms. On caps `(0.4720301, 0.7269834)` (generator caps of a
+  binary 3-state process) the bound rises from 1.5252655 to 1.5399102.
+- Caps above 1 no longer make it overstate: the increments were normalized by their sum, so caps
+  `(2/3, 1.125)` gave 0.975 against the least entropy `H(2/3, 1/3) = 0.918`. Caps are clipped to `[0, 1]` and
+  replaced by their suffix minimum (`S_j <= S_{j+1}`).
+
 ### Simplex-chain generator search
 
 - New `sofic.generators.simplex_chains`: `simplex_chain_search(bidir)` constructs exact one-sided generators. A
