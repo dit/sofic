@@ -219,7 +219,8 @@ runs the same search when the bidirectional machine is already known.
   may propose feasible channels, then an entropy-ordered sweep over multistart
   separating decompositions (:func:`~sofic.generators.coupled_generators.separating_decomposition_channels`);
 * upper bounds over nested classes, cheapest first: the ε-machines and
-  bidirectional machine, memory-1 lifts, the exact minimal functional generator
+  bidirectional machine, exact one-sided generators from the simplex-chain search (below), memory-1 lifts, the
+  exact minimal functional generator
   (:func:`~sofic.generators.functional_generators.functional_cover_search`), lifted channels (for
   small machines), and the coupled search seeded with everything found so far.
 
@@ -253,6 +254,21 @@ half the remaining budget, or for two values of :math:`k` and two starts without
 results through :func:`~sofic.generators.hmm_search.coupled_seed_from_hmm`. On the binary 3-state dataset it
 lowered seven open upper bounds, for example from :math:`C_\mu = 0.9037` to :math:`0.7956` with a 4-state
 generator that the belief-parameterized searches never reached.
+
+Both searches are local in the generator's parameters. :func:`~sofic.generators.simplex_chains.simplex_chain_search`
+instead constructs *one-sided* generators exactly. A generator is reverse-sufficient when the future of each state
+:math:`w` is the mixture of the reverse causal states' futures weighted by its belief :math:`R_w` on :math:`S^-`. It
+is then a finite law on the simplex :math:`\Delta(S^-)` that dominates its image under the belief updates in convex
+order :cite:`Strassen1965`. Writing every updated belief of a finite pool of atoms as a convex combination of the
+pool gives a chain whose closed classes are exact generators. The state entropy is concave on the polytope of those
+representations, so the search alternates linear programming over the representations with gradient steps on the
+atoms; forward-sufficient generators are the mirror image on :math:`\Delta(S^+)`. Each side starts from its own
+ε-machine, every iterate passes a word check over a Tzeng basis :cite:`Tzeng1992`, and at cryptic orders up to 4 the
+atoms are kept on the faces of the synchronizing complex. The construction and the search are not from the
+literature. The pipeline runs the search right after the exact path (``simplex_chains=True``) with a quarter of the
+remaining budget, or 2 s per side without one, and stops once a generator meets the lower bound. On 306 archive
+processes (binary 2- and 3-state and ternary 2-state ε-machines) it went below the best known upper bound on 42, by
+more than :math:`10^{-6}` on 22 and by up to 0.295 bits; half the final values came within 0.57 s.
 
 Wyner and functional generators
 -------------------------------
@@ -481,6 +497,8 @@ Coupled generators and bounds
 .. autofunction:: sofic.generators.generative_search.resolve_bidirectional
 .. autofunction:: sofic.generators.hmm_search.hmm_generator_search
 .. autofunction:: sofic.generators.hmm_search.coupled_seed_from_hmm
+.. autofunction:: sofic.generators.simplex_chains.simplex_chain_search
+.. autoclass:: sofic.generators.simplex_chains.SimplexChainResult
 .. autofunction:: sofic.generators.global_bound.generator_global_bound
 .. autoclass:: sofic.generators.global_bound.GlobalBoundResult
 .. autofunction:: sofic.generators.global_bound.separating_global_bound
