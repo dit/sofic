@@ -723,6 +723,23 @@ def _bracket_search(
         if early is not None and early.certified:
             return _finalize_result(early)
 
+    if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
+        stage_deadline = share(0.25)
+        chains = simplex_chain_search(
+            problem,
+            seconds=_SIMPLEX_CHAIN_SECONDS if stage_deadline is None else math.inf,
+            deadline=stage_deadline,
+            kappa=math.inf if kappa is None else float(max(kappa)),
+            target=lower + _CERT_TOL,
+            rng=rng,
+        )
+        log.append({"stage": "simplex-chain search", "values": {res.side: res.entropy for res in chains}})
+        for res in chains:
+            offer(f"simplex chain ({res.side}, k={len(res.pi)})", coupled_seed_from_hmm(problem, res.matrices))
+        early = maybe_return_early()
+        if early is not None and early.certified:
+            return _finalize_result(early)
+
     kappa_plus = kappa[0] if kappa is not None else math.inf
     if (
         not wyner
@@ -947,23 +964,6 @@ def _bracket_search(
                 theta = problem.logits(*seed, floor=floor)
                 theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol, deadline=deadline)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
-
-    if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
-        stage_deadline = share(0.25)
-        chains = simplex_chain_search(
-            problem,
-            seconds=_SIMPLEX_CHAIN_SECONDS if stage_deadline is None else math.inf,
-            deadline=stage_deadline,
-            kappa=math.inf if kappa is None else float(max(kappa)),
-            target=lower + _CERT_TOL,
-            rng=rng,
-        )
-        log.append({"stage": "simplex-chain search", "values": {res.side: res.entropy for res in chains}})
-        for res in chains:
-            offer(f"simplex chain ({res.side}, k={len(res.pi)})", coupled_seed_from_hmm(problem, res.matrices))
-        early = maybe_return_early()
-        if early is not None and early.certified:
-            return _finalize_result(early)
 
     if "memory" in stages and not out_of_time("memory lifts"):
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, deadline=share(0.2), rng=rng)[
