@@ -125,7 +125,7 @@ _HEAVIEST_TERM_MAX_DIMS = 7
 # are worth it (900 s raised the bound on 3 x 5 to 3 x 11 joints of the binary 3-state dataset too).
 _GENERATOR_HEAVIEST_TERM_NODES = 2_000
 _GENERATOR_HEAVIEST_TERM_MAX_DIMS = 14
-# Share of a time budget kept for that stage: the stages before it stop this much early.
+# Share of a time budget kept for that stage: the upper-bound searches stop this much early.
 _GENERATOR_HEAVIEST_TERM_SHARE = 0.2
 # The restricted global bound runs only on SCIP models up to this many variables (two-step flows included;
 # 3-state binary processes at 4 states have about 1,200), and for this many seconds when there is no budget.
@@ -526,7 +526,7 @@ def _bracket_search(
         and problem.n_plus + problem.n_minus <= _GENERATOR_HEAVIEST_TERM_MAX_DIMS
         else 0.0
     )
-    deadline = None if end is None else end - reserve
+    deadline = end
     skipped: list[str] = []
 
     def out_of_time(stage: str) -> bool:
@@ -734,6 +734,8 @@ def _bracket_search(
         if early is not None and early.certified:
             return _finalize_result(early)
 
+    # the lower bounds above share the whole budget; the searches from here on leave the reserve
+    deadline = None if end is None else end - reserve
     if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
         stage_deadline = share(0.25)
         chains = simplex_chain_search(
@@ -1380,8 +1382,8 @@ def generative_model(
 
     The final ``stages`` entry is a **reliability summary** (``certified``, ``gap``, sources, …).
     With ``time_budget`` (seconds) the search becomes anytime: every stage gets a share of the time left
-    and stops at its deadline, the stages before the final generator heaviest-term bound stop a fifth of
-    the budget early so that it keeps that time, and once the budget is spent the remaining stages are
+    and stops at its deadline, the upper-bound searches stop a fifth of the budget early so that the final
+    generator heaviest-term bound keeps that time, and once the budget is spent the remaining stages are
     skipped and the best verified bracket so far is returned with ``budget_exhausted`` set. The coupled
     search's ε-machine seed and the targeted line-split polish finish past their deadlines, so a run can
     still overrun by those. The bidirectional build's retry ladder counts against the budget

@@ -167,6 +167,7 @@ def test_generator_heaviest_term_stage_keeps_its_share_of_the_budget(monkeypatch
     import sofic.generators.generative_search as gs
     from tests.test_exact_ci_bounds import _dataset_case_t006
 
+    bidir = _dataset_case_t006().bidir
     start, left = time.monotonic(), []
     real = gs.generator_heaviest_term_bound
 
@@ -180,12 +181,30 @@ def test_generator_heaviest_term_stage_keeps_its_share_of_the_budget(monkeypatch
 
     monkeypatch.setattr(gs, "simplex_chain_search", slow_chains)
     monkeypatch.setattr(gs, "generator_heaviest_term_bound", final)
-    result = generative_model_from_bidirectional(
-        _dataset_case_t006().bidir, time_budget=5.0, rng=np.random.default_rng(0)
-    )
+    result = generative_model_from_bidirectional(bidir, time_budget=5.0, rng=np.random.default_rng(0))
     skipped = {s["stage"] for s in result.stages if s.get("skipped") == "time budget exhausted"}
     assert "memory lifts" in skipped and "generator heaviest-term bound" not in skipped
     assert left and left[0] > 0.0
+
+
+def test_lower_bounds_before_the_searches_share_the_whole_budget(monkeypatch) -> None:
+    import time
+
+    import sofic.generators.generative_search as gs
+    import sofic.generators.generator_caps as caps
+    from tests.test_exact_ci_bounds import _dataset_case_t006
+
+    given = []
+    real = caps.generator_coverage_bound
+
+    def coverage(problem, **kwargs):
+        given.append(kwargs["deadline"] - time.monotonic())
+        return real(problem, **kwargs)
+
+    monkeypatch.setattr(gs, "_GENERATOR_HEAVIEST_TERM_SHARE", 0.9)
+    monkeypatch.setattr(caps, "generator_coverage_bound", coverage)
+    generative_model_from_bidirectional(_dataset_case_t006().bidir, time_budget=5.0, rng=np.random.default_rng(0))
+    assert given and given[0] > 1.0
 
 
 def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
