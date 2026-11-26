@@ -34,10 +34,10 @@ brute-force reference or a closed-form value and has a regression test.
 - `targeted_line_split_seeds` begins no start after its deadline, even when none has succeeded, and a running
   Nelder-Mead start stops there while COBYLA keeps its last feasible point; only the polish of the best decomposition
   runs past it. On `n3-t131-d2` seventeen failed starts had carried the stage 466 s past its deadline.
-- With `time_budget`, the upper-bound searches, from the simplex-chain search on, stop a fifth of the budget early
-  when the final generator heaviest-term bound can run (`generator_heaviest_term`, not Wyner, at most 14 causal
-  states), and that stage gets the rest. The lower bounds before the searches still share the whole budget. Every
-  search takes a share of the time left, so the final lower bound used to get whatever they left.
+- With `time_budget`, the stages from the simplex-chain search on stop a fifth of the budget early when the final
+  generator heaviest-term bound can run (`generator_heaviest_term`, not Wyner, at most 14 causal states), and that
+  stage gets the rest. The stages before the chain search still share the whole budget. Every stage takes a share
+  of the time left, so the final lower bound used to get whatever the others left.
 - The dit fallbacks hand dit the joint above mass `1e-10`, which can drop pairs of causal states;
   `_unconstrained_channel` now gives those pairs the channel's state marginal. `generative_model` raised `KeyError`
   on `n3-t131-d0`, whose pair `(0, 'C')` has mass `4e-11`.

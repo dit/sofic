@@ -734,7 +734,7 @@ def _bracket_search(
         if early is not None and early.certified:
             return _finalize_result(early)
 
-    # the lower bounds above share the whole budget; the searches from here on leave the reserve
+    # the stages above share the whole budget; the ones from here to the final bound leave the reserve
     deadline = None if end is None else end - reserve
     if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
         stage_deadline = share(0.25)
@@ -1382,8 +1382,8 @@ def generative_model(
 
     The final ``stages`` entry is a **reliability summary** (``certified``, ``gap``, sources, …).
     With ``time_budget`` (seconds) the search becomes anytime: every stage gets a share of the time left
-    and stops at its deadline, the upper-bound searches stop a fifth of the budget early so that the final
-    generator heaviest-term bound keeps that time, and once the budget is spent the remaining stages are
+    and stops at its deadline, the stages from the simplex-chain search on stop a fifth of the budget early
+    so that the final generator heaviest-term bound keeps that time, and once the budget is spent the rest are
     skipped and the best verified bracket so far is returned with ``budget_exhausted`` set. The coupled
     search's ε-machine seed and the targeted line-split polish finish past their deadlines, so a run can
     still overrun by those. The bidirectional build's retry ladder counts against the budget

@@ -242,9 +242,9 @@ source to the same tolerance (for example the golden mean, where the support bou
 drawing its states independently at both ends of each bidirectional edge also generates the process;
 coupled generators such as the interleaved product flag do not.
 
-With ``time_budget`` every stage gets a share of the time left and stops at its deadline, and the upper-bound
-searches, from the simplex-chain search on, stop a fifth of the budget early, so that the final generator
-heaviest-term bound keeps that time; the lower bounds before them share the whole budget. The universal
+With ``time_budget`` every stage gets a share of the time left and stops at its deadline; the stages from
+the simplex-chain search on, except the final generator heaviest-term bound, stop a fifth of the budget
+early, so that this bound keeps that time, and the stages before them share the whole budget. The universal
 coupled search (:func:`~sofic.generators.universal_optimizer.universal_generative_optimizer`) builds no seeds
 and tries no larger :math:`k` once its deadline passes; inside it, the coupled search stops every start but the
 ε-machine seed at the deadline, and that seed runs to the end so that some generator can be verified. The
