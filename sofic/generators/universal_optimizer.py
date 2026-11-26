@@ -61,11 +61,16 @@ class MethodComparison:
     pipeline_lower: float
 
 
+def _past(deadline: float | None) -> bool:
+    return deadline is not None and time.monotonic() > deadline
+
+
 def _memory_lift_seeds(
     problem: _GeneratorProblem,
     *,
     m_values: Sequence[int],
     starts: int,
+    deadline: float | None = None,
     rng: np.random.Generator,
 ) -> list[tuple[str, tuple[np.ndarray, ...]]]:
     out: list[tuple[str, tuple[np.ndarray, ...]]] = []
@@ -73,8 +78,10 @@ def _memory_lift_seeds(
     for m in m_values:
         if m * m > len(problem.p_pair) + 4:
             continue
+        if _past(deadline):
+            break
         for rank, (_entropy, residual, nu) in enumerate(
-            memory_lift_search(bidir, m, starts=max(3, starts // 2), rng=rng)[:3]
+            memory_lift_search(bidir, m, starts=max(3, starts // 2), deadline=deadline, rng=rng)[:3]
         ):
             if residual > 1e-4:
                 continue
@@ -87,10 +94,11 @@ def _g_optima_seeds(
     problem: _GeneratorProblem,
     *,
     exact_starts: int,
+    deadline: float | None = None,
     rng: np.random.Generator,
 ) -> list[tuple[str, tuple[np.ndarray, ...]]]:
     bidir = problem.bidir
-    _, optima = separating_optima(bidir, starts=exact_starts, rng=rng)
+    _, optima = separating_optima(bidir, starts=exact_starts, deadline=deadline, rng=rng)
     out: list[tuple[str, tuple[np.ndarray, ...]]] = []
     for i, c in enumerate(optima[:12]):
         c = polish_separating_channel(problem, c)
@@ -117,8 +125,9 @@ def universal_generative_optimizer(
 ) -> UniversalGenerativeResult:
     """Search over hidden state count and seeds; return the best verified coupled generator.
 
-    Past ``deadline`` (a :func:`time.monotonic` value) no larger state count is tried once some
-    generator is verified, and each :func:`coupled_search` stops starting new seeds.
+    Past ``deadline`` (a :func:`time.monotonic` value) no seed builder and no state count starts,
+    whether or not a generator is verified yet, and each :func:`coupled_search` stops starting new
+    seeds. :class:`~sofic.exceptions.StochasticValidationError` if none is verified by then.
     """
     from sofic.generators.minimal_generative_model import _reproduction_error, _reproduction_length
 
@@ -126,9 +135,9 @@ def universal_generative_optimizer(
     problem = _GeneratorProblem(bidir)
     n_pair = len(problem.p_pair)
     k_max = generator_state_cap(problem, hard_cap=max_states if max_states is not None else min(n_pair, 8))
-    extra_all = _memory_lift_seeds(problem, m_values=memory_lift_m, starts=starts, rng=rng)
-    if include_g_seeds and n_pair <= 36:
-        extra_all += _g_optima_seeds(problem, exact_starts=exact_starts, rng=rng)
+    extra_all = _memory_lift_seeds(problem, m_values=memory_lift_m, starts=starts, deadline=deadline, rng=rng)
+    if include_g_seeds and n_pair <= 36 and not _past(deadline):
+        extra_all += _g_optima_seeds(problem, exact_starts=exact_starts, deadline=deadline, rng=rng)
 
     reference = bidir.forward_machine
     length = _reproduction_length(reference)
@@ -138,7 +147,7 @@ def universal_generative_optimizer(
     n_verified = 0
 
     for k in range(2, k_max + 1):
-        if deadline is not None and best_verified is not None and time.monotonic() > deadline:
+        if _past(deadline):
             break
         candidates = coupled_search(
             bidir,

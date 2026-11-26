@@ -32,6 +32,55 @@ def _reproduces(model, bidir) -> bool:
     return _reproduction_error(model, reference, max_length=_reproduction_length(reference)) < 1e-3
 
 
+def _light_pair_bidirectional() -> BidirectionalEpsilonMachine:
+    """Binary 3-state process (cpfci dataset ``n3-t131-d0``) with a causal-state pair of mass 4e-11."""
+    mats = {
+        0: np.array([[0.0, 0.10369669321827639, 0.0], [0.0, 0.0, 0.67213678972452], [0.0, 0.9987816335358809, 0.0]]),
+        1: np.array([[0.8963033067817237, 0.0, 0.0], [0.0, 0.0, 0.32786321027548004], [0.00121836646411911, 0.0, 0.0]]),
+    }
+    return from_symbol_matrices((0, 1, 2), (0, 1), mats).to_bidirectional()
+
+
+def test_unconstrained_channel_gives_pairs_left_out_of_the_joint_the_state_marginal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bidir = _light_pair_bidirectional()
+    problem = _LiftedProblem(bidir, _normalized_joint_distribution(bidir, cutoff=0.0))
+    joint = _normalized_joint_distribution(bidir, cutoff=1e-10)
+    (missing,) = set(problem.pairs) - set(joint)
+    rows = {pair: {"G0": 0.25, "G1": 0.75} if i % 2 else {"G1": 1.0} for i, pair in enumerate(joint)}
+    monkeypatch.setattr(lifted, "_auxiliary_state_channel", lambda joint, **kwargs: (rows, 0.0))
+    c = lifted._unconstrained_channel(
+        problem, joint, "exact", niter=1, maxiter=1, polish=False, backend="numpy", cutoff=1e-10, rng=None
+    )
+    assert c.shape == (len(problem.pairs), 2)
+    assert np.allclose(c.sum(axis=1), 1.0)
+    weights = np.array([joint[pair] for pair in rows])
+    marginal = weights @ np.array([[row.get("G0", 0.0), row.get("G1", 0.0)] for row in rows.values()]) / weights.sum()
+    assert np.allclose(c[problem.pairs.index(missing)], marginal)
+
+
+def test_unconstrained_channel_survives_dit_dropping_a_light_pair() -> None:
+    # The pipeline's dit fallback hands dit the joint above 1e-10, which drops the pair of mass 4e-11.
+    bidir = _light_pair_bidirectional()
+    problem = _LiftedProblem(bidir, _normalized_joint_distribution(bidir, cutoff=0.0))
+    joint = _normalized_joint_distribution(bidir, cutoff=1e-10)
+    assert len(joint) == len(problem.pairs) - 1
+    c = lifted._unconstrained_channel(
+        problem,
+        joint,
+        "exact",
+        niter=2,
+        maxiter=200,
+        polish=False,
+        backend="numpy",
+        cutoff=1e-10,
+        rng=np.random.default_rng(0),
+    )
+    assert c is not None and c.shape[0] == len(problem.pairs)
+    assert np.allclose(c.sum(axis=1), 1.0)
+
+
 def test_golden_mean_matches_unconstrained_values() -> None:
     bidir = golden_mean_bidirectional(0.5)
     wyner = wyner_generative_model(bidir, rng=np.random.default_rng(0))

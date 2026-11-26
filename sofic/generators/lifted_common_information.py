@@ -257,7 +257,10 @@ def _unconstrained_channel(
     cutoff: float,
     rng: np.random.Generator,
 ) -> np.ndarray | None:
-    """Channel of the ordinary (dit) Wyner or exact optimum, as a start; ``None`` if that optimizer fails."""
+    """Channel of the ordinary (dit) Wyner or exact optimum, as a start; ``None`` if that optimizer fails.
+
+    Pairs of ``problem`` that ``joint`` leaves out (below a mass cutoff) get the channel's state marginal.
+    """
     optimizer = _optimize_wyner_common_information if kind == "wyner" else _optimize_exact_common_information
     try:
         channel, _value = _auxiliary_state_channel(
@@ -275,7 +278,10 @@ def _unconstrained_channel(
     except StochasticValidationError:
         return None
     states = sorted({state for row in channel.values() for state in row}, key=repr)
-    return np.array([[channel[pair].get(state, 0.0) for state in states] for pair in problem.pairs])
+    rows = {pair: np.array([row.get(state, 0.0) for state in states]) for pair, row in channel.items()}
+    weights = np.array([joint.get(pair, 0.0) for pair in rows])
+    marginal = weights @ np.array(list(rows.values())) / weights.sum()
+    return np.array([rows.get(pair, marginal) for pair in problem.pairs])
 
 
 def _optimize(

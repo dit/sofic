@@ -1236,7 +1236,8 @@ def coupled_search(
     """Optimize k-state generators from the standard seeds, ``extra`` named seeds and random starts.
 
     Returns every candidate whose generator equations hold to ``residual_atol``, best first. No new start
-    begins after ``deadline`` (a :func:`time.monotonic` value); the ε-machine seed always runs.
+    begins after ``deadline`` (a :func:`time.monotonic` value), and a start in progress stops at it; the
+    ε-machine seed always runs to the end.
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -1268,6 +1269,7 @@ def coupled_search(
                 alternating=alternating,
                 dual_strategy=dual_strategy,
                 residual_atol=residual_atol,
+                deadline=deadline if index > 0 else None,
             )
             pi, Q, R, K = problem.unpack(theta, k)
         residual = problem.residual(pi, Q, R, K)
