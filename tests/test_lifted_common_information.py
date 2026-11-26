@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -79,6 +81,18 @@ def test_unconstrained_channel_survives_dit_dropping_a_light_pair() -> None:
     )
     assert c is not None and c.shape[0] == len(problem.pairs)
     assert np.allclose(c.sum(axis=1), 1.0)
+
+
+def test_a_past_deadline_runs_no_solve_and_returns_an_epsilon_machine_channel(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*args, **kwargs):
+        raise AssertionError("nothing runs after the deadline")
+
+    monkeypatch.setattr(lifted, "_unconstrained_channel", fail)
+    monkeypatch.setattr(lifted, "minimize", fail)
+    bidir = golden_mean_bidirectional(0.5)
+    model = minimal_generative_model(bidir, rng=np.random.default_rng(0), deadline=time.monotonic())
+    assert _reproduces(model, bidir)
+    assert model.exact_common_information == pytest.approx(_binary_entropy(1 / 3), abs=1e-9)
 
 
 def test_golden_mean_matches_unconstrained_values() -> None:

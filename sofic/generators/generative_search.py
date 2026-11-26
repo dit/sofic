@@ -992,7 +992,7 @@ def _bracket_search(
         if small:
             builder = wyner_generative_model if wyner else minimal_generative_model
             try:
-                model = builder(bidir, rng=rng)
+                model = builder(bidir, rng=rng, deadline=share(0.3))
                 offer("lifted channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
             except (StochasticValidationError, ImportError) as exc:
                 log.append({"stage": "lifted channel", "error": str(exc)})
