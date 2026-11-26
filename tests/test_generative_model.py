@@ -161,6 +161,33 @@ def test_generator_heaviest_term_stage_runs_last_on_open_small_brackets() -> Non
     assert "generator heaviest-term bound" not in {s["stage"] for s in off.stages}
 
 
+def test_generator_heaviest_term_stage_keeps_its_share_of_the_budget(monkeypatch) -> None:
+    import time
+
+    import sofic.generators.generative_search as gs
+    from tests.test_exact_ci_bounds import _dataset_case_t006
+
+    start, left = time.monotonic(), []
+    real = gs.generator_heaviest_term_bound
+
+    def slow_chains(problem, **kwargs):
+        time.sleep(max(0.0, start + 4.5 - time.monotonic()))
+        return []
+
+    def final(problem, **kwargs):
+        left.append(kwargs["deadline"] - time.monotonic())
+        return real(problem, **kwargs)
+
+    monkeypatch.setattr(gs, "simplex_chain_search", slow_chains)
+    monkeypatch.setattr(gs, "generator_heaviest_term_bound", final)
+    result = generative_model_from_bidirectional(
+        _dataset_case_t006().bidir, time_budget=5.0, rng=np.random.default_rng(0)
+    )
+    skipped = {s["stage"] for s in result.stages if s.get("skipped") == "time budget exhausted"}
+    assert "memory lifts" in skipped and "generator heaviest-term bound" not in skipped
+    assert left and left[0] > 0.0
+
+
 def test_unlimited_budget_is_not_reported_as_exhausted() -> None:
     result = generative_model(golden_mean(0.5), rng=np.random.default_rng(0))
     assert not result.budget_exhausted
