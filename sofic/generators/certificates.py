@@ -32,7 +32,7 @@ from typing import Any
 
 import numpy as np
 import scipy.sparse as sp
-from scipy.optimize import linprog
+from scipy.optimize import OptimizeResult, linprog
 
 Vector = Sequence[Any] | np.ndarray
 
@@ -211,24 +211,22 @@ def certified_lp_minimum(
     certificate is checked against the exact ones. The HiGHS duals are rationalized at each of
     ``denominators`` and the best exact bound is kept. If HiGHS reports infeasibility, the duals of the
     elastic LP (minimize the total violation of the equalities and inequalities) are tested as a Farkas
-    certificate.
+    certificate; if that test fails, the LP is solved again without presolve, since HiGHS's presolve can call a
+    feasible LP infeasible.
     """
     c = np.asarray(c, dtype=float)
     lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
     data = {"A_eq": A_eq, "b_eq": b_eq, "A_ub": A_ub, "b_ub": b_ub}
     b_eq_f = None if b_eq is None else np.array([float(v) for v in b_eq])
     b_ub_f = None if b_ub is None else np.array([float(v) for v in b_ub])
-    res = linprog(
-        c, A_ub=A_ub, b_ub=b_ub_f, A_eq=A_eq, b_eq=b_eq_f, bounds=list(zip(lo, hi, strict=True)), method="highs"
-    )
-    if res.status == 0:
-        duals = {
-            "y_eq": res.eqlin.marginals if A_eq is not None else None,
-            "y_ub": res.ineqlin.marginals if A_ub is not None else None,
-        }
-        bound, exact_eq, exact_ub = _best_bound(c, lo, hi, denominators, **data, **duals)
-        status = "optimal" if bound is not None else "failed"
-        return CertifiedLPResult(status, bound, float(res.fun), exact_eq, exact_ub)
+
+    def solve(options: dict | None = None) -> OptimizeResult:
+        bounds = list(zip(lo, hi, strict=True))
+        return linprog(
+            c, A_ub=A_ub, b_ub=b_ub_f, A_eq=A_eq, b_eq=b_eq_f, bounds=bounds, method="highs", options=options
+        )
+
+    res = solve()
     if res.status == 2:
         y_eq, y_ub = _elastic_duals(lo, hi, A_eq, b_eq_f, A_ub, b_ub_f)
         if y_eq is not None or y_ub is not None:
@@ -237,6 +235,15 @@ def certified_lp_minimum(
             )
             if proof is not None and proof > 0:
                 return CertifiedLPResult("infeasible", None, None, exact_eq, exact_ub)
+        res = solve({"presolve": False})
+    if res.status == 0:
+        duals = {
+            "y_eq": res.eqlin.marginals if A_eq is not None else None,
+            "y_ub": res.ineqlin.marginals if A_ub is not None else None,
+        }
+        bound, exact_eq, exact_ub = _best_bound(c, lo, hi, denominators, **data, **duals)
+        status = "optimal" if bound is not None else "failed"
+        return CertifiedLPResult(status, bound, float(res.fun), exact_eq, exact_ub)
     return CertifiedLPResult("failed", None, None)
 
 

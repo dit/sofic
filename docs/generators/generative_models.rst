@@ -315,6 +315,15 @@ cheaper bounds meet the entropy of an ε-machine, which then certifies. At crypt
 runs only if the exact path leaves it open; on the 510 dataset processes of that class it had taken about
 17 s each and never supplied the lower bound.
 
+The branch and bound drops a box only when HiGHS calls its LP infeasible with and without presolve and an
+exact Farkas certificate verifies (:mod:`sofic.generators.certificates`). HiGHS's presolve calls feasible box
+LPs infeasible: on ``((1,0),(2,2),(1,0))`` it did so 3,101 times at 1,000 and 2,000 boxes, dropping the box
+that holds a 3-state generator's heaviest state at depth 81, and the coverage bound came out at
+:math:`C_\mu = 1.0459`, above that generator's entropy :math:`1.0420`. Without presolve every one of those LPs
+is feasible, and the bound meets the generator's entropy to :math:`3 \times 10^{-10}`. With float data a nonempty box is always feasible (the explicit
+states can have weight 0 and the aggregate the whole generator), so the certificate only guards against
+rationalized data.
+
 Coverage only sees the top weights. :func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`
 uses the whole decomposition: with heaviest term :math:`T = t\, q r^\top`, any exact decomposition has
 entropy :math:`h(t) + (1 - t) H(\lambda')`, where :math:`\lambda'` decomposes the remainder

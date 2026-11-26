@@ -149,6 +149,72 @@ def test_child_lps_get_the_time_left_and_keep_the_parent_bound(monkeypatch: pyte
     assert max(b for b, _, _ in leaves) == pytest.approx(root)
 
 
+def test_a_box_highs_presolve_calls_infeasible_keeps_its_generator_state() -> None:
+    """A belief box holding the heaviest state (weight 0.4976862) of a 3-state generator of a 3-state process.
+
+    scipy 1.17's HiGHS with presolve calls the box's one-explicit-state LP infeasible, which dropped the box at
+    depth 81 of the branch and bound; without presolve the LP's optimum is 0.4976867.
+    """
+    import sofic.generators.generator_caps as gc
+
+    mats = {
+        0: np.array([[0.0, 0.10369669321827639, 0.0], [0.0, 0.0, 0.67213678972452], [0.0, 0.9987816335358809, 0.0]]),
+        1: np.array(
+            [[0.8963033067817237, 0.0, 0.0], [0.0, 0.0, 0.32786321027548004], [0.0012183664641191093, 0.0, 0.0]]
+        ),
+    }
+    machine = BidirectionalEpsilonMachine.from_forward(
+        from_symbol_matrices((0, 1, 2), (0, 1), mats), reverse_max_states=1000
+    )
+    u = 2.0**-10
+    box = (
+        np.array([u, 0.0, 1 - 2 * u]),
+        np.array([2 * u, u, 1 - u]),
+        np.array([0.0, 0.0, 0.0, 0.0, 1 - 6 * u, 0.0, 0.0, 0.0, 2 * u]),
+        np.array([2 * u, 2 * u, 2 * u, 2 * u, 1 - 4 * u, 2 * u, 2 * u, 2 * u, 4 * u]),
+    )
+    relaxation = gc._HeaviestStatesRelaxation(cg._GeneratorProblem(machine), 1)
+    assert relaxation.bound((box,)) >= 0.4976862 - 1e-7
+
+
+def test_infeasible_verdicts_are_solved_again_without_presolve(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import sofic.generators.generator_caps as gc
+
+    relaxation = gc._HeaviestStatesRelaxation(cg._GeneratorProblem(golden_mean_bidirectional(0.5)), 1)
+    root = gc._root(relaxation)
+    expected = relaxation.bound(root)
+    real = gc.linprog
+    seen: list[dict | None] = []
+
+    def fake(*args, options=None, **kwargs):
+        seen.append(options)
+        if options is None:
+            return SimpleNamespace(status=2, success=False, fun=None)
+        return real(*args, options=options, **kwargs)
+
+    monkeypatch.setattr(gc, "linprog", fake)
+    assert relaxation.bound(root) == pytest.approx(expected)
+    assert seen == [None, {"presolve": False}]
+
+
+def test_a_box_is_dropped_only_with_a_farkas_certificate(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import sofic.generators.generator_caps as gc
+    from sofic.generators.certificates import CertifiedLPResult
+
+    relaxation = gc._HeaviestStatesRelaxation(cg._GeneratorProblem(golden_mean_bidirectional(0.5)), 1)
+    root = gc._root(relaxation)
+    monkeypatch.setattr(gc, "linprog", lambda *args, **kwargs: SimpleNamespace(status=2, success=False, fun=None))
+    # the certificate's own solves are not patched; they find the LP feasible, so the box stays with the trivial bound
+    assert relaxation.bound(root) == 1.0
+    infeasible = CertifiedLPResult("infeasible", None, None)
+    monkeypatch.setattr(gc._HeaviestStatesRelaxation, "certified_bound", lambda self, boxes: infeasible)
+    assert relaxation.bound(root) is None
+
+
 @settings(max_examples=300, deadline=None)
 @given(st.integers(1, 6).flatmap(lambda n: st.tuples(*[st.tuples(st.floats(0, 1), st.floats(0, 1))] * n)))
 def test_tighten_matches_exact_rational_arithmetic(bounds):

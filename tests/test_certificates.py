@@ -59,6 +59,27 @@ def test_infeasibility_is_certified() -> None:
     assert result.status == "infeasible"
 
 
+def test_a_false_infeasible_verdict_is_solved_again_without_presolve(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    import sofic.generators.certificates as certificates
+
+    real = certificates.linprog
+    seen: list[dict | None] = []
+
+    def fake(c, *args, options=None, **kwargs):
+        if len(c) == 1:  # the LP itself; the elastic LP has a slack column too
+            seen.append(options)
+            if options is None:
+                return SimpleNamespace(status=2)
+        return real(c, *args, options=options, **kwargs)
+
+    monkeypatch.setattr(certificates, "linprog", fake)
+    result = certified_lp_minimum([1.0], [0.0], [1.0], A_ub=np.array([[-1.0]]), b_ub=[-0.25])
+    assert seen == [None, {"presolve": False}]
+    assert result.status == "optimal" and result.bound == Fraction(1, 4)
+
+
 def test_unbounded_box_with_bad_sign_gives_none() -> None:
     assert dual_bound([1.0], [-np.inf], [1.0]) is None
 
