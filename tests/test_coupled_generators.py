@@ -470,5 +470,5 @@ def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> N
     lifts = cg.memory_lift_search(bidir, 2, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
     assert len(lifts) == 1
     seeds = cg.targeted_line_split_seeds(problem, optima, deadline=time.monotonic(), rng=np.random.default_rng(0))
-    assert len(seeds) <= 1
+    assert seeds == []
     assert time.monotonic() - start < 120

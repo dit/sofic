@@ -41,6 +41,18 @@ def test_targeted_search_finds_low_entropy_generator() -> None:
     assert min(cg._entropy(seed[0]) for _name, seed in seeds) < 0.98
 
 
+def test_line_split_local_search_stops_at_its_deadline() -> None:
+    import time
+
+    problem = cg._GeneratorProblem(_widest_survey_machine())
+    P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+    rng = np.random.default_rng(0)
+    for _ in range(5):
+        z = rng.normal(size=sum(P.shape))
+        out = cg._line_split_local(problem, P, z, 1, 0, deadline=time.monotonic())
+        assert out is None or np.array_equal(out[1], z)
+
+
 def test_line_split_seeds_are_exact_decompositions_with_point_mass_states() -> None:
     problem = cg._GeneratorProblem(_survey_machine())
     P = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
