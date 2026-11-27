@@ -473,7 +473,10 @@ Restricted global bound
 spatial branch and bound :cite:`Achterberg2009,Vigerske2018` through PySCIPOpt :cite:`Maher2016`.
 With the bidirectional edge chain it adds two-step path flows and the two-step edge law. The
 weights are sorted, so caps on the heaviest states enter as linear cuts, and an objective limit
-(the entropy of a verified generator) lets SCIP prune. The result bounds the state entropy of every
+(the entropy of a verified generator) lets SCIP prune. ``weight_box`` confines the two heaviest
+weights to a box, so boxes covering the region those weights can take, each solved alone, bound
+every generator with at most ``k`` states where one solve over the whole region does not finish
+in time. The result bounds the state entropy of every
 generator with at most ``k`` states and says nothing about larger ones. It is therefore a lower
 bound on :math:`C_g` only once the number of states of a minimal generator is bounded. No general
 bound is known, and :math:`\min(|S^+|, |S^-|) + 1` is not one: the skip-one chain (under
