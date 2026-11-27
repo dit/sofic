@@ -10,6 +10,7 @@ from hypothesis.extra.numpy import arrays
 
 from sofic.generators.coverage_bound import (
     coverage_bound,
+    coverage_entropy_lower,
     lp_rank_k_weights,
     mu1_rank1_mass,
     mu1_vertex,
@@ -17,6 +18,7 @@ from sofic.generators.coverage_bound import (
     mu_hyperplane_cap,
     mu_k_spectral_cap,
 )
+from tests.oracles import least_entropy_under_caps_reference
 
 
 def _h(*p: float) -> float:
@@ -116,6 +118,85 @@ def test_coverage_exact_on_block_diagonal_support() -> None:
     cov = coverage_bound(m)
     assert cov.certified
     assert cov.value == pytest.approx(_h(0.4, 0.6), abs=1e-6)
+
+
+def _increment_entropy(caps: list[float]) -> float:
+    c = [0.0, *caps]
+    return _h(*[c[j] - c[j - 1] for j in range(1, len(c))], 1.0 - c[-1])
+
+
+def test_coverage_entropy_lower_is_the_least_entropy_when_the_cap_increments_increase() -> None:
+    # The increments c_2 - c_1 and 1 - c_2 increase; the least entropy fills the second cap and repeats w_2.
+    tight, loose = (0.4720301, 0.7239705), (0.4720301, 0.7269834)
+    for c1, c2 in (tight, loose):
+        value = coverage_entropy_lower((c1, c2))
+        assert value == pytest.approx(_h(2 * c2 - 1, 1 - c2, 1 - c2), abs=1e-9)
+        assert value > _increment_entropy([c1, c2]) + 0.01
+    assert coverage_entropy_lower(tight) == pytest.approx(1.5442250, abs=1e-7)
+    assert coverage_entropy_lower(loose) < coverage_entropy_lower(tight)
+
+
+def test_coverage_entropy_lower_reaches_past_ten_atoms() -> None:
+    assert coverage_entropy_lower((0.09,)) == pytest.approx(_h(*[0.09] * 11, 0.01), abs=1e-9)
+    caps = (0.1777, 0.2473, 0.2531)
+    assert least_entropy_under_caps_reference(caps, 10) == np.inf
+    assert coverage_entropy_lower(caps) == pytest.approx(least_entropy_under_caps_reference(caps, 14), abs=1e-9)
+    assert coverage_entropy_lower((0.1, 0.15, 0.999)) == pytest.approx(_h(*[0.075] * 13, 0.025), abs=1e-9)
+
+
+def test_coverage_entropy_lower_with_a_vanishing_head_weight_and_caps_near_one() -> None:
+    # The head polytope of these caps has an edge ending at a fifth weight of 1e-17.
+    caps = (0.22122052, 0.45389342, 0.61437035, 0.78020509, 0.8070901)
+    value = coverage_entropy_lower(caps)
+    assert _increment_entropy(list(caps)) - 1e-12 <= value <= least_entropy_under_caps_reference(caps, 8) + 1e-9
+    near_one = (0.3, 0.6, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999)
+    assert coverage_entropy_lower(near_one) == pytest.approx(_increment_entropy(list(near_one)), abs=1e-12)
+
+
+def test_coverage_entropy_lower_with_more_than_eight_caps() -> None:
+    assert coverage_entropy_lower(np.arange(1, 13) / 13) == pytest.approx(np.log2(13), abs=1e-9)
+    caps = (0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.68, 0.7, 0.72)
+    value = coverage_entropy_lower(caps)
+    assert value >= coverage_entropy_lower(caps[:8]) - 1e-12
+    assert value >= _increment_entropy(list(caps)) - 1e-12
+
+
+_CAPS = st.lists(st.floats(0.05, 1.0), min_size=1, max_size=4).map(sorted)
+
+
+@settings(max_examples=60, deadline=None)
+@given(_CAPS)
+def test_coverage_entropy_lower_is_between_the_increment_entropy_and_every_few_atom_distribution(caps) -> None:
+    value = coverage_entropy_lower(caps)
+    assert value >= _increment_entropy(caps) - 1e-12
+    assert value <= least_entropy_under_caps_reference(caps, 6) + 1e-9
+
+
+@settings(max_examples=60, deadline=None)
+@given(st.lists(st.floats(0.01, 1.0), min_size=2, max_size=5))
+def test_coverage_entropy_lower_is_the_increment_entropy_when_increments_do_not_increase(raw) -> None:
+    w = np.sort(np.asarray(raw) / sum(raw))[::-1]
+    assert coverage_entropy_lower(np.cumsum(w)[:-1]) == pytest.approx(_h(*w), abs=1e-9)
+
+
+@settings(max_examples=60, deadline=None)
+@given(_CAPS, st.lists(st.floats(0.5, 1.0), min_size=4, max_size=4))
+def test_coverage_entropy_lower_does_not_fall_as_the_caps_tighten(caps, shrink) -> None:
+    tighter = np.minimum.accumulate((np.asarray(caps) * shrink[: len(caps)])[::-1])[::-1]
+    assert coverage_entropy_lower(tighter) >= coverage_entropy_lower(caps) - 1e-9
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    st.lists(st.floats(0.01, 1.0), min_size=2, max_size=12),
+    st.lists(st.floats(0.0, 0.2), min_size=3, max_size=3),
+    st.integers(1, 3),
+)
+def test_coverage_entropy_lower_is_at_most_the_entropy_of_any_distribution_under_the_caps(raw, slack, k) -> None:
+    w = np.sort(np.asarray(raw) / sum(raw))[::-1]
+    k = min(k, len(w))
+    caps = np.cumsum(w)[:k] + np.cumsum(slack)[:k]
+    assert coverage_entropy_lower(caps) <= _h(*w) + 1e-9
 
 
 @settings(max_examples=60, deadline=None)

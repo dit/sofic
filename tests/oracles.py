@@ -576,3 +576,28 @@ def column_box_lp_reference(U: np.ndarray, A: np.ndarray, C: np.ndarray) -> np.n
     slack = np.einsum("bpkm,bpcm->bpck", G, x) - h[:, :, None, :]
     feasible = regular & (slack.max(axis=-1) <= 1e-12 * (1.0 + float(U.max())))
     return np.where(feasible, x.sum(axis=-1), -np.inf).max(axis=-1)
+
+
+def least_entropy_under_caps_reference(caps: Sequence[float], n_max: int) -> float:
+    """Least entropy (bits) of a sorted distribution on at most ``n_max`` atoms whose ``j`` heaviest weights sum
+    to at most ``caps[j - 1]``, by enumerating the vertices of each ``n``-atom polytope (entropy is concave).
+
+    ``inf`` when no distribution on ``n_max`` atoms fits.
+    """
+    from itertools import combinations
+
+    best = math.inf
+    for n in range(1, n_max + 1):
+        rows = [np.eye(n)[i + 1] - np.eye(n)[i] for i in range(n - 1)] + [-np.eye(n)[n - 1]]
+        rows += [np.r_[np.ones(j), np.zeros(n - j)] for j in range(1, min(len(caps), n) + 1)]
+        A = np.array(rows)
+        b = np.r_[np.zeros(n), np.asarray(caps[:n], float)]
+        for active in map(list, combinations(range(len(A)), n - 1)):
+            M = np.vstack([np.ones(n), A[active]])
+            if abs(np.linalg.det(M)) < 1e-12:
+                continue
+            w = np.linalg.solve(M, np.r_[1.0, b[active]])
+            if np.all(A @ w <= b + 1e-12):
+                w = w[w > 1e-15]
+                best = min(best, float(-(w * np.log2(w)).sum()))
+    return best

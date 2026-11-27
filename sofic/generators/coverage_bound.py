@@ -10,6 +10,7 @@ certified **upper** bounds on the :math:`\mu_k`.
 from __future__ import annotations
 
 import heapq
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import combinations, count, product
@@ -48,23 +49,137 @@ def joint_matrix(joint: dict[tuple, float]) -> tuple[np.ndarray, list, list]:
 
 
 def coverage_entropy_lower(mu_caps: Iterable[float]) -> float:
-    """Entropy lower bound from nondecreasing upper caps ``mu_k`` on partial sums (bits)."""
-    caps = list(mu_caps)
-    if not caps:
+    r"""Least entropy (bits) of a distribution whose ``j`` heaviest weights sum to at most ``mu_caps[j - 1]``.
+
+    For nondecreasing caps :math:`c_1 \le \dots \le c_k` the increments :math:`(c_1, c_2 - c_1, \ldots, 1 - c_k)`
+    majorize every distribution under the caps, so their entropy is a lower bound (entropy is Schur-concave
+    :cite:`marshall2011inequalities`), and the least entropy when they do not increase. When they do, the least
+    entropy is larger. Given the heaviest :math:`k` weights, with smallest :math:`w_k`, the rest of mass :math:`m`
+    has least entropy as :math:`\lfloor m / w_k \rfloor` weights :math:`w_k` and a remainder (that rest majorizes
+    every other), and for a fixed count of them the entropy is concave in the heaviest weights. Its minimum is then
+    at a vertex of their polytope or at a point of an edge where the remainder vanishes. Counts above :math:`Q` put
+    every weight from :math:`w_k` on at most :math:`r / (Q + 1)` with :math:`r = 1 - S_{k-1}`, so the entropy is at
+    least :math:`\sum_{i<k} \phi(w_i) + \phi(r) + r \log_2 (Q + 1)` with :math:`\phi(w) = -w \log_2 w`, which is
+    concave in the heaviest :math:`k - 1` weights; :math:`Q` doubles until the least value of that bound at the
+    vertices of their polytope reaches the least candidate value, or until :math:`Q = 2^{20}`, where the result is
+    the smaller of the two and still a lower bound. Only the first eight caps enter that search; later ones enter
+    through the increment entropy alone. The construction is this package's; we know of no literature source for it.
+    The result is never below the increment entropy.
+    """
+    caps = np.asarray(list(mu_caps), float)
+    # S_j <= S_{j+1} <= c_{j+1}, and caps from the first one at 1 on constrain nothing.
+    c = np.minimum.accumulate(np.clip(caps, 0.0, 1.0)[::-1])[::-1]
+    c = c[: int(np.argmax(c >= 1.0)) if np.any(c >= 1.0) else len(c)]
+    floor = _increment_entropy(c)
+    c = c[:_HEAD_LIMIT]
+    if len(c) == 0 or c[0] <= 0.0:
+        return floor
+    edges = _head_edges(c)
+    if not edges:
+        return floor
+    best = float(_with_least_tail(np.array([p for edge in edges for p in edge])).min())
+    lighter = _lighter_heads(c)
+    done, q = 0, 64
+    while True:
+        for p0, p1 in edges:
+            heads = _remainder_free_heads(p0, p1, done + 1, q + 1)
+            if len(heads):
+                best = min(best, float(_with_least_tail(heads).min()))
+        rest = float(np.min(lighter[0] + lighter[1] * math.log2(q + 1)))
+        if best <= floor or rest >= best or q >= _TAIL_COUNT_LIMIT:
+            break
+        done, q = q + 1, 2 * q
+    return max(floor, min(best, rest))
+
+
+# Counts of tail weights equal to the k-th heaviest at which coverage_entropy_lower stops doubling Q.
+_TAIL_COUNT_LIMIT = 1 << 20
+# The head polytope of k caps has C(2k, k - 1) candidate edges.
+_HEAD_LIMIT = 8
+
+
+def _increment_entropy(caps: np.ndarray) -> float:
+    """Entropy of the cap increments, with the mass above the last cap as one more weight."""
+    if len(caps) == 0:
         return 0.0
-    inc = [min(1.0, max(0.0, caps[0]))]
-    for k in range(1, len(caps)):
-        inc.append(min(1.0, max(0.0, caps[k] - caps[k - 1])))
-    tail = max(0.0, 1.0 - caps[-1])
-    if tail > 0:
-        inc.append(tail)
-    inc = [x for x in inc if x > 0]
-    inc = np.asarray(inc, float)
-    inc = inc / inc.sum()
+    inc = np.clip(np.diff(np.r_[0.0, caps]), 0.0, 1.0)
+    inc = np.r_[inc, max(0.0, 1.0 - caps[-1])]
+    inc = inc[inc > 0]
+    return float(_phi(inc / inc.sum()).sum())
+
+
+def _phi(w: np.ndarray) -> np.ndarray:
+    w = np.clip(w, 0.0, None)
+    return np.where(w > 0, -w * np.log2(np.where(w > 0, w, 1.0)), 0.0)
+
+
+def _head_edges(c: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+    """End points of the edges of the polytope of sorted ``h`` in ``R^k`` with ``h_k >= 0`` and ``S_j(h) <= c_j``.
+
+    A degenerate edge is a vertex twice, and every vertex is the end of some edge.
+    """
+    k = len(c)
+    eye = np.eye(k)
+    rows = [eye[i + 1] - eye[i] for i in range(k - 1)] + [-eye[k - 1]]
+    rows += [np.r_[np.ones(j), np.zeros(k - j)] for j in range(1, k + 1)]
+    A, b = np.array(rows), np.r_[np.zeros(k), c]
+    if k == 1:
+        d, p = np.ones((1, 1)), np.zeros((1, 1))
+    else:
+        active = np.array(list(combinations(range(len(A)), k - 1)))
+        _, s, vt = np.linalg.svd(A[active])
+        full = np.sum(s > 1e-12, axis=1) == k - 1
+        d = vt[full, -1, :]
+        p = np.einsum("mij,mj->mi", np.linalg.pinv(A[active[full]]), b[active[full]])
+    Ad, slack = d @ A.T, b - p @ A.T
     with np.errstate(divide="ignore", invalid="ignore"):
-        logp = np.log2(inc)
-    logp[~np.isfinite(logp)] = 0.0
-    return float(-(inc * logp).sum())
+        ratio = slack / Ad
+    lo = np.max(np.where(Ad < -1e-12, ratio, -np.inf), axis=1)
+    hi = np.min(np.where(Ad > 1e-12, ratio, np.inf), axis=1)
+    keep = ~np.any((np.abs(Ad) <= 1e-12) & (slack < -1e-12), axis=1)
+    keep &= np.isfinite(lo) & np.isfinite(hi) & (lo <= hi + 1e-12)
+    ends = p[keep] + lo[keep, None] * d[keep], p[keep] + np.maximum(lo, hi)[keep, None] * d[keep]
+    return list(zip(*ends, strict=True))
+
+
+def _with_least_tail(heads: np.ndarray) -> np.ndarray:
+    """Entropy of each row of ``heads`` followed by its least-entropy tail; ``inf`` where no tail fits."""
+    x = np.clip(heads[:, -1], 0.0, None)
+    m = np.clip(1.0 - heads.sum(axis=1), 0.0, None)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        q = np.where(x > 0, np.floor(m / np.where(x > 0, x, 1.0)), 0.0)
+    value = _phi(heads).sum(axis=1) + q * _phi(x) + _phi(m - q * x)
+    return np.where((x > 0) | (m <= 1e-12), value, np.inf)
+
+
+def _remainder_free_heads(p0: np.ndarray, p1: np.ndarray, q_min: int, q_max: int) -> np.ndarray:
+    """Points of the edge ``[p0, p1]`` where the mass ``1 - S_k`` is ``q`` copies of ``h_k``, ``q_min <= q <= q_max``."""
+    x0, x1, m0, m1 = p0[-1], p1[-1], 1.0 - p0.sum(), 1.0 - p1.sum()
+    g = [m / x if x > 1e-12 else np.inf for m, x in ((m0, x0), (m1, x1))]
+    if min(g) > q_max:
+        return np.empty((0, len(p0)))
+    lo = max(q_min, math.ceil(min(g) - 1e-9))
+    hi = q_max if max(g) > q_max else math.floor(max(g) + 1e-9)
+    qs = np.arange(lo, hi + 1, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (qs * x0 - m0) / ((m1 - m0) - qs * (x1 - x0))
+    t = np.clip(t[np.isfinite(t) & (t >= -1e-12) & (t <= 1.0 + 1e-12)], 0.0, 1.0)
+    return p0 + t[:, None] * (p1 - p0)
+
+
+def _lighter_heads(c: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(sum phi(h) + phi(r), r)`` with ``r = 1 - S_{k-1}(h)`` at the vertices ``h`` of the polytope of the ``k - 1``
+    heaviest weights under ``c[:-1]``.
+
+    When more than ``q`` tail weights equal the ``k``-th heaviest, every weight from the ``k``-th on is at most
+    ``r / (q + 1)``, so the entropy is at least ``sum_{i<k} phi(h_i) + phi(r) + r log2(q + 1)``, which is concave in
+    those weights and so at least its least value at these vertices.
+    """
+    if len(c) == 1:
+        return np.zeros(1), np.ones(1)
+    vertices = np.array([p for edge in _head_edges(c[:-1]) for p in edge])
+    r = np.clip(1.0 - vertices.sum(axis=1), 0.0, 1.0)
+    return _phi(vertices).sum(axis=1) + _phi(r), r
 
 
 def _softmax(z: np.ndarray) -> np.ndarray:

@@ -340,6 +340,21 @@ is feasible, and the bound meets the generator's entropy to :math:`3 \times 10^{
 states can have weight 0 and the aggregate the whole generator), so the certificate only guards against
 rationalized data.
 
+Every coverage bound ends in :func:`~sofic.generators.coverage_bound.coverage_entropy_lower`, the least entropy
+of a distribution whose :math:`j` heaviest weights sum to at most :math:`c_j`. The cap increments
+:math:`(c_1, c_2 - c_1, \ldots, 1 - c_k)` majorize every such distribution, and entropy is Schur-concave
+:cite:`marshall2011inequalities`, so their entropy is a lower bound, and the least entropy when they do not
+increase. When they increase it is weaker, and not monotone in the caps. Given the :math:`k` heaviest weights, the
+rest of the mass has least entropy as copies of the :math:`k`-th weight and a remainder, and for each number of
+copies the entropy is concave in the heaviest weights. The minimum is therefore at a vertex of their polytope, or
+where one of its edges leaves no remainder. With more than :math:`Q` copies every weight from the :math:`k`-th on is
+at most :math:`r / (Q + 1)`, where :math:`r` is the mass outside the heaviest :math:`k - 1`, so the entropy is at
+least :math:`\sum_{i<k} \phi(w_i) + \phi(r) + r \log_2 (Q + 1)` with :math:`\phi(w) = -w \log_2 w`. That bound is
+concave in the heaviest :math:`k - 1` weights, so its least value is at a vertex of their polytope, and :math:`Q`
+doubles until that value reaches the least entropy found. We know of no literature source for this reduction. On a binary 3-state process with caps :math:`0.4720` and :math:`0.7270`
+(increments :math:`0.472, 0.255, 0.273`) it raises the bound from :math:`1.5252655` to :math:`1.5399102`, at
+:math:`(0.4540, 0.2730, 0.2730)`.
+
 Coverage only sees the top weights. :func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`
 uses the whole decomposition: with heaviest term :math:`T = t\, q r^\top`, any exact decomposition has
 entropy :math:`h(t) + (1 - t) H(\lambda')`, where :math:`\lambda'` decomposes the remainder
