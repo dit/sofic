@@ -5,6 +5,23 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Truncated bidirectional machines
+
+- `generative_model` no longer reports lower bounds of a truncation as bounds on the process. When the reverse
+  ε-machine is infinite but its mixed states merge within numerical tolerance, the bidirectional machine is a finite
+  truncation (`bidir_class` `"truncated"`). Its generators are verified against the forward machine, so the upper
+  bound holds, but the excess entropy, the support-type, flow and coverage bounds, SCIP's dual bound on the exact
+  path, the heaviest-term bounds and the restricted global bound were computed on the truncation, and their sources
+  read "(certified)": on a 2-state ternary process the generator coverage bound of the truncation came within
+  `1.5e-6` of the best generator's entropy, 0.9982954, where the future-window bound is 0.9981857. These stages are
+  now skipped, as is the share of the budget held back for the final heaviest-term bound. The lower bound is the
+  larger future-window generator coverage bound at `L = 2` and 3 (`window_spec`, Löhr & Ay 2009), computed first
+  from the forward machine with at most 30% of the budget. `minimal_wyner_model` reports `lower` 0 on a truncated build.
+- `resolve_bidirectional` classes a bidirectional input `"truncated"` when the reverse ε-machine of its forward
+  machine is infinite (was: always `"finite"`), as the build does.
+- The simplex-chain search treats a Gauss-Newton step whose SVD does not converge (`numpy.linalg.LinAlgError`) as a
+  failed snap; on a binary 3-state process the error ended `generative_model` after 116 s.
+
 ### Coverage bound: least entropy under the caps
 
 - `coverage_entropy_lower(caps)`, the last step of `coverage_bound`, `generator_coverage_bound` and the pipeline's

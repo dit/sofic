@@ -2,12 +2,75 @@
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 
 from sofic.examples import golden_mean, golden_mean_bidirectional
+from sofic.examples.epsilon_machines import from_symbol_matrices
+from sofic.generators import generative_search as gs
+from sofic.generators.bidirectional_build import try_build_bidirectional
 from sofic.generators.bidirectional_epsilon_machine import BidirectionalEpsilonMachine
 from sofic.generators.generative_search import generative_model, generative_model_from_bidirectional
+
+# Lower bounds of the truncation that must not reach the result of a truncated build.
+_TRUNCATION_BOUNDS = {
+    "excess entropy",
+    "exact rectangle partition",
+    "support bound",
+    "coverage bound (certified)",
+    "generator coverage bound (certified)",
+    "heaviest-term bound (certified)",
+    "generator heaviest-term bound (certified)",
+}
+
+
+def _truncated_forward():
+    """A 2-state ternary process whose reverse ε-machine is infinite (s3-n2-t0022-d2 of the ternary survey)."""
+    mats = {
+        0: np.array([[0.0, 0.0], [0.8718949197791982, 0.0]]),
+        1: np.array([[0.2089291369568694, 0.0], [0.0, 0.05375082082018049]]),
+        2: np.array([[0.0, 0.7910708630431306], [0.0, 0.07435425940062132]]),
+    }
+    return from_symbol_matrices((0, 1), (0, 1, 2), mats)
+
+
+def test_a_prebuilt_truncation_is_classed_truncated() -> None:
+    built = try_build_bidirectional(_truncated_forward())
+    assert built.preflight.bidir_class == "truncated"
+    bidir, meta = gs.resolve_bidirectional(built.bidir)
+    assert bidir is built.bidir
+    assert meta == {"bidir_class": "truncated", "source": "bidirectional input"}
+
+
+def test_a_window_lower_bound_replaces_the_lower_bounds_of_the_machine() -> None:
+    result = gs._bracket_search(
+        golden_mean_bidirectional(),
+        objective="entropy",
+        stages=("machines",),
+        window_lower=(0.5, "a bound"),
+        rng=np.random.default_rng(0),
+    )
+    assert (result.lower, result.lower_source, result.lower_certified) == (0.5, "a bound", True)
+    assert not result.certified
+    assert not {s["stage"] for s in result.stages} & _TRUNCATION_BOUNDS
+
+
+@pytest.mark.slow
+def test_a_truncated_build_reports_the_future_window_bound() -> None:
+    start = time.monotonic()
+    result = generative_model(_truncated_forward(), time_budget=60.0, rng=np.random.default_rng(0))
+    assert time.monotonic() - start < 66.0
+    assert result.stages[0]["bidir_class"] == "truncated"
+    assert result.lower_source.startswith("future-window generator coverage bound (L=")
+    # without a deadline the window bounds are 0.9978545 (L = 2) and 0.9981857 (L = 3); the best generator known
+    # has entropy 0.9982954
+    assert 0.99 < result.lower < result.upper
+    assert not result.certified
+    assert not {s["stage"] for s in result.stages} & _TRUNCATION_BOUNDS
+    wyner = gs.minimal_wyner_model(_truncated_forward(), time_budget=20.0, rng=np.random.default_rng(0))
+    assert (wyner.lower, wyner.lower_source) == (0.0, "trivial lower bound")
 
 
 def test_generative_model_from_forward_epsilon_machine_certifies_golden_mean() -> None:

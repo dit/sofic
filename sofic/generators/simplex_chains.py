@@ -481,8 +481,11 @@ def _snap(
             ) / (2 * h)
         if not (np.isfinite(J).all() and np.isfinite(r).all()):  # LAPACK's SVD can hang on NaN input
             return lift(theta), math.inf
-        theta = theta - np.linalg.lstsq(J, r, rcond=None)[0]
-        r = _wall_residuals(side, lift(theta), assign, none)
+        try:
+            theta = theta - np.linalg.lstsq(J, r, rcond=None)[0]
+            r = _wall_residuals(side, lift(theta), assign, none)
+        except np.linalg.LinAlgError:  # the SVD can fail to converge on finite input too
+            return lift(theta), math.inf
     return lift(theta), float(np.abs(r).max()) if len(r) else 0.0
 
 

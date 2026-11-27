@@ -87,6 +87,25 @@ def test_chain_lemma_on_random_pools(seed, extra):
         assert ex["word_error"] < 1e-8
 
 
+def test_a_failed_least_squares_step_is_a_failed_snap(monkeypatch):
+    """LAPACK's SVD can fail to converge; the snap then reports an infinite residual instead of raising."""
+    side = _sides()["forward"]
+    atoms = np.eye(side.n)
+    # one successor per block, so the wall residuals need no least squares and only the Gauss-Newton step does
+    assign = {
+        (s, x): (int(np.argmax(atoms[s] @ side.P[x])),)
+        for s, x in itertools.product(range(side.n), range(side.n_sym))
+        if (atoms[s] @ side.P[x]).sum() > 1e-14
+    }
+
+    def fail(*args, **kwargs):
+        raise np.linalg.LinAlgError("SVD did not converge in Linear Least Squares")
+
+    monkeypatch.setattr(np.linalg, "lstsq", fail)
+    _, res = sc._snap(side, 0.9 * atoms + 0.1 / side.n, assign)
+    assert res == math.inf
+
+
 def test_every_closed_class_of_the_full_vertex_chain_generates():
     """The chain lemma with every block on all the vertices: ``T^x[s, .] = m_x(s) f_x(s)``."""
     problem = _problem()
