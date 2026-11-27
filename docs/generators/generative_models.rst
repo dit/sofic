@@ -212,7 +212,8 @@ runs the same search when the bidirectional machine is already known.
   :math:`C_g = \op{G}{S^+ : S^-}`, and the exact path computes it with at most :math:`K(P)` states
   (:doc:`separating_generators`); at cryptic orders 2 and 3 the lookahead generator is a candidate;
 * the exact-common-information optima (dit, several starts, since the optimum
-  need not be unique and only some optima generate), each polished to exact
+  need not be unique and only some optima generate; dit sees the pairs of causal states above
+  mass :math:`10^{-10}`, and the pairs it leaves out get the channel's state marginal), each polished to exact
   separation with :func:`~sofic.generators.coupled_generators.polish_separating_channel`
   and tested with :func:`~sofic.generators.coupled_generators.generator_kernel`;
   when none generate, :func:`~sofic.generators.coupled_generators.bilevel_search`
@@ -241,6 +242,16 @@ source to the same tolerance (for example the golden mean, where the support bou
 drawing its states independently at both ends of each bidirectional edge also generates the process;
 coupled generators such as the interleaved product flag do not.
 
+With ``time_budget`` every stage gets a share of the time left and stops at its deadline; the stages from
+the simplex-chain search on, except the final generator heaviest-term bound, stop a fifth of the budget
+early, so that this bound keeps that time, and the stages before them share the whole budget. The universal
+coupled search (:func:`~sofic.generators.universal_optimizer.universal_generative_optimizer`) builds no seeds
+and tries no larger :math:`k` once its deadline passes; inside it, the coupled search stops every start but the
+ε-machine seed at the deadline, and that seed runs to the end so that some generator can be verified. The
+lifted channel stage begins no start, dit run or refinement after its deadline, and the targeted line-split
+search stops its running local search there and polishes only the best decomposition it has. Those polishes,
+the ε-machine seed, an optimizer iteration or a linear program can still carry a run past its budget.
+
 The coupled searches parameterize states by their causal-state beliefs :math:`(Q_w, R_w)`, which favours
 generators whose states' pasts and futures are belief-mixtures of the causal states'. Some processes have
 lower-entropy generators that are not. :func:`~sofic.generators.hmm_search.hmm_generator_search` optimizes the
@@ -265,10 +276,12 @@ representations, so the search alternates linear programming over the representa
 atoms; forward-sufficient generators are the mirror image on :math:`\Delta(S^+)`. Each side starts from its own
 ε-machine, every iterate passes a word check over a Tzeng basis :cite:`Tzeng1992`, and at cryptic orders up to 4 the
 atoms are kept on the faces of the synchronizing complex. The construction and the search are not from the
-literature. The pipeline runs the search right after the exact path (``simplex_chains=True``) with a quarter of the
-remaining budget, or 2 s per side without one, and stops once a generator meets the lower bound. On 306 archive
-processes (binary 2- and 3-state and ternary 2-state ε-machines) it went below the best known upper bound on 42, by
-more than :math:`10^{-6}` on 22 and by up to 0.295 bits; half the final values came within 0.57 s.
+literature. The pipeline runs the search right after the exact path and the theorem case's generator coverage
+bound, before the lookahead generator and the searches seeded by the exact-common-information optima
+(``simplex_chains=True``), with a quarter of the remaining budget, or 2 s per side without one, and stops once a
+generator meets the lower bound. On 306 archive processes (binary 2- and 3-state and ternary 2-state ε-machines) it
+went below the best known upper bound on 42, by more than :math:`10^{-6}` on 22 and by up to 0.295 bits; half the
+final values came within 0.57 s.
 
 Wyner and functional generators
 -------------------------------

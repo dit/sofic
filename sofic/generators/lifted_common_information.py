@@ -59,6 +59,7 @@ optimizer is local.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Hashable, Sequence
 from typing import TYPE_CHECKING
 
@@ -257,7 +258,10 @@ def _unconstrained_channel(
     cutoff: float,
     rng: np.random.Generator,
 ) -> np.ndarray | None:
-    """Channel of the ordinary (dit) Wyner or exact optimum, as a start; ``None`` if that optimizer fails."""
+    """Channel of the ordinary (dit) Wyner or exact optimum, as a start; ``None`` if that optimizer fails.
+
+    Pairs of ``problem`` that ``joint`` leaves out (below a mass cutoff) get the channel's state marginal.
+    """
     optimizer = _optimize_wyner_common_information if kind == "wyner" else _optimize_exact_common_information
     try:
         channel, _value = _auxiliary_state_channel(
@@ -275,7 +279,10 @@ def _unconstrained_channel(
     except StochasticValidationError:
         return None
     states = sorted({state for row in channel.values() for state in row}, key=repr)
-    return np.array([[channel[pair].get(state, 0.0) for state in states] for pair in problem.pairs])
+    rows = {pair: np.array([row.get(state, 0.0) for state in states]) for pair, row in channel.items()}
+    weights = np.array([joint.get(pair, 0.0) for pair in rows])
+    marginal = weights @ np.array(list(rows.values())) / weights.sum()
+    return np.array([rows.get(pair, marginal) for pair in problem.pairs])
 
 
 def _optimize(
@@ -289,9 +296,15 @@ def _optimize(
     extra: list[np.ndarray],
     more_starts: Sequence[np.ndarray] = (),
     generator_seeds: bool = True,
+    deadline: float | None = None,
 ):
     """Continuation from the generator seeds (if ``generator_seeds``), the ``extra`` channels, ``more_starts``
-    and ``starts`` random channels; the ``extra`` channels are also kept and refined as they are."""
+    and ``starts`` random channels; the ``extra`` channels are also kept and refined as they are. No solve
+    begins after ``deadline`` (:func:`time.monotonic`); the seeds and ``extra`` channels stay candidates."""
+
+    def late() -> bool:
+        return deadline is not None and time.monotonic() >= deadline
+
     n = len(problem.pairs)
     shape = (n, k)
     row_sums = {
@@ -332,8 +345,12 @@ def _optimize(
     fixed = (problem.seeds(k) if generator_seeds else []) + extra
     candidates = [(problem.objective(c0, kind)[0], problem.markov_residual(c0), c0) for c0 in fixed]
     for c0 in fixed + list(more_starts) + [rng.dirichlet(np.ones(k), size=n) for _ in range(starts)]:
+        if late():
+            break
         c = c0
         for closure_tol in schedule:
+            if late():
+                break
             c = solve(c, closure_tol, coarse)
         candidates.append((problem.objective(c, kind)[0], problem.markov_residual(c), c))
 
@@ -345,7 +362,7 @@ def _optimize(
     for residual, c in pool:
         # Step well below the acceptance threshold so platform-level rounding cannot tip a candidate over it.
         for target in sorted({tol, tol / 10, min(tol, _REFINE_TOL)}, reverse=True):
-            if residual <= 2 * target:
+            if residual <= 2 * target or late():
                 continue
             support = c > _SUPPORT_CUTOFF
             trimmed = np.where(support, c, 0.0)
@@ -370,10 +387,12 @@ def lifted_model(
     reproduction_atol: float,
     cutoff: float,
     rng: np.random.Generator | None,
+    deadline: float | None = None,
 ) -> WynerGenerativeModel | MinimalGenerativeModel:
     """Lifted Wyner (``objective="wyner"``) or exact (``"exact"``) generative model; see the module docstring.
 
-    Backs ``wyner_generative_model`` and ``minimal_generative_model``.
+    Backs ``wyner_generative_model`` and ``minimal_generative_model``. No start, dit run or refinement begins
+    after ``deadline`` (:func:`time.monotonic`); the ε-machine channels always lift, so a model is still returned.
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")
@@ -391,19 +410,25 @@ def lifted_model(
         value, residual = _entropy_bits(problem.p), 0.0
     else:
         rng = rng or np.random.default_rng()
-        unconstrained = _unconstrained_channel(
-            problem,
-            joint,
-            objective,
-            niter=niter,
-            maxiter=maxiter,
-            polish=polish,
-            backend=backend,
-            cutoff=cutoff,
-            rng=rng,
+        unconstrained = (
+            None
+            if deadline is not None and time.monotonic() >= deadline
+            else _unconstrained_channel(
+                problem,
+                joint,
+                objective,
+                niter=niter,
+                maxiter=maxiter,
+                polish=polish,
+                backend=backend,
+                cutoff=cutoff,
+                rng=rng,
+            )
         )
         k = int(bound) if bound is not None else len(problem.pairs)
-        refined, candidates = _optimize(problem, objective, k, starts, maxiter, markov_atol / 2, rng, [])
+        refined, candidates = _optimize(
+            problem, objective, k, starts, maxiter, markov_atol / 2, rng, [], deadline=deadline
+        )
         if unconstrained is not None:
             # The unconstrained optimum gets its own pass at its own size (capped by an explicit bound).
             seed = unconstrained
@@ -418,7 +443,17 @@ def lifted_model(
                 for _ in range(_PERTURB_COPIES)
             ]
             seed_refined, seed_candidates = _optimize(
-                problem, objective, k_seed, 0, maxiter, markov_atol / 2, rng, [seed], perturbed, generator_seeds=False
+                problem,
+                objective,
+                k_seed,
+                0,
+                maxiter,
+                markov_atol / 2,
+                rng,
+                [seed],
+                perturbed,
+                generator_seeds=False,
+                deadline=deadline,
             )
             refined += seed_refined
             candidates += seed_candidates
@@ -430,7 +465,17 @@ def lifted_model(
                     continue
                 mixtures = [np.hstack([lam * seed, (1 - lam) * machine]) for lam in _MIX_WEIGHTS]
                 mix_refined, mix_candidates = _optimize(
-                    problem, objective, width, 0, maxiter, markov_atol / 2, rng, [], mixtures, generator_seeds=False
+                    problem,
+                    objective,
+                    width,
+                    0,
+                    maxiter,
+                    markov_atol / 2,
+                    rng,
+                    [],
+                    mixtures,
+                    generator_seeds=False,
+                    deadline=deadline,
                 )
                 refined += mix_refined
                 candidates += mix_candidates

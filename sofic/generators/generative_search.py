@@ -125,6 +125,8 @@ _HEAVIEST_TERM_MAX_DIMS = 7
 # are worth it (900 s raised the bound on 3 x 5 to 3 x 11 joints of the binary 3-state dataset too).
 _GENERATOR_HEAVIEST_TERM_NODES = 2_000
 _GENERATOR_HEAVIEST_TERM_MAX_DIMS = 14
+# Share of a time budget kept for that stage: the upper-bound searches stop this much early.
+_GENERATOR_HEAVIEST_TERM_SHARE = 0.2
 # The restricted global bound runs only on SCIP models up to this many variables (two-step flows included;
 # 3-state binary processes at 4 states have about 1,200), and for this many seconds when there is no budget.
 _GLOBAL_BOUND_MAX_VARS = 2_000
@@ -515,7 +517,16 @@ def _bracket_search(
     problem = _GeneratorProblem(bidir)
     lifted = problem.lifted
     log = _StageLog()
-    deadline = None if time_budget is None else log.start + time_budget
+    end = None if time_budget is None else log.start + time_budget
+    reserve = (
+        _GENERATOR_HEAVIEST_TERM_SHARE * time_budget
+        if time_budget is not None
+        and generator_heaviest_term
+        and not wyner
+        and problem.n_plus + problem.n_minus <= _GENERATOR_HEAVIEST_TERM_MAX_DIMS
+        else 0.0
+    )
+    deadline = end
     skipped: list[str] = []
 
     def out_of_time(stage: str) -> bool:
@@ -719,6 +730,25 @@ def _bracket_search(
 
     if want_generator_coverage and theorem and not out_of_time("generator coverage bound"):
         generator_coverage()
+        early = maybe_return_early()
+        if early is not None and early.certified:
+            return _finalize_result(early)
+
+    # the stages above share the whole budget; the ones from here to the final bound leave the reserve
+    deadline = None if end is None else end - reserve
+    if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
+        stage_deadline = share(0.25)
+        chains = simplex_chain_search(
+            problem,
+            seconds=_SIMPLEX_CHAIN_SECONDS if stage_deadline is None else math.inf,
+            deadline=stage_deadline,
+            kappa=math.inf if kappa is None else float(max(kappa)),
+            target=lower + _CERT_TOL,
+            rng=rng,
+        )
+        log.append({"stage": "simplex-chain search", "values": {res.side: res.entropy for res in chains}})
+        for res in chains:
+            offer(f"simplex chain ({res.side}, k={len(res.pi)})", coupled_seed_from_hmm(problem, res.matrices))
         early = maybe_return_early()
         if early is not None and early.certified:
             return _finalize_result(early)
@@ -948,23 +978,6 @@ def _bracket_search(
                 theta = _optimize_coupled(problem, theta, k, 3000, residual_atol=residual_atol, deadline=deadline)
                 offer(f"{name}, floor {floor:g}", problem.unpack(theta, k))
 
-    if simplex_chains and "chains" in stages and not wyner and not out_of_time("simplex-chain search"):
-        stage_deadline = share(0.25)
-        chains = simplex_chain_search(
-            problem,
-            seconds=_SIMPLEX_CHAIN_SECONDS if stage_deadline is None else math.inf,
-            deadline=stage_deadline,
-            kappa=math.inf if kappa is None else float(max(kappa)),
-            target=lower + _CERT_TOL,
-            rng=rng,
-        )
-        log.append({"stage": "simplex-chain search", "values": {res.side: res.entropy for res in chains}})
-        for res in chains:
-            offer(f"simplex chain ({res.side}, k={len(res.pi)})", coupled_seed_from_hmm(problem, res.matrices))
-        early = maybe_return_early()
-        if early is not None and early.certified:
-            return _finalize_result(early)
-
     if "memory" in stages and not out_of_time("memory lifts"):
         for _value, residual, nu in memory_lift_search(bidir, 2, starts=memory_starts, deadline=share(0.2), rng=rng)[
             :3
@@ -992,7 +1005,7 @@ def _bracket_search(
         if small:
             builder = wyner_generative_model if wyner else minimal_generative_model
             try:
-                model = builder(bidir, rng=rng)
+                model = builder(bidir, rng=rng, deadline=share(0.3))
                 offer("lifted channel", problem.channel_seed(_channel_matrix(problem, model.pair_state_channel)))
             except (StochasticValidationError, ImportError) as exc:
                 log.append({"stage": "lifted channel", "error": str(exc)})
@@ -1148,6 +1161,7 @@ def _bracket_search(
         raise StochasticValidationError(f"{objective} generator search: no candidate reproduced the source process")
     result.restricted_lower, result.restricted_states = restricted_lower, restricted_states
     # last, so it aims at the verified upper bound and gets the whole remaining budget
+    deadline = end
     max_dims = _HEAVIEST_TERM_MAX_DIMS if deadline is None else _GENERATOR_HEAVIEST_TERM_MAX_DIMS
     if (
         generator_heaviest_term
@@ -1367,10 +1381,12 @@ def generative_model(
        (full coupled equations).
 
     The final ``stages`` entry is a **reliability summary** (``certified``, ``gap``, sources, …).
-    With ``time_budget`` (seconds) the search becomes anytime: once the budget is spent, remaining
-    stages are skipped and the best verified bracket so far is returned with ``budget_exhausted`` set.
-    The check runs between stages (and between line-split seeds and coupled-search sizes), so a single
-    long stage can overrun it. The bidirectional build's retry ladder counts against the budget
+    With ``time_budget`` (seconds) the search becomes anytime: every stage gets a share of the time left
+    and stops at its deadline, the stages from the simplex-chain search on stop a fifth of the budget early
+    so that the final generator heaviest-term bound keeps that time, and once the budget is spent the rest are
+    skipped and the best verified bracket so far is returned with ``budget_exhausted`` set. The coupled
+    search's ε-machine seed and the targeted line-split polish finish past their deadlines, so a run can
+    still overrun by those. The bidirectional build's retry ladder counts against the budget
     (see :func:`~sofic.generators.bidirectional_build.build_bidirectional_with_ladder`).
     ``global_bound`` and ``global_bound_states`` are as in :func:`generative_model_from_bidirectional`.
     """

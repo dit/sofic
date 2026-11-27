@@ -31,9 +31,40 @@ brute-force reference or a closed-form value and has a regression test.
   alternates linear programs over those representations with gradient steps on the atoms, on both sides, starting
   from the ε-machines. Every iterate passes a Tzeng word check, and at cryptic orders up to 4 the atoms stay on the
   faces of the synchronizing complex. Results are `SimplexChainResult`s (`pi`, `K`, `atoms`, `word_error`).
-- `generative_model` runs it right after the exact path (`simplex_chains=True`, stage `"chains"`) with a quarter of
-  the remaining budget, or 2 s per side without one, and stops once a generator meets the lower bound. On 306
-  archive processes it went below the best known upper bound on 42, by up to 0.295 bits (`n3-t138-d4`).
+- `generative_model` runs it right after the exact path and the theorem case's generator coverage bound, before the
+  lookahead generator and the searches seeded by the exact-common-information optima (`simplex_chains=True`, stage
+  `"chains"`), with a quarter of the remaining budget, or 2 s per side without one, and stops once a generator meets
+  the lower bound. On 306 archive processes it went below the best known upper bound on 42, by up to 0.295 bits
+  (`n3-t138-d4`). In its first place, after the line-split seeds, it got a median of 34 s of a 300 s budget on 20 hard
+  processes and 1.6 s on `n3-t119-d3`.
+
+### Time budgets kept
+
+- `universal_generative_optimizer` checks its `deadline` before and between its memory-lift and G-optimum seed
+  builders and leaves its loop over state counts at the deadline whether or not a generator has verified, and
+  `coupled_search` passes the deadline to every start after the ε-machine seed. Before, the stage ignored the
+  deadline until it had verified a generator; on `n3-t088-d3` it ran from 257 s to 1,197 s of a 300 s budget.
+- `minimal_generative_model` and `wyner_generative_model` take a `deadline`: past it, `lifted_model` starts no dit
+  run, continuation start or refinement, and the ε-machine channels, which always lift, remain candidates. The
+  pipeline's lifted channel stage gets 30% of the remaining budget; it had no limit and ran 281 s and 341 s of a 300 s
+  budget on two processes.
+- `targeted_line_split_seeds` begins no start after its deadline, even when none has succeeded, and a running
+  Nelder-Mead start stops there while COBYLA keeps its last feasible point; only the polish of the best decomposition
+  runs past it. On `n3-t131-d2` seventeen failed starts had carried the stage 466 s past its deadline.
+- With `time_budget`, the stages from the simplex-chain search on stop a fifth of the budget early when the final
+  generator heaviest-term bound can run (`generator_heaviest_term`, not Wyner, at most 14 causal states), and that
+  stage gets the rest. The stages before the chain search still share the whole budget. Every stage takes a share
+  of the time left, so the final lower bound used to get whatever the others left.
+- The dit fallbacks hand dit the joint above mass `1e-10`, which can drop pairs of causal states;
+  `_unconstrained_channel` now gives those pairs the channel's state marginal. `generative_model` raised `KeyError`
+  on `n3-t131-d0`, whose pair `(0, 'C')` has mass `4e-11`.
+- On 22 hard binary 3-state processes at a 300 s budget, every run now ends within the budget (at most 300.0 s), and
+  `n3-t131-d0` closes its bracket in 112 s. Before, 11 of 20 runs went more than 10% over, up to 1,142 s, and one
+  was stopped at 1,200 s. The reserved time raised 8 lower bounds through the final generator heaviest-term bound,
+  by up to 0.102 bits (`n3-t140-d4`); the generator coverage bound, which supplies most of the others, depends on
+  machine load through its deadline, and run side by side with the previous code it gives the same values. The
+  simplex-chain stage gets 36 to 45 s there, and the final upper bound is within `1e-6` of the best value of the
+  standalone search, which ran 20 to 60 s per side, on 11 of the 22.
 
 ### Generator cardinality
 

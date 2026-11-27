@@ -441,6 +441,22 @@ def test_alm_polish_returns_at_an_expired_deadline() -> None:
     assert np.allclose(problem.unpack(out, 3)[0], problem.unpack(theta, 3)[0])
 
 
+def test_coupled_search_stops_every_start_but_the_epsilon_seed_at_its_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    seen: list[float | None] = []
+
+    def recorded(problem, theta, k, maxiter, **kwargs):
+        seen.append(kwargs.get("deadline"))
+        return theta
+
+    monkeypatch.setattr(cg, "_optimize_coupled", recorded)
+    deadline = time.monotonic() + 600.0
+    cg.coupled_search(_rll(), 4, starts=2, deadline=deadline, rng=np.random.default_rng(0))
+    assert len(seen) > 1 and seen[0] is None
+    assert all(d == deadline for d in seen[1:])
+
+
 def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> None:
     import time
 
@@ -454,5 +470,5 @@ def test_coupled_memory_and_targeted_searches_stop_at_an_expired_deadline() -> N
     lifts = cg.memory_lift_search(bidir, 2, starts=50, deadline=time.monotonic(), rng=np.random.default_rng(0))
     assert len(lifts) == 1
     seeds = cg.targeted_line_split_seeds(problem, optima, deadline=time.monotonic(), rng=np.random.default_rng(0))
-    assert len(seeds) <= 1
+    assert seeds == []
     assert time.monotonic() - start < 120

@@ -151,6 +151,7 @@ def minimal_generative_model(
     cutoff: float = 1e-10,
     reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
+    deadline: float | None = None,
 ) -> MinimalGenerativeModel:
     """Construct a minimal generative model from a bidirectional epsilon-machine.
 
@@ -177,7 +178,10 @@ def minimal_generative_model(
     accepted and the best candidates refined toward exact closure; a residual
     ``r`` allows the value and word probabilities to be off by roughly
     ``sqrt(r)``. The model is checked against the source up to
-    ``reproduction_atol`` in word probability.
+    ``reproduction_atol`` in word probability. With a ``deadline`` (a
+    :func:`time.monotonic` time) no start, dit run or refinement begins after
+    it; the ε-machine channels always lift, so a model is still returned, at
+    worst one of them.
     """
     from sofic.generators.lifted_common_information import lifted_model
 
@@ -196,6 +200,7 @@ def minimal_generative_model(
             reproduction_atol=reproduction_atol,
             cutoff=cutoff,
             rng=rng,
+            deadline=deadline,
         ),
     )
 
@@ -213,13 +218,14 @@ def wyner_generative_model(
     cutoff: float = 1e-10,
     reproduction_atol: float = 1e-3,
     rng: np.random.Generator | None = None,
+    deadline: float | None = None,
 ) -> WynerGenerativeModel:
     """Construct a Wyner generative model from a bidirectional epsilon-machine.
 
     The auxiliary state ``G`` minimizes ``I[(S+, S-) : G]`` :cite:`Wyner1975`
     subject to rendering ``S+`` and ``S-`` conditionally independent and to the
     two lifting conditions of :func:`minimal_generative_model`, whose parameters
-    it shares, and like it searches lifted generators only. The returned model's
+    (``deadline`` included) it shares, and like it searches lifted generators only. The returned model's
     state entropy ``H[G]`` is not generally equal to that optimized mutual
     information. The unconstrained value is
     :meth:`~sofic.generators.bidirectional_epsilon_machine.BidirectionalEpsilonMachine.wyner_common_information`.
@@ -241,6 +247,7 @@ def wyner_generative_model(
             reproduction_atol=reproduction_atol,
             cutoff=cutoff,
             rng=rng,
+            deadline=deadline,
         ),
     )
 

@@ -29,7 +29,7 @@ result bounds the generative complexity :math:`C_g` of Löhr & Ay
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
@@ -907,7 +907,7 @@ def targeted_line_split_seeds(
     decompositions (all if ``None``) are polished by the coupled ALM from several logit floors; seeds
     that reach the generator equations to ``residual_atol`` are returned. ``configs`` lists
     ``(broad, axis)`` pairs. After ``deadline`` (a :func:`time.monotonic` value) no new start or hop
-    begins and only the best decomposition found so far is polished.
+    begins, a running local search stops, and only the best decomposition found so far is polished.
     """
 
     def late() -> bool:
@@ -926,9 +926,11 @@ def targeted_line_split_seeds(
             starts = [base] + [base + rng.normal(scale=0.3, size=base.shape) for _ in range(perturbations)]
             lines = "columns" if axis == 0 else "rows"
             for s, z in enumerate(starts):
-                if late() and found:
+                if late():
                     break
-                local = _line_split_local(problem, P, z, broad, axis, nm_factor=300, cobyla_iter=3000)
+                local = _line_split_local(
+                    problem, P, z, broad, axis, nm_factor=300, cobyla_iter=3000, deadline=deadline
+                )
                 if local is not None:
                     name = f"targeted line split {i}.{s} ({broad} broad + {lines})"
                     found.append((local[0], name, local[1], broad, axis))
@@ -938,7 +940,9 @@ def targeted_line_split_seeds(
             if late():
                 break
             scale = hop_scales[step % len(hop_scales)]
-            local = _line_split_local(problem, P, z + rng.normal(scale=scale, size=z.shape), broad, axis)
+            local = _line_split_local(
+                problem, P, z + rng.normal(scale=scale, size=z.shape), broad, axis, deadline=deadline
+            )
             if local is not None and local[0] < h - 1e-6:
                 h, z = local
         found[j] = (h, name if h >= found[j][0] - 1e-6 else f"{name}, hops", z, broad, axis)
@@ -971,8 +975,12 @@ def _line_split_local(
     *,
     nm_factor: int = 100,
     cobyla_iter: int = 1000,
+    deadline: float | None = None,
 ) -> tuple[float, np.ndarray] | None:
-    """Nelder-Mead to kernel-LP feasibility, then COBYLA on the state entropy; ``(entropy, z)`` or ``None``."""
+    """Nelder-Mead to kernel-LP feasibility, then COBYLA on the state entropy; ``(entropy, z)`` or ``None``.
+
+    Once ``deadline`` (a :func:`time.monotonic` value) passes, a start that has not reached feasibility gives
+    ``None`` and COBYLA keeps the last feasible point."""
 
     def violation(y: np.ndarray) -> float:
         return _kernel_lp_beliefs(problem, *_line_split_beliefs(P, y, broad, axis))[0]
@@ -980,22 +988,39 @@ def _line_split_local(
     def entropy(y: np.ndarray) -> float:
         return _entropy(_line_split_beliefs(P, y, broad, axis)[0])
 
+    def stopping(f: Callable[[np.ndarray], float]) -> Callable[[np.ndarray], float]:
+        def g(y: np.ndarray) -> float:
+            if deadline is not None and time.monotonic() > deadline:
+                raise _DeadlineReachedError
+            return f(y)
+
+        return g
+
     if violation(z) >= 1e-6:
-        res = minimize(
-            violation, z, method="Nelder-Mead", options={"maxiter": nm_factor * len(z), "xatol": 1e-9, "fatol": 1e-13}
-        )
+        try:
+            res = minimize(
+                stopping(violation),
+                z,
+                method="Nelder-Mead",
+                options={"maxiter": nm_factor * len(z), "xatol": 1e-9, "fatol": 1e-13},
+            )
+        except _DeadlineReachedError:
+            return None
         if res.fun >= 1e-6:
             return None
         z = res.x
     constraint = [{"type": "ineq", "fun": lambda y: 1e-9 - violation(y)}]
     for rho in (0.5, 0.1):
-        res = minimize(
-            entropy,
-            z,
-            method="COBYLA",
-            constraints=constraint,
-            options={"rhobeg": rho, "maxiter": cobyla_iter, "tol": 1e-10},
-        )
+        try:
+            res = minimize(
+                stopping(entropy),
+                z,
+                method="COBYLA",
+                constraints=constraint,
+                options={"rhobeg": rho, "maxiter": cobyla_iter, "tol": 1e-10},
+            )
+        except _DeadlineReachedError:
+            break
         if violation(res.x) < 1e-6:
             z = res.x
     return entropy(z), z
@@ -1236,7 +1261,8 @@ def coupled_search(
     """Optimize k-state generators from the standard seeds, ``extra`` named seeds and random starts.
 
     Returns every candidate whose generator equations hold to ``residual_atol``, best first. No new start
-    begins after ``deadline`` (a :func:`time.monotonic` value); the ε-machine seed always runs.
+    begins after ``deadline`` (a :func:`time.monotonic` value), and a start in progress stops at it; the
+    ε-machine seed always runs to the end.
     """
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
@@ -1268,6 +1294,7 @@ def coupled_search(
                 alternating=alternating,
                 dual_strategy=dual_strategy,
                 residual_atol=residual_atol,
+                deadline=deadline if index > 0 else None,
             )
             pi, Q, R, K = problem.unpack(theta, k)
         residual = problem.residual(pi, Q, R, K)
