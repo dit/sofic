@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import itertools
 import math
+import time
 
 import numpy as np
 import pytest
@@ -176,19 +177,40 @@ def test_the_search_stops_at_the_target():
     assert results[0].log[-1][0] == "restart vertices"  # no restarts after the ε-machine's descent
 
 
-@pytest.mark.filterwarnings("ignore:the reverse ε-machine of this process is infinite:RuntimeWarning")
-def test_the_search_starts_from_the_epsilon_machine():
-    """Two forward causal states and an infinite reverse ε-machine (53 states at the merge tolerance); the generative
-    complexity is the forward ε-machine's entropy."""
+@functools.cache
+def _infinite_reverse_problem() -> _GeneratorProblem:
+    """Two forward causal states and an infinite reverse ε-machine (53 states at the merge tolerance)."""
     mats = {
         0: np.array([[0.1317773554901893, 0.0], [0.3703792631454206, 0.0]]),
         1: np.array([[0.1449685489375078, 0.0], [0.0, 0.39404348038124015]]),
         2: np.array([[0.0, 0.7232540955723029], [0.0, 0.23557725647333932]]),
     }
-    problem = _GeneratorProblem(BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1), (0, 1, 2), mats)))
+    return _GeneratorProblem(BidirectionalEpsilonMachine.from_forward(from_symbol_matrices((0, 1), (0, 1, 2), mats)))
+
+
+@pytest.mark.filterwarnings("ignore:the reverse ε-machine of this process is infinite:RuntimeWarning")
+def test_the_search_starts_from_the_epsilon_machine():
+    """The generative complexity of this process is the forward ε-machine's entropy."""
+    problem = _infinite_reverse_problem()
     (result,) = sc.simplex_chain_search(problem, sides=("forward",), seconds=0.0, restarts=0)
     assert result.entropy == pytest.approx(sc._entropy(_own_law(problem, "forward")), abs=1e-9)
     assert result.word_error < 1e-10
+
+
+def test_the_wall_tangent_stops_at_its_deadline():
+    side = _sides()["forward"]
+    atoms, assign = np.eye(side.n), _full_blocks(side)
+    assert sc._wall_tangent(side, atoms, assign, deadline=time.monotonic() - 1.0) is None
+    assert sc._wall_tangent(side, atoms, assign) is not None
+
+
+@pytest.mark.filterwarnings("ignore:the reverse ε-machine of this process is infinite:RuntimeWarning")
+def test_the_search_keeps_its_time_on_a_large_side():
+    """On the 53 reverse states one wall tangent took about a minute, past a 2 s budget (95 s in all)."""
+    problem = _infinite_reverse_problem()
+    start = time.monotonic()
+    sc.simplex_chain_search(problem, sides=("reverse",), seconds=2.0, rng=np.random.default_rng(0))
+    assert time.monotonic() - start < 20.0
 
 
 def test_the_pipeline_offers_the_simplex_chain_generators():

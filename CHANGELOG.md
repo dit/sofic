@@ -21,6 +21,14 @@ brute-force reference or a closed-form value and has a regression test.
   machine is infinite (was: always `"finite"`), as the build does.
 - The simplex-chain search treats a Gauss-Newton step whose SVD does not converge (`numpy.linalg.LinAlgError`) as a
   failed snap; on a binary 3-state process the error ended `generative_model` after 116 s.
+- The simplex-chain search checks its deadline inside an atom step. The reverse side of a truncated build can have
+  ~100 states, and one wall tangent there (a finite-difference Jacobian over every atom coordinate) took minutes: with
+  the truncation's lower bounds skipped the search ran, and `generative_model` on a 2-state ternary process with 90
+  reverse states was still running at 1,020 s on a 300 s budget. On a 53-state reverse side a 2 s search took 95 s.
+- `bilevel_search` checks its deadline at every evaluation of its objective, keeping the best channel scored, where
+  Powell's callback checked it once an iteration. An iteration line-searches every logit of the channel, and on a
+  truncated build with 69 reverse states the search ran 163 s past its share (`generative_model` took 392 s on a
+  300 s budget, 491 s on `main`).
 
 ### Coverage bound: least entropy under the caps
 

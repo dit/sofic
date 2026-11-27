@@ -649,10 +649,15 @@ def _chamber_gradient(side: _Side, atoms: np.ndarray, assign: Assignment, pi: np
 
 
 def _wall_tangent(
-    side: _Side, atoms: np.ndarray, assign: Assignment, tol: float = 1e-12, h: float = 1e-7
-) -> np.ndarray:
+    side: _Side,
+    atoms: np.ndarray,
+    assign: Assignment,
+    tol: float = 1e-12,
+    h: float = 1e-7,
+    deadline: float = math.inf,
+) -> np.ndarray | None:
     """Orthonormal basis of the directions that keep every wall equation, zero coordinate and unit sum to first
-    order."""
+    order, or ``None`` if ``deadline`` (a :func:`time.monotonic` value) passes first."""
     N, n = atoms.shape
     faces = [tuple(int(c) for c in np.flatnonzero(a <= tol)) for a in atoms]
 
@@ -663,6 +668,9 @@ def _wall_tangent(
     flat = atoms.ravel()
     J = np.empty((len(eqs(flat)), flat.size))
     for j in range(flat.size):
+        # ~10^4 columns of two wall solves each on the ~100-state reverse side of a truncated build
+        if time.monotonic() > deadline:
+            return None
         d = np.zeros_like(flat)
         d[j] = h
         J[:, j] = (eqs(flat + d) - eqs(flat - d)) / (2 * h)
@@ -672,19 +680,25 @@ def _wall_tangent(
 
 
 def _atom_step(
-    side: _Side, problem: _GeneratorProblem, chain: dict[str, Any], max_iter: int = 15
+    side: _Side,
+    problem: _GeneratorProblem,
+    chain: dict[str, Any],
+    max_iter: int = 15,
+    deadline: float = math.inf,
 ) -> tuple[dict[str, Any], list[np.ndarray]]:
-    """Projected gradient descent with the assignment held. Returns the improved exact chain (or the input) and the
-    moved atoms of steps that crossed a wall."""
+    """Projected gradient descent with the assignment held, stopping at ``deadline``. Returns the improved exact
+    chain (or the input) and the moved atoms of steps that crossed a wall."""
     atoms, assign, H = chain["atoms"], chain["assign"], chain["entropy"]
     crossed = []
     for _ in range(max_iter):
+        if time.monotonic() > deadline:
+            break
         try:
             grad = _chamber_gradient(side, atoms, assign, chain["pi"])
         except np.linalg.LinAlgError:
             break
-        B = _wall_tangent(side, atoms, assign)
-        if not B.shape[1]:
+        B = _wall_tangent(side, atoms, assign, deadline=deadline)
+        if B is None or not B.shape[1]:
             break
         g = B @ (B.T @ grad.ravel())
         norm = np.linalg.norm(g)
@@ -725,10 +739,12 @@ def _descend(
         if time.monotonic() > deadline:
             break
         improved = False
-        moved, crossed = _atom_step(side, problem, chain)
+        moved, crossed = _atom_step(side, problem, chain, deadline=deadline)
         if moved["entropy"] < chain["entropy"] - 1e-13:
             chain, improved = moved, True
             log.append(("atoms", chain["entropy"], len(chain["atoms"]), time.monotonic() - t0))
+        if time.monotonic() > deadline:
+            break
         extra = [*chain["atoms"], *_images(side, chain["atoms"]), *[a for c in crossed[-3:] for a in c]]
         extra += _ray_exits(list(chain["atoms"]), _images(side, chain["atoms"]), faces, _N_RAYS // 2, rng)
         extra += _random_points(faces, 4, rng, side.n)
