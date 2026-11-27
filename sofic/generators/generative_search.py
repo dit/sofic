@@ -19,8 +19,11 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    :math:`C_g = \op{G}{S^+ : S^-}` and the *exact path* runs
    (:mod:`~sofic.generators.separating_generators`): a least-entropy separating decomposition with at most
    :math:`K(P)` terms, exact on rectangle-free components and from SCIP otherwise, whose generator is written
-   down directly; SCIP's dual bound enters ``lower`` as a numerical bound (``lower_certified`` False). Without
-   PySCIPOpt, components with rectangles fall back to multistart descents and the lower bounds below. For
+   down directly; SCIP's dual bound enters ``lower`` as a numerical bound (``lower_certified`` False). When the
+   exact path leaves the bracket open, the certified heaviest-term bound on :math:`\op{G}{S^+ : S^-}`
+   (:func:`~sofic.generators.exact_ci_bounds.heaviest_term_bound`) runs right after it, aimed at the best
+   generator. Without PySCIPOpt, components with rectangles fall back to multistart descents and the lower
+   bounds below. For
    cryptic order 2 or 3 the lookahead generator
    (:func:`~sofic.generators.separating_generators.lookahead_generator`) is offered as a candidate.
 3. *Exact optima + kernel LP.* Enumerate :math:`\op{G}{S^+ : S^-}` optima; optional
@@ -603,6 +606,24 @@ def _bracket_search(
         if gen.value > lower + 1e-9:
             lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
 
+    def heaviest_term_wanted() -> bool:
+        return not wyner and coverage == "certified" and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
+
+    def heaviest_term(aim: float) -> None:
+        nonlocal lower, lower_source, lower_certified
+        joint_matrix = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
+        htb = heaviest_term_bound(joint_matrix, target=aim, deadline=share(0.15))
+        log.append(
+            {
+                "stage": "heaviest-term bound (certified)",
+                "value": htb.value,
+                "nodes": htb.nodes,
+                "reached": htb.reached,
+            }
+        )
+        if htb.value > lower + 1e-9:
+            lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
+
     # With p.chi+- = 0 the exact path below usually certifies C_g = G, so the generator coverage bound runs after it.
     want_generator_coverage = not wyner and coverage == "certified" and generator_caps > 0 and not settled
 
@@ -724,6 +745,17 @@ def _bracket_search(
                 lower = dec.lower
                 lower_source = "exact separating decomposition" if dec.exact else "separating global bound (numerical)"
                 lower_certified = dec.exact
+            early = maybe_return_early()
+            if early is not None and early.certified:
+                return _finalize_result(early)
+        best = min((c[0] for c in candidates), default=np.inf)
+        if (
+            heaviest_term_wanted()
+            and np.isfinite(best)
+            and best - lower > _CERT_TOL
+            and not out_of_time("heaviest-term bound")
+        ):
+            heaviest_term(best - 0.5 * _CERT_TOL)
             early = maybe_return_early()
             if early is not None and early.certified:
                 return _finalize_result(early)
@@ -873,27 +905,13 @@ def _bracket_search(
             }
         )
         if (
-            not wyner
-            and coverage == "certified"
+            heaviest_term_wanted()
             and g_estimate is not None
             and lower < g_estimate - _CERT_TOL
-            and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
             and not out_of_time("heaviest-term bound")
         ):
-            joint_matrix = problem.lifted.plus.T @ (problem.p_pair[:, None] * problem.lifted.minus)
             # aim inside the certification tolerance of the best upper so far, so a closed bracket certifies
-            aim = min(g_estimate, min((c[0] for c in candidates), default=np.inf)) - 0.5 * _CERT_TOL
-            htb = heaviest_term_bound(joint_matrix, target=aim, deadline=share(0.15))
-            log.append(
-                {
-                    "stage": "heaviest-term bound (certified)",
-                    "value": htb.value,
-                    "nodes": htb.nodes,
-                    "reached": htb.reached,
-                }
-            )
-            if htb.value > lower + 1e-9:
-                lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
+            heaviest_term(min(g_estimate, min((c[0] for c in candidates), default=np.inf)) - 0.5 * _CERT_TOL)
         if bilevel and n_generating == 0 and optima and not out_of_time("bilevel search"):
             for ent, viol, c in bilevel_search(bidir, optima[:8], deadline=share(0.15))[:4]:
                 log.append({"stage": "bilevel search", "entropy": ent, "kernel violation": viol})

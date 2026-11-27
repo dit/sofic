@@ -131,6 +131,10 @@ brute-force reference or a closed-form value and has a regression test.
 - `generator_heaviest_term_bound` limits each generator-cap LP to the time left before its
   `deadline`. A single degenerate HiGHS solve previously ran more than half an hour past a 900 s
   deadline (`n3-t045-d3`); it now returns on time.
+- At cryptic order at most 1, `generative_model` runs the certified `heaviest_term_bound` right after an exact
+  path that leaves the bracket open, aimed at the best generator, instead of after the generator coverage bound
+  and the exact-common-information optima. On a 2-state process on three symbols whose SCIP dual stopped
+  `4.9e-6` bits short, it certifies in 6 s instead of 41 s, run side by side.
 
 ### Finite-state rounded HMM filters
 
@@ -546,6 +550,9 @@ brute-force reference or a closed-form value and has a regression test.
 
 ### Fixes
 
+- `functional_generative_model` no longer passes dit's `_strategy`, deprecated in dit 2.4 (its functional
+  common information is an exact cover with no search strategy), so it raises no `DeprecationWarning`. Its
+  `strategy` argument is ignored and deprecated.
 - The exact/Wyner generative-model channel was read off dit's optimum with
   the reverse-state axis permuted whenever the joint support listed a
   higher-indexed reverse state first (dit numbers symbols by first

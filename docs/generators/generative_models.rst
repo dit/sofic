@@ -378,7 +378,11 @@ and bounding the remainder by certified caps of its entrywise upper envelope giv
 after the heaviest, the bound is tight. The pipeline runs it (the ``heaviest-term bound`` stage) when
 the certified lower bound is still below the exact-common-information estimate and
 :math:`|S^+| + |S^-| \le 7`. On three survey processes with :math:`3 \times 3` joints it raises the
-lower bound to the estimate, closing ``((0,1),(2,·),(0,1))`` at :math:`0.9335` bits.
+lower bound to the estimate, closing ``((0,1),(2,·),(0,1))`` at :math:`0.9335` bits. At cryptic order at
+most 1 it also runs right after an exact path that leaves the bracket open, aimed at the best generator. On a
+2-state process on three symbols whose SCIP dual stopped :math:`4.9 \times 10^{-6}` bits short of the theorem
+generator's entropy, it closes the bracket in 806 boxes. Run side by side, the pipeline certifies in 6 s; before,
+it first ran the generator coverage bound and the exact-common-information optima and took 41 s.
 
 A generator's states are an exact decomposition whose heaviest term is its heaviest state, and that
 state satisfies the generator equations, so the same branching bounds :math:`C_g` when each box's

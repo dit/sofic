@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections import defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass
@@ -441,7 +442,7 @@ def functional_generative_model(
     bidir: BidirectionalEpsilonMachine,
     *,
     cutoff: float = 1e-10,
-    strategy: str = "auto",
+    strategy: str | None = None,
 ) -> FunctionalGenerativeModel:
     """Construct a functional generative model from a bidirectional epsilon-machine.
 
@@ -453,22 +454,27 @@ def functional_generative_model(
     is exposed as ``functional_common_information``; because ``G`` is
     deterministic, the model's state entropy equals that value exactly.
 
-    dit's functional-common-information partition (``strategy`` is passed to it)
-    is used when it already satisfies the lifting conditions, in which case it is
-    optimal. Otherwise the partitions of the joint support are searched
-    exhaustively when there are at most nine joint states, and greedily (merging
-    blocks of ``(S+, S-)`` while the conditions hold) beyond that.
+    dit's functional-common-information partition is used when it already
+    satisfies the lifting conditions, in which case it is optimal. Otherwise the
+    partitions of the joint support are searched exhaustively when there are at
+    most nine joint states, and greedily (merging blocks of ``(S+, S-)`` while the
+    conditions hold) beyond that.
+
+    .. deprecated:: 0.4.0
+       ``strategy`` is ignored: dit 2.4 computes the partition as an exact cover, with no search strategy.
     """
     if cutoff < 0.0:
         raise ValueError("cutoff must be nonnegative")
+    if strategy is not None:
+        warnings.warn(
+            "functional_generative_model: strategy is ignored and will be removed; dit computes the functional "
+            "common information as an exact cover",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     joint = _normalized_joint_distribution(bidir, cutoff=cutoff)
-    pair_channel, functional_common_information = _functional_state_channel(
-        bidir,
-        joint,
-        cutoff=cutoff,
-        strategy=strategy,
-    )
+    pair_channel, functional_common_information = _functional_state_channel(bidir, joint, cutoff=cutoff)
     return cast(
         FunctionalGenerativeModel,
         _model_from_channel(
@@ -555,7 +561,6 @@ def _functional_state_channel(
     joint: dict[tuple[Hashable, Hashable], float],
     *,
     cutoff: float,
-    strategy: str,
 ) -> tuple[dict[tuple[Hashable, Hashable], dict[Hashable, float]], float]:
     """Deterministic channel ``W = f(S+, S-)`` of least entropy that separates the causal states and lifts.
 
@@ -565,7 +570,7 @@ def _functional_state_channel(
     """
     from sofic.generators.lifted_common_information import lifted_partition_channel, partition_residual
 
-    channel, value = _dit_functional_channel(joint, strategy=strategy)
+    channel, value = _dit_functional_channel(joint)
     if partition_residual(bidir, joint, channel) <= _EXACT_ATOL:
         return channel, value
     return lifted_partition_channel(bidir, joint)
@@ -573,8 +578,6 @@ def _functional_state_channel(
 
 def _dit_functional_channel(
     joint: dict[tuple[Hashable, Hashable], float],
-    *,
-    strategy: str,
 ) -> tuple[dict[tuple[Hashable, Hashable], dict[Hashable, float]], float]:
     """Deterministic channel from dit's functional-common-information partition (separation only)."""
     plus_states = {pair[0] for pair in joint}
@@ -590,7 +593,7 @@ def _dit_functional_channel(
     dist, plus_index, minus_index = _indexed_joint_distribution(joint)
 
     stats: dict[str, Any] = {}
-    value = _as_float(functional_markov_chain(dist, [[0], [1]], _strategy=strategy, _stats=stats))
+    value = _as_float(functional_markov_chain(dist, [[0], [1]], _stats=stats))
     partition = stats.get("partition")
     if partition is None:
         raise StochasticValidationError("functional common information search returned no partition")
