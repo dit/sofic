@@ -103,6 +103,9 @@ brute-force reference or a closed-form value and has a regression test.
   offers the polished solution as a candidate. `lower` and `certified` are unchanged. At
   `(p, q) = (0.836, 0.788)` in the binary two-state family the bound at `k = 3` is 0.15563 (11 s), and the
   polished solution is a generator of entropy 0.15571, 0.43 bits below `C_mu`.
+- `generator_global_bound(..., weight_box=(lo0, hi0, lo1, hi1))` confines the two heaviest (sorted) weights to
+  a box, for covers of their region by boxes solved one at a time. On two 3-state processes the solve at `k = 5`
+  over the whole region stopped after three hours with its dual bound at 95% and 98% of the objective limit.
 
 ### Belief-free generator search
 

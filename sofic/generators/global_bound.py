@@ -266,6 +266,7 @@ def generator_global_bound(
     objective_limit: float | None = None,
     two_step: bool = True,
     caps: Sequence[float] = (),
+    weight_box: Sequence[float] | None = None,
     time_limit: float | None = None,
     data_tol: float = 1e-7,
     pi_min: float = 1e-7,
@@ -282,6 +283,12 @@ def generator_global_bound(
     any generator, e.g. those of :func:`~sofic.generators.generator_caps.generator_coverage_bound`) become
     linear cuts. Each entropy term is evaluated at :math:`\max(\pi_w, \text{pi\_min})`, which overestimates it by
     at most :math:`\text{pi\_min} \log_2(1/\text{pi\_min})`; ``slack`` (``k`` times that) is subtracted.
+
+    ``weight_box`` ``(lo0, hi0, lo1, hi1)`` confines the two heaviest weights to
+    :math:`\text{lo0} \le \pi_0 \le \text{hi0}` and :math:`\text{lo1} \le \pi_1 \le \text{hi1}`. The result then
+    speaks only for generators whose two heaviest weights lie in the box, and boxes covering the region those
+    weights can take, each solved alone, bound every generator with at most ``k`` states where one solve over
+    the whole region may not finish.
 
     ``objective_limit`` (e.g. the entropy of a verified generator) lets SCIP prune everything above it; when it
     then reports ``"infeasible"``, no generator with at most ``k`` states has entropy below
@@ -369,6 +376,13 @@ def generator_global_bound(
             m.addCons(Z[w, b] == quicksum(F[w, x, v] * R[v, c] for x, c in tgt for v in W))
     for j, cap in enumerate(list(caps)[:k]):
         m.addCons(quicksum(pi[w] for w in range(j + 1)) <= float(cap))
+    if weight_box is not None:
+        lo0, hi0, lo1, hi1 = (float(t) for t in weight_box)
+        m.addCons(pi[0] >= lo0)
+        m.addCons(pi[0] <= hi0)
+        if k > 1:
+            m.addCons(pi[1] >= lo1)
+            m.addCons(pi[1] <= hi1)
     if Pe2 is not None:
         V = {(w, x, v, y, u): m.addVar(lb=0, ub=1) for w in W for x in X for v in W for y in X for u in W}
         VQ = {(*key, a): m.addVar(lb=0, ub=1) for key in V for a in A}

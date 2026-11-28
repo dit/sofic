@@ -71,6 +71,17 @@ def test_objective_limit_semantics(scip) -> None:
     assert above.primal == pytest.approx(C_MU_GOLDEN, abs=1e-4)
 
 
+def test_weight_box_confines_the_two_heaviest_weights(scip) -> None:
+    """The golden mean's 2-state optimum has weights (2/3, 1/3)."""
+    bidir = _bidir(_two_state(*GOLDEN_MEAN))
+    inside = gb.generator_global_bound(bidir, 2, objective_limit=C_MU_GOLDEN + 0.03, weight_box=(0.6, 0.7, 0.3, 0.4))
+    assert inside.status == "optimal"
+    assert C_MU_GOLDEN - 1e-4 <= inside.lower <= C_MU_GOLDEN + 1e-9
+    assert inside.seed[0][0] == pytest.approx(2 / 3, abs=1e-4)
+    outside = gb.generator_global_bound(bidir, 2, objective_limit=C_MU_GOLDEN + 0.03, weight_box=(0.8, 0.9, 0.1, 0.2))
+    assert outside.status == "infeasible" and outside.seed is None
+
+
 def test_pattern_c_point_bound_and_polish(scip) -> None:
     """At (p, q) = (0.836, 0.788) a 3-state generator of entropy H(1 - 2y, y, y) beats C_mu by 0.43 bits."""
     from sofic.generators.coupled_generators import CoupledSearchResult, _GeneratorProblem, _model_from_kernel
