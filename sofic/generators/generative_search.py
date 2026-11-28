@@ -51,6 +51,16 @@ bracket :math:`[\text{lower}, \text{upper}]` on the generative complexity
    Otherwise it does not: no bound on the number of states of a minimal generator is known when :math:`p.\chi`
    is positive. SCIP's solution, polished by the belief-free search, is offered as a candidate.
 
+*Truncated builds.* When the reverse ε-machine is infinite, the bidirectional machine is a finite truncation
+(``bidir_class`` ``"truncated"`` in the build stage, for bidirectional input as well). Its generators are
+word-verified against the forward machine, so ``upper`` holds for the process, but the lower bounds computed on it
+bound the truncation. :func:`generative_model` skips those stages (the excess entropy, stage 1, SCIP's dual bound on
+the exact path, the heaviest-term bounds and the restricted global bound's) and reports the larger future-window
+generator coverage bound at :math:`L = 2` and 3 (:func:`~sofic.generators.generator_problem_spec.window_spec`), a
+lower bound on :math:`C_g` :cite:`LohrAy2009` that needs only the forward machine, computed first with at most 30%
+of the budget. :func:`minimal_wyner_model` reports ``lower`` 0 there. Machines whose bidirectional build fails still
+raise.
+
 Every candidate is word-verified. ``certified`` reports when ``lower`` meets ``upper``.
 :func:`minimal_wyner_model` runs the same stages ranked by :math:`\I{W : S^+, S^-}`; the functional
 variant lives in :mod:`~sofic.generators.functional_generators`.
@@ -130,6 +140,10 @@ _GENERATOR_HEAVIEST_TERM_NODES = 2_000
 _GENERATOR_HEAVIEST_TERM_MAX_DIMS = 14
 # Share of a time budget kept for that stage: the upper-bound searches stop this much early.
 _GENERATOR_HEAVIEST_TERM_SHARE = 0.2
+# Future-window coverage bound on truncated builds: boxes per explicit cap by window length (2 to 9 minutes per
+# 3-state process without a deadline), and the share of a time budget it may use.
+_WINDOW_NODES = {2: (1000, 2000), 3: (300, 600)}
+_WINDOW_SHARE = 0.3
 # The restricted global bound runs only on SCIP models up to this many variables (two-step flows included;
 # 3-state binary processes at 4 states have about 1,200), and for this many seconds when there is no budget.
 _GLOBAL_BOUND_MAX_VARS = 2_000
@@ -340,11 +354,16 @@ def resolve_bidirectional(
     use_ladder: bool = True,
     time_budget: float | None = None,
 ) -> tuple[BidirectionalEpsilonMachine, dict[str, Any]]:
-    """Build or accept a bidirectional ε-machine for generator search."""
+    """Build or accept a bidirectional ε-machine for generator search.
+
+    A bidirectional input is classed as a build would be: ``"truncated"`` when the reverse ε-machine of its
+    forward machine is infinite, ``"finite"`` otherwise.
+    """
     from sofic.generators.bidirectional_build import try_build_bidirectional
 
     if isinstance(machine, BidirectionalEpsilonMachine):
-        return machine, {"bidir_class": "finite", "source": "bidirectional input"}
+        finite = machine.forward_machine.reverse_epsilon_machine_is_finite()
+        return machine, {"bidir_class": "finite" if finite else "truncated", "source": "bidirectional input"}
     forward = machine if isinstance(machine, EpsilonMachine) else EpsilonMachine.from_hmm(machine)
     built = try_build_bidirectional(
         forward, reverse_max_states=reverse_max_states, use_ladder=use_ladder, time_budget=time_budget
@@ -362,6 +381,35 @@ def resolve_bidirectional(
     if built.bidir is None:
         raise StochasticValidationError(f"generative_model: bidirectional build failed ({built.preflight.bidir_class})")
     return built.bidir, meta
+
+
+def _future_window_bound(
+    forward: EpsilonMachine, *, explicit: int, k_max: int, deadline: float | None
+) -> tuple[float, str, list[dict[str, Any]]]:
+    """The larger future-window generator coverage bound over the lengths of ``_WINDOW_NODES``, its source and
+    its log; a lower bound on :math:`C_g` from the forward machine alone. ``deadline`` is split evenly between
+    the lengths; the bounds stay valid past it, only looser."""
+    from sofic.generators.generator_caps import generator_coverage_bound
+    from sofic.generators.generator_problem_spec import window_spec
+
+    value, source, log = 0.0, "trivial lower bound", []
+    for i, (length, nodes) in enumerate(_WINDOW_NODES.items()):
+        stop = None
+        if deadline is not None:
+            now = time.monotonic()
+            stop = now + max(0.0, deadline - now) / (len(_WINDOW_NODES) - i)
+        stage = f"future-window generator coverage bound (L={length})"
+        cov = generator_coverage_bound(
+            _GeneratorProblem.from_spec(window_spec(forward, length)),
+            k_max=k_max,
+            explicit=explicit,
+            max_nodes=nodes,
+            deadline=stop,
+        )
+        log.append({"stage": stage, "value": cov.value, "caps": cov.caps})
+        if cov.value > value:
+            value, source = cov.value, stage
+    return value, source, log
 
 
 def _channel_matrix(problem: _GeneratorProblem, channel: dict) -> np.ndarray:
@@ -505,8 +553,13 @@ def _bracket_search(
     coupled_dual_strategy: bool = True,
     time_budget: float | None = None,
     rng: np.random.Generator | None = None,
+    window_lower: tuple[float, str] | None = None,
 ) -> GenerativeModelResult:
-    """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring."""
+    """Generator search ranked by state entropy or by ``I[W : S+, S-]``; see the module docstring.
+
+    ``window_lower`` is ``(value, source)`` of a lower bound on the process when ``bidir`` is a truncation; it
+    replaces every lower bound computed on ``bidir``.
+    """
     from sofic.generators.functional_generators import functional_cover_search
     from sofic.generators.lifted_common_information import _unconstrained_channel
     from sofic.generators.minimal_generative_model import (
@@ -516,6 +569,7 @@ def _bracket_search(
     )
 
     wyner = objective == "wyner"
+    truncated = window_lower is not None
     rng = rng or np.random.default_rng()
     problem = _GeneratorProblem(bidir)
     lifted = problem.lifted
@@ -526,6 +580,7 @@ def _bracket_search(
         if time_budget is not None
         and generator_heaviest_term
         and not wyner
+        and not truncated
         and problem.n_plus + problem.n_minus <= _GENERATOR_HEAVIEST_TERM_MAX_DIMS
         else 0.0
     )
@@ -557,14 +612,18 @@ def _bracket_search(
     n_rect = len(maximal_rectangles(set(joint)))
 
     # ---- lower bounds -------------------------------------------------------------------------------
-    excess = _entropy(problem.p_plus) + _entropy(problem.p_minus) - _entropy(problem.p_pair)
-    lower, lower_source = excess, "excess entropy"
+    if truncated:
+        lower, lower_source = window_lower
+        log.append({"stage": "lower bounds", "skipped": "the bidirectional machine is a truncation", "lower": lower})
+    else:
+        excess = _entropy(problem.p_plus) + _entropy(problem.p_minus) - _entropy(problem.p_pair)
+        lower, lower_source = excess, "excess entropy"
+        log.append({"stage": "excess entropy", "value": excess})
     lower_certified = True
-    log.append({"stage": "excess entropy", "value": excess})
     if wyner:
         log.append({"stage": "entropy lower bounds", "skipped": "they bound H[W], not I[W : S+, S-]"})
 
-    if not wyner and n_rect <= _MAX_RECTANGLES:
+    if not wyner and not truncated and n_rect <= _MAX_RECTANGLES:
         exact_cover = support_exact_cover_bound(joint)
         if exact_cover is not None:
             log.append(
@@ -591,7 +650,9 @@ def _bracket_search(
 
     # Both ε-machines generate the process, so once the lower bound meets the smaller of their entropies the
     # machines stage certifies and the coverage stages cannot help.
-    settled = not wyner and lower >= min(_entropy(problem.p_plus), _entropy(problem.p_minus)) - _CERT_TOL
+    settled = (
+        not wyner and not truncated and lower >= min(_entropy(problem.p_plus), _entropy(problem.p_minus)) - _CERT_TOL
+    )
     if settled:
         log.append({"stage": "coverage bounds", "skipped": "the lower bound meets an ε-machine's entropy"})
     f_crit, r_crit = _persistent_criteria(problem)
@@ -607,7 +668,12 @@ def _bracket_search(
             lower, lower_source, lower_certified = gen.value, "generator coverage bound (certified)", True
 
     def heaviest_term_wanted() -> bool:
-        return not wyner and coverage == "certified" and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
+        return (
+            not wyner
+            and not truncated
+            and coverage == "certified"
+            and problem.n_plus + problem.n_minus <= _HEAVIEST_TERM_MAX_DIMS
+        )
 
     def heaviest_term(aim: float) -> None:
         nonlocal lower, lower_source, lower_certified
@@ -625,9 +691,17 @@ def _bracket_search(
             lower, lower_source, lower_certified = htb.value, "heaviest-term bound (certified)", True
 
     # With p.chi+- = 0 the exact path below usually certifies C_g = G, so the generator coverage bound runs after it.
-    want_generator_coverage = not wyner and coverage == "certified" and generator_caps > 0 and not settled
+    want_generator_coverage = (
+        not wyner and not truncated and coverage == "certified" and generator_caps > 0 and not settled
+    )
 
-    if not settled and not wyner and coverage in ("heuristic", "certified") and not out_of_time("coverage bound"):
+    if (
+        not settled
+        and not wyner
+        and not truncated
+        and coverage in ("heuristic", "certified")
+        and not out_of_time("coverage bound")
+    ):
         try:
             use_certified = coverage == "certified"
             cov, meta, caps_ok = _coverage_lower_bound(
@@ -741,7 +815,7 @@ def _bracket_search(
                 }
             )
             offer("theorem generator (cryptic order at most 1)", seed)
-            if dec.lower > lower + 1e-9:
+            if not truncated and dec.lower > lower + 1e-9:
                 lower = dec.lower
                 lower_source = "exact separating decomposition" if dec.exact else "separating global bound (numerical)"
                 lower_certified = dec.exact
@@ -1120,7 +1194,8 @@ def _bracket_search(
             except ImportError as exc:
                 log.append({"stage": "restricted global bound", "k": k, "skipped": str(exc)})
             else:
-                restricted_lower, restricted_states = gb.lower, k
+                if not truncated:
+                    restricted_lower, restricted_states = gb.lower, k
                 log.append(
                     {
                         "stage": "restricted global bound",
@@ -1133,7 +1208,7 @@ def _bracket_search(
                         "seconds": gb.seconds,
                     }
                 )
-                if theorem and k >= K_P and gb.lower > lower + 1e-9:
+                if theorem and not truncated and k >= K_P and gb.lower > lower + 1e-9:
                     lower, lower_source, lower_certified = (
                         gb.lower,
                         "restricted global bound at K(P) (numerical)",
@@ -1184,6 +1259,7 @@ def _bracket_search(
     if (
         generator_heaviest_term
         and not wyner
+        and not truncated
         and result.lower < result.upper - _CERT_TOL
         and problem.n_plus + problem.n_minus <= max_dims
         and not out_of_time("generator heaviest-term bound")
@@ -1250,7 +1326,8 @@ def generative_model_from_bidirectional(
     ``global_bound`` (needs PySCIPOpt, ``pip install sofic[global]``) adds the restricted global bound for
     generators with at most ``global_bound_states`` states, reported as ``restricted_lower``; see
     :class:`GenerativeModelResult`. The default, :math:`\\min(|S^+|, |S^-|) + 1`, is a convention, not a bound:
-    minimal generators can need more states.
+    minimal generators can need more states. The lower bounds are computed on ``bidir``, so on a truncation they
+    bound the truncation, not the process; :func:`generative_model` handles that case.
     """
     return _bracket_search(
         bidir,
@@ -1320,7 +1397,8 @@ def minimal_wyner_model(
     Wyner model and the unconstrained Wyner optimum when it passes the generator kernel. They are ranked
     by :math:`\I{W : S^+, S^-} = \H{S^+, S^-} - \sum_w \pi_w (\H{S^+ \mid w} + \H{S^- \mid w})` and
     word-verified. The state-entropy lower bounds do not apply, so ``lower`` is the excess entropy and
-    the bracket is certified only when a candidate attains it.
+    the bracket is certified only when a candidate attains it. On a truncated build (the reverse ε-machine is
+    infinite) that would be the truncation's excess entropy, so ``lower`` is 0.
     """
     start = time.monotonic()
     bidir, build_meta = resolve_bidirectional(
@@ -1347,6 +1425,7 @@ def minimal_wyner_model(
         coupled_dual_strategy=coupled_dual_strategy,
         time_budget=time_budget,
         rng=rng,
+        window_lower=(0.0, "trivial lower bound") if build_meta["bidir_class"] == "truncated" else None,
     )
     result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
     return result
@@ -1387,7 +1466,9 @@ def generative_model(
 ) -> GenerativeModelResult:
     """Full generative-complexity search from a forward ε-machine or bidirectional presentation.
 
-    1. Build a bidirectional ε-machine (preflight / optional retry ladder).
+    1. Build a bidirectional ε-machine (preflight / optional retry ladder). On a truncation (the reverse ε-machine
+       is infinite) the future-window generator coverage bound replaces the lower bounds computed on it; see
+       "Truncated builds" in the module docstring.
     2. Certified lower bounds and persistent-crypticity test on the edge.
     3. When :math:`p.\\chi^+ \\approx p.\\chi^- \\approx 0` (cryptic order at most 1), the exact path writes down
        the generator of a least-entropy separating decomposition with at most :math:`K(P)` terms
@@ -1412,10 +1493,20 @@ def generative_model(
     bidir, build_meta = resolve_bidirectional(
         machine, reverse_max_states=reverse_max_states, use_ladder=use_ladder, time_budget=time_budget
     )
+    window_lower, window_log = None, []
+    if build_meta["bidir_class"] == "truncated":
+        stop = None
+        if time_budget is not None:
+            stop = time.monotonic() + _WINDOW_SHARE * max(0.0, time_budget - (time.monotonic() - start))
+        value, source, window_log = _future_window_bound(
+            bidir.forward_machine, explicit=generator_caps, k_max=coverage_k_max, deadline=stop
+        )
+        window_lower = (value, source)
     if time_budget is not None:
         time_budget = max(0.0, time_budget - (time.monotonic() - start))
-    result = generative_model_from_bidirectional(
+    result = _bracket_search(
         bidir,
+        objective="entropy",
         max_states=max_states,
         starts=starts,
         memory_starts=memory_starts,
@@ -1446,8 +1537,9 @@ def generative_model(
         coupled_dual_strategy=coupled_dual_strategy,
         time_budget=time_budget,
         rng=rng,
+        window_lower=window_lower,
     )
-    result.stages.insert(0, {"stage": "bidirectional build", **build_meta})
+    result.stages[:0] = [{"stage": "bidirectional build", **build_meta}, *window_log]
     return result
 
 

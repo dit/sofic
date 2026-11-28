@@ -729,36 +729,41 @@ def bilevel_search(
     """Outer search over channels ``c[pair, w]`` scoring ``H[W] + weight * t(c)``, where ``t`` is the
     linear-programming violation of :func:`generator_kernel`, from the given starting channels (derivative-free;
     small problems). Returns ``(entropy, violation, channel)`` per start, best feasible first. Past
-    ``deadline`` (a :func:`time.monotonic` value) the current start stops and no new one begins.
+    ``deadline`` (a :func:`time.monotonic` value) the current start stops, keeping the best channel it has
+    scored, and no new one begins.
     """
     problem = _GeneratorProblem(bidir)
     n = len(problem.lifted.p)
     out = []
     for c0 in starts:
         k = c0.shape[1]
+        best: dict[str, Any] = {"score": np.inf, "z": None}
 
         def channel(z: np.ndarray, k: int = k) -> np.ndarray:
             z = z.reshape(n, k)
             z = np.exp(z - z.max(axis=1, keepdims=True))
             return z / z.sum(axis=1, keepdims=True)
 
-        def score(z: np.ndarray, channel=channel) -> float:
+        # checked per evaluation: one Powell iteration line-searches every logit, minutes on a large problem
+        def score(z: np.ndarray, channel=channel, best=best) -> float:
+            if deadline is not None and time.monotonic() > deadline:
+                raise _DeadlineReachedError
             c = channel(z)
             pi = problem.lifted.p @ c
             p = pi[pi > 1e-15]
-            return float(-(p * np.log2(p)).sum()) + weight * generator_kernel(problem, c)[0]
+            value = float(-(p * np.log2(p)).sum()) + weight * generator_kernel(problem, c)[0]
+            if value < best["score"]:
+                best.update(score=value, z=z.copy())
+            return value
 
         if deadline is not None and out and time.monotonic() > deadline:
             break
 
-        def stop(intermediate_result: Any) -> None:
-            if deadline is not None and time.monotonic() > deadline:
-                raise StopIteration
-
         z0 = np.log(np.maximum(c0, 1e-6)).ravel()
-        z = minimize(
-            score, z0, method="Powell", callback=stop, options={"maxiter": maxiter, "xtol": 1e-6, "ftol": 1e-10}
-        ).x
+        try:
+            z = minimize(score, z0, method="Powell", options={"maxiter": maxiter, "xtol": 1e-6, "ftol": 1e-10}).x
+        except _DeadlineReachedError:
+            z = z0 if best["z"] is None else best["z"]
         c = channel(z)
         pi = problem.lifted.p @ c
         p = pi[pi > 1e-15]

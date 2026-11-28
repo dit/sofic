@@ -5,6 +5,31 @@
 A second correctness review: every fix below was reproduced against a
 brute-force reference or a closed-form value and has a regression test.
 
+### Truncated bidirectional machines
+
+- `generative_model` no longer reports lower bounds of a truncation as bounds on the process. When the reverse
+  ε-machine is infinite but its mixed states merge within numerical tolerance, the bidirectional machine is a finite
+  truncation (`bidir_class` `"truncated"`). Its generators are verified against the forward machine, so the upper
+  bound holds, but the excess entropy, the support-type, flow and coverage bounds, SCIP's dual bound on the exact
+  path, the heaviest-term bounds and the restricted global bound were computed on the truncation, and their sources
+  read "(certified)": on a 2-state ternary process the generator coverage bound of the truncation came within
+  `1.5e-6` of the best generator's entropy, 0.9982954, where the future-window bound is 0.9981857. These stages are
+  now skipped, as is the share of the budget held back for the final heaviest-term bound. The lower bound is the
+  larger future-window generator coverage bound at `L = 2` and 3 (`window_spec`, Löhr & Ay 2009), computed first
+  from the forward machine with at most 30% of the budget. `minimal_wyner_model` reports `lower` 0 on a truncated build.
+- `resolve_bidirectional` classes a bidirectional input `"truncated"` when the reverse ε-machine of its forward
+  machine is infinite (was: always `"finite"`), as the build does.
+- The simplex-chain search treats a Gauss-Newton step whose SVD does not converge (`numpy.linalg.LinAlgError`) as a
+  failed snap; on a binary 3-state process the error ended `generative_model` after 116 s.
+- The simplex-chain search checks its deadline inside an atom step. The reverse side of a truncated build can have
+  ~100 states, and one wall tangent there (a finite-difference Jacobian over every atom coordinate) took minutes: with
+  the truncation's lower bounds skipped the search ran, and `generative_model` on a 2-state ternary process with 90
+  reverse states was still running at 1,020 s on a 300 s budget. On a 53-state reverse side a 2 s search took 95 s.
+- `bilevel_search` checks its deadline at every evaluation of its objective, keeping the best channel scored, where
+  Powell's callback checked it once an iteration. An iteration line-searches every logit of the channel, and on a
+  truncated build with 69 reverse states the search ran 163 s past its share (`generative_model` took 392 s on a
+  300 s budget, 491 s on `main`).
+
 ### Coverage bound: least entropy under the caps
 
 - `coverage_entropy_lower(caps)`, the last step of `coverage_bound`, `generator_coverage_bound` and the pipeline's

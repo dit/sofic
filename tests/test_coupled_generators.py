@@ -425,6 +425,29 @@ def test_memory_lift_search_stops_inside_a_start_at_the_deadline(monkeypatch: py
     assert calls["n"] <= 6
 
 
+def test_bilevel_search_stops_inside_an_iteration_at_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Powell's callback comes once an iteration, after a line search along every logit; on a truncated build
+    with 69 reverse states the search ran 163 s past its share."""
+    _, optima = cg.separating_optima(cg._GeneratorProblem(_rll()), starts=5, rng=np.random.default_rng(0))
+    clock = {"now": 0.0}
+    calls = {"n": 0}
+    real = cg.generator_kernel
+
+    def tick() -> float:
+        clock["now"] += 1.0
+        return clock["now"]
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(cg.time, "monotonic", tick)
+    monkeypatch.setattr(cg, "generator_kernel", counted)
+    out = cg.bilevel_search(_rll(), optima[:1], deadline=5.0)
+    assert len(out) == 1
+    assert calls["n"] <= 6
+
+
 def test_alm_polish_returns_at_an_expired_deadline() -> None:
     import time
 

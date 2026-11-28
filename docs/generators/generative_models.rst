@@ -438,6 +438,19 @@ feeds them to :func:`~sofic.generators.generator_caps.generator_coverage_bound` 
 on :math:`C_g` from the forward ε-machine alone. On the :math:`(2, \infty)` process a
 two-symbol window already gives :math:`C_g \ge 3/2`.
 
+Some processes with infinite reverse ε-machines still build a bidirectional machine: the reverse
+mixed states merge within numerical tolerance, and the build is a finite truncation (``bidir_class``
+``"truncated"``; a bidirectional machine passed in is classed the same way). The generators found on it
+are verified against the forward machine's words, so the upper bound holds for the process, but the excess
+entropy, the support-type, flow and coverage bounds, SCIP's dual bound on the exact path, the heaviest-term
+bounds and the restricted global bound would bound the truncation, not the process.
+:func:`~sofic.generators.generative_search.generative_model` therefore skips them, and keeps no budget for
+the final heaviest-term bound. Its lower bound is the larger future-window generator coverage bound at
+:math:`L = 2` and 3 (1,000 and 2,000 boxes for the two explicit caps at :math:`L = 2`, 300 and 600 at
+:math:`L = 3`), computed first, with at most 30% of the time budget :cite:`LohrAy2009`.
+:func:`~sofic.generators.generative_search.minimal_wyner_model` reports ``lower`` 0 on a truncated build.
+Machines whose bidirectional build fails still raise.
+
 Supports without 2 × 2 rectangles
 ---------------------------------
 
