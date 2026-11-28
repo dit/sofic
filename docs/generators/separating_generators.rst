@@ -86,7 +86,8 @@ crypticities in its ``persistent criteria`` stage. When both persistent cryptici
 ``exact path`` stage after the ε-machine candidates: :func:`separating_decomposition`, :func:`reduce_decomposition`
 and :func:`theorem_generator`, offering the generator as a candidate. Its lower bound enters ``lower``. It is
 labelled ``separating global bound (numerical)``, with ``lower_certified`` False, whenever SCIP solved a
-component; the certified bounds that run later can replace it. The restricted global bound
+component; the certified bounds that run later can replace it. When the exact path leaves the bracket open,
+the certified heaviest-term bound runs next (:doc:`generative_models`). The restricted global bound
 (``global_bound=True``) defaults to :math:`K(P)` states, lowered to fit its variable cap, and at cryptic order at
 most 1 with :math:`K(P)` states it enters ``lower`` too.
 

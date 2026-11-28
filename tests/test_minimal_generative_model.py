@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import math
+import warnings
 from itertools import product
 
 import numpy as np
@@ -543,4 +544,21 @@ def test_functional_bidirectional_and_epsilon_machine_apis_agree():
     _assert_same_words(process, from_bidir)
     assert from_forward.functional_common_information == pytest.approx(
         from_bidir.functional_common_information, abs=1e-9
+    )
+
+
+def test_functional_model_passes_dit_no_search_strategy():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fgm = golden_mean_bidirectional().functional_generative_model()
+    assert not [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert fgm.functional_common_information == pytest.approx(math.log2(3) - 2 / 3, abs=1e-9)
+
+
+def test_functional_model_strategy_is_deprecated():
+    bidir = golden_mean_bidirectional()
+    with pytest.warns(DeprecationWarning, match="strategy is ignored"):
+        fgm = bidir.functional_generative_model(strategy="auto")
+    assert fgm.functional_common_information == pytest.approx(
+        bidir.functional_generative_model().functional_common_information, abs=1e-12
     )

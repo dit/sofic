@@ -240,6 +240,25 @@ def test_generator_coverage_waits_for_the_exact_path_in_the_theorem_class() -> N
     assert "exact path" in names and "generator coverage bound (certified)" not in names
 
 
+def test_an_inconclusive_exact_path_is_followed_by_the_heaviest_term_bound() -> None:
+    from sofic.examples.epsilon_machines import from_symbol_matrices
+
+    mats = {
+        0: np.array([[0.0, 0.0], [0.28489650228026714, 0.0]]),
+        1: np.array([[0.19631079625699752, 0.0], [0.008208977634958007, 0.0]]),
+        2: np.array([[0.0, 0.8036892037430026], [0.0, 0.7068945200847747]]),
+    }
+    machine = from_symbol_matrices((0, 1), (0, 1, 2), mats)
+    result = generative_model(machine, time_budget=60.0, rng=np.random.default_rng(0))
+    names = [s["stage"] for s in result.stages]
+    exact = result.stages[names.index("exact path")]
+    assert result.persistent_crypticity_theorem_applies and result.certified
+    assert result.upper - exact["lower"] > 1e-6
+    assert result.lower_source == "heaviest-term bound (certified)"
+    assert names.index("heaviest-term bound (certified)") == names.index("exact path") + 2
+    assert "exact common information" not in names
+
+
 def test_dit_fallbacks_are_skipped_on_large_joints(monkeypatch) -> None:
     import sofic.generators.generative_search as gs
     import sofic.generators.lifted_common_information as lci
